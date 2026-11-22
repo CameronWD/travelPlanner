@@ -541,22 +541,38 @@ export function DayCarousel({
 // Not part of a day: the arrows and the top bar (switcher, Share, bell) hold still while the day's heading travels.
 const HELD_STILL = '[data-slot="day-arrow"], [data-slot="day-trip-switcher"]';
 
+// Clips the sides (the neighbour) and the bottom (the height between the two),
+// never the top: the bell's unread badge and the top bar's focus rings sit above the area's edge.
+const HEADING_CLIP = "inset(-1rem 0 0 0)";
+
+/** Read once per gesture and per commit, so a frame of the gesture only writes. */
+interface HeadingMeasure {
+  width: number;
+  shown: number;
+  toward: number | null;
+  held: HTMLElement[];
+}
+
+function measureHeading(area: HTMLElement): HeadingMeasure {
+  const shown = area.querySelector<HTMLElement>("[data-day-heading-panel]:not([inert])");
+  const toward = area.querySelector<HTMLElement>("[data-day-heading-panel][inert]");
+  return { width: area.offsetWidth, shown: shown?.offsetHeight ?? 0, toward: toward ? toward.offsetHeight : null, held: shown ? Array.from(shown.querySelectorAll<HTMLElement>(HELD_STILL)) : [] };
+}
+
 function restHeading(area: HTMLElement, track: HTMLElement) {
   track.style.transform = "";
   area.style.height = "";
-  area.style.overflow = "";
+  area.style.clipPath = "";
   for (const el of area.querySelectorAll<HTMLElement>(HELD_STILL)) el.style.transform = "";
 }
 
-function moveHeading(area: HTMLElement, track: HTMLElement, progress: number, lerp: boolean) {
-  const shown = area.querySelector<HTMLElement>("[data-day-heading-panel]:not([inert])");
-  const toward = area.querySelector<HTMLElement>("[data-day-heading-panel][inert]");
-  area.style.overflow = "hidden";
+function moveHeading(area: HTMLElement, track: HTMLElement, progress: number, lerp: boolean, m: HeadingMeasure) {
+  area.style.clipPath = HEADING_CLIP;
   track.style.transform = `translate3d(${-progress * 100}%, 0, 0)`;
   // These sit in the day in view's header but hold still: the track's move, undone.
-  const still = `translate3d(${progress * area.getBoundingClientRect().width}px, 0, 0)`;
-  for (const el of shown?.querySelectorAll<HTMLElement>(HELD_STILL) ?? []) el.style.transform = still;
-  area.style.height = lerp && shown && toward ? `${lerpHeight(shown.offsetHeight, toward.offsetHeight, progress)}px` : "";
+  const still = `translate3d(${progress * m.width}px, 0, 0)`;
+  for (const el of m.held) el.style.transform = still;
+  area.style.height = lerp && m.toward != null ? `${lerpHeight(m.shown, m.toward, progress)}px` : "";
 }
 
 /**
@@ -564,10 +580,11 @@ function moveHeading(area: HTMLElement, track: HTMLElement, progress: number, le
  * and, while the body moves, the header of the day it moves towards, side by
  * side in a track that follows the body, the area's height moving between
  * theirs. Only the day's own heading travels: the arrows and the top bar are
- * held still and the neighbour's are hidden. Transform and height are written to the DOM as progress arrives;
- * only a change of neighbour renders. A settle onto the neighbour leaves the
- * track where it is until the day in view changes, so the outgoing heading
- * never shows for a frame on the way.
+ * held still and the neighbour's are hidden. Transform and height are written
+ * to the DOM as progress arrives, from measures taken at the gesture's start
+ * and on each commit; only a change of neighbour renders. A settle onto the
+ * neighbour leaves the track where it is until the day in view changes, so
+ * the outgoing heading never shows for a frame on the way.
  */
 function DayHeadingTrack({ carousel, view, panels, header }: { carousel: DayCarouselApi; view: string; panels: DayPanel[]; header: (iso: string) => React.ReactNode }) {
   const area = React.useRef<HTMLDivElement>(null);
@@ -576,58 +593,74 @@ function DayHeadingTrack({ carousel, view, panels, header }: { carousel: DayCaro
   const [toward, setToward] = React.useState<{ from: string; iso: string } | null>(null);
   const towardRef = React.useRef(toward);
   const progress = React.useRef(0);
-  // Decided once a gesture starts. Scrolled into the header, the Traveller is
-  // reading the body: the height holds, and the carousel's correction on
-  // the swap keeps the body still, as before.
+  const measured = React.useRef<HeadingMeasure | null>(null);
+  // Decided once a gesture starts, and null between gestures. Scrolled into
+  // the header, the Traveller is reading the body: the height holds, and the
+  // carousel's correction on the swap keeps the body still, as before.
   const lerp = React.useRef<boolean | null>(null);
 
   React.useLayoutEffect(() => {
     panelsRef.current = panels;
   }, [panels]);
 
-  React.useEffect(
-    () =>
-      carousel.subscribe((p, settled) => {
-        const a = area.current;
-        const t = track.current;
-        if (!a || !t) return;
-        progress.current = p;
-        const ps = panelsRef.current;
-        const from = carousel.current();
-        const n = settled ? null : neighbourIndex(ps.findIndex((d) => d.iso === from), p, ps.length);
-        const next = n == null ? null : { from, iso: ps[n].iso };
-        if (next?.iso !== towardRef.current?.iso || next?.from !== towardRef.current?.from) {
-          towardRef.current = next;
-          setToward(next);
-        }
-        if (settled) {
-          if (Math.round(p) === 0) {
-            lerp.current = null;
-            restHeading(a, t);
-          }
-          return;
-        }
-        if (lerp.current == null) lerp.current = a.getBoundingClientRect().top >= 0;
-        moveHeading(a, t, p, lerp.current);
-      }),
-    [carousel],
-  );
-
-  const neighbour = toward?.from === view ? toward.iso : null;
-
-  // A neighbour that has just come or gone takes its place, and the height its measure, before it paints.
-  React.useLayoutEffect(() => {
+  React.useEffect(() => {
     const a = area.current;
     const t = track.current;
-    if (a && t && lerp.current != null) moveHeading(a, t, progress.current, lerp.current);
-  }, [neighbour]);
+    if (!a || !t) return;
+    const off = carousel.subscribe((p, settled) => {
+      progress.current = p;
+      const ps = panelsRef.current;
+      const from = carousel.current();
+      const n = settled ? null : neighbourIndex(ps.findIndex((d) => d.iso === from), p, ps.length);
+      const next = n == null ? null : { from, iso: ps[n].iso };
+      if (next?.iso !== towardRef.current?.iso || next?.from !== towardRef.current?.from) {
+        towardRef.current = next;
+        setToward(next);
+      }
+      if (settled) {
+        if (Math.round(p) === 0) {
+          lerp.current = null;
+          measured.current = null;
+          restHeading(a, t);
+        }
+        return;
+      }
+      if (lerp.current == null || measured.current == null) {
+        lerp.current = a.getBoundingClientRect().top >= 0;
+        measured.current = measureHeading(a);
+      }
+      moveHeading(a, t, p, lerp.current, measured.current);
+    });
+    // A carousel rebuilt mid-gesture never settles this one: leave nothing moved.
+    return () => {
+      off();
+      lerp.current = null;
+      measured.current = null;
+      towardRef.current = null;
+      setToward(null);
+      restHeading(a, t);
+    };
+  }, [carousel]);
+
+  const neighbour = toward?.from === view ? toward.iso : null;
 
   React.useLayoutEffect(() => {
     const a = area.current;
     const t = track.current;
     lerp.current = null;
+    measured.current = null;
     if (a && t) restHeading(a, t);
   }, [view]);
+
+  // Every commit mid-gesture (a neighbour come or gone, a header filled in)
+  // re-measures, and places the track before it paints.
+  React.useLayoutEffect(() => {
+    const a = area.current;
+    const t = track.current;
+    if (!a || !t || lerp.current == null) return;
+    measured.current = measureHeading(a);
+    moveHeading(a, t, progress.current, lerp.current, measured.current);
+  });
 
   const viewAt = panels.findIndex((p) => p.iso === view);
   return (

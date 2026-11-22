@@ -161,7 +161,7 @@ slid with his finger and the Day strip followed it, but the heading and the lit 
 jolted the strip and the body. A tap on a day further than one away slid the body through
 every day in between, under a heading that had already changed.
 
-Three rules, below `lg`:
+Five rules, below `lg`:
 
 - **The heading travels with the body.** The heading area is a clipped track holding the
   day in view's header and, while the body moves, the header of the day it moves towards (its
@@ -172,7 +172,10 @@ Three rules, below `lg`:
   and stay put. They sit in each day's header, so the track undoes its move on the day in
   view's (an exact counter-translate) and hides the neighbour's. Taking them out of the
   header would mean rebuilding it.
-  Transform and height are written to the DOM per frame; only a change of neighbour renders.
+  Transform and height are written to the DOM per frame from widths and heights read once,
+  when the gesture starts and on each commit, so a frame of the gesture only writes; only a
+  change of neighbour renders. While moving the area is clipped at its sides and bottom, never
+  its top, where the bell's unread badge reaches above it.
   The track lives in the carousel's header box, inside the carousel's context, where the
   height hold and the swap correction already are.
   If the page is scrolled into the header when a gesture starts, the height holds and the

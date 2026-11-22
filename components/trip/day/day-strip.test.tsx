@@ -181,6 +181,25 @@ describe("DayStrip", () => {
     expect(goTo).toHaveBeenCalledWith("/trips/t1/day/2026-12-09");
     expect(links[0]).toHaveAttribute("data-pending", "true");
   });
+  it("phone: a frame of the body's progress only writes the strip's position, reading no layout", () => {
+    let emit: (p: number, settled: boolean) => void = () => {};
+    const api = fakeCarousel({ subscribe: (cb) => { emit = cb; return () => {}; } });
+    render(<NavigationPendingProvider><DayCarouselContext.Provider value={api}><DayStrip tripId="t-frames" dates={dates} line={segments} size="phone" /></DayCarouselContext.Provider></NavigationPendingProvider>);
+    const rect = vi.spyOn(HTMLElement.prototype, "getBoundingClientRect");
+    const width = vi.spyOn(HTMLElement.prototype, "clientWidth", "get");
+    const scroller = document.querySelector("[data-day-strip-scroller]") as HTMLElement;
+    const at: number[] = [];
+    for (const p of [0.1, 0.3, 0.5]) {
+      act(() => emit(p, false));
+      at.push(scroller.scrollLeft);
+    }
+    expect(rect).not.toHaveBeenCalled();
+    expect(width).not.toHaveBeenCalled();
+    expect(at[0]).toBeLessThan(at[1]);
+    expect(at[1]).toBeLessThan(at[2]);
+    rect.mockRestore();
+    width.mockRestore();
+  });
   it("the lit chip and aria-current follow the carousel's day in view as it changes, before the day shown catches up", () => {
     let inView = "2026-12-12";
     let tell: (iso: string) => void = () => {};

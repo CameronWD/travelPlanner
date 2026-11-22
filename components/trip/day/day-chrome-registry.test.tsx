@@ -52,21 +52,26 @@ describe("DayCarouselFrame: the heading travels with the body (below lg)", () =>
   const fallback: DayChromeFallbackInputs = { tripId: "t1", tripSlug: "t1", tripName: "Europe", days: DAYS.map((iso) => ({ iso, heading: iso })), unreadCount: 0, recent: [], members: [], slimOnPhone: false };
   const FAKE: Parameters<typeof vi.useFakeTimers>[0] = { toFake: ["setTimeout", "clearTimeout", "setInterval", "clearInterval", "Date", "performance", "requestAnimationFrame", "cancelAnimationFrame"] };
   const releases: Array<() => void> = [];
+  const RECT = { top: 0, bottom: 0, left: 0, right: WIDTH, width: WIDTH, height: 0, x: 0, y: 0, toJSON() {} } as DOMRect;
+  // Each heading panel is as tall as its day's header; the area is its set height, else the day in view's.
+  function heightOf(el: HTMLElement): number {
+    if (el.hasAttribute("data-day-heading-panel")) return HEIGHTS[el.getAttribute("data-day-heading-panel")!];
+    if (el.hasAttribute("data-day-heading-area")) {
+      const shown = el.querySelector("[data-day-heading-panel]:not([inert])");
+      return el.style.height ? parseFloat(el.style.height) : shown ? HEIGHTS[shown.getAttribute("data-day-heading-panel")!] : 0;
+    }
+    return 0;
+  }
 
   beforeEach(() => {
     vi.useFakeTimers(FAKE);
     push.mockReset();
     push.mockImplementation(() => new Promise<void>((r) => releases.push(r)));
     setMatchMedia(false);
-    vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockReturnValue({ top: 0, bottom: 0, left: 0, right: WIDTH, width: WIDTH, height: 0, x: 0, y: 0, toJSON() {} } as DOMRect);
-    // Each heading panel is as tall as its day's header; the area is its set height, else the day in view's.
+    vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockReturnValue(RECT);
+    vi.spyOn(HTMLElement.prototype, "offsetWidth", "get").mockReturnValue(WIDTH);
     vi.spyOn(HTMLElement.prototype, "offsetHeight", "get").mockImplementation(function (this: HTMLElement) {
-      if (this.hasAttribute("data-day-heading-panel")) return HEIGHTS[this.getAttribute("data-day-heading-panel")!];
-      if (this.hasAttribute("data-day-heading-area")) {
-        const shown = this.querySelector("[data-day-heading-panel]:not([inert])");
-        return this.style.height ? parseFloat(this.style.height) : shown ? HEIGHTS[shown.getAttribute("data-day-heading-panel")!] : 0;
-      }
-      return 0;
+      return heightOf(this);
     });
   });
   afterEach(async () => {
@@ -178,7 +183,7 @@ describe("DayCarouselFrame: the heading travels with the body (below lg)", () =>
     settle();
     expect(box.style.minHeight).toBe("");
     expect(area.style.height).toBe("");
-    expect(area.style.overflow).toBe("");
+    expect(area.style.clipPath).toBe("");
   });
 
   it("scrolled into the header, a settle onto the next day leaves no held height once the swap is corrected", () => {
@@ -205,6 +210,71 @@ describe("DayCarouselFrame: the heading travels with the body (below lg)", () =>
     });
     expect(box.style.minHeight).toBe("");
     expect(area.style.height).toBe("");
+  });
+
+  it("while moving, the area is clipped at its sides and bottom but never above its top, where the bell's unread badge sits", () => {
+    const { area, publish, settle } = mount("2026-12-19");
+    for (const at of [0.1, 0.25, 0.6]) {
+      publish(at);
+      expect(area.style.overflow).toBe("");
+      expect(area.style.overflowY).toBe("");
+      expect(area.style.clipPath).toBe("inset(-1rem 0 0 0)");
+    }
+    publish(0);
+    settle();
+    expect(area.style.clipPath).toBe("");
+  });
+
+  it("an overscroll past the first day that settles back on it clears the track, the clip and the held top bar and arrows", () => {
+    const { area, track, publish, settle } = mount("2026-12-18");
+    const held = () => Array.from(area.querySelectorAll<HTMLElement>('[data-slot="day-arrow"], [data-slot="day-trip-switcher"]'));
+    publish(-0.3);
+    expect(track.style.transform).toBe("translate3d(30%, 0, 0)");
+    expect(held().some((el) => el.style.transform !== "")).toBe(true);
+    publish(0);
+    settle();
+    expect(track.style.transform).toBe("");
+    expect(area.style.clipPath).toBe("");
+    expect(area.style.height).toBe("");
+    for (const el of held()) expect(el.style.transform).toBe("");
+    expect(push).not.toHaveBeenCalled();
+  });
+
+  it("a gesture from +0.3 through 0 to -0.3 swaps the neighbour from the next day to the previous one, on its left", () => {
+    const { area, headings, publish } = mount("2026-12-19");
+    publish(0.3);
+    expect(headings()).toEqual(["2026-12-19", "2026-12-20"]);
+    expect(area.querySelector('[data-day-heading-panel="2026-12-20"]')!.className.split(/\s+/)).toContain("left-full");
+    publish(0);
+    expect(headings()).toEqual(["2026-12-19"]);
+    publish(-0.3);
+    expect(headings()).toEqual(["2026-12-19", "2026-12-18"]);
+    const previous = area.querySelector('[data-day-heading-panel="2026-12-18"]') as HTMLElement;
+    expect(previous.className.split(/\s+/)).toContain("right-full");
+    expect(previous).toHaveAttribute("inert");
+    expect(area.style.height).toBe(`${lerpHeight(96, 110, -0.3)}px`);
+  });
+
+  it("a frame of a gesture reads no layout from the heading: widths and heights are read when it starts and when the neighbour renders", () => {
+    const { area, publish } = mount("2026-12-19");
+    publish(0.2);
+    const reads = { height: 0, width: 0, rect: 0 };
+    const inHeading = (el: HTMLElement) => area.contains(el);
+    vi.spyOn(HTMLElement.prototype, "offsetHeight", "get").mockImplementation(function (this: HTMLElement) {
+      if (inHeading(this)) reads.height++;
+      return heightOf(this);
+    });
+    vi.spyOn(HTMLElement.prototype, "offsetWidth", "get").mockImplementation(function (this: HTMLElement) {
+      if (inHeading(this)) reads.width++;
+      return WIDTH;
+    });
+    vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockImplementation(function (this: HTMLElement) {
+      if (inHeading(this)) reads.rect++;
+      return RECT;
+    });
+    for (const at of [0.3, 0.4, 0.5, 0.6]) publish(at);
+    expect(reads).toEqual({ height: 0, width: 0, rect: 0 });
+    expect(area.style.height).toBe(`${lerpHeight(96, 120, 0.6)}px`);
   });
 
   it("the track has no transition of its own: it follows the finger", () => {

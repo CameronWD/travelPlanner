@@ -26,9 +26,16 @@ const noSubscription = () => () => {};
  * lives inside the Day page, which remounts when the Traveller comes back to
  * it from another section, so without this it would snap to the day on each
  * remount instead of gliding there. Module state: kept across client navigations, reset by a
- * full load — a first render is positioned cold, with no glide.
+ * full load — a first render is positioned cold, with no glide. The phone
+ * strip in the carousel neither reads nor writes it: it is placed from the
+ * day in view (ADR 0065, amended 2026-11-22).
  */
 const lastScrollLeft = new Map<string, number>();
+
+/** The phone strip's widths, read once per placement so a frame of a gesture only writes. */
+function measureStrip(nav: HTMLElement) {
+  return { chip: nav.querySelector("a")?.getBoundingClientRect().width ?? 0, viewport: nav.clientWidth };
+}
 
 /** The centred scroll position for `chip`. */
 function targetFor(nav: HTMLElement, chip: HTMLElement, from: number): number {
@@ -58,6 +65,7 @@ export function DayStrip({ tripId, dates, line, size }: { tripId: string; dates:
   const focused = React.useRef(false);
   const returnTimer = React.useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   const memoryKey = `${tripId}:${size}`;
+  const geometry = React.useRef<ReturnType<typeof measureStrip> | null>(null);
 
   // aria-current="date" is the day the body mostly shows: the carousel's
   // nearest, which moves as a drag crosses halfway (ADR 0065, amended
@@ -86,16 +94,17 @@ export function DayStrip({ tripId, dates, line, size }: { tripId: string; dates:
     isos.current = dates.map((d) => d.iso);
   }, [dates]);
 
-  // Centre the lit chip. Below lg it is measured against the strip's
-  // viewport (ADR 0065; the md–lg band shows the desktop strip and centres
-  // the same way). From lg it goes under the fixed centre frame, the strip's
-  // one movement (spec 2026-11-18 D2). A first render after a full load is
-  // positioned cold; every later mount or lit change glides from where the
-  // strip was — unless the carousel is driving it, which follows the body.
-  //
   // The phone strip in the carousel is placed from the day in view's index
   // and nothing else: never from where it was left, and never with a glide
-  // of its own, so a far tap cuts it with the body (ADR 0065, amended 2026-11-22).
+  // of its own, so a far tap cuts it with the body (ADR 0065, amended
+  // 2026-11-22). While the body moves, the subscription below places it.
+  //
+  // Every other strip centres the lit chip. Below lg (the md–lg band shows
+  // the desktop strip) it is measured against the strip's viewport; from lg
+  // it goes under the fixed centre frame, the strip's one movement (spec
+  // 2026-11-18 D2). A first render after a full load is positioned cold;
+  // every later mount or lit change glides from where the strip was, except
+  // mid-gesture.
   React.useLayoutEffect(() => {
     const nav = scroller.current;
     if (!nav) return;
@@ -104,8 +113,9 @@ export function DayStrip({ tripId, dates, line, size }: { tripId: string; dates:
     if (phone && carousel) {
       if (carousel.isMoving() || viewIndex < 0) return;
       cancelGlide.current();
+      geometry.current = measureStrip(nav);
       nav.style.scrollSnapType = "";
-      nav.scrollLeft = centredScrollLeft(viewIndex, chip.getBoundingClientRect().width, STRIP_CHIP_GAP_PX, nav.clientWidth);
+      nav.scrollLeft = centredScrollLeft(viewIndex, geometry.current.chip, STRIP_CHIP_GAP_PX, geometry.current.viewport);
       return;
     }
     const wide = !phone && window.matchMedia(LG_UP).matches;
@@ -172,7 +182,7 @@ export function DayStrip({ tripId, dates, line, size }: { tripId: string; dates:
     returnTimer.current = setTimeout(glideHome, STRIP_RETURN_AFTER_MS);
   };
   const onStripScroll = (nav: HTMLElement) => {
-    lastScrollLeft.set(memoryKey, nav.scrollLeft);
+    if (!(phone && carousel)) lastScrollLeft.set(memoryKey, nav.scrollLeft);
     if (home.current == null || gliding.current) return;
     centreFrame.current?.toggleAttribute("data-away", Math.abs(nav.scrollLeft - home.current) > 1);
     waitThenReturn();
@@ -181,20 +191,30 @@ export function DayStrip({ tripId, dates, line, size }: { tripId: string; dates:
   // Phone: the strip moves with the body. Progress is in panels from the day
   // in view, so it is counted from that day's index: not from the lit chip
   // (a glide lights its target at once) nor aria-current (it moves at halfway).
+  // A frame only writes, from widths read when the strip was last placed; a
+  // resize (rotation) reads them again.
   React.useEffect(() => {
     if (!phone || !carousel) return;
     const nav = scroller.current;
     if (!nav) return;
-    return carousel.subscribe((progress, settled) => {
+    const forget = () => {
+      geometry.current = null;
+    };
+    window.addEventListener("resize", forget);
+    const off = carousel.subscribe((progress, settled) => {
       const from = isos.current.indexOf(carousel.current());
-      const chip = nav.querySelector<HTMLElement>("a");
-      if (from < 0 || !chip) return;
+      if (from < 0) return;
+      const g = (geometry.current ??= measureStrip(nav));
       cancelGlide.current();
       const at = from + progress;
       nav.style.scrollSnapType = "none";
-      nav.scrollLeft = centredScrollLeft(settled ? Math.round(at) : at, chip.getBoundingClientRect().width, STRIP_CHIP_GAP_PX, nav.clientWidth);
+      nav.scrollLeft = centredScrollLeft(settled ? Math.round(at) : at, g.chip, STRIP_CHIP_GAP_PX, g.viewport);
       if (settled) nav.style.scrollSnapType = "";
     });
+    return () => {
+      off();
+      window.removeEventListener("resize", forget);
+    };
   }, [phone, carousel]);
 
   // 768-1023: a vertical wheel gesture over the strip scrolls it horizontally
