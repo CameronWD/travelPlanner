@@ -20,13 +20,13 @@ _8 open (Main 8), 96 resolved · pulled 2026-11-22_
   
   Also the home had the map of the trip? But I think now that we have the real map. If there is no cover photo, we just use the map as the header? Not the graphic
   _/trips/christmas-in-europe-2026_
-  _Pictures: 2 could not be downloaded (check STORAGE_DRIVER and the R2 variables in .env.production.local)_
+  _Pictures: docs/feedback/pictures/cmwsfnhr5000008jofthb122n/1.webp, docs/feedback/pictures/cmwsfnhr5000008jofthb122n/2.png_
   _402x552 · iPhone · Safari_
 
 - **Trip home · Christmas in Europe 2026 · Cam · 2026-11-22** — `cmwsfnxf3000108jof4iqs2r8`
   Send is not in line
   _/trips/christmas-in-europe-2026_
-  _Pictures: 1 could not be downloaded (check STORAGE_DRIVER and the R2 variables in .env.production.local)_
+  _Pictures: docs/feedback/pictures/cmwsfnxf3000108jof4iqs2r8/1.webp_
   _402x424 · iPhone · Safari_
 
 - **Trip home · Christmas in Europe 2026 · Cam · 2026-11-22** — `cmwsfo6wr000208johd9jfkui`
@@ -39,13 +39,13 @@ _8 open (Main 8), 96 resolved · pulled 2026-11-22_
 - **/trips/christmas-in-europe-2026/day/2026-12-04 · Christmas in Europe 2026 · Cam · 2026-11-22** — `cmwsfp865000007id5ytcu5bc`
   Why do we have a trip selector on this page? It’s for the euro trip?
   _/trips/christmas-in-europe-2026/day/2026-12-04_
-  _Pictures: 1 could not be downloaded (check STORAGE_DRIVER and the R2 variables in .env.production.local)_
+  _Pictures: docs/feedback/pictures/cmwsfp865000007id5ytcu5bc/1.webp_
   _402x812 · iPhone · Safari_
 
 - **/trips/christmas-in-europe-2026/day/2026-12-06 · Christmas in Europe 2026 · Cam · 2026-11-22** — `cmwsfpzmc000107id1m2rwcd7`
   Too much space between attachments
   _/trips/christmas-in-europe-2026/day/2026-12-06_
-  _Pictures: 1 could not be downloaded (check STORAGE_DRIVER and the R2 variables in .env.production.local)_
+  _Pictures: docs/feedback/pictures/cmwsfpzmc000107id1m2rwcd7/1.webp_
   _402x424 · iPhone · Safari_
 
 ### Summary
@@ -53,7 +53,7 @@ _8 open (Main 8), 96 resolved · pulled 2026-11-22_
 - **Summary · Christmas in Europe 2026 · Cam · 2026-11-22** — `cmwsfrd36000207idtevik3tk`
   This page doesn’t match rest of the site style wise.
   _/trips/christmas-in-europe-2026/summary_
-  _Pictures: 2 could not be downloaded (check STORAGE_DRIVER and the R2 variables in .env.production.local)_
+  _Pictures: docs/feedback/pictures/cmwsfrd36000207idtevik3tk/1.webp, docs/feedback/pictures/cmwsfrd36000207idtevik3tk/2.webp_
   _402x812 · iPhone · Safari_
 
 ### Checklists
@@ -61,5 +61,5 @@ _8 open (Main 8), 96 resolved · pulled 2026-11-22_
 - **Checklists · Christmas in Europe 2026 · Cam · 2026-11-22** — `cmwsfs69u000307idsn5nc3qy`
   Layout of this page is poor. Should the edit/got it be above? And the. Text can sit full width?
   _/trips/christmas-in-europe-2026/checklists_
-  _Pictures: 1 could not be downloaded (check STORAGE_DRIVER and the R2 variables in .env.production.local)_
+  _Pictures: docs/feedback/pictures/cmwsfs69u000307idsn5nc3qy/1.png_
   _402x812 · iPhone · Safari_
