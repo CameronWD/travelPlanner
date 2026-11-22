@@ -310,8 +310,10 @@ export function FeedbackLauncher() {
   const [pictureFiles, setPictureFiles] = React.useState<File[]>([]);
   const [picking, setPicking] = React.useState(false);
   // A note with pictures is never queued (the queue replays text only), so a
-  // failed attempt stays in the box. The retry must reuse this key: the first
-  // attempt may have reached the server, and createFeedbackNote upserts on it.
+  // failed attempt stays in the box. An untouched retry must reuse this key:
+  // the first attempt may have reached the server, and createFeedbackNote
+  // upserts on it. Any change to the text or the pictures clears it, because
+  // the upsert keeps the first note's text and would drop the edit.
   const pictureNoteKeyRef = React.useRef<string | null>(null);
   // Spec 2026-10-05 §A: a closed note stays listed for a week so its author
   // sees the Resolution, then waits behind "Show resolved". `openedAt` is the
@@ -354,6 +356,7 @@ export function FeedbackLauncher() {
    */
   function handleBodyChange(e: React.ChangeEvent<HTMLTextAreaElement>) {
     const value = e.target.value;
+    pictureNoteKeyRef.current = null;
     const wasEmpty = body.trim().length === 0;
     const willBeEmpty = value.trim().length === 0;
     setBody(value);
@@ -470,7 +473,7 @@ export function FeedbackLauncher() {
 
   async function handleSend() {
     const trimmed = body.trim();
-    if (!trimmed || isSending) return;
+    if (!trimmed || isSending || picking) return;
     const files = pictureFiles;
     if (!online && files.length > 0) return;
 
@@ -782,7 +785,10 @@ export function FeedbackLauncher() {
           />
           <FeedbackPicturePicker
             files={pictureFiles}
-            onChange={setPictureFiles}
+            onChange={(next) => {
+              pictureNoteKeyRef.current = null;
+              setPictureFiles(next);
+            }}
             disabled={isSending}
             onPicking={setPicking}
           />

@@ -1628,6 +1628,30 @@ describe("FeedbackLauncher pictures", () => {
     expect(createMock.mock.calls[1][0].clientKey).toBe(createMock.mock.calls[0][0].clientKey);
   });
 
+  it("gives an edited or re-picked draft a fresh key on retry", async () => {
+    createMock.mockRejectedValue(new Error("down"));
+    const user = await openPanel();
+    const box = screen.getByPlaceholderText(/what's on your mind/i);
+    await user.type(box, "First");
+    await user.upload(fileInput(), [png("a.png"), png("b.png")]);
+    await screen.findAllByRole("button", { name: "Remove picture" });
+    const send = () => screen.getByRole("button", { name: /send/i });
+    await user.click(send());
+    await waitFor(() => expect(createMock).toHaveBeenCalledTimes(1));
+    await waitFor(() => expect(send()).toBeEnabled());
+
+    await user.type(box, " edited");
+    await user.click(send());
+    await waitFor(() => expect(createMock).toHaveBeenCalledTimes(2));
+    await waitFor(() => expect(send()).toBeEnabled());
+    expect(createMock.mock.calls[1][0].clientKey).not.toBe(createMock.mock.calls[0][0].clientKey);
+
+    await user.click(screen.getAllByRole("button", { name: "Remove picture" })[0]);
+    await user.click(send());
+    await waitFor(() => expect(createMock).toHaveBeenCalledTimes(3));
+    expect(createMock.mock.calls[2][0].clientKey).not.toBe(createMock.mock.calls[1][0].clientKey);
+  });
+
   it("creates one note and uploads each picture once on a double click", async () => {
     let release!: () => void;
     addPictureMock.mockImplementationOnce(
