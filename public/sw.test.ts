@@ -417,7 +417,7 @@ describe("public/sw.js — pushsubscriptionchange", () => {
 describe("offline cache mirror of lib/offline.ts", () => {
   it("matches the trip cover route, but as network-first while attachments are cache-first (ADR 0043, amended 2026-10-02)", () => {
     expect(SW_SOURCE).toContain("function isCoverRoute(url)");
-    expect(SW_SOURCE).toContain("/^\\/api\\/trips\\/[^/]+\\/cover$/");
+    expect(SW_SOURCE).toContain("/^\\/api\\/trips\\/[^/]+\\/(cover|route-snapshot)$/");
     expect(SW_SOURCE).toContain("if (isAttachmentRoute(url)) return 'cache-first';");
     expect(SW_SOURCE).toContain("if (isCoverRoute(url)) return 'network-first';");
   });
@@ -755,6 +755,18 @@ describe("public/sw.js — files saved for offline as bytes (spec A2)", () => {
     vi.spyOn(console, "warn").mockImplementation(() => {});
     const response = await fetchThrough(dispatch, plain);
     expect(await response.text()).toBe("jpg-bytes");
+  });
+
+  it("stores each shape and pin set under its own URL in the files store", async () => {
+    const c = matchingCaches();
+    globalThis.fetch = vi.fn().mockResolvedValue(new Response("png-bytes"));
+    const { dispatch } = loadServiceWorker({ caches: c.api });
+    const a = "https://teepee.example/api/trips/t1/route-snapshot?shape=tall&p=1%2C2%2C0%2C1";
+    const b = "https://teepee.example/api/trips/t1/route-snapshot?shape=tall&p=1%2C3%2C0%2C1";
+
+    await fetchThrough(dispatch, a);
+    await fetchThrough(dispatch, b);
+    expect(c.stores.get("teepee-files-v1")!.keys.map((k) => k.url)).toEqual([a, b]);
   });
 });
 

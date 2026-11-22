@@ -100,13 +100,14 @@ function isAttachmentRoute(url) {
 
 /**
  * Returns true for the member-gated trip cover serve route
- * (`/api/trips/<id>/cover`, with or without its `?v=` cache-buster). Warmed
+ * (`/api/trips/<id>/cover`, with or without its `?v=` cache-buster), and the
+ * route snapshot beside it (`/api/trips/<id>/route-snapshot`). Warmed
  * alongside attachments (ADR 0043, amended 2026-10-01).
  */
 function isCoverRoute(url) {
   try {
     const { pathname } = new URL(url);
-    return /^\/api\/trips\/[^/]+\/cover$/.test(pathname);
+    return /^\/api\/trips\/[^/]+\/(cover|route-snapshot)$/.test(pathname);
   } catch {
     return false;
   }

@@ -45,6 +45,24 @@ describe('isAttachmentRoute', () => {
   });
 });
 
+describe('the route snapshot is a cover route', () => {
+  const snap = 'http://localhost:3000/api/trips/t1/route-snapshot?shape=tall&p=1%2C2%2C0%2C1';
+  it('matches, but not a deeper path', () => {
+    expect(isCoverRoute(snap)).toBe(true);
+    expect(isCoverRoute('http://localhost:3000/api/trips/t1/route-snapshot/x')).toBe(false);
+  });
+  it('is network-first and lands in the files store', () => {
+    expect(cacheStrategyFor({ method: 'GET', url: snap, sameOrigin: true })).toBe('network-first');
+    expect(cacheStoreFor(snap)).toBe('files');
+  });
+  it('keeps shape and p in the cache key, so two pin sets are two entries', () => {
+    const other = snap.replace('2%2C0', '3%2C0');
+    expect(fileCacheKey(snap)).toBe(snap);
+    expect(fileCacheKey(`${snap}&offline=1`)).toBe(snap);
+    expect(fileCacheKey(other)).not.toBe(fileCacheKey(snap));
+  });
+});
+
 describe('isCoverRoute', () => {
   it('returns true for the trip cover serve URL, with or without its ?v= cache-buster', () => {
     expect(isCoverRoute('http://localhost:3000/api/trips/t1/cover')).toBe(true);
