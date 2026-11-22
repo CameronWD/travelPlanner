@@ -630,6 +630,24 @@
    the speech bubble. Two beats, then rest. Nothing under reduced motion — the
    base rule already collapses it, but this is a pointer, not information, so
    say so outright. */
+/* The loading mark builds itself (LogoLoader). Dash values are unitless because the
+   drawn paths set pathLength="1". Static styles are the finished lockup, so reduced
+   motion only has to switch the animations off. */
+@keyframes tp-build-draw { from { stroke-dasharray: 1; stroke-dashoffset: 1; } to { stroke-dasharray: 1; stroke-dashoffset: 0; } }
+@keyframes tp-build-fill { from { fill-opacity: 0; } to { fill-opacity: 1; } }
+@keyframes tp-build-door { from { transform: scaleY(0); } to { transform: scaleY(1); } }
+@keyframes tp-build-word { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+@keyframes tp-build-dot { 0% { opacity: 0; transform: translateY(-14px); } 40% { opacity: 1; transform: translateY(0); } 65% { transform: translateY(-4px); } 100% { opacity: 1; transform: translateY(0); } }
+@keyframes tp-build-idle { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-2px); } }
+.tp-build-outline { animation: tp-build-draw 450ms ease-out both, tp-build-fill 300ms ease-out 300ms both; }
+.tp-build-door { transform-box: fill-box; transform-origin: bottom; animation: tp-build-door 300ms var(--ease-pop) 450ms both; }
+.tp-build-poles { animation: tp-build-draw 250ms ease-out 650ms both; }
+.tp-build-word { animation: tp-build-word 250ms ease-out 800ms both; }
+.tp-build-dot { animation: tp-build-dot 300ms ease-out 1000ms both; }
+.tp-build-idle { animation: tp-build-idle 1.6s ease-in-out 1300ms infinite; }
+@media (prefers-reduced-motion: reduce) {
+  .tp-build-outline, .tp-build-door, .tp-build-poles, .tp-build-word, .tp-build-dot, .tp-build-idle { animation: none; }
+}
 @keyframes tp-attention { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.12); } }
 @utility tp-attention { animation: tp-attention 360ms var(--ease-bounce) 2; }
 @media (prefers-reduced-motion: reduce) {
