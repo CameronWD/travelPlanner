@@ -17,7 +17,7 @@ export function RateCell({ tripId, homeCurrency, entry }: { tripId: string; home
   const [open, setOpen] = React.useState(false);
   const missing = entry.source === "none" || entry.rate == null;
   const stale = entry.source === "stale";
-  // A missing rate that gets set pops once; the class stays until the next change (MOTION.md M10).
+  // A rate that gets set or changed pops once; the class is cleared when the animation ends, so the next change pops again (MOTION.md M10).
   const [wasMissing, setWasMissing] = React.useState(missing);
   const [justSet, setJustSet] = React.useState(false);
   const [prevRate, setPrevRate] = React.useState(entry.rate);

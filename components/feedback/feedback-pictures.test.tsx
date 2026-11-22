@@ -57,6 +57,13 @@ describe("FeedbackPictureStrip", () => {
     expect(container).toBeEmptyDOMElement();
   });
 
+  it("loads the log's thumbnails lazily and decodes them off the main thread", () => {
+    const { container } = render(<FeedbackPictureStrip pictures={[{ id: "a", url: "/a" }]} />);
+    const thumb = container.querySelector("img")!;
+    expect(thumb).toHaveAttribute("loading", "lazy");
+    expect(thumb).toHaveAttribute("decoding", "async");
+  });
+
   it("opens the chosen picture titled by its position", async () => {
     const user = userEvent.setup();
     render(<FeedbackPictureStrip pictures={[{ id: "a", url: "/a" }, { id: "b", url: "/b" }]} />);

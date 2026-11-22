@@ -178,7 +178,7 @@ export function FeedbackPictureStrip({
               className="block rounded-md"
             >
               {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img src={picture.url} alt="" className={THUMB} />
+              <img src={picture.url} alt="" loading="lazy" decoding="async" className={THUMB} />
             </button>
           </li>
         ))}
