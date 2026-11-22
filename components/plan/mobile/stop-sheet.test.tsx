@@ -122,17 +122,76 @@ it("StopSheet presets the day under the scroller's top edge, measured in viewpor
 });
 
 describe("StopSheet nights stepper (spec 2026-10-06 §N)", () => {
-  it("shows the dates in full on their own line, and the stepper below steps the Stop's nights", async () => {
+  const ROUGH = { ...PARIS, arriveDate: null, departDate: null, nights: 2 };
+
+  it("a Rough Stop shows the dates in full on their own line, and the stepper below steps its nights", async () => {
     const onSetNights = vi.fn();
-    renderSheet({ onSetNights });
-    const meta = screen.getByText(stopSheetMeta(PARIS), { normalizer: (t) => t });
+    renderSheet({ onSetNights, stop: ROUGH, slots: [], dayItems: [] });
+    const meta = screen.getByText(stopSheetMeta(ROUGH), { normalizer: (t) => t });
     expect(meta.className).not.toContain("truncate");
     const stepper = screen.getByRole("group", { name: "Nights in Paris" });
     expect(meta.contains(stepper)).toBe(false);
-    expect(meta.parentElement!.contains(stepper)).toBe(true);
     expect(meta.parentElement).toBe(stepper.parentElement);
+    expect(meta.compareDocumentPosition(stepper) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     await userEvent.click(screen.getByRole("button", { name: "Increase Nights in Paris" }));
     expect(onSetNights).toHaveBeenCalledWith(3);
+  });
+
+  it("a Scheduled Stop has no stepper", () => {
+    renderSheet({ onSetNights: vi.fn() });
+    expect(screen.queryByRole("group", { name: "Nights in Paris" })).toBeNull();
+  });
+});
+
+describe("StopSheet two-row header", () => {
+  it("row 1 is back, number, title, actions, centred; the dates sit in a full-width row beneath", () => {
+    renderSheet();
+    const back = screen.getByRole("button", { name: "Back to the plan" });
+    const row1 = back.parentElement!;
+    expect(row1.className).toContain("items-center");
+    const kids = [...row1.children];
+    const title = screen.getByRole("heading", { name: "Paris" });
+    const actions = screen.getByRole("button", { name: "Actions for Paris" });
+    expect(kids[0]).toBe(back);
+    expect(kids[1].textContent).toBe("2");
+    expect(kids[2].contains(title)).toBe(true);
+    expect(kids[3]).toBe(actions);
+    const meta = screen.getByText(stopSheetMeta(PARIS), { normalizer: (t) => t });
+    expect(row1.contains(meta)).toBe(false);
+    expect(row1.parentElement!.contains(meta)).toBe(true);
+  });
+});
+
+describe("StopSheet day rows", () => {
+  it("Category dots are size-3 with a darker same-hue outline, not the border token", () => {
+    renderSheet();
+    const dot = within(screen.getByTestId("sheet-day-2026-12-11")).getByRole("button", { name: /Louvre/ }).querySelector("span[aria-hidden]") as HTMLElement;
+    expect(dot.className).toContain("size-3");
+    expect(dot.className).not.toContain("border-border");
+    expect(dot.style.backgroundColor).toBe("hsl(var(--hue-sky))");
+    expect(dot.style.borderColor).toBe("var(--dot-ring)");
+    expect(dot.style.getPropertyValue("--dot-ring")).toBe("color-mix(in oklab, hsl(var(--hue-sky)) 60%, black)");
+    expect(dot.style.borderWidth).toBe("2px");
+  });
+
+  it("Any time sits once between the timed and untimed Items, and only then", () => {
+    const day = "2026-12-10";
+    const mixed = [
+      { id: "u", bookingStateSet: false, title: "Wander", category: "OTHER", date: day, startTime: null },
+      { id: "t", bookingStateSet: false, title: "Dinner", category: "FOOD", date: day, startTime: "19:00" },
+    ];
+    const { unmount } = renderSheet({ dayItems: mixed, slots: daySlots(PARIS, mixed) });
+    const section = screen.getByTestId(`sheet-day-${day}`);
+    expect(within(section).getAllByText("Any time")).toHaveLength(1);
+    const text = section.textContent!;
+    expect(text.indexOf("Dinner")).toBeLessThan(text.indexOf("Any time"));
+    expect(text.indexOf("Any time")).toBeLessThan(text.indexOf("Wander"));
+    unmount();
+    for (const only of [[mixed[0]], [mixed[1]]]) {
+      const r = renderSheet({ dayItems: only, slots: daySlots(PARIS, only) });
+      expect(screen.queryByText("Any time")).toBeNull();
+      r.unmount();
+    }
   });
 });
 
