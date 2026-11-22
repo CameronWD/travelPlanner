@@ -22,6 +22,8 @@ export type InboxNote = {
   resolution: string | null;
   /** Never null — a note written before sites were recorded reads as "main". */
   site: string;
+  /** Repo-relative paths `feedback:pull` downloads the pictures to. */
+  pictures: string[];
 };
 
 /** The Prisma selection `scripts/feedback-pull.ts` reads. */
@@ -40,7 +42,25 @@ export type FeedbackNoteRow = {
   resolution: string | null;
   authorName: string | null;
   site: string | null;
+  pictures: Array<{ id: string; storageKey: string; mime: string; position: number }>;
 };
+
+export const PICTURES_REPO_DIR = "docs/feedback/pictures";
+
+const PICTURE_EXTENSIONS: Record<string, string> = {
+  "image/jpeg": "jpg",
+  "image/png": "png",
+  "image/webp": "webp",
+};
+
+export function pictureExtension(mime: string): string {
+  return PICTURE_EXTENSIONS[mime] ?? "jpg";
+}
+
+/** The file name a picture is pulled to, from its note-relative position. */
+export function pictureFileName(picture: { mime: string; position: number }): string {
+  return `${picture.position + 1}.${pictureExtension(picture.mime)}`;
+}
 
 /**
  * One database row as the inbox sees it.
@@ -69,6 +89,9 @@ export function toInboxNote(row: FeedbackNoteRow): InboxNote {
     resolvedAt: row.resolvedAt,
     resolution: row.resolution,
     site: siteOf(row.site),
+    pictures: [...row.pictures]
+      .sort((a, b) => a.position - b.position)
+      .map((p) => `${PICTURES_REPO_DIR}/${row.id}/${pictureFileName(p)}`),
   };
 }
 
@@ -128,6 +151,10 @@ function renderNote(note: InboxNote, { showSite }: { showSite: boolean }): strin
     `  ${indentBody(note.body)}`,
     `  _${note.route}_`,
   ];
+
+  if (note.pictures.length > 0) {
+    lines.push(`  _Pictures: ${note.pictures.join(", ")}_`);
+  }
 
   // What the author was actually looking at. Stored on every row since ADR
   // 0040; useless until it is in front of the reader.

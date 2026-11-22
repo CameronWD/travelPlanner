@@ -24,6 +24,7 @@ function note(
     resolvedAt: null,
     resolution: null,
     site: siteOf(site === undefined ? "main" : site),
+    pictures: [],
     ...rest,
   };
 }
@@ -271,11 +272,36 @@ describe("renderInbox", () => {
       resolvedAt: new Date("2026-09-05T00:00:00.000Z"),
       resolution: "Working on it",
       site: "main",
+      pictures: [],
     };
     const md = renderInbox([unknownNote], generatedAt);
     expect(md).toContain("PENDING");
     expect(md).not.toContain("undefined");
     expect(md).toContain("unknown-status");
+  });
+});
+
+describe("renderInbox pictures", () => {
+  it("lists a note's pictures after its route line", () => {
+    const md = renderInbox(
+      [
+        note({
+          id: "n1",
+          pictures: [
+            "docs/feedback/pictures/n1/1.jpg",
+            "docs/feedback/pictures/n1/2.png",
+          ],
+        }),
+      ],
+      generatedAt,
+    );
+    expect(md).toContain(
+      "  _/trips/t1/plan_\n  _Pictures: docs/feedback/pictures/n1/1.jpg, docs/feedback/pictures/n1/2.png_",
+    );
+  });
+
+  it("prints no Pictures line for a note without any", () => {
+    expect(renderInbox([note()], generatedAt)).not.toContain("Pictures:");
   });
 });
 
@@ -295,6 +321,10 @@ describe("toInboxNote", () => {
     resolution: null,
     authorName: "Cam",
     site: "beta",
+    pictures: [
+      { id: "p2", storageKey: "feedback/n1/b", mime: "image/png", position: 1 },
+      { id: "p1", storageKey: "feedback/n1/a", mime: "image/jpeg", position: 0 },
+    ],
   };
 
   it("carries every field across, unchanged", () => {
@@ -313,6 +343,10 @@ describe("toInboxNote", () => {
       resolvedAt: null,
       resolution: null,
       site: "beta",
+      pictures: [
+        "docs/feedback/pictures/n1/1.jpg",
+        "docs/feedback/pictures/n1/2.png",
+      ],
     });
   });
 

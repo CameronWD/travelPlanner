@@ -35,10 +35,13 @@ import { mkdir, writeFile } from "node:fs/promises";
 import path from "node:path";
 
 import { db } from "../lib/db";
-import { renderInbox, toInboxNote } from "../lib/feedback/inbox";
+import { PICTURES_REPO_DIR, renderInbox, toInboxNote } from "../lib/feedback/inbox";
+import { pullPictures } from "../lib/feedback/pull-pictures";
+import { getStorage } from "../lib/storage";
 
 const DRY_RUN = process.argv.includes("--dry-run");
 const OUT_PATH = path.join(process.cwd(), "docs", "feedback", "inbox.md");
+const PICTURES_DIR = path.join(process.cwd(), PICTURES_REPO_DIR);
 
 async function main() {
   const rows = await db.feedbackNote.findMany({
@@ -58,6 +61,10 @@ async function main() {
       resolution: true,
       authorName: true,
       site: true,
+      pictures: {
+        orderBy: { position: "asc" },
+        select: { id: true, storageKey: true, mime: true, position: true },
+      },
     },
   });
 
@@ -73,8 +80,16 @@ async function main() {
     const open = notes.filter((n) => n.status === "OPEN").length;
     const needs = notes.filter((n) => n.status === "NEEDS_REVIEW").length;
     const resolved = notes.length - open - needs;
+    const { written } = await pullPictures({
+      notes: rows,
+      storage: getStorage(),
+      dir: PICTURES_DIR,
+    });
+    const pictures = rows
+      .filter((r) => r.status === "OPEN" || r.status === "NEEDS_REVIEW")
+      .reduce((total, r) => total + r.pictures.length, 0);
     console.log(
-      `Wrote ${path.relative(process.cwd(), OUT_PATH)} — ${open} open, ${needs} needs review, ${resolved} resolved.`,
+      `Wrote ${path.relative(process.cwd(), OUT_PATH)} — ${open} open, ${needs} needs review, ${resolved} resolved, ${pictures} pictures (${written} downloaded).`,
     );
   }
 
