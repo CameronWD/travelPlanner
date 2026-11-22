@@ -77,6 +77,7 @@ const SEND_FAILED = "Couldn’t send that yet. It’s saved and will retry on it
 const STORAGE_FAILED = "Couldn’t save your note. It’s still in the box. Try again.";
 const pictureFailedMessage = (failed: number) =>
   `Note sent, but ${failed === 1 ? "1 picture" : `${failed} pictures`} didn’t upload.`;
+const PICTURE_SEND_FAILED = "Couldn’t send. Your note and pictures are still here, so try again.";
 const DELETE_FAILED = "Couldn’t remove that note. Try again.";
 
 /**
@@ -307,6 +308,11 @@ export function FeedbackLauncher() {
   const [pending, setPending] = React.useState<QueuedFeedbackNote[]>([]);
   const [isSending, setIsSending] = React.useState(false);
   const [pictureFiles, setPictureFiles] = React.useState<File[]>([]);
+  const [picking, setPicking] = React.useState(false);
+  // A note with pictures is never queued (the queue replays text only), so a
+  // failed attempt stays in the box. The retry must reuse this key: the first
+  // attempt may have reached the server, and createFeedbackNote upserts on it.
+  const pictureNoteKeyRef = React.useRef<string | null>(null);
   // Spec 2026-10-05 §A: a closed note stays listed for a week so its author
   // sees the Resolution, then waits behind "Show resolved". `openedAt` is the
   // "now" for that week, so render stays pure. Both are set on the way open
@@ -346,6 +352,18 @@ export function FeedbackLauncher() {
    * user is right now); non-empty → empty releases it (the draft is gone,
    * so the next one should track the live route again).
    */
+  function handleBodyChange(e: React.ChangeEvent<HTMLTextAreaElement>) {
+    const value = e.target.value;
+    const wasEmpty = body.trim().length === 0;
+    const willBeEmpty = value.trim().length === 0;
+    setBody(value);
+    if (wasEmpty && !willBeEmpty) {
+      setDraftContext(currentContext());
+    } else if (!wasEmpty && willBeEmpty) {
+      setDraftContext(null);
+    }
+  }
+
   /** Already compressed when picked. One at a time, in the order chosen: the server's cap is read-then-write. */
   async function uploadPictures(noteId: string, files: File[]) {
     const uploaded: Array<{ id: string; url: string }> = [];
@@ -367,18 +385,6 @@ export function FeedbackLauncher() {
     }
     const failed = files.length - uploaded.length;
     if (failed > 0) toast({ variant: "destructive", title: pictureFailedMessage(failed) });
-  }
-
-  function handleBodyChange(e: React.ChangeEvent<HTMLTextAreaElement>) {
-    const value = e.target.value;
-    const wasEmpty = body.trim().length === 0;
-    const willBeEmpty = value.trim().length === 0;
-    setBody(value);
-    if (wasEmpty && !willBeEmpty) {
-      setDraftContext(currentContext());
-    } else if (!wasEmpty && willBeEmpty) {
-      setDraftContext(null);
-    }
   }
 
   const refresh = React.useCallback(async () => {
@@ -473,8 +479,17 @@ export function FeedbackLauncher() {
     // guards against a draft that somehow arrived pre-filled.
     const context = draftContext ?? currentContext();
 
+    let clientKey: string;
+    if (files.length > 0) {
+      pictureNoteKeyRef.current ??= newClientKey();
+      clientKey = pictureNoteKeyRef.current;
+    } else {
+      pictureNoteKeyRef.current = null;
+      clientKey = newClientKey();
+    }
+
     const note: QueuedFeedbackNote = {
-      clientKey: newClientKey(),
+      clientKey,
       body: trimmed,
       route: context.route,
       pageLabel: context.pageLabel,
@@ -495,6 +510,27 @@ export function FeedbackLauncher() {
       }
       clearDraft();
       toast({ title: OFFLINE_SAVED });
+      return;
+    }
+
+    if (files.length > 0) {
+      setIsSending(true);
+      try {
+        const result = await createFeedbackNote(note);
+        if (result.success) {
+          pictureNoteKeyRef.current = null;
+          setSent((prev) => [...prev.filter((n) => n.id !== result.note.id), result.note]);
+          clearDraft();
+          setPictureFiles([]);
+          await uploadPictures(result.note.id, files);
+          return;
+        }
+      } catch {
+        // falls through to the same message as a refusal
+      } finally {
+        setIsSending(false);
+      }
+      toast({ variant: "destructive", title: PICTURE_SEND_FAILED });
       return;
     }
 
@@ -748,6 +784,7 @@ export function FeedbackLauncher() {
             files={pictureFiles}
             onChange={setPictureFiles}
             disabled={isSending}
+            onPicking={setPicking}
           />
           <div className="flex items-center gap-2">
             {/*
@@ -777,6 +814,7 @@ export function FeedbackLauncher() {
               disabled={
                 isSending ||
                 body.trim().length === 0 ||
+                picking ||
                 (!online && pictureFiles.length > 0)
               }
               onClick={() => void handleSend()}

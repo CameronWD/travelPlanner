@@ -27,7 +27,15 @@ function isAccepted(file: File): boolean {
   return (FEEDBACK_PICTURE_MIMES as readonly string[]).includes(file.type);
 }
 
-function PickedThumb({ file, onRemove }: { file: File; onRemove: () => void }) {
+function PickedThumb({
+  file,
+  onRemove,
+  disabled,
+}: {
+  file: File;
+  onRemove: () => void;
+  disabled: boolean;
+}) {
   const imgRef = React.useRef<HTMLImageElement>(null);
   // Set on the element rather than held in state: the revoke in cleanup would
   // otherwise kill the URL a StrictMode re-run of the effect still renders.
@@ -46,6 +54,7 @@ function PickedThumb({ file, onRemove }: { file: File; onRemove: () => void }) {
       <button
         type="button"
         aria-label="Remove picture"
+        disabled={disabled}
         onClick={onRemove}
         className="absolute -right-2 -top-2 grid size-6 place-items-center rounded-full border-2 border-border bg-card text-foreground"
       >
@@ -59,12 +68,17 @@ export function FeedbackPicturePicker({
   files,
   onChange,
   disabled,
+  onPicking,
 }: {
   files: File[];
   onChange: (files: File[]) => void;
   disabled: boolean;
+  onPicking?: (picking: boolean) => void;
 }) {
   const online = useOnlineStatus();
+  // Compression is slow; `files` is captured when the pick starts, so nothing
+  // else may change the list until it lands.
+  const [picking, setPicking] = React.useState(false);
   const inputRef = React.useRef<HTMLInputElement>(null);
 
   async function handlePicked(e: React.ChangeEvent<HTMLInputElement>) {
@@ -72,25 +86,32 @@ export function FeedbackPicturePicker({
     e.target.value = "";
     const next = [...files];
     let overflowed = false;
-    for (const original of picked) {
-      if (next.length >= MAX_FEEDBACK_PICTURES) {
-        overflowed = true;
-        break;
+    setPicking(true);
+    onPicking?.(true);
+    try {
+      for (const original of picked) {
+        if (next.length >= MAX_FEEDBACK_PICTURES) {
+          overflowed = true;
+          break;
+        }
+        const file = await compressImage(original);
+        const tooBig = oversizeUploadMessage(file);
+        if (tooBig) {
+          toast({ variant: "destructive", title: tooBig });
+          continue;
+        }
+        if (!isAccepted(file)) {
+          toast({ variant: "destructive", title: UNSUPPORTED });
+          continue;
+        }
+        next.push(file);
       }
-      const file = await compressImage(original);
-      const tooBig = oversizeUploadMessage(file);
-      if (tooBig) {
-        toast({ variant: "destructive", title: tooBig });
-        continue;
-      }
-      if (!isAccepted(file)) {
-        toast({ variant: "destructive", title: UNSUPPORTED });
-        continue;
-      }
-      next.push(file);
+      if (overflowed) toast({ title: TOO_MANY });
+      if (next.length !== files.length) onChange(next);
+    } finally {
+      setPicking(false);
+      onPicking?.(false);
     }
-    if (overflowed) toast({ title: TOO_MANY });
-    if (next.length !== files.length) onChange(next);
   }
 
   const line = !online ? (files.length > 0 ? OFFLINE_WITH_PICTURES : NEEDS_CONNECTION) : null;
@@ -112,7 +133,7 @@ export function FeedbackPicturePicker({
           size="sm"
           variant="outline"
           aria-label="Add pictures"
-          disabled={disabled || !online || files.length >= MAX_FEEDBACK_PICTURES}
+          disabled={disabled || picking || !online || files.length >= MAX_FEEDBACK_PICTURES}
           onClick={() => inputRef.current?.click()}
         >
           <ImagePlus aria-hidden />
@@ -124,6 +145,7 @@ export function FeedbackPicturePicker({
               <PickedThumb
                 key={`${i}:${file.name}:${file.size}`}
                 file={file}
+                disabled={disabled || picking}
                 onRemove={() => onChange(files.filter((_, at) => at !== i))}
               />
             ))}

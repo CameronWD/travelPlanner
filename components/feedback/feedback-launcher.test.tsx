@@ -1601,6 +1601,70 @@ describe("FeedbackLauncher pictures", () => {
     expect(await screen.findByRole("dialog", { name: "Picture 1 of 2" })).toBeInTheDocument();
   });
 
+  it("keeps the text and pictures when creating the note fails, then retries with the same key", async () => {
+    createMock.mockRejectedValueOnce(new Error("offline"));
+    const user = await openPanel();
+    const box = screen.getByPlaceholderText(/what's on your mind/i);
+    await user.type(box, "Keep me");
+    await user.upload(fileInput(), [png("a.png"), png("b.png")]);
+    await screen.findAllByRole("button", { name: "Remove picture" });
+    await user.click(screen.getByRole("button", { name: /send/i }));
+
+    await waitFor(() =>
+      expect(toastMock).toHaveBeenCalledWith(
+        expect.objectContaining({
+          title: "Couldn’t send. Your note and pictures are still here, so try again.",
+        }),
+      ),
+    );
+    expect(box).toHaveValue("Keep me");
+    expect(screen.getAllByRole("button", { name: "Remove picture" })).toHaveLength(2);
+    expect(window.localStorage.getItem("teepee.feedback.queue.v1") ?? "[]").not.toContain("Keep me");
+    expect(addPictureMock).not.toHaveBeenCalled();
+
+    await user.click(screen.getByRole("button", { name: /send/i }));
+    await waitFor(() => expect(addPictureMock).toHaveBeenCalledTimes(2));
+    expect(createMock).toHaveBeenCalledTimes(2);
+    expect(createMock.mock.calls[1][0].clientKey).toBe(createMock.mock.calls[0][0].clientKey);
+  });
+
+  it("creates one note and uploads each picture once on a double click", async () => {
+    let release!: () => void;
+    addPictureMock.mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          release = () => resolve({ success: true, id: "p9", url: "/p9" });
+        }),
+    );
+    const user = await openPanel();
+    await user.type(screen.getByPlaceholderText(/what's on your mind/i), "Once");
+    await user.upload(fileInput(), [png("a.png"), png("b.png")]);
+    await screen.findAllByRole("button", { name: "Remove picture" });
+    const send = screen.getByRole("button", { name: /send/i });
+    await user.click(send);
+    await waitFor(() => expect(addPictureMock).toHaveBeenCalledTimes(1));
+    await user.click(send);
+    release();
+    await waitFor(() => expect(addPictureMock).toHaveBeenCalledTimes(2));
+    expect(createMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("locks Remove, Add and Send while a pick is compressing", async () => {
+    let release!: () => void;
+    compressMock.mockImplementationOnce(
+      (f: File) => new Promise((resolve) => { release = () => resolve(f); }),
+    );
+    const user = await openPanel();
+    await user.type(screen.getByPlaceholderText(/what's on your mind/i), "Busy");
+    await user.upload(fileInput(), [png("a.png")]);
+    await waitFor(() => expect(screen.getByRole("button", { name: "Add pictures" })).toBeDisabled());
+    expect(screen.getByRole("button", { name: /send/i })).toBeDisabled();
+    release();
+    await screen.findByRole("button", { name: "Remove picture" });
+    expect(screen.getByRole("button", { name: "Add pictures" })).toBeEnabled();
+    expect(screen.getByRole("button", { name: /send/i })).toBeEnabled();
+  });
+
   it("keeps Send disabled for an empty body even with pictures", async () => {
     const user = await openPanel();
     await user.upload(fileInput(), [png("a.png")]);
