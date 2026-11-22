@@ -245,19 +245,17 @@ function ReminderRow({
   const about = reminderAboutLabel(reminder);
 
   return (
-    <li className={reminder.past ? "flex items-start justify-between gap-3 py-2 opacity-60" : "flex items-start justify-between gap-3 py-2"}>
-      <div className="min-w-0 flex-1 [&_p]:max-w-prose">
-        <div className="flex min-w-0 flex-wrap items-center gap-1.5">
-          <p className="break-words text-sm font-medium text-foreground">
-            {reminder.title}
-          </p>
-          {about && (
-            <span className="inline-flex items-center rounded-full border-2 border-border bg-card px-2 py-0.5 text-[10px] font-extrabold text-muted-foreground">
-              {about}
-            </span>
-          )}
-        </div>
-        <p className="mt-0.5 text-xs text-muted-foreground">
+    <li
+      className={`flex min-w-0 flex-col gap-y-1 py-2 md:grid md:grid-cols-[auto_1fr_auto_auto] md:items-start md:gap-x-3 md:gap-y-0 [&_p]:max-w-prose${reminder.past ? " opacity-60" : ""}`}
+    >
+      <p className="break-words text-sm font-medium text-foreground md:col-start-1 md:row-start-1">{reminder.title}</p>
+      <div data-reminder-foot className="flex flex-wrap items-center gap-x-1.5 gap-y-1 md:contents">
+        {about && (
+          <span className="inline-flex items-center rounded-full border-2 border-border bg-card px-2 py-0.5 text-[10px] font-extrabold text-muted-foreground md:col-start-2 md:row-start-1 md:-ml-1.5 md:self-center md:justify-self-start">
+            {about}
+          </span>
+        )}
+        <p className="text-xs text-muted-foreground md:col-span-2 md:col-start-1 md:row-start-2 md:mt-0.5">
           {relative && (
             <>
               <span className="font-medium">{relative}</span>
@@ -266,30 +264,34 @@ function ReminderRow({
           )}
           <span>{absolute}</span>
         </p>
-        {reminder.notes && <ReminderNotes notes={reminder.notes} />}
+        <Button
+          variant="ghost"
+          size="icon"
+          className="ml-auto shrink-0 md:col-start-3 md:row-span-3 md:row-start-1 md:ml-0"
+          aria-label={`Edit reminder: ${reminder.title}`}
+          onClick={() => setEditing(true)}
+        >
+          <Pencil className="size-4" aria-hidden="true" />
+        </Button>
+        {editing && <AddReminderDialog reminder={reminder} open onOpenChange={setEditing} />}
+        <Button
+          variant="outline"
+          size="sm"
+          className="min-h-11 shrink-0 px-4 md:col-start-4 md:row-span-3 md:row-start-1"
+          onClick={() => {
+            recordUsageAction("reminder-got-it");
+            onGotIt(reminder);
+          }}
+        >
+          Got it
+          <span className="sr-only">: {reminder.title}</span>
+        </Button>
       </div>
-      <Button
-        variant="ghost"
-        size="icon"
-        className="shrink-0"
-        aria-label={`Edit reminder: ${reminder.title}`}
-        onClick={() => setEditing(true)}
-      >
-        <Pencil className="size-4" aria-hidden="true" />
-      </Button>
-      {editing && <AddReminderDialog reminder={reminder} open onOpenChange={setEditing} />}
-      <Button
-        variant="outline"
-        size="sm"
-        className="min-h-11 shrink-0 px-4"
-        onClick={() => {
-          recordUsageAction("reminder-got-it");
-          onGotIt(reminder);
-        }}
-      >
-        Got it
-        <span className="sr-only">: {reminder.title}</span>
-      </Button>
+      {reminder.notes && (
+        <div className="md:col-span-2 md:col-start-1 md:row-start-3">
+          <ReminderNotes notes={reminder.notes} />
+        </div>
+      )}
     </li>
   );
 }
