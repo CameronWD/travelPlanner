@@ -360,3 +360,10 @@ describe("OtherCostFormDialog: titles", () => {
     expect(screen.getByRole("heading", { name: "Edit Cost" })).toBeInTheDocument();
   });
 });
+
+describe("OtherCostFormDialog: cover", () => {
+  it("passes cover through to its sheet", () => {
+    render(<OtherCostFormDialog {...baseProps} cost={sampleCost} cover="always" />);
+    expect(screen.getByRole("dialog").className.split(/\s+/)).toContain("max-sm:min-h-[90dvh]");
+  });
+});

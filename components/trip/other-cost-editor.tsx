@@ -137,6 +137,7 @@ interface OtherCostDialogProps {
   submitting: boolean;
   errors: Record<string, string[]>;
   onCancel: () => void;
+  cover?: React.ComponentProps<typeof DialogContent>["cover"];
 }
 
 function OtherCostDialog({
@@ -148,6 +149,7 @@ function OtherCostDialog({
   submitting,
   errors,
   onCancel,
+  cover,
 }: OtherCostDialogProps) {
   const [form, setForm] = React.useState<FormState>(initialState);
 
@@ -158,7 +160,7 @@ function OtherCostDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-sm">
+      <DialogContent className="sm:max-w-sm" cover={cover}>
         <DialogHeader>
           <DialogTitle>{title}</DialogTitle>
         </DialogHeader>
@@ -326,10 +328,11 @@ export interface OtherCostFormDialogProps {
   onOpenChange: (open: boolean) => void;
   /** Starting values for a new cost (spec 2026-10-06 §K); omitted = Home currency, Before you go, unpaid. */
   defaults?: OtherCostDefaults;
+  cover?: React.ComponentProps<typeof DialogContent>["cover"];
 }
 
 /** The Other-cost form on its own, for Money's + Add a cost and a To pay row's Edit. */
-export function OtherCostFormDialog({ tripId, homeCurrency, cost, open, onOpenChange, defaults }: OtherCostFormDialogProps) {
+export function OtherCostFormDialog({ tripId, homeCurrency, cost, open, onOpenChange, defaults, cover }: OtherCostFormDialogProps) {
   const [submitting, setSubmitting] = React.useState(false);
   const [errors, setErrors] = React.useState<Record<string, string[]>>({});
 
@@ -368,6 +371,7 @@ export function OtherCostFormDialog({ tripId, homeCurrency, cost, open, onOpenCh
       submitting={submitting}
       errors={errors}
       onCancel={() => onOpenChange(false)}
+      cover={cover}
     />
   );
 }

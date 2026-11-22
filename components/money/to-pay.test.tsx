@@ -11,14 +11,31 @@ vi.mock("@/server/actions/costs", () => actions);
 const toast = vi.hoisted(() => vi.fn());
 vi.mock("@/components/ui/use-toast", () => ({ toast }));
 vi.mock("@/lib/dates", async (orig) => ({ ...(await orig<typeof import("@/lib/dates")>()), todayLocalISO: () => "2026-10-10" }));
-vi.mock("@/components/trip/other-cost-editor", () => ({
-  OtherCostFormDialog: ({ open, cost }: { open: boolean; cost?: { id: string } }) =>
-    open ? <div data-testid="other-cost-dialog" data-cost={cost?.id ?? "new"} /> : null,
-}));
-vi.mock("@/components/trip/cost-editor", () => ({
-  OwnedCostFormDialog: ({ open, cost }: { open: boolean; cost: { id: string } }) =>
-    open ? <div data-testid="owned-cost-dialog" data-cost={cost.id} /> : null,
-}));
+type CoverProp = boolean | "always" | undefined;
+vi.mock("@/components/trip/other-cost-editor", async () => {
+  const { Dialog, DialogContent, DialogTitle } = await import("@/components/ui/dialog");
+  return {
+    OtherCostFormDialog: ({ open, onOpenChange, cost, cover }: { open: boolean; onOpenChange: (o: boolean) => void; cost?: { id: string }; cover?: CoverProp }) => (
+      <Dialog open={open} onOpenChange={onOpenChange}>
+        <DialogContent cover={cover} aria-describedby={undefined} data-testid="other-cost-dialog" data-cost={cost?.id ?? "new"}>
+          <DialogTitle>Edit Cost</DialogTitle>
+        </DialogContent>
+      </Dialog>
+    ),
+  };
+});
+vi.mock("@/components/trip/cost-editor", async () => {
+  const { Dialog, DialogContent, DialogTitle } = await import("@/components/ui/dialog");
+  return {
+    OwnedCostFormDialog: ({ open, onOpenChange, cost, cover }: { open: boolean; onOpenChange: (o: boolean) => void; cost: { id: string }; cover?: CoverProp }) => (
+      <Dialog open={open} onOpenChange={onOpenChange}>
+        <DialogContent cover={cover} aria-describedby={undefined} data-testid="owned-cost-dialog" data-cost={cost.id}>
+          <DialogTitle>Edit Cost</DialogTitle>
+        </DialogContent>
+      </Dialog>
+    ),
+  };
+});
 vi.mock("@/components/money/paid-confirm", () => ({
   PaidConfirm: ({ row }: { row: { id: string } }) => <div data-testid="paid-confirm" data-cost={row.id} />,
 }));
@@ -147,6 +164,28 @@ describe("To pay (MONEY.md §4)", () => {
     await user.click(screen.getByRole("button", { name: "More for Rome apartment · balance" }));
     await user.click(await screen.findByRole("menuitem", { name: "Edit cost" }));
     expect(await screen.findByTestId("owned-cost-dialog")).toHaveAttribute("data-cost", "rome");
+  });
+
+  it("Edit cost covers All costs on a phone; Mark partly paid stays short", async () => {
+    const user = userEvent.setup();
+    renderCard();
+    await user.click(screen.getByRole("button", { name: /^All costs/ }));
+    const all = await screen.findByRole("dialog", { name: "All costs" });
+    await user.click(within(all).getByRole("button", { name: "More for Rome apartment · balance" }));
+    await user.click(await screen.findByRole("menuitem", { name: "Edit cost" }));
+    expect((await screen.findByTestId("owned-cost-dialog")).className.split(/\s+/)).toContain("max-sm:min-h-[90dvh]");
+    await user.keyboard("{Escape}");
+    await waitFor(() => expect(screen.queryByTestId("owned-cost-dialog")).toBeNull());
+
+    await user.click(within(all).getByRole("button", { name: "Edit Travel insurance" }));
+    expect((await screen.findByTestId("other-cost-dialog")).className.split(/\s+/)).toContain("max-sm:min-h-[90dvh]");
+    await user.keyboard("{Escape}");
+    await waitFor(() => expect(screen.queryByTestId("other-cost-dialog")).toBeNull());
+
+    await user.click(within(all).getByRole("button", { name: "More for Travel insurance" }));
+    await user.click(await screen.findByRole("menuitem", { name: "Mark partly paid" }));
+    const partly = (await screen.findByTestId("paid-confirm")).closest<HTMLElement>('[role="dialog"]')!;
+    expect(partly.className).not.toContain("min-h-");
   });
 
   it("tapping an Other cost's row opens its editor; an owned cost's row is not a button", async () => {

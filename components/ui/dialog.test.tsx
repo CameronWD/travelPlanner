@@ -1116,6 +1116,57 @@ describe("a sheet opened from a sheet covers it", () => {
       raf.mockRestore();
     }
   });
+
+  it('cover="always" takes the floor with no sheet beneath it', () => {
+    render(
+      <Dialog open>
+        <DialogContent cover="always" aria-describedby={undefined}>
+          <DialogTitle>Edit Cost</DialogTitle>
+        </DialogContent>
+      </Dialog>,
+    );
+    expect(screen.getByRole("dialog").className.split(/\s+/)).toContain(TALL);
+  });
+
+  it('cover="always" still drops the floor while the phone keyboard is open', () => {
+    setMatchMedia(false);
+    setInnerHeight(844);
+    const raf = runFramesSynchronously();
+    installVV(500, 0);
+    try {
+      render(
+        <Dialog open>
+          <DialogContent cover="always" aria-describedby={undefined}>
+            <DialogTitle>Edit Cost</DialogTitle>
+          </DialogContent>
+        </Dialog>,
+      );
+      const frame = screen.getByRole("dialog");
+      expect(frame).toHaveAttribute("data-keyboard", "open");
+      expect(frame.className).not.toContain("min-h-");
+    } finally {
+      removeVV();
+      raf.mockRestore();
+    }
+  });
+
+  it("a bare dialog opened from a sheet takes no floor", () => {
+    render(
+      <Dialog open>
+        <DialogContent aria-describedby={undefined}>
+          <DialogTitle>All costs</DialogTitle>
+          <Dialog open>
+            <DialogContent bare aria-describedby={undefined}>
+              <DialogTitle>Picture 1 of 2</DialogTitle>
+            </DialogContent>
+          </Dialog>
+        </DialogContent>
+      </Dialog>,
+    );
+    const all = [...document.querySelectorAll<HTMLElement>('[role="dialog"]')];
+    const bare = all.find((d) => d.querySelector("h2")?.textContent === "Picture 1 of 2")!;
+    expect(bare.className).not.toContain("min-h-");
+  });
 });
 
 describe("DIALOG_DESTRUCTIVE_CLASS", () => {

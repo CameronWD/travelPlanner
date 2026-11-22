@@ -88,6 +88,7 @@ interface CostDialogProps {
   submitting: boolean;
   errors: Record<string, string[]>;
   onCancel: () => void;
+  cover?: React.ComponentProps<typeof DialogContent>["cover"];
 }
 
 /**
@@ -103,6 +104,7 @@ function CostDialogForm({
   submitting,
   errors,
   onCancel,
+  cover,
 }: CostDialogProps) {
   const [form, setForm] = React.useState<FormState>(initialState);
 
@@ -113,7 +115,7 @@ function CostDialogForm({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-sm">
+      <DialogContent className="sm:max-w-sm" cover={cover}>
         <DialogHeader>
           <DialogTitle>{title}</DialogTitle>
         </DialogHeader>
@@ -220,6 +222,7 @@ export interface OwnedCostFormDialogProps {
   homeCurrency: string;
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  cover?: React.ComponentProps<typeof DialogContent>["cover"];
 }
 
 /**
@@ -227,7 +230,7 @@ export interface OwnedCostFormDialogProps {
  * its card (Money's To pay ⋯ menu). Callers only offer it when `ownerId` is
  * set.
  */
-export function OwnedCostFormDialog({ cost, open, onOpenChange }: OwnedCostFormDialogProps) {
+export function OwnedCostFormDialog({ cost, open, onOpenChange, cover }: OwnedCostFormDialogProps) {
   const [submitting, setSubmitting] = React.useState(false);
   const [errors, setErrors] = React.useState<Record<string, string[]>>({});
 
@@ -266,6 +269,7 @@ export function OwnedCostFormDialog({ cost, open, onOpenChange }: OwnedCostFormD
       submitting={submitting}
       errors={errors}
       onCancel={() => onOpenChange(false)}
+      cover={cover}
     />
   );
 }
