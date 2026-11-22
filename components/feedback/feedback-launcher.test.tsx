@@ -1331,6 +1331,33 @@ describe("FeedbackLauncher", () => {
       expect(screen.getByRole("switch", { name: "Show resolved (2)" })).toBeInTheDocument();
     });
 
+    it("fills the phone: a 90dvh frame, a list that keeps its height, and header, switch row and composer that never shrink", async () => {
+      listMock.mockResolvedValue({
+        success: true,
+        notes: [existingNote, oldDone],
+      });
+      await openPanel();
+
+      const frame = await screen.findByRole("dialog");
+      expect(frame.className).toContain("h-[90dvh]");
+      expect(frame.className).not.toMatch(/(^|\s)h-auto/);
+      expect(frame.className).toContain("md:h-auto");
+
+      const list = (await screen.findByText("Budget totals look wrong")).closest("ul")!
+        .parentElement!;
+      expect(list.className).toContain("min-h-0");
+      expect(list.className).toContain("flex-1");
+      expect(list.className).toContain("overflow-y-auto");
+
+      const header = screen.getByText("Feedback", { selector: "h2" }).parentElement!;
+      expect(header.className).toContain("shrink-0");
+      const switchRow = screen.getByRole("switch", { name: "Show resolved (1)" }).closest("label")!;
+      expect(switchRow.className).toContain("shrink-0");
+      expect(list.contains(switchRow)).toBe(false);
+      const composer = screen.getByPlaceholderText(/what's on your mind/i).parentElement!;
+      expect(composer.className).toContain("shrink-0");
+    });
+
     it("reveals hidden notes in their normal date order, and a second tap hides them again", async () => {
       listMock.mockResolvedValue({
         success: true,

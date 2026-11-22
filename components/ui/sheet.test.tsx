@@ -165,6 +165,8 @@ describe("Sheet", () => {
     // never drops below 16rem on a very short window, so a tall log still
     // gets a usable scroll box instead of a sliver.
     expect(sheetVariants({ side: "docked" })).toContain("md:h-auto");
+    expect(sheetVariants({ side: "docked" })).toContain("h-[90dvh]");
+    expect(sheetVariants({ side: "docked" })).not.toMatch(/(^|\s)h-auto/);
     expect(sheetVariants({ side: "docked" })).toContain(
       "md:max-h-[min(37.5rem,max(16rem,calc(100vh-9rem)))]",
     );
@@ -184,14 +186,14 @@ describe("Sheet", () => {
     expect(panel.className).toContain("md:max-h-[min(37.5rem,max(16rem,calc(100vh-9rem)))]");
   });
 
-  it("LA-023 mobile: below md the docked sheet is a bottom sheet sized to its content", () => {
+  it("LA-023 mobile: below md the docked sheet is a bottom sheet that fills 90dvh", () => {
     // It used to be a full-screen panel (inset-0 h-full) on phones, so an
     // empty feedback log left a screen-tall void between the title and the
-    // write box. Below md it now hugs the bottom edge, grows with content and
-    // stops at 90dvh; the md: desktop card is untouched.
+    // write box. Below md it hugs the bottom edge and fills 90dvh so the
+    // note list has height; the md: desktop card is untouched.
     const classes = sheetVariants({ side: "docked" }).split(/\s+/);
     expect(classes).toEqual(
-      expect.arrayContaining(["inset-x-0", "bottom-0", "h-auto", "max-h-[90dvh]", "rounded-t-2xl", "border-t-2"]),
+      expect.arrayContaining(["inset-x-0", "bottom-0", "h-[90dvh]", "max-h-[90dvh]", "rounded-t-2xl", "border-t-2"]),
     );
     expect(classes).not.toContain("inset-0");
     expect(classes).not.toContain("h-full");
