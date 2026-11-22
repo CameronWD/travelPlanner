@@ -125,7 +125,7 @@ const SheetFrame = React.forwardRef<
   const contentStyle: React.CSSProperties | undefined = keyboard
     ? {
         ...style,
-        bottom: kb.bottomInset,
+        bottom: kb.bottom,
         maxHeight: kb.visibleHeight,
         ...(side === "docked" ? { height: kb.visibleHeight } : null),
       }

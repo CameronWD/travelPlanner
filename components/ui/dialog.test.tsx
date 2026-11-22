@@ -843,10 +843,10 @@ describe("phone keyboard (spec 2026-10-11-phone-keyboard-sheets)", () => {
   }
 
   it("keyboard open: sits on the keyboard, fills the visible area, marks data-keyboard", async () => {
-    installVV(500, 0);
+    installVV(500, 120);
     const { content } = await open();
     expect(content).toHaveAttribute("data-keyboard", "open");
-    expect(content.style.bottom).toBe("344px");
+    expect(content.style.bottom).toBe("calc(100% - 620px)");
     expect(content.style.maxHeight).toBe("500px");
     expect(content.style.height).toBe("");
     expect(content.className).toContain("group/dialog");
@@ -859,7 +859,7 @@ describe("phone keyboard (spec 2026-10-11-phone-keyboard-sheets)", () => {
       vv.offsetTop = 100;
       vv.dispatchEvent(new Event("scroll"));
     });
-    expect(content.style.bottom).toBe("244px");
+    expect(content.style.bottom).toBe("calc(100% - 600px)");
     expect(content.style.maxHeight).toBe("500px");
   });
 
@@ -867,7 +867,7 @@ describe("phone keyboard (spec 2026-10-11-phone-keyboard-sheets)", () => {
     installVV(500, 0);
     const { content } = await open("full");
     expect(content).toHaveAttribute("data-keyboard", "open");
-    expect(content.style.bottom).toBe("344px");
+    expect(content.style.bottom).toBe("calc(100% - 500px)");
     expect(content.style.maxHeight).toBe("500px");
     expect(content.style.height).toBe("500px");
   });
@@ -906,7 +906,7 @@ describe("phone keyboard (spec 2026-10-11-phone-keyboard-sheets)", () => {
   it("reopening the dialog after closing it with the keyboard open starts clean", async () => {
     const vv = installVV(500, 0);
     const { user, content } = await open();
-    expect(content.style.bottom).toBe("344px");
+    expect(content.style.bottom).toBe("calc(100% - 500px)");
 
     await user.keyboard("{Escape}");
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();

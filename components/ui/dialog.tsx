@@ -148,7 +148,7 @@ const DialogSheet = React.forwardRef<
   const contentStyle: React.CSSProperties | undefined = keyboard
     ? {
         ...style,
-        bottom: kb.bottomInset,
+        bottom: kb.bottom,
         maxHeight: kb.visibleHeight,
         ...(size === "full" ? { height: kb.visibleHeight } : {}),
       }

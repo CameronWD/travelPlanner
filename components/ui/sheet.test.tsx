@@ -263,10 +263,10 @@ describe("Sheet: phone keyboard (spec 2026-10-11-phone-keyboard-sheets)", () => 
   const bodyOf = (panel: HTMLElement) => panel.querySelector<HTMLElement>('[class*="overflow-y-auto"]');
 
   it("bottom, keyboard open: sits on the keyboard, hides the handle, drops the safe-area padding", () => {
-    installVV(500, 0);
+    installVV(500, 120);
     const panel = openSheet("bottom");
     expect(panel).toHaveAttribute("data-keyboard", "open");
-    expect(panel.style.bottom).toBe("344px");
+    expect(panel.style.bottom).toBe("calc(100% - 620px)");
     expect(panel.style.maxHeight).toBe("500px");
     expect(panel.style.height).toBe("");
     expect(panel.className).toContain("group/sheet");
@@ -284,7 +284,7 @@ describe("Sheet: phone keyboard (spec 2026-10-11-phone-keyboard-sheets)", () => 
       vv.dispatchEvent(new Event("resize"));
     });
     expect(panel).toHaveAttribute("data-keyboard", "open");
-    expect(panel.style.bottom).toBe("354px");
+    expect(panel.style.bottom).toBe("calc(100% - 490px)");
     expect(panel.style.maxHeight).toBe("450px");
     act(() => {
       vv.height = 844;
@@ -307,7 +307,7 @@ describe("Sheet: phone keyboard (spec 2026-10-11-phone-keyboard-sheets)", () => 
     installVV(500, 0);
     const panel = openSheet("docked");
     expect(panel).toHaveAttribute("data-keyboard", "open");
-    expect(panel.style.bottom).toBe("344px");
+    expect(panel.style.bottom).toBe("calc(100% - 500px)");
     expect(panel.style.maxHeight).toBe("500px");
     expect(panel.style.height).toBe("500px");
     expect(panel.className.split(/\s+/)).toContain("pb-6");
