@@ -105,7 +105,7 @@ function DayDot({ category }: { category: string }) {
 }
 
 function AnyTime() {
-  return <p className="pt-1 text-xs font-bold text-muted-foreground">Any time</p>;
+  return <p className="pt-1 text-[11px] font-extrabold uppercase tracking-[0.08em] text-muted-foreground">Any time</p>;
 }
 
 function NeedsDates() {

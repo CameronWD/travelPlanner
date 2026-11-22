@@ -183,6 +183,9 @@ describe("StopSheet day rows", () => {
     const { unmount } = renderSheet({ dayItems: mixed, slots: daySlots(PARIS, mixed) });
     const section = screen.getByTestId(`sheet-day-${day}`);
     expect(within(section).getAllByText("Any time")).toHaveLength(1);
+    expect(within(section).getByText("Any time").className.split(/\s+/)).toEqual(
+      expect.arrayContaining(["text-[11px]", "font-extrabold", "uppercase", "tracking-[0.08em]", "text-muted-foreground"]),
+    );
     const text = section.textContent!;
     expect(text.indexOf("Dinner")).toBeLessThan(text.indexOf("Any time"));
     expect(text.indexOf("Any time")).toBeLessThan(text.indexOf("Wander"));
