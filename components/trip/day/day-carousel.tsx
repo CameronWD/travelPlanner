@@ -538,11 +538,14 @@ export function DayCarousel({
   );
 }
 
+// Not part of a day: the arrows and the top bar (switcher, Share, bell) hold still while the day's heading travels.
+const HELD_STILL = '[data-slot="day-arrow"], [data-slot="day-trip-switcher"]';
+
 function restHeading(area: HTMLElement, track: HTMLElement) {
   track.style.transform = "";
   area.style.height = "";
   area.style.overflow = "";
-  for (const arrow of area.querySelectorAll<HTMLElement>('[data-slot="day-arrow"]')) arrow.style.transform = "";
+  for (const el of area.querySelectorAll<HTMLElement>(HELD_STILL)) el.style.transform = "";
 }
 
 function moveHeading(area: HTMLElement, track: HTMLElement, progress: number, lerp: boolean) {
@@ -550,9 +553,9 @@ function moveHeading(area: HTMLElement, track: HTMLElement, progress: number, le
   const toward = area.querySelector<HTMLElement>("[data-day-heading-panel][inert]");
   area.style.overflow = "hidden";
   track.style.transform = `translate3d(${-progress * 100}%, 0, 0)`;
-  // The arrows belong to the day in view's header but hold still: the track's move, undone.
+  // These sit in the day in view's header but hold still: the track's move, undone.
   const still = `translate3d(${progress * area.getBoundingClientRect().width}px, 0, 0)`;
-  for (const arrow of shown?.querySelectorAll<HTMLElement>('[data-slot="day-arrow"]') ?? []) arrow.style.transform = still;
+  for (const el of shown?.querySelectorAll<HTMLElement>(HELD_STILL) ?? []) el.style.transform = still;
   area.style.height = lerp && shown && toward ? `${lerpHeight(shown.offsetHeight, toward.offsetHeight, progress)}px` : "";
 }
 
@@ -560,7 +563,8 @@ function moveHeading(area: HTMLElement, track: HTMLElement, progress: number, le
  * The heading area (ADR 0065, amended 2026-11-22): the day in view's header
  * and, while the body moves, the header of the day it moves towards, side by
  * side in a track that follows the body, the area's height moving between
- * theirs. Transform and height are written to the DOM as progress arrives;
+ * theirs. Only the day's own heading travels: the arrows and the top bar are
+ * held still and the neighbour's are hidden. Transform and height are written to the DOM as progress arrives;
  * only a change of neighbour renders. A settle onto the neighbour leaves the
  * track where it is until the day in view changes, so the outgoing heading
  * never shows for a frame on the way.
@@ -639,7 +643,7 @@ function DayHeadingTrack({ carousel, view, panels, header }: { carousel: DayCaro
               data-day-heading-panel={iso}
               inert={away ? true : undefined}
               aria-hidden={away ? "true" : undefined}
-              className={cn("px-4 sm:px-6 md:px-0", away && "absolute top-0 w-full [&_[data-slot=day-arrow]]:invisible", away && (before ? "right-full" : "left-full"))}
+              className={cn("px-4 sm:px-6 md:px-0", away && "absolute top-0 w-full [&_[data-slot=day-arrow]]:invisible [&_[data-slot=day-trip-switcher]]:invisible", away && (before ? "right-full" : "left-full"))}
             >
               {header(iso)}
             </div>

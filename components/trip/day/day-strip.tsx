@@ -80,6 +80,7 @@ export function DayStrip({ tripId, dates, line, size }: { tripId: string; dates:
   const placedIndex = dates.findIndex((d) => d.iso === (pendingDay ?? inView));
   const centreIndex = placedIndex >= 0 ? placedIndex : dates.findIndex((d) => d.iso === inView);
   const viewIndex = dates.findIndex((d) => d.iso === inView);
+  const hydrating = React.useSyncExternalStore(noSubscription, () => false, () => true);
   const isos = React.useRef<string[]>([]);
   React.useLayoutEffect(() => {
     isos.current = dates.map((d) => d.iso);
@@ -343,7 +344,25 @@ export function DayStrip({ tripId, dates, line, size }: { tripId: string; dates:
   );
 
   if (phone) {
-    return <div data-day-strip className="flex flex-col gap-2 -mx-4 sm:-mx-6">{strip}</div>;
+    return (
+      <div data-day-strip className="flex flex-col gap-2 -mx-4 sm:-mx-6">
+        {strip}
+        {/* Cold load: the carousel's own script puts the body on the day shown
+            while the HTML parses, and until hydration this strip sat at 0, on
+            the Trip's first days with the lit chip off screen. The same here:
+            with the end padding, centring chip i is i * (chip + gap)
+            (centredScrollLeft). Inside React's hidden streaming container a
+            chip has no width, so wait for one. Server and hydration only, as
+            the carousel's: a script React creates on the client never runs. */}
+        {hydrating && viewIndex >= 0 ? (
+          <script
+            dangerouslySetInnerHTML={{
+              __html: `(function(){var s=document.currentScript&&document.currentScript.previousElementSibling;if(!s)return;var i=${viewIndex};function w(){var c=s.querySelector("a");return c?c.getBoundingClientRect().width:0}function p(){s.scrollLeft=i*(w()+${STRIP_CHIP_GAP_PX})}if(w()){p();return}new ResizeObserver(function(_,o){if(w()){p();o.disconnect()}}).observe(s)})()`,
+            }}
+          />
+        ) : null}
+      </div>
+    );
   }
   return (
     <div

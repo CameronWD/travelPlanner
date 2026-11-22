@@ -166,19 +166,36 @@ Three rules, below `lg`:
 - **The heading travels with the body.** The heading area is a clipped track holding the
   day in view's header and, while the body moves, the header of the day it moves towards (its
   own, or the date-only one until its slot fills). The track follows the same progress the
-  body and the strip do, and the area's height moves between the two headers' heights. The
-  arrows belong to the day in view's header but hold still, and the neighbour's are hidden.
+  body and the strip do, and the area's height moves between the two headers' heights. Only
+  the day's own heading travels: the eyebrow, the Day title, the date, the place line and any
+  holiday note. The arrows and the top bar (Trip switcher, Share, bell) are not part of a day
+  and stay put. They sit in each day's header, so the track undoes its move on the day in
+  view's (an exact counter-translate) and hides the neighbour's. Taking them out of the
+  header would mean rebuilding it.
   Transform and height are written to the DOM per frame; only a change of neighbour renders.
+  The track lives in the carousel's header box, inside the carousel's context, where the
+  height hold and the swap correction already are.
   If the page is scrolled into the header when a gesture starts, the height holds and the
   correction on the swap keeps the body still, as before. The track is full width, like the
   body's scroller, so the heading moves as far as the body does.
 - **The lit chip changes at halfway.** The carousel tells the strip which day the body
-  mostly shows (`subscribeNearest`). That day takes `aria-current` and the lit chip as the
+  mostly shows (`subscribeNearest`, optional on the carousel's API so a stand-in carousel
+  need not provide it). That day takes `aria-current` and the lit chip as the
   body crosses halfway, and gives them back if the drag returns. The strip itself is placed
   from the day in view's index plus the progress, never from a position it remembered or
-  measured from a chip. Cam saw day 36 shown with the strip on days 1 to 4 and nothing lit.
-  That could not be reproduced in jsdom, so the strip no longer depends on any state that
-  could leave it there.
+  measured from a chip. Below `lg` it re-centres on the day in view at every settle, and on
+  the phone it no longer glides from where it was left when the Day view is entered from
+  another section: it is placed. That replaces "the strip restores its own position across
+  the remount" (Considered options) for the phone.
+- **The strip is on the day shown before hydration.** Cam saw day 36 shown with the strip on
+  days 1 to 4 and nothing lit: the lit chip was off screen. On a cold load the body is put on
+  the day shown by its inline script while the HTML parses, but the strip had none, and sat
+  at 0 until React hydrated. The phone strip now carries the same kind of script, which
+  waits for a width inside React's hidden streaming container.
+- **No held height outlives its swap.** The heading box's hold (2026-11-19) is set and
+  released in the same commit, and the track's interpolated height is cleared on the settle
+  or the commit that changes the day in view. After a settle the heading box is the day in
+  view's heading, exactly.
 - **A far tap is a cut.** A day further than one away is shown in one commit: heading,
   strip and body together, with one scroll write, no glide and one push. An adjacent tap, an
   arrow or a key still glides.

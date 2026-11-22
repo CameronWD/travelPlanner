@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import * as React from "react";
 import { render, screen, within, fireEvent, act } from "@testing-library/react";
+import { renderToString } from "react-dom/server";
 import { DayStrip } from "@/components/trip/day/day-strip";
 import { NavigationPendingProvider } from "@/components/navigation/navigation-pending";
 import { DayCarousel, DayCarouselContext, type DayCarouselApi } from "@/components/trip/day/day-carousel";
@@ -511,6 +512,54 @@ describe("DayStrip", () => {
     expect(nineteenth.className.split(/\s+/)).toContain("bg-card");
     const highlight = screen.getByRole("navigation", { name: "Days" }).querySelector("[data-strip-highlight]") as HTMLElement;
     expect(highlight.style.transform).toBe(`translateX(${19 * 3.5}rem)`);
+  });
+  describe("cold load: the phone strip is on the day shown before React hydrates (image 4)", () => {
+    const chipRect = (width: number) => ({ left: 0, width, top: 0, right: width, bottom: 58, height: 58, x: 0, y: 0, toJSON() {} }) as DOMRect;
+    function serverStrip(size: "phone" | "desktop" = "phone") {
+      const host = document.createElement("div");
+      host.innerHTML = renderToString(<DayStrip tripId="t-cold" dates={dates} line={segments} size={size} />);
+      document.body.append(host);
+      return { host, script: host.querySelector("script"), scroller: host.querySelector("[data-day-strip-scroller]") as HTMLElement };
+    }
+    // The script as the parser runs it: right after the strip, as document.currentScript.
+    const run = (script: HTMLScriptElement) => new Function("document", script.textContent!)({ currentScript: script });
+    afterEach(() => {
+      document.body.innerHTML = "";
+      vi.restoreAllMocks();
+      vi.unstubAllGlobals();
+    });
+
+    it("the server's markup positions the strip on the day shown, centred as the strip itself centres it", () => {
+      const { script, scroller } = serverStrip();
+      expect(script).not.toBeNull();
+      expect(script!.previousElementSibling).toBe(scroller);
+      vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockReturnValue(chipRect(48));
+      run(script!);
+      expect(scroller.scrollLeft).toBe(centredScrollLeft(3, 48, STRIP_CHIP_GAP_PX, 402));
+    });
+    it("inside React's hidden streaming container it waits for a width, then positions once", () => {
+      const observers: Array<{ cb: (e: unknown, o: { disconnect: () => void }) => void; disconnect: ReturnType<typeof vi.fn<() => void>> }> = [];
+      vi.stubGlobal("ResizeObserver", class {
+        disconnect = vi.fn<() => void>();
+        constructor(cb: (e: unknown, o: { disconnect: () => void }) => void) { observers.push({ cb, disconnect: this.disconnect }); }
+        observe() {}
+      });
+      const rect = vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockReturnValue(chipRect(0));
+      const { script, scroller } = serverStrip();
+      run(script!);
+      expect(scroller.scrollLeft).toBe(0);
+      expect(observers).toHaveLength(1);
+      rect.mockReturnValue(chipRect(48));
+      observers[0].cb([], { disconnect: observers[0].disconnect });
+      expect(scroller.scrollLeft).toBe(centredScrollLeft(3, 48, STRIP_CHIP_GAP_PX, 402));
+      expect(observers[0].disconnect).toHaveBeenCalled();
+    });
+    it("the client never renders the script, and React does not complain", () => {
+      const error = vi.spyOn(console, "error");
+      const { container } = render(<DayStrip tripId="t-cold-client" dates={dates} line={segments} size="phone" />);
+      expect(container.querySelector("script")).toBeNull();
+      expect(error).not.toHaveBeenCalled();
+    });
   });
   describe("phone, driven by the real carousel: after a settle the strip is on the day in view with its chip lit", () => {
     const VIEWPORT = 402;

@@ -8,16 +8,13 @@ import { DayChromeRegistryContext, SETTLE_QUIET_MS, type DayPanel } from "@/comp
 import { DayCarouselFrame, DayChromeRegistry, RegisterDayChrome, type DayChromeFallbackInputs } from "@/components/trip/day/day-chrome-registry";
 import { lerpHeight } from "@/components/trip/day/carousel-maths";
 
-// The registry module also holds the carousel frame, whose real header pulls in server actions.
-vi.mock("@/components/trip/day/day-header", () => ({
-  DayHeader: ({ heading }: { heading: string }) => (
-    <>
-      <div data-slot="day-arrow" />
-      <h1>{heading}</h1>
-    </>
-  ),
-}));
-vi.mock("@/lib/usage/client", () => ({ recordUsageSwipe: vi.fn() }));
+// The frame's fallback is the real DayHeader; what in it pulls in server actions is stubbed (day-header.test.tsx).
+vi.mock("@/components/trip/share-chooser", () => ({ ShareTripButton: () => <button aria-label="Share" /> }));
+vi.mock("@/components/trip/notification-bell", () => ({ NotificationBell: () => <button aria-label="Notifications" /> }));
+vi.mock("@/components/shell/trip-switcher", () => ({ TripSwitcherFromContext: () => <button aria-label="Switch trip" /> }));
+// eslint-disable-next-line @typescript-eslint/no-unused-vars -- stripped so they never reach the DOM
+vi.mock("next/link", () => ({ useLinkStatus: () => ({ pending: false }), default: ({ href, children, onNavigate: _n, transitionTypes: _t, scroll: _s, ...rest }: { href: string; children: React.ReactNode } & Record<string, unknown>) => <a href={href} {...rest}>{children}</a> }));
+vi.mock("@/lib/usage/client", () => ({ recordUsageSwipe: vi.fn(), recordUsageDayChange: vi.fn() }));
 vi.mock("@/components/ui/view-transition", () => ({ ViewTransition: ({ children }: { children?: React.ReactNode }) => <>{children}</> }));
 const push = vi.fn();
 const router = { push, prefetch: vi.fn(), replace: vi.fn(), refresh: vi.fn(), back: vi.fn(), forward: vi.fn() };
@@ -62,9 +59,14 @@ describe("DayCarouselFrame: the heading travels with the body (below lg)", () =>
     push.mockImplementation(() => new Promise<void>((r) => releases.push(r)));
     setMatchMedia(false);
     vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockReturnValue({ top: 0, bottom: 0, left: 0, right: WIDTH, width: WIDTH, height: 0, x: 0, y: 0, toJSON() {} } as DOMRect);
-    // Each heading panel is as tall as its day's header.
+    // Each heading panel is as tall as its day's header; the area is its set height, else the day in view's.
     vi.spyOn(HTMLElement.prototype, "offsetHeight", "get").mockImplementation(function (this: HTMLElement) {
-      return this.hasAttribute("data-day-heading-panel") ? HEIGHTS[this.getAttribute("data-day-heading-panel")!] : 0;
+      if (this.hasAttribute("data-day-heading-panel")) return HEIGHTS[this.getAttribute("data-day-heading-panel")!];
+      if (this.hasAttribute("data-day-heading-area")) {
+        const shown = this.querySelector("[data-day-heading-panel]:not([inert])");
+        return this.style.height ? parseFloat(this.style.height) : shown ? HEIGHTS[shown.getAttribute("data-day-heading-panel")!] : 0;
+      }
+      return 0;
     });
   });
   afterEach(async () => {
@@ -75,12 +77,13 @@ describe("DayCarouselFrame: the heading travels with the body (below lg)", () =>
     vi.restoreAllMocks();
   });
 
+  const frame = (shown: string) => (
+    <NavigationPendingProvider>
+      <DayCarouselFrame panels={panels} shownDate={shown} chrome={null} seed={{}} fallback={fallback} />
+    </NavigationPendingProvider>
+  );
   function mount(shown: string) {
-    const r = render(
-      <NavigationPendingProvider>
-        <DayCarouselFrame panels={panels} shownDate={shown} chrome={null} seed={{}} fallback={fallback} />
-      </NavigationPendingProvider>,
-    );
+    const r = render(frame(shown));
     const scroller = r.container.querySelector("[data-day-carousel]") as HTMLElement;
     const area = r.container.querySelector("[data-day-heading-area]") as HTMLElement;
     const track = r.container.querySelector("[data-day-heading-track]") as HTMLElement;
@@ -90,7 +93,8 @@ describe("DayCarouselFrame: the heading travels with the body (below lg)", () =>
       fireEvent.scroll(scroller);
     };
     const settle = () => act(() => { vi.advanceTimersByTime(SETTLE_QUIET_MS + 10); });
-    return { ...r, scroller, area, track, headings, publish, settle };
+    const box = area.parentElement as HTMLElement;
+    return { ...r, scroller, area, track, box, headings, publish, settle };
   }
 
   it("a drag a quarter of the way to the next day shows both headings, the next one inert, the track a quarter across, and the height a quarter of the way between them", () => {
@@ -146,16 +150,61 @@ describe("DayCarouselFrame: the heading travels with the body (below lg)", () =>
     expect(push).not.toHaveBeenCalled();
   });
 
-  it("the day in view's arrows stay where they are while the track moves, and the neighbour's are hidden", () => {
+  it("the day in view's arrows and its top bar (switcher, Share, bell) stay where they are while the track moves, and the neighbour's are hidden", () => {
     const { area, publish, settle } = mount("2026-12-19");
-    const arrow = () => area.querySelector('[data-day-heading-panel="2026-12-19"] [data-slot="day-arrow"]') as HTMLElement;
+    const inView = () => area.querySelector('[data-day-heading-panel="2026-12-19"]') as HTMLElement;
+    const still = () => Array.from(inView().querySelectorAll<HTMLElement>('[data-slot="day-arrow"], [data-slot="day-trip-switcher"]'));
+    const bar = () => inView().querySelector('[data-slot="day-trip-switcher"]') as HTMLElement;
+    expect(bar().querySelector('[aria-label="Switch trip"]')).not.toBeNull();
+    expect(bar().querySelector('[aria-label="Share"]')).not.toBeNull();
+    expect(bar().querySelector('[aria-label="Notifications"]')).not.toBeNull();
+    expect(still()).toHaveLength(3);
     publish(0.25);
-    expect(arrow().style.transform).toBe(`translate3d(${0.25 * WIDTH}px, 0, 0)`);
+    // The track moves -25% of its width; these move back by exactly that, so on screen they do not move.
+    for (const el of still()) expect(el.style.transform).toBe(`translate3d(${0.25 * WIDTH}px, 0, 0)`);
     const neighbour = area.querySelector('[data-day-heading-panel="2026-12-20"]') as HTMLElement;
-    expect(neighbour.className).toContain("[&_[data-slot=day-arrow]]:invisible");
+    expect(neighbour.className.split(/\s+/)).toEqual(expect.arrayContaining(["[&_[data-slot=day-arrow]]:invisible", "[&_[data-slot=day-trip-switcher]]:invisible"]));
+    // The day's own heading content is not held: it travels with the track.
+    expect((inView().querySelector('[data-slot="day-title-block"]') as HTMLElement).style.transform).toBe("");
     publish(0);
     settle();
-    expect(arrow().style.transform).toBe("");
+    for (const el of still()) expect(el.style.transform).toBe("");
+  });
+
+  it("after a settle onto the next day the heading box holds no height of its own: it is the day in view's heading, exactly", () => {
+    const { area, box, publish, settle } = mount("2026-12-19");
+    publish(0.5);
+    publish(1);
+    settle();
+    expect(box.style.minHeight).toBe("");
+    expect(area.style.height).toBe("");
+    expect(area.style.overflow).toBe("");
+  });
+
+  it("scrolled into the header, a settle onto the next day leaves no held height once the swap is corrected", () => {
+    const scrollBy = vi.spyOn(window, "scrollBy").mockImplementation(() => {});
+    vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockReturnValue({ top: -60, bottom: 40, left: 0, right: WIDTH, width: WIDTH, height: 100, x: 0, y: -60, toJSON() {} } as DOMRect);
+    const { area, box, publish, settle } = mount("2026-12-19");
+    publish(0.5);
+    expect(area.style.height).toBe("");
+    publish(1);
+    settle();
+    // The swap was measured against the held 96px and corrected by the 24px the heading grew.
+    expect(scrollBy.mock.calls).toEqual([[0, 24]]);
+    expect(box.style.minHeight).toBe("");
+    expect(area.style.height).toBe("");
+  });
+
+  it("the navigation landing for the day in view leaves no held height either", async () => {
+    const { box, area, publish, settle, rerender } = mount("2026-12-19");
+    publish(1);
+    settle();
+    await act(async () => {
+      rerender(frame("2026-12-20"));
+      for (const release of releases.splice(0)) release();
+    });
+    expect(box.style.minHeight).toBe("");
+    expect(area.style.height).toBe("");
   });
 
   it("the track has no transition of its own: it follows the finger", () => {

@@ -137,7 +137,7 @@ export function DayHeader({
             Every line in the block has a fixed height, so the optional Day title and
             sub-line can come and go without the arrows moving (spec 2026-09-28 D2). */}
         <div className="grid w-full grid-cols-[2.75rem_minmax(0,1fr)_2.75rem] items-center gap-3.5 md:flex md:w-auto md:min-w-0 md:flex-1 md:justify-start lg:flex-none lg:justify-center">
-          {/* The carousel's heading track holds these still while the date slides (day-carousel.tsx). */}
+          {/* The carousel's heading track holds these, and the top bar above, still while the day's heading slides (day-carousel.tsx). */}
           <div data-slot="day-arrow" className="flex shrink-0">
             <DayArrow href={prevHref} label={prevLabel} dir="prev" />
           </div>
