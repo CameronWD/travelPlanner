@@ -63,4 +63,13 @@ describe("RatesRefreshButton", () => {
     await waitFor(() => expect(toastMock).toHaveBeenCalled());
     expect(onRefreshed).not.toHaveBeenCalled();
   });
+
+  it("keeps success but toasts when only some rates came back", async () => {
+    refreshRates.mockResolvedValueOnce({ results: [{ base: "EUR", rate: 1.6 }, { base: "GBP", rate: null }] });
+    const onRefreshed = vi.fn();
+    render(<RatesRefreshButton {...props} onRefreshed={onRefreshed} />);
+    await userEvent.click(screen.getByRole("button", { name: "Refresh all rates" }));
+    await waitFor(() => expect(onRefreshed).toHaveBeenCalledTimes(1));
+    expect(toastMock).toHaveBeenCalledWith({ variant: "destructive", title: "Some rates couldn’t be refreshed." });
+  });
 });

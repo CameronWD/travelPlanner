@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen, within, waitFor } from "@testing-library/react";
+import { render, screen, within, waitFor, act } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 
 // rates-panel.tsx imports server actions that hit Postgres at module-eval
@@ -146,13 +146,27 @@ describe("Rates strip (MONEY.md §6)", () => {
       expect(screen.queryByText("Updated 2h ago")).toBeNull();
     });
 
-    it("Updated just now gives way to the note when the rates next change", async () => {
-      refreshRates.mockResolvedValueOnce({ results: [{ base: "EUR", rate: 1.7 }] });
-      const { rerender } = render(<RatesStrip {...base} />);
-      await userEvent.click(screen.getByRole("button", { name: "Refresh all rates" }));
-      await screen.findByText("Updated just now");
-      rerender(<RatesStrip {...base} rates={[{ ...RATES[0], rate: 1.7 }, RATES[1], RATES[2]]} note="Updated 1m ago" />);
-      expect(screen.getByText("Updated 1m ago")).toBeInTheDocument();
+    it("Updated just now holds for a minute through new rates, then gives way to the note; a second refresh restarts it", async () => {
+      vi.useFakeTimers({ shouldAdvanceTime: true });
+      try {
+        refreshRates.mockResolvedValue({ results: [{ base: "EUR", rate: 1.7 }] });
+        const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
+        const { rerender } = render(<RatesStrip {...base} />);
+        await user.click(screen.getByRole("button", { name: "Refresh all rates" }));
+        await screen.findByText("Updated just now");
+        rerender(<RatesStrip {...base} rates={[{ ...RATES[0], rate: 1.7 }, RATES[1], RATES[2]]} note="Updated 1m ago" />);
+        act(() => void vi.advanceTimersByTime(59_000));
+        expect(screen.getByText("Updated just now")).toBeInTheDocument();
+
+        await user.click(screen.getByRole("button", { name: "Refresh all rates" }));
+        await waitFor(() => expect(refreshRates).toHaveBeenCalledTimes(2));
+        act(() => void vi.advanceTimersByTime(59_000));
+        expect(screen.getByText("Updated just now")).toBeInTheDocument();
+        act(() => void vi.advanceTimersByTime(2_000));
+        expect(screen.getByText("Updated 1m ago")).toBeInTheDocument();
+      } finally {
+        vi.useRealTimers();
+      }
     });
 
     it("a failed refresh toasts and leaves the note alone", async () => {

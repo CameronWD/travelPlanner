@@ -25,6 +25,7 @@ export function RatesRefreshButton({
       const { results } = await refreshRates(tripId, currencies, homeCurrency);
       if (results.length > 0 && results.every((r) => r.rate == null)) throw new Error("no rate came back");
       onRefreshed();
+      if (results.some((r) => r.rate == null)) toast({ variant: "destructive", title: "Some rates couldn’t be refreshed." });
     } catch {
       toast({ variant: "destructive", title: "Couldn’t refresh rates. Try again." });
     } finally {

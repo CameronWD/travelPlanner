@@ -1,6 +1,6 @@
 "use client";
 
-import { useId, useState, type CSSProperties } from "react";
+import { useEffect, useId, useRef, useState, type CSSProperties } from "react";
 import { ArrowRight } from "lucide-react";
 import { cn } from "@/lib/cn";
 import type { RateEntry } from "@/components/trip/rates-panel";
@@ -27,9 +27,16 @@ export function RatesStrip({
 }) {
   // Rendered twice on one page (Money, and the All costs footer).
   const headingId = useId();
-  // The rates array the refresh landed on; "Updated just now" holds until the prop is a different array.
-  const [refreshedOn, setRefreshedOn] = useState<RateEntry[] | null>(null);
-  const shownNote = refreshedOn === rates ? "Updated just now" : note;
+  // The refresh revalidates the page, so new rates arrive straight away: the note is held by a timer, not by the props.
+  const [justRefreshed, setJustRefreshed] = useState(false);
+  const timer = useRef<ReturnType<typeof setTimeout>>(undefined);
+  useEffect(() => () => clearTimeout(timer.current), []);
+  function onRefreshed() {
+    clearTimeout(timer.current);
+    setJustRefreshed(true);
+    timer.current = setTimeout(() => setJustRefreshed(false), 60_000);
+  }
+  const shownNote = justRefreshed ? "Updated just now" : note;
   if (rates.length === 0) return null;
 
   return (
@@ -50,7 +57,7 @@ export function RatesStrip({
             tripId={tripId}
             homeCurrency={homeCurrency}
             currencies={rates.map((r) => r.currency)}
-            onRefreshed={() => setRefreshedOn(rates)}
+            onRefreshed={onRefreshed}
           />
         </div>
       </div>
