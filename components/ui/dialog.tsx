@@ -112,6 +112,8 @@ type DialogContentProps = React.ComponentPropsWithoutRef<typeof DialogPrimitive.
    * body to the dialog's height, so one `flex-1` child (the Plan's Route map) fills it.
    */
   size?: "md" | "lg" | "full";
+  /** Opened from inside another sheet, the phone sheet covers it (90dvh floor). `false` keeps it short, as a confirmation should be. */
+  cover?: boolean;
 };
 
 /*
@@ -125,7 +127,7 @@ type DialogContentProps = React.ComponentPropsWithoutRef<typeof DialogPrimitive.
 const DialogSheet = React.forwardRef<
   React.ComponentRef<typeof DialogPrimitive.Content>,
   DialogContentProps
->(({ className, children, hideClose, bare, size = "md", style, ...props }, ref) => {
+>(({ className, children, hideClose, bare, size = "md", cover = true, style, ...props }, ref) => {
   const reduce = useReducedMotion();
   const isDesktop = useIsDesktopDialog();
   // Only the desktop (sm+) pop gets the spring — the phone bottom sheet
@@ -231,7 +233,7 @@ const DialogSheet = React.forwardRef<
         // Opened from inside another sheet, the phone sheet covers it rather
         // than sitting short over it. Not while the keyboard is up: a
         // min-height beats the inline max-height that fits it above the keys.
-        depth > 0 && !keyboard && "max-sm:min-h-[90dvh]",
+        cover && depth > 0 && !keyboard && "max-sm:min-h-[90dvh]",
         // The phone bottom sheet's slide stays plain CSS either way.
         "data-[state=open]:tp-slide-up data-[state=closed]:tp-slide-down",
         "sm:inset-x-auto sm:bottom-auto sm:left-1/2 sm:top-1/2 sm:w-[calc(100%-2rem)] sm:max-h-[85vh] sm:-translate-x-1/2 sm:-translate-y-1/2 sm:rounded-2xl sm:border-b-2 sm:shadow-hard-5",

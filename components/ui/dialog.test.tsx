@@ -49,6 +49,7 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "./dialog";
+import { ConfirmDialog } from "./confirm-dialog";
 import { Field } from "./field";
 import { Checkbox } from "./checkbox";
 import { nearestPositionedAncestor } from "@/test/helpers/containing-block";
@@ -1078,6 +1079,26 @@ describe("a sheet opened from a sheet covers it", () => {
     const { outer, inner } = frames();
     expect(inner.className.split(/\s+/)).toContain(TALL);
     expect(outer.className).not.toContain("min-h-");
+  });
+
+  it("a confirmation opened from a sheet keeps its short sheet; an ordinary nested dialog beside it still covers", () => {
+    render(
+      <Dialog open>
+        <DialogContent aria-describedby={undefined}>
+          <DialogTitle>Edit Item</DialogTitle>
+          <ConfirmDialog open onOpenChange={() => {}} onConfirm={() => {}} title="Delete this item?" />
+          <Dialog open>
+            <DialogContent aria-describedby={undefined}>
+              <DialogTitle>Add a Reminder</DialogTitle>
+            </DialogContent>
+          </Dialog>
+        </DialogContent>
+      </Dialog>,
+    );
+    const all = [...document.querySelectorAll<HTMLElement>('[role="dialog"]')];
+    const byTitle = (t: string) => all.find((d) => d.querySelector("h2")?.textContent === t)!;
+    expect(byTitle("Delete this item?").className).not.toContain("min-h-");
+    expect(byTitle("Add a Reminder").className.split(/\s+/)).toContain(TALL);
   });
 
   it("drops the floor while the phone keyboard is open, so the sheet still fits above it", () => {
