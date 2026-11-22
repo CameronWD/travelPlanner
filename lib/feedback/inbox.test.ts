@@ -303,6 +303,32 @@ describe("renderInbox pictures", () => {
   it("prints no Pictures line for a note without any", () => {
     expect(renderInbox([note()], generatedAt)).not.toContain("Pictures:");
   });
+
+  const UNREAD =
+    "_Pictures: 2 could not be downloaded (check STORAGE_DRIVER and the R2 variables in .env.production.local)_";
+  const paths = ["docs/feedback/pictures/n1/1.jpg", "docs/feedback/pictures/n1/2.png"];
+
+  it("lists only the pictures present on disk", () => {
+    const md = renderInbox([note({ pictures: paths })], generatedAt, new Set(paths));
+    expect(md).toContain(`  _Pictures: ${paths.join(", ")}_`);
+    expect(md).not.toContain("could not be downloaded");
+  });
+
+  it("says how many could not be downloaded instead of listing dead paths", () => {
+    const md = renderInbox([note({ pictures: paths })], generatedAt, new Set());
+    expect(md).toContain(`  _/trips/t1/plan_\n  ${UNREAD}`);
+    expect(md).not.toContain("docs/feedback/pictures/");
+  });
+
+  it("lists the present ones and counts the rest when only some were read", () => {
+    const md = renderInbox(
+      [note({ pictures: [...paths, "docs/feedback/pictures/n1/3.jpg", "docs/feedback/pictures/n1/4.jpg"] })],
+      generatedAt,
+      new Set(paths),
+    );
+    expect(md).toContain(`  _Pictures: ${paths.join(", ")}_\n  ${UNREAD}`);
+    expect(md).not.toContain("3.jpg");
+  });
 });
 
 describe("toInboxNote", () => {
@@ -322,8 +348,8 @@ describe("toInboxNote", () => {
     authorName: "Cam",
     site: "beta",
     pictures: [
-      { id: "p2", storageKey: "feedback/n1/b", mime: "image/png", position: 1 },
-      { id: "p1", storageKey: "feedback/n1/a", mime: "image/jpeg", position: 0 },
+      { id: "p2", storageKey: "feedback/n1/b", mime: "image/png", size: 20, position: 1 },
+      { id: "p1", storageKey: "feedback/n1/a", mime: "image/jpeg", size: 10, position: 0 },
     ],
   };
 

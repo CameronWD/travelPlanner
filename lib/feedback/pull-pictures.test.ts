@@ -1,9 +1,9 @@
 import { mkdir, mkdtemp, readFile, readdir, rm, stat, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { FeedbackNoteRow } from "@/lib/feedback/inbox";
-import { pullPictures } from "@/lib/feedback/pull-pictures";
+import { picturesOnDisk, pullPictures } from "@/lib/feedback/pull-pictures";
 
 function row(
   id: string,
@@ -29,21 +29,23 @@ function row(
   };
 }
 
-const pic = (id: string, position: number, mime = "image/jpeg") => ({
+const pic = (id: string, position: number, mime = "image/jpeg", size = 3) => ({
   id,
   storageKey: `feedback/${id}`,
   mime,
+  size,
   position,
 });
 
 describe("pullPictures", () => {
   let dir: string;
   const blobs = new Map<string, Buffer>();
-  const storage = { read: async (key: string) => blobs.get(key) ?? null };
+  const storage = { read: vi.fn(async (key: string) => blobs.get(key) ?? null) };
 
   beforeEach(async () => {
     dir = await mkdtemp(path.join(tmpdir(), "pull-pictures-"));
     blobs.clear();
+    storage.read.mockClear();
   });
   afterEach(() => rm(dir, { recursive: true, force: true }));
 
@@ -53,17 +55,17 @@ describe("pullPictures", () => {
     const result = await pullPictures({
       notes: [
         row("n1", "OPEN", [pic("a", 0)]),
-        row("n2", "NEEDS_REVIEW", [pic("b", 0, "image/png")]),
+        row("n2", "NEEDS_REVIEW", [pic("b", 0, "image/png", 2)]),
       ],
       storage,
       dir,
     });
-    expect(result).toEqual({ written: 2, removed: 0 });
+    expect(result).toEqual({ written: 2, removed: 0, missing: 0 });
     expect(await readFile(path.join(dir, "n1", "1.jpg"), "utf8")).toBe("aaa");
     expect(await readFile(path.join(dir, "n2", "1.png"), "utf8")).toBe("bb");
   });
 
-  it("skips a file that already exists with the same size", async () => {
+  it("skips a file that already has the stored size, without reading storage", async () => {
     blobs.set("feedback/a", Buffer.from("aaa"));
     await mkdir(path.join(dir, "n1"));
     await writeFile(path.join(dir, "n1", "1.jpg"), "xyz");
@@ -72,7 +74,8 @@ describe("pullPictures", () => {
       storage,
       dir,
     });
-    expect(result.written).toBe(0);
+    expect(result).toEqual({ written: 0, removed: 0, missing: 0 });
+    expect(storage.read).not.toHaveBeenCalled();
     expect(await readFile(path.join(dir, "n1", "1.jpg"), "utf8")).toBe("xyz");
   });
 
@@ -100,17 +103,17 @@ describe("pullPictures", () => {
       storage,
       dir,
     });
-    expect(result).toEqual({ written: 1, removed: 2 });
+    expect(result).toEqual({ written: 1, removed: 2, missing: 0 });
     expect((await readdir(dir)).sort()).toEqual(["n1"]);
   });
 
-  it("skips a picture whose blob is missing, counting it nowhere", async () => {
+  it("counts a picture whose blob could not be read as missing, and writes nothing for it", async () => {
     const result = await pullPictures({
       notes: [row("n1", "OPEN", [pic("missing", 0)])],
       storage,
       dir,
     });
-    expect(result).toEqual({ written: 0, removed: 0 });
+    expect(result).toEqual({ written: 0, removed: 0, missing: 1 });
     await expect(stat(path.join(dir, "n1", "1.jpg"))).rejects.toThrow();
   });
 
@@ -123,5 +126,23 @@ describe("pullPictures", () => {
       dir: fresh,
     });
     expect(result.written).toBe(1);
+  });
+});
+
+describe("picturesOnDisk", () => {
+  let dir: string;
+  beforeEach(async () => {
+    dir = await mkdtemp(path.join(tmpdir(), "pictures-on-disk-"));
+  });
+  afterEach(() => rm(dir, { recursive: true, force: true }));
+
+  it("returns the repo-relative path of each open or needs-review picture that exists", async () => {
+    await mkdir(path.join(dir, "n1"));
+    await writeFile(path.join(dir, "n1", "1.jpg"), "aaa");
+    const present = await picturesOnDisk({
+      notes: [row("n1", "OPEN", [pic("a", 0), pic("b", 1)]), row("n2", "NEEDS_REVIEW", [pic("c", 0)])],
+      dir,
+    });
+    expect([...present]).toEqual(["docs/feedback/pictures/n1/1.jpg"]);
   });
 });

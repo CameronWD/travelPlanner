@@ -1,7 +1,7 @@
 import { mkdir, readdir, rm, stat, writeFile } from "node:fs/promises";
 import path from "node:path";
 import type { Storage } from "@/lib/storage";
-import { pictureFileName, type FeedbackNoteRow } from "@/lib/feedback/inbox";
+import { PICTURES_REPO_DIR, pictureFileName, type FeedbackNoteRow } from "@/lib/feedback/inbox";
 
 const KEPT_STATUSES = new Set(["OPEN", "NEEDS_REVIEW"]);
 
@@ -22,7 +22,7 @@ export async function pullPictures(opts: {
   notes: FeedbackNoteRow[];
   storage: Pick<Storage, "read">;
   dir: string;
-}): Promise<{ written: number; removed: number }> {
+}): Promise<{ written: number; removed: number; missing: number }> {
   const { notes, storage, dir } = opts;
   const kept = notes.filter((n) => KEPT_STATUSES.has(n.status));
   const keptIds = new Set(kept.map((n) => n.id));
@@ -41,17 +41,38 @@ export async function pullPictures(opts: {
   }
 
   let written = 0;
+  let missing = 0;
   for (const note of kept) {
     for (const picture of note.pictures) {
       const file = path.join(dir, note.id, pictureFileName(picture));
+      if ((await sizeOf(file)) === picture.size) continue;
       const data = await storage.read(picture.storageKey);
-      if (!data) continue;
-      if ((await sizeOf(file)) === data.length) continue;
+      if (!data) {
+        missing += 1;
+        continue;
+      }
       await mkdir(path.dirname(file), { recursive: true });
       await writeFile(file, data);
       written += 1;
     }
   }
 
-  return { written, removed };
+  return { written, removed, missing };
+}
+
+/** The repo-relative paths, as the inbox lists them, of the open and needs-review pictures that are in `dir`. */
+export async function picturesOnDisk(opts: {
+  notes: FeedbackNoteRow[];
+  dir: string;
+}): Promise<Set<string>> {
+  const present = new Set<string>();
+  for (const note of opts.notes.filter((n) => KEPT_STATUSES.has(n.status))) {
+    for (const picture of note.pictures) {
+      const name = pictureFileName(picture);
+      if ((await sizeOf(path.join(opts.dir, note.id, name))) !== null) {
+        present.add(`${PICTURES_REPO_DIR}/${note.id}/${name}`);
+      }
+    }
+  }
+  return present;
 }
