@@ -27,6 +27,12 @@ describe("BookingConfirmationMarker", () => {
     expect(button.className).not.toMatch(/underline/);
   });
 
+  it("has no dangling dot and wraps its button under the text", () => {
+    const { container } = render(<BookingConfirmationMarker kind="TRANSPORT" id="t1" />);
+    expect(container.textContent).not.toContain("·");
+    expect(container.firstElementChild!.className).toContain("flex flex-wrap items-center gap-x-2 gap-y-1");
+  });
+
   it("saves for the kind and id, refreshes and offers Undo", async () => {
     render(<BookingConfirmationMarker kind="ACCOMMODATION" id="a1" />);
     await userEvent.click(screen.getByRole("button", { name: "Doesn’t need one" }));

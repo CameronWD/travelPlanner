@@ -22,6 +22,8 @@ export type InboxNote = {
   resolution: string | null;
   /** Never null — a note written before sites were recorded reads as "main". */
   site: string;
+  /** Repo-relative paths `feedback:pull` downloads the pictures to. */
+  pictures: string[];
 };
 
 /** The Prisma selection `scripts/feedback-pull.ts` reads. */
@@ -40,7 +42,25 @@ export type FeedbackNoteRow = {
   resolution: string | null;
   authorName: string | null;
   site: string | null;
+  pictures: Array<{ id: string; storageKey: string; mime: string; size: number; position: number }>;
 };
+
+export const PICTURES_REPO_DIR = "docs/feedback/pictures";
+
+const PICTURE_EXTENSIONS: Record<string, string> = {
+  "image/jpeg": "jpg",
+  "image/png": "png",
+  "image/webp": "webp",
+};
+
+export function pictureExtension(mime: string): string {
+  return PICTURE_EXTENSIONS[mime] ?? "jpg";
+}
+
+/** The file name a picture is pulled to, from its note-relative position. */
+export function pictureFileName(picture: { mime: string; position: number }): string {
+  return `${picture.position + 1}.${pictureExtension(picture.mime)}`;
+}
 
 /**
  * One database row as the inbox sees it.
@@ -69,6 +89,9 @@ export function toInboxNote(row: FeedbackNoteRow): InboxNote {
     resolvedAt: row.resolvedAt,
     resolution: row.resolution,
     site: siteOf(row.site),
+    pictures: [...row.pictures]
+      .sort((a, b) => a.position - b.position)
+      .map((p) => `${PICTURES_REPO_DIR}/${row.id}/${pictureFileName(p)}`),
   };
 }
 
@@ -112,7 +135,9 @@ function landedLate(note: InboxNote): boolean {
   return Math.abs(note.createdAt.getTime() - note.authoredAt.getTime()) > DAY_MS;
 }
 
-function renderNote(note: InboxNote, { showSite }: { showSite: boolean }): string {
+type RenderOptions = { showSite: boolean; present?: ReadonlySet<string> };
+
+function renderNote(note: InboxNote, { showSite, present }: RenderOptions): string {
   const meta = [
     showSite ? siteLabel(note.site) : null,
     note.pageLabel,
@@ -128,6 +153,17 @@ function renderNote(note: InboxNote, { showSite }: { showSite: boolean }): strin
     `  ${indentBody(note.body)}`,
     `  _${note.route}_`,
   ];
+
+  const listed = present ? note.pictures.filter((p) => present.has(p)) : note.pictures;
+  if (listed.length > 0) {
+    lines.push(`  _Pictures: ${listed.join(", ")}_`);
+  }
+  const unread = note.pictures.length - listed.length;
+  if (unread > 0) {
+    lines.push(
+      `  _Pictures: ${unread} could not be downloaded (check STORAGE_DRIVER and the R2 variables in .env.production.local)_`,
+    );
+  }
 
   // What the author was actually looking at. Stored on every row since ADR
   // 0040; useless until it is in front of the reader.
@@ -170,7 +206,7 @@ function byAuthoredAt(a: InboxNote, b: InboxNote): number {
 }
 
 /** Notes under `### <area>` headings, areas in order of their oldest note. */
-function renderByArea(notes: InboxNote[], { showSite }: { showSite: boolean }): string[] {
+function renderByArea(notes: InboxNote[], options: RenderOptions): string[] {
   const areas = new Map<string, InboxNote[]>();
   for (const note of notes) {
     const area = areaForRoute(note.route);
@@ -181,12 +217,13 @@ function renderByArea(notes: InboxNote[], { showSite }: { showSite: boolean }): 
   const out: string[] = [];
   for (const [area, areaBucket] of areas) {
     out.push(`### ${area}`, "");
-    for (const note of areaBucket) out.push(renderNote(note, { showSite }), "");
+    for (const note of areaBucket) out.push(renderNote(note, options), "");
   }
   return out;
 }
 
-export function renderInbox(notes: InboxNote[], generatedAt: Date): string {
+/** `present`: the picture paths on disk. Given, a note lists only those and counts the rest as not downloaded. */
+export function renderInbox(notes: InboxNote[], generatedAt: Date, present?: ReadonlySet<string>): string {
   const open = notes.filter((n) => n.status === "OPEN").sort(byAuthoredAt);
   const needsReview = notes
     .filter((n) => n.status === "NEEDS_REVIEW")
@@ -246,7 +283,7 @@ export function renderInbox(notes: InboxNote[], generatedAt: Date): string {
   } else {
     for (const site of siteOrder) {
       out.push(`## Open · ${siteLabel(site)}`, "");
-      out.push(...renderByArea(bySite.get(site)!, { showSite: false }));
+      out.push(...renderByArea(bySite.get(site)!, { showSite: false, present }));
     }
   }
 
@@ -259,12 +296,12 @@ export function renderInbox(notes: InboxNote[], generatedAt: Date): string {
         "`npm run feedback:resolve -- <id> --wontfix --note \"…\"`. Do not work these.",
       "",
     );
-    out.push(...renderByArea(needsReview, { showSite: true }));
+    out.push(...renderByArea(needsReview, { showSite: true, present }));
   }
 
   if (other.length > 0) {
     out.push("## Other", "");
-    for (const note of other) out.push(renderNote(note, { showSite: true }), "");
+    for (const note of other) out.push(renderNote(note, { showSite: true, present }), "");
   }
 
   return out.join("\n").replace(/\n{3,}/g, "\n\n").trimEnd() + "\n";

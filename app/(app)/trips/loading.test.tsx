@@ -40,13 +40,14 @@ describe("TripsLoading", () => {
     expect(container.querySelector("[data-tally-strip-slot]")).not.toBeNull();
   });
 
-  it.each(["/trips/abc", "/trips/abc/plan", "/trips/abc/money"])("on %s: the spinning logo, never the Trips skeleton", (p) => {
+  it.each(["/trips/abc", "/trips/abc/plan", "/trips/abc/money"])("on %s: the building logo, never the Trips skeleton", (p) => {
     m.pathname = p;
     const { container } = render(<TripsLoading />);
     expect(container.querySelector("[data-trips-shell]")).toBeNull();
     expect(container.firstElementChild).toHaveAttribute("data-trip-shell");
     const status = screen.getByRole("status");
     expect(status).toHaveTextContent("Loading");
-    expect(screen.getByRole("img", { name: "Teepee" }).parentElement).toHaveClass("animate-spin", "motion-reduce:animate-none");
+    expect(status.querySelector(".tp-build-idle")).not.toBeNull();
+    expect(status.querySelector(".animate-spin")).toBeNull();
   });
 });

@@ -13,7 +13,7 @@ vi.mock("@/components/ui/use-toast", () => ({ toast: vi.fn() }));
 import { toast } from "@/components/ui/use-toast";
 
 import { todayLocalISO } from "@/lib/dates";
-import { CostEditor } from "./cost-editor";
+import { CostEditor, OwnedCostFormDialog } from "./cost-editor";
 import { OFFLINE_MESSAGE } from "@/components/ui/failure-message";
 
 function goOffline() {
@@ -468,5 +468,12 @@ describe("CostEditor: titles", () => {
     render(<CostEditor {...baseProps} costs={[sampleCost]} />);
     await user.click(screen.getByRole("button", { name: /edit cost/i }));
     expect(screen.getByRole("heading", { name: "Edit Cost" })).toBeInTheDocument();
+  });
+});
+
+describe("OwnedCostFormDialog: cover", () => {
+  it("passes cover through to its sheet", () => {
+    render(<OwnedCostFormDialog cost={sampleCost} homeCurrency="AUD" open onOpenChange={() => {}} cover="always" />);
+    expect(screen.getByRole("dialog").className.split(/\s+/)).toContain("max-sm:min-h-[90dvh]");
   });
 });

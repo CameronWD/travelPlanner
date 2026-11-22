@@ -6,31 +6,40 @@ export interface KeyboardViewport {
   keyboardOpen: boolean;
   visibleHeight: number;
   bottomInset: number;
+  offsetTop: number;
+  /** CSS `bottom` for a fixed sheet: anchored to the visual viewport's lower edge, not to innerHeight. */
+  bottom: string;
 }
 
 export const KEYBOARD_THRESHOLD_PX = 120;
+export const KEYBOARD_SETTLE_MS = 600;
+// A ceiling on frames per settle, so a clock that never advances cannot loop forever.
+const MAX_SETTLE_FRAMES = 100;
 
 /** Pure: derive the state from raw numbers (exported for tests and reuse). */
 export function readKeyboardViewport(
   innerHeight: number,
   vv: { height: number; offsetTop: number; scale?: number } | null,
 ): KeyboardViewport {
-  if (!vv) return { keyboardOpen: false, visibleHeight: innerHeight, bottomInset: 0 };
+  if (!vv) return { keyboardOpen: false, visibleHeight: innerHeight, bottomInset: 0, offsetTop: 0, bottom: "0px" };
   // Pinch-zoom also shrinks visualViewport.height relative to innerHeight —
   // without this guard a zoomed-in page reads as a keyboard. Only a gap at
   // ~1x scale is actually the on-screen keyboard.
   const atNormalScale = Math.abs((vv.scale ?? 1) - 1) < 0.01;
+  const keyboardOpen = atNormalScale && innerHeight - vv.height > KEYBOARD_THRESHOLD_PX;
   return {
-    keyboardOpen: atNormalScale && innerHeight - vv.height > KEYBOARD_THRESHOLD_PX,
+    keyboardOpen,
     visibleHeight: Math.round(vv.height),
     bottomInset: Math.max(0, Math.round(innerHeight - (vv.height + vv.offsetTop))),
+    offsetTop: Math.round(vv.offsetTop),
+    bottom: keyboardOpen ? `calc(100% - ${Math.round(vv.height + vv.offsetTop)}px)` : "0px",
   };
 }
 
 // visibleHeight is 0 here (rather than innerHeight) because consumers only
 // read heights once keyboardOpen is true; this is the disabled/unavailable
 // state, never rendered as an open keyboard.
-const CLOSED: KeyboardViewport = { keyboardOpen: false, visibleHeight: 0, bottomInset: 0 };
+const CLOSED: KeyboardViewport = { keyboardOpen: false, visibleHeight: 0, bottomInset: 0, offsetTop: 0, bottom: "0px" };
 
 /*
  * iOS Safari overlays the on-screen keyboard: the layout viewport and dvh keep
@@ -67,26 +76,42 @@ export function useKeyboardViewport(enabled = true): KeyboardViewport {
       setState((prev) =>
         prev.keyboardOpen === next.keyboardOpen &&
         prev.visibleHeight === next.visibleHeight &&
-        prev.bottomInset === next.bottomInset
+        prev.bottomInset === next.bottomInset &&
+        prev.offsetTop === next.offsetTop &&
+        prev.bottom === next.bottom
           ? prev
           : next,
       );
     };
+    // iOS pans the visual viewport to reveal a focused field and fires
+    // `scroll` only sparsely while it does, so after any event keep reading
+    // every frame until the pan has had KEYBOARD_SETTLE_MS to finish.
+    let lastEvent = 0;
+    let framesLeft = 0;
+    const step = () => {
+      frame = 0;
+      if (cancelled) return;
+      read();
+      if (performance.now() - lastEvent < KEYBOARD_SETTLE_MS && --framesLeft > 0) {
+        frame = requestAnimationFrame(step);
+      }
+    };
     const update = () => {
       if (frame && typeof cancelAnimationFrame === "function") cancelAnimationFrame(frame);
-      frame = requestAnimationFrame(() => {
-        if (cancelled) return;
-        read();
-      });
+      lastEvent = performance.now();
+      framesLeft = MAX_SETTLE_FRAMES;
+      frame = requestAnimationFrame(step);
     };
     read();
     vv.addEventListener("resize", update);
     vv.addEventListener("scroll", update);
+    document.addEventListener("focusin", update);
     return () => {
       cancelled = true;
       if (frame && typeof cancelAnimationFrame === "function") cancelAnimationFrame(frame);
       vv.removeEventListener("resize", update);
       vv.removeEventListener("scroll", update);
+      document.removeEventListener("focusin", update);
     };
   }, [enabled]);
 

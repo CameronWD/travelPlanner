@@ -49,6 +49,7 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "./dialog";
+import { ConfirmDialog } from "./confirm-dialog";
 import { Field } from "./field";
 import { Checkbox } from "./checkbox";
 import { nearestPositionedAncestor } from "@/test/helpers/containing-block";
@@ -159,15 +160,22 @@ describe("Dialog", () => {
     expect(content.className).toContain("max-h-[90dvh]");
   });
 
-  it("renders a sticky header pinned to the top", async () => {
+  it("renders a sticky header that docks flush with the true top edge", async () => {
     const user = userEvent.setup();
     render(<Example />);
     await user.click(screen.getByRole("button", { name: "Open dialog" }));
-    await screen.findByRole("dialog");
+    const content = await screen.findByRole("dialog");
 
-    const header = screen.getByText("Invite traveller").closest("div");
-    expect(header?.className).toContain("sticky");
-    expect(header?.className).toContain("top-0");
+    // WebKit and Blink both measure a sticky inset from inside the scroll
+    // body's padding (measured at 402×874: top-0 docked 14px down), so the
+    // header's inset is minus that padding, tier for tier, to leave no strip
+    // above it for scrolled rows to show through.
+    const header = screen.getByText("Invite traveller").closest<HTMLElement>('[data-slot="dialog-header"]')!;
+    const headerClasses = header.className.split(/\s+/);
+    expect(headerClasses).toEqual(expect.arrayContaining(["sticky", "-top-3.5", "sm:-top-6"]));
+    expect(headerClasses).not.toContain("top-0");
+    const bodyClasses = content.querySelector<HTMLElement>('[data-slot="dialog-body"]')!.className.split(/\s+/);
+    expect(bodyClasses).toEqual(expect.arrayContaining(["pt-3.5", "sm:pt-6"]));
   });
 
   it("keeps scrolled content from ever showing through or above the pinned header", async () => {
@@ -314,7 +322,7 @@ describe("Dialog scroll containment (spec 2026-10-04 §G)", () => {
 
 describe("Scroll-aware edges (spec 2026-10-04 §G)", () => {
   const FOOTER_EDGE =
-    "group-data-[more-below]/dialog-body:shadow-[0_calc(1.375rem+env(safe-area-inset-bottom))_0_var(--color-background),0_-2px_0_var(--color-border),0_-10px_16px_-10px_hsl(var(--shadow-ink)/0.3)]";
+    "group-data-[more-below]/dialog-body:shadow-[0_-2px_0_var(--color-border),0_-10px_16px_-10px_hsl(var(--shadow-ink)/0.3)]";
   const HEADER_EDGE =
     "group-data-[scrolled]/dialog-body:shadow-[0_2px_0_var(--color-border),0_10px_16px_-10px_hsl(var(--shadow-ink)/0.3)]";
 
@@ -367,7 +375,7 @@ describe("Scroll-aware edges (spec 2026-10-04 §G)", () => {
     expect(body.hasAttribute("data-scrolled")).toBe(true);
   });
 
-  it("gives the footer a 2px rule and a soft upward shadow while content hides beneath it, keeping its overscroll cover", () => {
+  it("gives the footer a 2px rule and a soft upward shadow while content hides beneath it", () => {
     const { footer } = renderTall();
     expect(footer.className).toContain(FOOTER_EDGE);
   });
@@ -487,12 +495,9 @@ describe("DialogFooter", () => {
     expect(footer.className).toContain("bottom-0");
     // Opaque, separated surface — content scrolling underneath must not show through.
     expect(footer.className).toContain("bg-background");
-    // Cancels the scroll body's own bottom padding so the stuck footer sits flush.
-    expect(footer.className).toContain("-mb-[calc(1.375rem+env(safe-area-inset-bottom))]");
-    expect(footer.className).toContain("pb-[calc(0.75rem+env(safe-area-inset-bottom))]");
   });
 
-  it("covers the footer's negative-margin gap during iOS elastic overscroll", () => {
+  it("is the only space beneath its controls: its own max(0.75rem, safe-area) padding", () => {
     render(
       <Dialog open>
         <DialogContent>
@@ -505,14 +510,64 @@ describe("DialogFooter", () => {
       </Dialog>,
     );
 
-    const footer = screen.getByRole("button", { name: "Cancel" }).closest("div")!;
-    // A solid background-coloured shadow dropped the gap's height below the
-    // footer. Not an `after:` box: an absolutely positioned pseudo hanging
-    // past the content adds that much *scrollable* overflow, so every short
-    // dialog scrolled by a phantom 22px and would read as "more below" (spec
-    // 2026-10-04 §G, measured in-browser). Shadows never add scroll range.
-    expect(footer.className).toContain("shadow-[0_calc(1.375rem+env(safe-area-inset-bottom))_0_var(--color-background)]");
+    const footer = screen.getByRole("button", { name: "Cancel" }).closest<HTMLElement>('[data-slot="dialog-footer"]')!;
+    const classes = footer.className.split(/\s+/);
+    expect(classes).toContain("pb-[max(0.75rem,env(safe-area-inset-bottom))]");
+    // Nothing reaches below it any more: no negative margin into the body's
+    // padding, no shadow covering one, no pseudo hanging past the content.
+    expect(footer.className).not.toMatch(/(^|\s|:)-mb-/);
+    expect(footer.className).not.toContain("_0_var(--color-background)");
     expect(footer.className).not.toMatch(/\bafter:/);
+  });
+
+  it("the scroll body adds no bottom padding of its own while it holds a DialogFooter", () => {
+    // A sticky footer docks at the scroll body's padding edge (WebKit and
+    // Blink, measured at 402×874), so any body padding is a gap under the
+    // docked footer and lifts it over the last field at the end. jsdom can't
+    // apply Tailwind, so this pins both halves of the rule: the body's
+    // padding is cancelled by a `:has` rule, and that selector matches the
+    // body exactly when a footer is inside it.
+    const FOOTER_PRESENT = ':has([data-slot="dialog-footer"])';
+    const { rerender } = render(
+      <Dialog open>
+        <DialogContent>
+          <DialogTitle>Test</DialogTitle>
+          <form>
+            <p>Fields</p>
+            <DialogFooter>
+              <button>Save</button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>,
+    );
+    const body = screen.getByRole("dialog").querySelector<HTMLElement>('[data-slot="dialog-body"]')!;
+    const classes = body.className.split(/\s+/);
+    expect(classes).toContain("has-[[data-slot=dialog-footer]]:pb-0");
+    expect(classes).toContain("pb-[calc(1.375rem+env(safe-area-inset-bottom))]");
+    expect(body.matches(FOOTER_PRESENT)).toBe(true);
+
+    rerender(
+      <Dialog open>
+        <DialogContent>
+          <DialogTitle>Test</DialogTitle>
+          <p>No footer</p>
+        </DialogContent>
+      </Dialog>,
+    );
+    expect(screen.getByRole("dialog").querySelector<HTMLElement>('[data-slot="dialog-body"]')!.matches(FOOTER_PRESENT)).toBe(false);
+  });
+
+  it("the scroll body can never be panned sideways, nor hand a sideways pan on to the page", () => {
+    render(
+      <Dialog open>
+        <DialogContent>
+          <DialogTitle>Test</DialogTitle>
+        </DialogContent>
+      </Dialog>,
+    );
+    const body = screen.getByRole("dialog").querySelector<HTMLElement>('[data-slot="dialog-body"]')!;
+    expect(body.className.split(/\s+/)).toEqual(expect.arrayContaining(["overflow-y-auto", "overflow-x-hidden", "overscroll-x-none"]));
   });
 
   it("scroll body carries scroll-pb-24 beside its sticky footer (the focus-reveal tests hold the real no-cover guarantee)", () => {
@@ -843,10 +898,10 @@ describe("phone keyboard (spec 2026-10-11-phone-keyboard-sheets)", () => {
   }
 
   it("keyboard open: sits on the keyboard, fills the visible area, marks data-keyboard", async () => {
-    installVV(500, 0);
+    installVV(500, 120);
     const { content } = await open();
     expect(content).toHaveAttribute("data-keyboard", "open");
-    expect(content.style.bottom).toBe("344px");
+    expect(content.style.bottom).toBe("calc(100% - 620px)");
     expect(content.style.maxHeight).toBe("500px");
     expect(content.style.height).toBe("");
     expect(content.className).toContain("group/dialog");
@@ -859,7 +914,7 @@ describe("phone keyboard (spec 2026-10-11-phone-keyboard-sheets)", () => {
       vv.offsetTop = 100;
       vv.dispatchEvent(new Event("scroll"));
     });
-    expect(content.style.bottom).toBe("244px");
+    expect(content.style.bottom).toBe("calc(100% - 600px)");
     expect(content.style.maxHeight).toBe("500px");
   });
 
@@ -867,7 +922,7 @@ describe("phone keyboard (spec 2026-10-11-phone-keyboard-sheets)", () => {
     installVV(500, 0);
     const { content } = await open("full");
     expect(content).toHaveAttribute("data-keyboard", "open");
-    expect(content.style.bottom).toBe("344px");
+    expect(content.style.bottom).toBe("calc(100% - 500px)");
     expect(content.style.maxHeight).toBe("500px");
     expect(content.style.height).toBe("500px");
   });
@@ -906,7 +961,7 @@ describe("phone keyboard (spec 2026-10-11-phone-keyboard-sheets)", () => {
   it("reopening the dialog after closing it with the keyboard open starts clean", async () => {
     const vv = installVV(500, 0);
     const { user, content } = await open();
-    expect(content.style.bottom).toBe("344px");
+    expect(content.style.bottom).toBe("calc(100% - 500px)");
 
     await user.keyboard("{Escape}");
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
@@ -946,14 +1001,10 @@ describe("phone keyboard (spec 2026-10-11-phone-keyboard-sheets)", () => {
 
     expect(handle.className).toContain("group-data-[keyboard=open]/dialog:hidden");
     expect(screen.getByText("Day 3 of the trip.").className).toContain("max-sm:group-data-[keyboard=open]/dialog:hidden");
-    // The keyboard covers the home indicator: footer and body drop the safe-area inset in step.
+    // The keyboard covers the home indicator: footer and body drop the safe-area inset.
     expect(body.className).toContain("group-data-[keyboard=open]/dialog:pb-[1.375rem]");
     expect(footer.className).toContain("group-data-[keyboard=open]/dialog:pb-3");
-    expect(footer.className).toContain("group-data-[keyboard=open]/dialog:-mb-[1.375rem]");
-    expect(footer.className).toContain("group-data-[keyboard=open]/dialog:shadow-[0_1.375rem_0_var(--color-background)]");
-    expect(footer.className).toContain(
-      "group-data-[keyboard=open]/dialog:group-data-[more-below]/dialog-body:shadow-[0_1.375rem_0_var(--color-background),0_-2px_0_var(--color-border),0_-10px_16px_-10px_hsl(var(--shadow-ink)/0.3)]",
-    );
+    expect(footer.className).not.toMatch(/-mb-|_0_var\(--color-background\)/);
   });
 
   it("re-reveals the focused field once after the keyboard opens", async () => {
@@ -995,6 +1046,126 @@ describe("phone keyboard (spec 2026-10-11-phone-keyboard-sheets)", () => {
       vv.dispatchEvent(new Event("scroll"));
     });
     expect(scrollBy).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("a sheet opened from a sheet covers it", () => {
+  const TALL = "max-sm:min-h-[90dvh]";
+
+  function Nested() {
+    return (
+      <Dialog open>
+        <DialogContent aria-describedby={undefined}>
+          <DialogTitle>All costs</DialogTitle>
+          <Dialog open>
+            <DialogContent aria-describedby={undefined}>
+              <DialogTitle>EUR to AUD</DialogTitle>
+              <input aria-label="Rate" />
+            </DialogContent>
+          </Dialog>
+        </DialogContent>
+      </Dialog>
+    );
+  }
+
+  function frames() {
+    const all = [...document.querySelectorAll<HTMLElement>('[role="dialog"]')];
+    const byTitle = (t: string) => all.find((d) => d.querySelector("h2")?.textContent === t)!;
+    return { outer: byTitle("All costs"), inner: byTitle("EUR to AUD") };
+  }
+
+  it("a dialog inside another dialog's content is at least 90dvh tall on a phone; the first one is not", () => {
+    render(<Nested />);
+    const { outer, inner } = frames();
+    expect(inner.className.split(/\s+/)).toContain(TALL);
+    expect(outer.className).not.toContain("min-h-");
+  });
+
+  it("a confirmation opened from a sheet keeps its short sheet; an ordinary nested dialog beside it still covers", () => {
+    render(
+      <Dialog open>
+        <DialogContent aria-describedby={undefined}>
+          <DialogTitle>Edit Item</DialogTitle>
+          <ConfirmDialog open onOpenChange={() => {}} onConfirm={() => {}} title="Delete this item?" />
+          <Dialog open>
+            <DialogContent aria-describedby={undefined}>
+              <DialogTitle>Add a Reminder</DialogTitle>
+            </DialogContent>
+          </Dialog>
+        </DialogContent>
+      </Dialog>,
+    );
+    const all = [...document.querySelectorAll<HTMLElement>('[role="dialog"]')];
+    const byTitle = (t: string) => all.find((d) => d.querySelector("h2")?.textContent === t)!;
+    expect(byTitle("Delete this item?").className).not.toContain("min-h-");
+    expect(byTitle("Add a Reminder").className.split(/\s+/)).toContain(TALL);
+  });
+
+  it("drops the floor while the phone keyboard is open, so the sheet still fits above it", () => {
+    setMatchMedia(false);
+    setInnerHeight(844);
+    const raf = runFramesSynchronously();
+    installVV(500, 0);
+    try {
+      render(<Nested />);
+      const { inner } = frames();
+      expect(inner).toHaveAttribute("data-keyboard", "open");
+      expect(inner.className).not.toContain("min-h-");
+    } finally {
+      removeVV();
+      raf.mockRestore();
+    }
+  });
+
+  it('cover="always" takes the floor with no sheet beneath it', () => {
+    render(
+      <Dialog open>
+        <DialogContent cover="always" aria-describedby={undefined}>
+          <DialogTitle>Edit Cost</DialogTitle>
+        </DialogContent>
+      </Dialog>,
+    );
+    expect(screen.getByRole("dialog").className.split(/\s+/)).toContain(TALL);
+  });
+
+  it('cover="always" still drops the floor while the phone keyboard is open', () => {
+    setMatchMedia(false);
+    setInnerHeight(844);
+    const raf = runFramesSynchronously();
+    installVV(500, 0);
+    try {
+      render(
+        <Dialog open>
+          <DialogContent cover="always" aria-describedby={undefined}>
+            <DialogTitle>Edit Cost</DialogTitle>
+          </DialogContent>
+        </Dialog>,
+      );
+      const frame = screen.getByRole("dialog");
+      expect(frame).toHaveAttribute("data-keyboard", "open");
+      expect(frame.className).not.toContain("min-h-");
+    } finally {
+      removeVV();
+      raf.mockRestore();
+    }
+  });
+
+  it("a bare dialog opened from a sheet takes no floor", () => {
+    render(
+      <Dialog open>
+        <DialogContent aria-describedby={undefined}>
+          <DialogTitle>All costs</DialogTitle>
+          <Dialog open>
+            <DialogContent bare aria-describedby={undefined}>
+              <DialogTitle>Picture 1 of 2</DialogTitle>
+            </DialogContent>
+          </Dialog>
+        </DialogContent>
+      </Dialog>,
+    );
+    const all = [...document.querySelectorAll<HTMLElement>('[role="dialog"]')];
+    const bare = all.find((d) => d.querySelector("h2")?.textContent === "Picture 1 of 2")!;
+    expect(bare.className).not.toContain("min-h-");
   });
 });
 

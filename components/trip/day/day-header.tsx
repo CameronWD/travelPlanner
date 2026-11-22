@@ -137,7 +137,10 @@ export function DayHeader({
             Every line in the block has a fixed height, so the optional Day title and
             sub-line can come and go without the arrows moving (spec 2026-09-28 D2). */}
         <div className="grid w-full grid-cols-[2.75rem_minmax(0,1fr)_2.75rem] items-center gap-3.5 md:flex md:w-auto md:min-w-0 md:flex-1 md:justify-start lg:flex-none lg:justify-center">
-          <DayArrow href={prevHref} label={prevLabel} dir="prev" />
+          {/* The carousel's heading track holds these, and the top bar above, still while the day's heading slides (day-carousel.tsx). */}
+          <div data-slot="day-arrow" className="flex shrink-0">
+            <DayArrow href={prevHref} label={prevLabel} dir="prev" />
+          </div>
           <div data-slot="day-title-block" className="flex min-w-0 flex-col items-center text-center md:shrink-0">
             <span data-slot="day-heading-ghost" aria-hidden="true" className="invisible hidden h-0 select-none overflow-hidden whitespace-nowrap font-display text-[40px] font-extrabold tracking-[-0.02em] md:block">
               {WIDEST_HEADING}
@@ -153,7 +156,9 @@ export function DayHeader({
               </div>
             </ViewTransition>
           </div>
-          <DayArrow href={nextHref} label={nextLabel} dir="next" />
+          <div data-slot="day-arrow" className="flex shrink-0">
+            <DayArrow href={nextHref} label={nextLabel} dir="next" />
+          </div>
         </div>
         <div data-slot="day-header-cluster" className="hidden shrink-0 items-center gap-2.5 @min-[84rem]:flex @min-[84rem]:justify-self-end">
           {cluster}

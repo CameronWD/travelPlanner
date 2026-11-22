@@ -9,6 +9,9 @@ const {
   pathnameMock,
   onlineMock,
   toastMock,
+  addPictureMock,
+  compressMock,
+  oversizeMock,
 } = vi.hoisted(() => ({
   createMock: vi.fn(),
   listMock: vi.fn(),
@@ -16,12 +19,21 @@ const {
   pathnameMock: vi.fn(),
   onlineMock: vi.fn(),
   toastMock: vi.fn(),
+  addPictureMock: vi.fn(),
+  compressMock: vi.fn(),
+  oversizeMock: vi.fn(),
 }));
 
 vi.mock("@/server/actions/feedback", () => ({
   createFeedbackNote: createMock,
   listFeedbackNotes: listMock,
   deleteFeedbackNote: deleteMock,
+  addFeedbackPicture: addPictureMock,
+}));
+
+vi.mock("@/lib/image-compress", () => ({
+  compressImage: compressMock,
+  oversizeUploadMessage: oversizeMock,
 }));
 
 vi.mock("next/navigation", () => ({
@@ -55,6 +67,7 @@ const existingNote = {
   authoredAt: "2026-09-07T00:00:00.000Z",
   resolution: null,
   resolvedAt: null,
+  pictures: [] as Array<{ id: string; url: string }>,
 };
 
 /**
@@ -180,13 +193,23 @@ function stubLocalStorageQuotaExceeded(failFromCall = 1) {
   return fake;
 }
 
+let pictureSeq = 0;
+
 beforeEach(() => {
+  pictureSeq = 0;
   // FP-10: feedback-launcher.tsx caches its MediaQueryList against the
   // *current* window.matchMedia function reference. Installing a fresh stub
   // every test invalidates that cache by construction, so a test that never
   // calls stubViewport cannot inherit the previous test's media list.
   vi.stubGlobal("matchMedia", vi.fn(() => makeMql(false, "")));
   window.localStorage.clear();
+  compressMock.mockImplementation(async (f: File) => f);
+  oversizeMock.mockReturnValue(null);
+  addPictureMock.mockImplementation(async () => ({
+    success: true,
+    id: `p${++pictureSeq}`,
+    url: `/api/feedback-pictures/p${pictureSeq}`,
+  }));
   pathnameMock.mockReturnValue("/trips/t1/plan");
   onlineMock.mockReturnValue(true);
   listMock.mockResolvedValue({ success: true, notes: [existingNote] });
@@ -202,6 +225,7 @@ beforeEach(() => {
       canDelete: true,
       status: "OPEN",
       authoredAt: input.authoredAt,
+      pictures: [],
     },
   }));
 });
@@ -1331,6 +1355,34 @@ describe("FeedbackLauncher", () => {
       expect(screen.getByRole("switch", { name: "Show resolved (2)" })).toBeInTheDocument();
     });
 
+    it("fills the phone: a 90dvh frame, a list that keeps its height, and header, switch row and composer that never shrink", async () => {
+      listMock.mockResolvedValue({
+        success: true,
+        notes: [existingNote, oldDone],
+      });
+      await openPanel();
+
+      const frame = await screen.findByRole("dialog");
+      const classes = frame.className.split(/\s+/);
+      expect(classes).toContain("max-md:h-[90dvh]");
+      expect(classes).not.toContain("h-[90dvh]");
+      expect(classes).toContain("md:h-auto");
+
+      const list = (await screen.findByText("Budget totals look wrong")).closest("ul")!
+        .parentElement!;
+      expect(list.className).toContain("min-h-0");
+      expect(list.className).toContain("flex-1");
+      expect(list.className).toContain("overflow-y-auto");
+
+      const header = screen.getByText("Feedback", { selector: "h2" }).parentElement!;
+      expect(header.className).toContain("shrink-0");
+      const switchRow = screen.getByRole("switch", { name: "Show resolved (1)" }).closest("label")!;
+      expect(switchRow.className).toContain("shrink-0");
+      expect(list.contains(switchRow)).toBe(false);
+      const composer = screen.getByPlaceholderText(/what's on your mind/i).parentElement!;
+      expect(composer.className).toContain("shrink-0");
+    });
+
     it("reveals hidden notes in their normal date order, and a second tap hides them again", async () => {
       listMock.mockResolvedValue({
         success: true,
@@ -1434,5 +1486,259 @@ describe("FeedbackLauncher", () => {
       expect(await screen.findByRole("switch", { name: "Show resolved (1)" })).toBeInTheDocument();
       expect(screen.queryByText("Old fixed thing")).toBeNull();
     });
+  });
+});
+
+describe("FeedbackLauncher pictures", () => {
+  const png = (name: string) => new File(["x"], name, { type: "image/png" });
+
+  let rerenderPanel: (ui: React.ReactElement) => void;
+  async function openPanel() {
+    const user = userEvent.setup();
+    ({ rerender: rerenderPanel } = render(<FeedbackLauncher />));
+    await user.click(screen.getByRole("button", { name: /leave feedback/i }));
+    await screen.findByPlaceholderText(/what's on your mind/i);
+    return user;
+  }
+  const fileInput = () =>
+    document.querySelector<HTMLInputElement>('input[type="file"]')!;
+
+  beforeEach(() => {
+    vi.stubGlobal("URL", Object.assign(URL, {
+      createObjectURL: vi.fn(() => "blob:x"),
+      revokeObjectURL: vi.fn(),
+    }));
+  });
+
+  it("offers Add pictures and a hidden image picker", async () => {
+    await openPanel();
+    expect(screen.getByRole("button", { name: "Add pictures" })).toBeEnabled();
+    const input = fileInput();
+    expect(input.accept).toBe("image/*");
+    expect(input.multiple).toBe(true);
+  });
+
+  it("shows a removable thumbnail per chosen picture", async () => {
+    const user = await openPanel();
+    await user.upload(fileInput(), [png("a.png"), png("b.png")]);
+    expect(await screen.findAllByRole("button", { name: "Remove picture" })).toHaveLength(2);
+    await user.click(screen.getAllByRole("button", { name: "Remove picture" })[0]);
+    expect(screen.getAllByRole("button", { name: "Remove picture" })).toHaveLength(1);
+  });
+
+  it("keeps four of six and says so", async () => {
+    const user = await openPanel();
+    await user.upload(fileInput(), ["1", "2", "3", "4", "5", "6"].map((n) => png(`${n}.png`)));
+    expect(await screen.findAllByRole("button", { name: "Remove picture" })).toHaveLength(4);
+    expect(toastMock).toHaveBeenCalledWith(expect.objectContaining({ title: "Up to 4 pictures per note." }));
+  });
+
+  it("refuses a file the oversize check rejects, with its message", async () => {
+    oversizeMock.mockReturnValueOnce("Too big.");
+    const user = await openPanel();
+    await user.upload(fileInput(), [png("big.png")]);
+    await waitFor(() =>
+      expect(toastMock).toHaveBeenCalledWith(expect.objectContaining({ title: "Too big." })),
+    );
+    expect(screen.queryByRole("button", { name: "Remove picture" })).toBeNull();
+  });
+
+  it("offline: Add pictures is disabled and says why; chosen pictures block Send", async () => {
+    const user = await openPanel();
+    await user.type(screen.getByPlaceholderText(/what's on your mind/i), "Hello");
+    await user.upload(fileInput(), [png("a.png")]);
+    await screen.findByRole("button", { name: "Remove picture" });
+    onlineMock.mockReturnValue(false);
+    rerenderPanel(<FeedbackLauncher />);
+    expect(await screen.findByText(
+      "You’re offline. Remove the pictures to queue this note, or send it when you’re back online.",
+    )).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /send/i })).toBeDisabled();
+    await user.click(screen.getByRole("button", { name: "Remove picture" }));
+    expect(screen.getByText("Pictures need a connection.")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Add pictures" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: /send/i })).toBeEnabled();
+  });
+
+  it("sends the note, then uploads each picture in order against its id", async () => {
+    const user = await openPanel();
+    await user.type(screen.getByPlaceholderText(/what's on your mind/i), "With photos");
+    await user.upload(fileInput(), [png("a.png"), png("b.png")]);
+    await screen.findAllByRole("button", { name: "Remove picture" });
+    await user.click(screen.getByRole("button", { name: /send/i }));
+
+    await waitFor(() => expect(addPictureMock).toHaveBeenCalledTimes(2));
+    expect(compressMock).toHaveBeenCalledTimes(2);
+    expect(createMock.mock.invocationCallOrder[0]).toBeLessThan(addPictureMock.mock.invocationCallOrder[0]);
+    const forms = addPictureMock.mock.calls.map((c) => c[0] as FormData);
+    expect(forms.map((f) => f.get("noteId"))).toEqual(["n2", "n2"]);
+    expect(forms.map((f) => (f.get("file") as File).name)).toEqual(["a.png", "b.png"]);
+    expect(await screen.findAllByRole("button", { name: /open picture/i })).toHaveLength(2);
+  });
+
+  it("keeps the note and says so when a picture fails", async () => {
+    addPictureMock.mockResolvedValueOnce({ success: false, errors: {} });
+    const user = await openPanel();
+    await user.type(screen.getByPlaceholderText(/what's on your mind/i), "Half");
+    await user.upload(fileInput(), [png("a.png"), png("b.png")]);
+    await screen.findAllByRole("button", { name: "Remove picture" });
+    await user.click(screen.getByRole("button", { name: /send/i }));
+
+    await waitFor(() =>
+      expect(toastMock).toHaveBeenCalledWith(
+        expect.objectContaining({ title: "Note sent, but 1 picture didn’t upload." }),
+      ),
+    );
+    expect(screen.getByText("Half")).toBeInTheDocument();
+  });
+
+  it("opens a sent picture full size in a dialog", async () => {
+    listMock.mockResolvedValue({
+      success: true,
+      notes: [{ ...existingNote, pictures: [{ id: "a", url: "/a" }, { id: "b", url: "/b" }] }],
+    });
+    const user = await openPanel();
+    await user.click((await screen.findAllByRole("button", { name: /open picture/i }))[0]);
+    expect(await screen.findByRole("dialog", { name: "Picture 1 of 2" })).toBeInTheDocument();
+  });
+
+  it("keeps the text and pictures when creating the note fails, then retries with the same key", async () => {
+    createMock.mockRejectedValueOnce(new Error("offline"));
+    const user = await openPanel();
+    const box = screen.getByPlaceholderText(/what's on your mind/i);
+    await user.type(box, "Keep me");
+    await user.upload(fileInput(), [png("a.png"), png("b.png")]);
+    await screen.findAllByRole("button", { name: "Remove picture" });
+    await user.click(screen.getByRole("button", { name: /send/i }));
+
+    await waitFor(() =>
+      expect(toastMock).toHaveBeenCalledWith(
+        expect.objectContaining({
+          title: "Couldn’t send. Your note and pictures are still here, so try again.",
+        }),
+      ),
+    );
+    expect(box).toHaveValue("Keep me");
+    expect(screen.getAllByRole("button", { name: "Remove picture" })).toHaveLength(2);
+    expect(window.localStorage.getItem("teepee.feedback.queue.v1") ?? "[]").not.toContain("Keep me");
+    expect(addPictureMock).not.toHaveBeenCalled();
+
+    await user.click(screen.getByRole("button", { name: /send/i }));
+    await waitFor(() => expect(addPictureMock).toHaveBeenCalledTimes(2));
+    expect(createMock).toHaveBeenCalledTimes(2);
+    expect(createMock.mock.calls[1][0].clientKey).toBe(createMock.mock.calls[0][0].clientKey);
+  });
+
+  it("gives an edited or re-picked draft a fresh key on retry", async () => {
+    createMock.mockRejectedValue(new Error("down"));
+    const user = await openPanel();
+    const box = screen.getByPlaceholderText(/what's on your mind/i);
+    await user.type(box, "First");
+    await user.upload(fileInput(), [png("a.png"), png("b.png")]);
+    await screen.findAllByRole("button", { name: "Remove picture" });
+    const send = () => screen.getByRole("button", { name: /send/i });
+    await user.click(send());
+    await waitFor(() => expect(createMock).toHaveBeenCalledTimes(1));
+    await waitFor(() => expect(send()).toBeEnabled());
+
+    await user.type(box, " edited");
+    await user.click(send());
+    await waitFor(() => expect(createMock).toHaveBeenCalledTimes(2));
+    await waitFor(() => expect(send()).toBeEnabled());
+    expect(createMock.mock.calls[1][0].clientKey).not.toBe(createMock.mock.calls[0][0].clientKey);
+
+    await user.click(screen.getAllByRole("button", { name: "Remove picture" })[0]);
+    await user.click(send());
+    await waitFor(() => expect(createMock).toHaveBeenCalledTimes(3));
+    expect(createMock.mock.calls[2][0].clientKey).not.toBe(createMock.mock.calls[1][0].clientKey);
+  });
+
+  it("gives a draft put back by Restore a fresh key", async () => {
+    createMock.mockRejectedValueOnce(new Error("down"));
+    const user = await openPanel();
+    const box = screen.getByPlaceholderText(/what's on your mind/i);
+    await user.type(box, "First");
+    await user.upload(fileInput(), [png("a.png")]);
+    await screen.findByRole("button", { name: "Remove picture" });
+    const send = () => screen.getByRole("button", { name: /send/i });
+    await user.click(send());
+    await waitFor(() => expect(createMock).toHaveBeenCalledTimes(1));
+    await waitFor(() => expect(send()).toBeEnabled());
+
+    window.localStorage.setItem(
+      "teepee.feedback.queue.v1",
+      JSON.stringify([{
+        clientKey: "fk_doomed",
+        body: "Refused words",
+        route: "/trips/t1/plan",
+        pageLabel: "Plan editor",
+        tripId: "t1",
+        tripName: null,
+        viewport: "390x844",
+        userAgent: "iPhone",
+        authoredAt: "2026-09-08T04:05:06.000Z",
+      }]),
+    );
+    createMock.mockResolvedValueOnce({ success: false, errors: { body: ["no"] } });
+    onlineMock.mockReturnValue(false);
+    rerenderPanel(<FeedbackLauncher />);
+    onlineMock.mockReturnValue(true);
+    rerenderPanel(<FeedbackLauncher />);
+    await waitFor(() => expect(createMock).toHaveBeenCalledTimes(2));
+    const restore = await waitFor(() => {
+      const call = toastMock.mock.calls.find((c) => c[0].action);
+      expect(call).toBeDefined();
+      return call![0].action as React.ReactElement<{ onClick: () => void }>;
+    });
+    act(() => restore.props.onClick());
+    expect(box).toHaveValue("Refused words");
+
+    await user.click(send());
+    await waitFor(() => expect(createMock).toHaveBeenCalledTimes(3));
+    expect(createMock.mock.calls[2][0].clientKey).not.toBe(createMock.mock.calls[0][0].clientKey);
+  });
+
+  it("creates one note and uploads each picture once on a double click", async () => {
+    let release!: () => void;
+    addPictureMock.mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          release = () => resolve({ success: true, id: "p9", url: "/p9" });
+        }),
+    );
+    const user = await openPanel();
+    await user.type(screen.getByPlaceholderText(/what's on your mind/i), "Once");
+    await user.upload(fileInput(), [png("a.png"), png("b.png")]);
+    await screen.findAllByRole("button", { name: "Remove picture" });
+    const send = screen.getByRole("button", { name: /send/i });
+    await user.click(send);
+    await waitFor(() => expect(addPictureMock).toHaveBeenCalledTimes(1));
+    await user.click(send);
+    release();
+    await waitFor(() => expect(addPictureMock).toHaveBeenCalledTimes(2));
+    expect(createMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("locks Remove, Add and Send while a pick is compressing", async () => {
+    let release!: () => void;
+    compressMock.mockImplementationOnce(
+      (f: File) => new Promise((resolve) => { release = () => resolve(f); }),
+    );
+    const user = await openPanel();
+    await user.type(screen.getByPlaceholderText(/what's on your mind/i), "Busy");
+    await user.upload(fileInput(), [png("a.png")]);
+    await waitFor(() => expect(screen.getByRole("button", { name: "Add pictures" })).toBeDisabled());
+    expect(screen.getByRole("button", { name: /send/i })).toBeDisabled();
+    release();
+    await screen.findByRole("button", { name: "Remove picture" });
+    expect(screen.getByRole("button", { name: "Add pictures" })).toBeEnabled();
+    expect(screen.getByRole("button", { name: /send/i })).toBeEnabled();
+  });
+
+  it("keeps Send disabled for an empty body even with pictures", async () => {
+    const user = await openPanel();
+    await user.upload(fileInput(), [png("a.png")]);
+    await screen.findByRole("button", { name: "Remove picture" });
+    expect(screen.getByRole("button", { name: /send/i })).toBeDisabled();
   });
 });

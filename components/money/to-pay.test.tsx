@@ -11,19 +11,37 @@ vi.mock("@/server/actions/costs", () => actions);
 const toast = vi.hoisted(() => vi.fn());
 vi.mock("@/components/ui/use-toast", () => ({ toast }));
 vi.mock("@/lib/dates", async (orig) => ({ ...(await orig<typeof import("@/lib/dates")>()), todayLocalISO: () => "2026-10-10" }));
-vi.mock("@/components/trip/other-cost-editor", () => ({
-  OtherCostFormDialog: ({ open, cost }: { open: boolean; cost?: { id: string } }) =>
-    open ? <div data-testid="other-cost-dialog" data-cost={cost?.id ?? "new"} /> : null,
-}));
-vi.mock("@/components/trip/cost-editor", () => ({
-  OwnedCostFormDialog: ({ open, cost }: { open: boolean; cost: { id: string } }) =>
-    open ? <div data-testid="owned-cost-dialog" data-cost={cost.id} /> : null,
-}));
+type CoverProp = boolean | "always" | undefined;
+vi.mock("@/components/trip/other-cost-editor", async () => {
+  const { Dialog, DialogContent, DialogTitle } = await import("@/components/ui/dialog");
+  return {
+    OtherCostFormDialog: ({ open, onOpenChange, cost, cover }: { open: boolean; onOpenChange: (o: boolean) => void; cost?: { id: string }; cover?: CoverProp }) => (
+      <Dialog open={open} onOpenChange={onOpenChange}>
+        <DialogContent cover={cover} aria-describedby={undefined} data-testid="other-cost-dialog" data-cost={cost?.id ?? "new"}>
+          <DialogTitle>Edit Cost</DialogTitle>
+        </DialogContent>
+      </Dialog>
+    ),
+  };
+});
+vi.mock("@/components/trip/cost-editor", async () => {
+  const { Dialog, DialogContent, DialogTitle } = await import("@/components/ui/dialog");
+  return {
+    OwnedCostFormDialog: ({ open, onOpenChange, cost, cover }: { open: boolean; onOpenChange: (o: boolean) => void; cost: { id: string }; cover?: CoverProp }) => (
+      <Dialog open={open} onOpenChange={onOpenChange}>
+        <DialogContent cover={cover} aria-describedby={undefined} data-testid="owned-cost-dialog" data-cost={cost.id}>
+          <DialogTitle>Edit Cost</DialogTitle>
+        </DialogContent>
+      </Dialog>
+    ),
+  };
+});
 vi.mock("@/components/money/paid-confirm", () => ({
   PaidConfirm: ({ row }: { row: { id: string } }) => <div data-testid="paid-confirm" data-cost={row.id} />,
 }));
 
 import { ToPayCard } from "./to-pay-card";
+import { Dialog, DialogContent, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import type { ToPayInput } from "@/lib/money/to-pay";
 import type { CostRow } from "@/server/actions/costs";
 
@@ -148,6 +166,28 @@ describe("To pay (MONEY.md §4)", () => {
     expect(await screen.findByTestId("owned-cost-dialog")).toHaveAttribute("data-cost", "rome");
   });
 
+  it("Edit cost covers All costs on a phone; Mark partly paid stays short", async () => {
+    const user = userEvent.setup();
+    renderCard();
+    await user.click(screen.getByRole("button", { name: /^All costs/ }));
+    const all = await screen.findByRole("dialog", { name: "All costs" });
+    await user.click(within(all).getByRole("button", { name: "More for Rome apartment · balance" }));
+    await user.click(await screen.findByRole("menuitem", { name: "Edit cost" }));
+    expect((await screen.findByTestId("owned-cost-dialog")).className.split(/\s+/)).toContain("max-sm:min-h-[90dvh]");
+    await user.keyboard("{Escape}");
+    await waitFor(() => expect(screen.queryByTestId("owned-cost-dialog")).toBeNull());
+
+    await user.click(within(all).getByRole("button", { name: "Edit Travel insurance" }));
+    expect((await screen.findByTestId("other-cost-dialog")).className.split(/\s+/)).toContain("max-sm:min-h-[90dvh]");
+    await user.keyboard("{Escape}");
+    await waitFor(() => expect(screen.queryByTestId("other-cost-dialog")).toBeNull());
+
+    await user.click(within(all).getByRole("button", { name: "More for Travel insurance" }));
+    await user.click(await screen.findByRole("menuitem", { name: "Mark partly paid" }));
+    const partly = (await screen.findByTestId("paid-confirm")).closest<HTMLElement>('[role="dialog"]')!;
+    expect(partly.className).not.toContain("min-h-");
+  });
+
   it("tapping an Other cost's row opens its editor; an owned cost's row is not a button", async () => {
     const user = userEvent.setup();
     renderCard();
@@ -255,5 +295,46 @@ describe("To pay (MONEY.md §4)", () => {
     expect(classes).not.toContain("flex-1");
     expect(classes).not.toContain("overflow-y-auto");
     expect(list.nextElementSibling).toBe(screen.getByRole("button", { name: "All 6 costs" }));
+  });
+
+  it("All costs: its header leads the scroll body and docks opaque and flush, so no row paints above its bottom edge", async () => {
+    const user = userEvent.setup();
+    renderCard();
+    await user.click(screen.getByRole("button", { name: /^All costs/ }));
+    const dialog = await screen.findByRole("dialog", { name: "All costs" });
+    const body = dialog.querySelector<HTMLElement>('[data-slot="dialog-body"]')!;
+    const header = within(dialog).getByRole("heading", { name: "All costs" }).closest<HTMLElement>('[data-slot="dialog-header"]')!;
+    expect(body.firstElementChild).toBe(header);
+    const classes = header.className.split(/\s+/);
+    expect(classes).toEqual(expect.arrayContaining(["sticky", "bg-background", "z-10"]));
+    // Docked flush with the true top edge (the body's pt-3.5), not 14px down
+    // with a strip above it that only a pseudo-element covered.
+    expect(classes).toContain("-top-3.5");
+  });
+
+  it("a rate opened from All costs covers it rather than opening short over it", async () => {
+    const user = userEvent.setup();
+    render(
+      <ToPayCard
+        tripId="t1"
+        homeCurrency="AUD"
+        today="2026-10-10"
+        costs={COSTS}
+        costRows={costRows}
+        recentIds={["flights"]}
+        ratesFooter={
+          <Dialog>
+            <DialogTrigger>EUR rate 2</DialogTrigger>
+            <DialogContent aria-describedby={undefined}>
+              <DialogTitle>EUR to AUD</DialogTitle>
+            </DialogContent>
+          </Dialog>
+        }
+      />,
+    );
+    await user.click(screen.getByRole("button", { name: /^All costs/ }));
+    await user.click(await screen.findByRole("button", { name: "EUR rate 2" }));
+    const rate = await screen.findByRole("dialog", { name: "EUR to AUD" });
+    expect(rate.className.split(/\s+/)).toContain("max-sm:min-h-[90dvh]");
   });
 });

@@ -8,6 +8,7 @@ import { formatDayLabel } from "@/lib/dates";
 import { mapsUrl } from "@/lib/map/maps";
 import type { DayViewData } from "@/lib/day-view-loader";
 import { STAY_NAME_CLASS, StayCard, StayConfirmation } from "@/components/trip/stay-card";
+import { BookingConfirmationMarker } from "@/components/trip/booking-confirmation-marker";
 import { useTripHref } from "@/components/trip/use-trip-href";
 
 /**
@@ -26,12 +27,14 @@ export function TonightCard({
   isLastDay,
   stopId,
   size,
+  needsBookingConfirmation = false,
 }: {
   tripId: string;
   tonight: DayViewData["tonight"];
   isLastDay: boolean;
   stopId: string | null;
   size: "desktop" | "phone";
+  needsBookingConfirmation?: boolean;
 }) {
   const [open, setOpen] = React.useState(false);
   const [copied, setCopied] = React.useState(false);
@@ -90,6 +93,7 @@ export function TonightCard({
         </button>
       }
     >
+      {needsBookingConfirmation ? <BookingConfirmationMarker kind="ACCOMMODATION" id={tonight.id} /> : null}
       {open ? (
         <div id={panelId} data-slot="tonight-details" className="mt-2 flex flex-col gap-1.5 border-t-2 border-border/30 pt-2.5 text-[13px] font-semibold">
           {tonight.address && mapHref ? (

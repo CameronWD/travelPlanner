@@ -20,6 +20,7 @@ const row = (site: string | null): FeedbackNoteQueryRow => ({
   site,
   resolution: null,
   resolvedAt: null,
+  pictures: [],
 });
 
 describe("toView — siteChip", () => {

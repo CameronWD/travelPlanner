@@ -22,9 +22,13 @@ Main session only, at the start of the session, before the grilling interview:
 
 1. Run `npm run feedback:pull` — it rewrites `docs/feedback/inbox.md` from the
    Feedback notes written inside the app. It reads `.env.production.local`, so
-   it queries production; it is read-only and only ever writes the local inbox
-   file. (`feedback:resolve` and `feedback:accept` are the only writers — never
-   run either to "check" anything, not even with `--dry-run`.)
+   it queries production; it is read-only against the database and writes only
+   the local inbox file and the git-ignored `docs/feedback/pictures/` folder,
+   where it adds and removes picture files. (`feedback:resolve` and
+   `feedback:accept` are the only writers — never run either to "check"
+   anything, not even with `--dry-run`.) The pull downloads the pictures of
+   open and needs-review notes to that folder, and the inbox lists each path —
+   read them.
 2. Read the inbox and lead with what's open in it. **Never work a note under
    `## Needs review`** — those are from Travellers who are not Admins and wait
    for me to accept them (`npm run feedback:accept -- <id>`) or decline them

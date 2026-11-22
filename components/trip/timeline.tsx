@@ -38,7 +38,6 @@ import { ItemPhotoThumb } from "@/components/trip/item-photo-thumb";
 import { SurpriseBadge } from "@/components/plan/surprise-badge";
 import { BookingStateBadge } from "@/components/trip/booking-state-badge";
 import { BookingConfirmationMarker } from "@/components/trip/booking-confirmation-marker";
-import { STAY_NAME_CLASS, StayCard, StayConfirmation } from "@/components/trip/stay-card";
 import { SlotFacts } from "@/components/trip/slot-facts";
 import { OpeningHoursLine } from "@/components/trip/opening-hours-line";
 import { TryListTicks } from "@/components/trip/try-list-ticks";
@@ -205,7 +204,7 @@ export function Timeline({
       {/* Untimed items, grouped by Category */}
       {anytime.length > 0 && (
         <div className={cn("flex flex-col border-t-2 border-border-soft pt-2.5 first:border-t-0 first:pt-0", !large && "border-dotted")}>
-          <p className="text-[11px] font-bold uppercase tracking-[0.08em] text-muted-foreground">Anytime</p>
+          {entries.length > 0 && <p className="text-[11px] font-extrabold uppercase tracking-[0.08em] text-muted-foreground">Any time</p>}
           {groupByCategory(anytime.map((e) => e.item)).map((group) => (
             <div key={group.category} className="flex flex-col pt-4 first-of-type:pt-1 [&>h4+*]:border-t-0 [&>h4+*]:pt-1.5">
               <h4 className="text-[10px] font-bold uppercase tracking-[0.08em] text-muted-foreground">
@@ -289,12 +288,15 @@ function DayRow({
   tile,
   large,
   gutter = true,
+  alignTop,
   children,
 }: {
   time?: string | null;
   tile: React.ReactNode;
   large?: boolean;
   gutter?: boolean;
+  /** Large rows only: the time and tile sit beside the title instead of centring on a tall body. */
+  alignTop?: boolean;
   children: React.ReactNode;
 }) {
   return (
@@ -304,11 +306,20 @@ function DayRow({
         "flex border-t-2 border-border-soft first:border-t-0 first:pt-0 last:pb-0",
         // Large (Day view): the time, the 40px tile and the title block share
         // one centre line, as in the handoff's rows.
-        large ? "items-center gap-3 py-3 max-md:gap-2" : "items-start gap-2.5 border-dotted py-2.5",
+        large ? cn("gap-3 py-3 max-md:gap-2", alignTop ? "items-start" : "items-center") : "items-start gap-2.5 border-dotted py-2.5",
       )}
     >
-      {gutter && <TimeGutter time={time} large={large} />}
-      {tile}
+      {large && alignTop ? (
+        <div className="flex shrink-0 items-center gap-3 self-start max-md:gap-2">
+          {gutter && <TimeGutter time={time} large={large} />}
+          {tile}
+        </div>
+      ) : (
+        <>
+          {gutter && <TimeGutter time={time} large={large} />}
+          {tile}
+        </>
+      )}
       {/* min-w-0 lets the body shrink in its flex track so titles truncate instead of overflowing at narrow widths. */}
       <div className="min-w-0 flex-1">{children}</div>
     </div>
@@ -337,8 +348,9 @@ function Tile({ icon: I, className, large }: { icon: LucideIcon | undefined; cla
 }
 
 const NEUTRAL_TILE = "bg-background text-foreground";
-/** Day view (large) rows colour by idea (HOME.md §0): sun = transport; beds are StayCards. */
+/** Day view (large) rows colour by idea (HOME.md §0): sun = transport, lilac = a stay. */
 const TRANSPORT_TILE_LARGE = "island bg-sun text-on-accent";
+const STAY_TILE_LARGE = "island bg-lilac text-on-accent";
 
 function ItemTile({ category, large }: { category: Category; large?: boolean }) {
   const meta = CATEGORIES_BY_VALUE.get(category) ?? CATEGORIES_BY_VALUE.get("OTHER")!;
@@ -411,8 +423,8 @@ function TransportRow({
       : null;
 
   return (
-    <DayRow large={large} time={gutterTime} tile={<Tile large={large} icon={Icon} className={large ? TRANSPORT_TILE_LARGE : NEUTRAL_TILE} />}>
-      <div className="flex min-h-7 min-w-0 flex-wrap items-center gap-1.5 text-sm leading-tight">
+    <DayRow large={large} alignTop={large} time={gutterTime} tile={<Tile large={large} icon={Icon} className={large ? TRANSPORT_TILE_LARGE : NEUTRAL_TILE} />}>
+      <div className={cn("flex min-w-0 flex-wrap items-center gap-1.5 text-sm leading-tight", large ? "min-h-10 max-md:min-h-8" : "min-h-7")}>
         <EntryTitle
           editor={editor}
           target={tx ? { kind: "transport", transport: tx } : undefined}
@@ -556,41 +568,32 @@ function AccomCheckinRow({
       className="block"
     >
       {large ? (
-        <span className={STAY_NAME_CLASS} title={a.name}>{a.name}</span>
+        <span className="block min-w-0 break-words text-sm font-semibold leading-tight text-foreground">Check in · {a.name}</span>
       ) : (
         <span className="block break-words py-1 text-sm font-semibold leading-5 text-foreground">Check-in: {a.name}</span>
       )}
     </EntryTitle>
   );
+  // On the Day view the booking reference and its confirmation marker live on Tonight's card, not here.
   const details = (
     <>
-      {a.confirmation &&
-        (large ? (
-          <StayConfirmation value={a.confirmation} />
-        ) : (
-          <p className="mt-0.5 flex items-center gap-1 text-xs font-medium text-muted-foreground">
-            <Hash className="size-3 shrink-0" aria-hidden="true" />
-            {a.confirmation}
-          </p>
-        ))}
+      {!large && a.confirmation && (
+        <p className="mt-0.5 flex items-center gap-1 text-xs font-medium text-muted-foreground">
+          <Hash className="size-3 shrink-0" aria-hidden="true" />
+          {a.confirmation}
+        </p>
+      )}
       {a.bookingState === "TO_BOOK" && (
         <p className="mt-1 flex"><BookingStateBadge state={a.bookingState} bookBy={a.bookBy} compact /></p>
       )}
       <AttachmentLinks attachments={attachments} />
-      {needsConfirmation && !editor?.readFirst && <div className="mt-0.5"><BookingConfirmationMarker kind="ACCOMMODATION" id={a.id} /></div>}
-    </>
-  );
-  const content = large ? (
-    <StayCard label="Check-in" icon={LogIn} name={title}>{details}</StayCard>
-  ) : (
-    <>
-      {title}
-      {details}
+      {!large && needsConfirmation && !editor?.readFirst && <div className="mt-0.5"><BookingConfirmationMarker kind="ACCOMMODATION" id={a.id} /></div>}
     </>
   );
   return (
-    <DayRow large={large} time={a.checkInTime ?? null} gutter={!large || !!a.checkInTime} tile={large ? null : <Tile icon={LogIn} className={NEUTRAL_TILE} />}>
-      {content}
+    <DayRow large={large} time={a.checkInTime ?? null} tile={<Tile large={large} icon={LogIn} className={large ? STAY_TILE_LARGE : NEUTRAL_TILE} />}>
+      {title}
+      {details}
     </DayRow>
   );
 }
@@ -608,33 +611,21 @@ function AccomCheckoutRow({
 }) {
   const { accommodation: a } = entry;
   const accom = editor?.accommodations[a.id];
-  const title = (
-    <EntryTitle
-      editor={editor}
-      target={accom ? { kind: "accommodation", ...accom } : undefined}
-      attachments={attachments}
-      className="block"
-    >
-      {large ? (
-        <span className={STAY_NAME_CLASS} title={a.name}>{a.name}</span>
-      ) : (
-        <span className="block break-words py-1 text-sm font-semibold leading-5 text-foreground">Check-out: {a.name}</span>
-      )}
-    </EntryTitle>
-  );
-  const content = large ? (
-    <StayCard label="Check-out" icon={LogOut} name={title}>
-      <AttachmentLinks attachments={attachments} />
-    </StayCard>
-  ) : (
-    <>
-      {title}
-      <AttachmentLinks attachments={attachments} />
-    </>
-  );
   return (
-    <DayRow large={large} time={a.checkOutTime ?? null} gutter={!large || !!a.checkOutTime} tile={large ? null : <Tile icon={LogOut} className={NEUTRAL_TILE} />}>
-      {content}
+    <DayRow large={large} time={a.checkOutTime ?? null} tile={<Tile large={large} icon={LogOut} className={large ? STAY_TILE_LARGE : NEUTRAL_TILE} />}>
+      <EntryTitle
+        editor={editor}
+        target={accom ? { kind: "accommodation", ...accom } : undefined}
+        attachments={attachments}
+        className="block"
+      >
+        {large ? (
+          <span className="block min-w-0 break-words text-sm font-semibold leading-tight text-foreground">Check out · {a.name}</span>
+        ) : (
+          <span className="block break-words py-1 text-sm font-semibold leading-5 text-foreground">Check-out: {a.name}</span>
+        )}
+      </EntryTitle>
+      <AttachmentLinks attachments={attachments} />
     </DayRow>
   );
 }

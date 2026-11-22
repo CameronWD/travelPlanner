@@ -35,10 +35,13 @@ import { mkdir, writeFile } from "node:fs/promises";
 import path from "node:path";
 
 import { db } from "../lib/db";
-import { renderInbox, toInboxNote } from "../lib/feedback/inbox";
+import { PICTURES_REPO_DIR, renderInbox, toInboxNote } from "../lib/feedback/inbox";
+import { picturesOnDisk, pullPictures } from "../lib/feedback/pull-pictures";
+import { getStorage } from "../lib/storage";
 
 const DRY_RUN = process.argv.includes("--dry-run");
 const OUT_PATH = path.join(process.cwd(), "docs", "feedback", "inbox.md");
+const PICTURES_DIR = path.join(process.cwd(), PICTURES_REPO_DIR);
 
 async function main() {
   const rows = await db.feedbackNote.findMany({
@@ -58,23 +61,53 @@ async function main() {
       resolution: true,
       authorName: true,
       site: true,
+      pictures: {
+        orderBy: { position: "asc" },
+        select: { id: true, storageKey: true, mime: true, size: true, position: true },
+      },
     },
   });
 
   const notes = rows.map(toInboxNote);
 
-  const markdown = renderInbox(notes, new Date());
-
   if (DRY_RUN) {
-    console.log(markdown);
+    // Downloads nothing, so it lists what is already on disk.
+    const present = await picturesOnDisk({ notes: rows, dir: PICTURES_DIR });
+    console.log(renderInbox(notes, new Date(), present));
   } else {
+    // Pictures first: the inbox lists only the ones that actually landed. A
+    // storage that throws (bad R2 config) must not cost the inbox itself.
+    let written = 0;
+    let missing = 0;
+    let pullFailed = false;
+    try {
+      ({ written, missing } = await pullPictures({
+        notes: rows,
+        storage: getStorage(),
+        dir: PICTURES_DIR,
+      }));
+    } catch (err) {
+      console.error("Could not download pictures:", err);
+      pullFailed = true;
+      process.exitCode = 1;
+    }
+    const present = await picturesOnDisk({ notes: rows, dir: PICTURES_DIR });
+    const markdown = renderInbox(notes, new Date(), present);
     await mkdir(path.dirname(OUT_PATH), { recursive: true });
     await writeFile(OUT_PATH, markdown, "utf8");
     const open = notes.filter((n) => n.status === "OPEN").length;
     const needs = notes.filter((n) => n.status === "NEEDS_REVIEW").length;
     const resolved = notes.length - open - needs;
+    const pictures = rows
+      .filter((r) => r.status === "OPEN" || r.status === "NEEDS_REVIEW")
+      .reduce((total, r) => total + r.pictures.length, 0);
+    const unread = pullFailed
+      ? ", the download failed — check STORAGE_DRIVER and the R2 variables in .env.production.local"
+      : missing > 0
+        ? `, ${missing} could not be downloaded — check STORAGE_DRIVER and the R2 variables in .env.production.local`
+        : "";
     console.log(
-      `Wrote ${path.relative(process.cwd(), OUT_PATH)} — ${open} open, ${needs} needs review, ${resolved} resolved.`,
+      `Wrote ${path.relative(process.cwd(), OUT_PATH)} — ${open} open, ${needs} needs review, ${resolved} resolved, ${pictures} pictures (${written} downloaded${unread}).`,
     );
   }
 

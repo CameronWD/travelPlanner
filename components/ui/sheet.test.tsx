@@ -188,7 +188,8 @@ describe("Sheet", () => {
     // It used to be a full-screen panel (inset-0 h-full) on phones, so an
     // empty feedback log left a screen-tall void between the title and the
     // write box. Below md it now hugs the bottom edge, grows with content and
-    // stops at 90dvh; the md: desktop card is untouched.
+    // stops at 90dvh; the md: desktop card is untouched. A caller that wants
+    // the phone filled (the Feedback panel) says so on its own className.
     const classes = sheetVariants({ side: "docked" }).split(/\s+/);
     expect(classes).toEqual(
       expect.arrayContaining(["inset-x-0", "bottom-0", "h-auto", "max-h-[90dvh]", "rounded-t-2xl", "border-t-2"]),
@@ -263,10 +264,10 @@ describe("Sheet: phone keyboard (spec 2026-10-11-phone-keyboard-sheets)", () => 
   const bodyOf = (panel: HTMLElement) => panel.querySelector<HTMLElement>('[class*="overflow-y-auto"]');
 
   it("bottom, keyboard open: sits on the keyboard, hides the handle, drops the safe-area padding", () => {
-    installVV(500, 0);
+    installVV(500, 120);
     const panel = openSheet("bottom");
     expect(panel).toHaveAttribute("data-keyboard", "open");
-    expect(panel.style.bottom).toBe("344px");
+    expect(panel.style.bottom).toBe("calc(100% - 620px)");
     expect(panel.style.maxHeight).toBe("500px");
     expect(panel.style.height).toBe("");
     expect(panel.className).toContain("group/sheet");
@@ -284,7 +285,7 @@ describe("Sheet: phone keyboard (spec 2026-10-11-phone-keyboard-sheets)", () => 
       vv.dispatchEvent(new Event("resize"));
     });
     expect(panel).toHaveAttribute("data-keyboard", "open");
-    expect(panel.style.bottom).toBe("354px");
+    expect(panel.style.bottom).toBe("calc(100% - 490px)");
     expect(panel.style.maxHeight).toBe("450px");
     act(() => {
       vv.height = 844;
@@ -307,7 +308,7 @@ describe("Sheet: phone keyboard (spec 2026-10-11-phone-keyboard-sheets)", () => 
     installVV(500, 0);
     const panel = openSheet("docked");
     expect(panel).toHaveAttribute("data-keyboard", "open");
-    expect(panel.style.bottom).toBe("344px");
+    expect(panel.style.bottom).toBe("calc(100% - 500px)");
     expect(panel.style.maxHeight).toBe("500px");
     expect(panel.style.height).toBe("500px");
     expect(panel.className.split(/\s+/)).toContain("pb-6");
@@ -352,5 +353,62 @@ describe("Sheet: phone keyboard (spec 2026-10-11-phone-keyboard-sheets)", () => 
     const reopened = await screen.findByRole("dialog");
     expect(reopened).not.toHaveAttribute("data-keyboard");
     expectNoKeyboardStyle(reopened);
+  });
+});
+
+describe("Sheet: a sheet opened from a sheet covers it", () => {
+  function Nested({ innerSide = "bottom" }: { innerSide?: "bottom" | "right" }) {
+    return (
+      <Sheet open>
+        <SheetContent aria-describedby={undefined}>
+          <SheetTitle>Outer</SheetTitle>
+          <Sheet open>
+            <SheetContent side={innerSide} aria-describedby={undefined}>
+              <SheetTitle>Inner</SheetTitle>
+            </SheetContent>
+          </Sheet>
+        </SheetContent>
+      </Sheet>
+    );
+  }
+  const frame = (title: string) =>
+    [...document.querySelectorAll<HTMLElement>('[role="dialog"]')].find((d) => d.querySelector("h2")?.textContent === title)!;
+
+  it("a bottom sheet inside another sheet's content is at least 90dvh tall; the first one is not", () => {
+    render(<Nested />);
+    expect(frame("Inner").className.split(/\s+/)).toContain("min-h-[90dvh]");
+    expect(frame("Outer").className).not.toContain("min-h-");
+  });
+
+  it("only bottom sheets take the floor", () => {
+    render(<Nested innerSide="right" />);
+    expect(frame("Inner").className).not.toContain("min-h-");
+  });
+
+  it("drops the floor while the phone keyboard is open", () => {
+    setMatchMedia(false);
+    setInnerHeight(844);
+    const raf = runFramesSynchronously();
+    installVV(500, 0);
+    try {
+      render(<Nested />);
+      expect(frame("Inner")).toHaveAttribute("data-keyboard", "open");
+      expect(frame("Inner").className).not.toContain("min-h-");
+    } finally {
+      removeVV();
+      raf.mockRestore();
+    }
+  });
+
+  it("the scroll body can never be panned sideways, nor hand a sideways pan on to the page", () => {
+    render(
+      <Sheet open>
+        <SheetContent aria-describedby={undefined}>
+          <SheetTitle>Default</SheetTitle>
+        </SheetContent>
+      </Sheet>,
+    );
+    const body = screen.getByRole("dialog").querySelector<HTMLElement>('[class*="overflow-y-auto"]')!;
+    expect(body.className.split(/\s+/)).toEqual(expect.arrayContaining(["overflow-x-hidden", "overscroll-x-none"]));
   });
 });

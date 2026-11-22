@@ -6,6 +6,7 @@ import { cva, type VariantProps } from "class-variance-authority";
 import { X } from "lucide-react";
 import { cn } from "@/lib/cn";
 import { useKeyboardViewport } from "./use-keyboard-viewport";
+import { SheetDepthProvider, useSheetDepth } from "./sheet-depth";
 
 // The `docked` variant switches from phone bottom sheet to desktop card at
 // Tailwind's `md`. Same useSyncExternalStore pattern as dialog.tsx's sm gate:
@@ -122,10 +123,12 @@ const SheetFrame = React.forwardRef<
   const keyboardAware = side === "bottom" || (side === "docked" && !isDockedDesktop);
   const kb = useKeyboardViewport(keyboardAware);
   const keyboard = keyboardAware && kb.keyboardOpen;
+  const depth = useSheetDepth();
+  const content = <SheetDepthProvider>{children}</SheetDepthProvider>;
   const contentStyle: React.CSSProperties | undefined = keyboard
     ? {
         ...style,
-        bottom: kb.bottomInset,
+        bottom: kb.bottom,
         maxHeight: kb.visibleHeight,
         ...(side === "docked" ? { height: kb.visibleHeight } : null),
       }
@@ -139,6 +142,8 @@ const SheetFrame = React.forwardRef<
       className={cn(
         sheetVariants({ side }),
         keyboardAware && "group/sheet",
+        // A bottom sheet opened from inside another sheet covers it (see DialogSheet).
+        side === "bottom" && depth > 0 && !keyboard && "min-h-[90dvh]",
         className,
         // The docked sheet has no scroll body of its own, so its frame drops
         // the safe-area part of any bottom padding (the keyboard covers the
@@ -148,7 +153,7 @@ const SheetFrame = React.forwardRef<
       {...props}
     >
       {side === "docked" ? (
-        children
+        content
       ) : (
         <>
           {side === "bottom" ? (
@@ -160,8 +165,8 @@ const SheetFrame = React.forwardRef<
           {/* Scrollable body — the frame never scrolls, so the ✕ and handle stay put (mirrors dialog.tsx).
               `relative` anchors sr-only controls here so focusing one scrolls this body, not the frame (spec 2026-10-04 §G).
               With the phone keyboard open the keyboard covers the home indicator, so the bottom padding drops its safe-area part. */}
-          <div className="relative flex min-h-0 flex-col gap-4 overflow-y-auto px-6 pt-4 pb-[calc(1.5rem+env(safe-area-inset-bottom))] group-data-[keyboard=open]/sheet:pb-6">
-            {children}
+          <div className="relative flex min-h-0 flex-col gap-4 overflow-y-auto overflow-x-hidden overscroll-x-none px-6 pt-4 pb-[calc(1.5rem+env(safe-area-inset-bottom))] group-data-[keyboard=open]/sheet:pb-6">
+            {content}
           </div>
         </>
       )}

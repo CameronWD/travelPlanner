@@ -21,6 +21,7 @@ next-env.d.ts
 *.pem
 dev.db
 .uploads/
+docs/feedback/pictures/
 .verify/
 !.verify/shoot.mjs
 backfill-places-plan.json

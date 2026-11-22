@@ -6,7 +6,7 @@ import { useRouter } from "next/navigation";
 import { PENDING_NAVIGATION_TIMEOUT_MS, useBeginNavigation, useSettleNavigation } from "@/components/navigation/navigation-pending";
 import { ViewTransition } from "@/components/ui/view-transition";
 import { DAY_BODY_TRANSITION_WIDE, dayTransitionType } from "@/components/trip/day/day-transition";
-import { isFar, panelProgress, panelWidth, settledPanel } from "@/components/trip/day/carousel-maths";
+import { isFar, lerpHeight, nearestIndex, neighbourIndex, panelProgress, panelWidth, settledPanel } from "@/components/trip/day/carousel-maths";
 import { prefersReducedMotion, tweenScrollLeft } from "@/components/trip/day/scroll-tween";
 import { LG_UP, useMediaQuery } from "@/components/ui/use-media-query";
 import { cn } from "@/lib/cn";
@@ -28,6 +28,8 @@ export interface DayCarouselApi {
   subscribeDay: (cb: (iso: string) => void) => () => void;
   /** The body's offset from the day in view, in panels; `settled` is true once only, on arrival. */
   subscribe: (cb: (progress: number, settled: boolean) => void) => () => void;
+  /** The day the body mostly shows: it changes as a gesture or glide crosses halfway, is heard once on settle, and follows every change of the day in view. */
+  subscribeNearest?: (cb: (iso: string) => void) => () => void;
   /** True while a drag or glide is under way — the strip then follows progress, not the lit chip. */
   isMoving: () => boolean;
 }
@@ -72,10 +74,12 @@ export function useIsDayInView(): boolean | null {
 /**
  * The Day view's paged carousel (ADR 0065, amended 2026-11-19): a fixed-width
  * slot for every day of the Trip in one snap-mandatory scroller. The day in
- * view is this component's own state. A settle shows that day's header (its
- * slot's, or `chromeFallback` until the slot has filled) and lights the strip
- * at once, then pushes the day's address; the page's `shownDate` catches up
- * when that lands, without remounting anything, and the slots around it fill.
+ * view is this component's own state. While the body moves, the heading
+ * travels with it and the strip lights the day it mostly shows (amended
+ * 2026-11-22). A settle makes that day the day in view, with its header (its
+ * slot's, or `chromeFallback` until the slot has filled), then pushes the
+ * day's address; the page's `shownDate` catches up when that lands, without
+ * remounting anything, and the slots around it fill.
  *
  * From lg only the day in view renders, in a plain block that scrolls with
  * the page, and a day change crossfades it before the same push. The server
@@ -105,6 +109,8 @@ export function DayCarousel({
   const scroller = React.useRef<HTMLDivElement>(null);
   const listeners = React.useRef(new Set<(progress: number, settled: boolean) => void>());
   const dayListeners = React.useRef(new Set<(iso: string) => void>());
+  const nearestListeners = React.useRef(new Set<(iso: string) => void>());
+  const nearest = React.useRef(shownDate);
   const moving = React.useRef(false);
   const glideTo = React.useRef<number | null>(null);
   // The day last pushed, until that navigation ends.
@@ -136,10 +142,16 @@ export function DayCarousel({
 
   const machine = React.useMemo(() => {
     const indexOf = (iso: string) => panelsRef.current.findIndex((p) => p.iso === iso);
+    const tellNearest = (iso: string, always = false) => {
+      if (iso === nearest.current && !always) return;
+      nearest.current = iso;
+      for (const cb of nearestListeners.current) cb(iso);
+    };
     const showDay = (iso: string) => {
       viewRef.current = iso;
       setView(iso);
       for (const cb of dayListeners.current) cb(iso);
+      tellNearest(iso);
     };
     const unfilledInView = () => scroller.current?.querySelector('[data-day-panel][data-shown="true"] [data-day-slot-skeleton]') != null;
     const navigate = (p: DayPanel) => {
@@ -179,6 +191,7 @@ export function DayCarousel({
         moving.current = false;
         const progress = panelProgress(el.scrollLeft, indexOf(viewRef.current), panelWidth(el));
         for (const cb of listeners.current) cb(progress, true);
+        tellNearest(p.iso, true);
       }
       settleBegun(p.href);
       const held = deferred.current;
@@ -197,6 +210,7 @@ export function DayCarousel({
         const type = dayTransitionType(viewRef.current, p.iso);
         viewRef.current = p.iso;
         for (const cb of dayListeners.current) cb(p.iso);
+        tellNearest(p.iso);
         crossfadeTo.current = p.iso;
         React.startTransition(() => {
           React.addTransitionType(type);
@@ -206,7 +220,25 @@ export function DayCarousel({
       }
       const el = scroller.current;
       if (!el) return false;
-      if (idx === indexOf(viewRef.current) && glideTo.current == null) return true;
+      const from = indexOf(viewRef.current);
+      if (idx === from && glideTo.current == null) return true;
+      // Further than a day: a cut (ADR 0065, amended 2026-11-22). A glide
+      // would slide the body through the days between under a heading that
+      // had already changed. Heading, strip and body change in one commit.
+      if (isFar(idx, from)) {
+        const superseded = glideTo.current == null ? null : panelsRef.current[glideTo.current];
+        cancelGlide.current();
+        glideTo.current = null;
+        moving.current = false;
+        deferred.current = null;
+        if (superseded) settleBegun(superseded.href);
+        el.style.scrollSnapType = "";
+        showDay(p.iso);
+        el.scrollLeft = idx * panelWidth(el);
+        for (const cb of listeners.current) cb(0, true);
+        navigate(p);
+        return true;
+      }
       moving.current = true;
       glideTo.current = idx;
       begin(href);
@@ -241,9 +273,15 @@ export function DayCarousel({
           listeners.current.delete(cb);
         };
       },
+      subscribeNearest: (cb) => {
+        nearestListeners.current.add(cb);
+        return () => {
+          nearestListeners.current.delete(cb);
+        };
+      },
       isMoving: () => moving.current,
     };
-    return { api, indexOf, land, navigate, reconcile, settled: () => clearTimeout(backstop.current) };
+    return { api, indexOf, land, navigate, reconcile, tellNearest, settled: () => clearTimeout(backstop.current) };
   }, [router, begin, settleBegun, desktop]);
 
   // On the day in view before first paint, and again when the phone tree comes back.
@@ -339,7 +377,6 @@ export function DayCarousel({
   // moved the page the wrong way, and Chromium's doubled this correction).
   // Measured inside the held box and scrolled before it is released, so a
   // page only just long enough is never clamped on the way.
-  const ownHeader = chromeFor(view);
   // The header also rewraps with no commit here (rotation, resize, a font
   // landing). Track that as the new baseline, never as a change to correct:
   // the Traveller already saw it move.
@@ -401,11 +438,14 @@ export function DayCarousel({
       machine.land(idx);
     };
     const onScroll = () => {
-      const p = panelProgress(el.scrollLeft, machine.indexOf(viewRef.current), panelWidth(el));
+      const from = machine.indexOf(viewRef.current);
+      const p = panelProgress(el.scrollLeft, from, panelWidth(el));
       // Positioning the scroller on the day in view fires a scroll at rest; that is not a gesture.
       if (!moving.current && Math.abs(p) < 0.001) return;
       moving.current = true;
       for (const cb of listeners.current) cb(p, false);
+      const near = panelsRef.current[nearestIndex(from, p, panelsRef.current.length)];
+      if (near) machine.tellNearest(near.iso);
       if (timer) clearTimeout(timer);
       timer = setTimeout(settle, SETTLE_QUIET_MS);
     };
@@ -435,7 +475,7 @@ export function DayCarousel({
           correction above keeps the body still, and an engine's own would
           move it again. */}
       <div ref={headerBox} className="[overflow-anchor:none]">
-        {ownHeader ?? chromeFallback(view)}
+        <DayHeadingTrack carousel={machine.api} view={view} panels={panels} header={(iso) => chromeFor(iso) ?? chromeFallback(iso)} />
       </div>
       <div className="[overflow-anchor:none]">{chrome}</div>
       {/* Only the body runs a view transition; header and strip stay put. From
@@ -495,5 +535,154 @@ export function DayCarousel({
         </ViewTransition>
       </div>
     </DayCarouselContext.Provider>
+  );
+}
+
+// Not part of a day: the arrows and the top bar (switcher, Share, bell) hold still while the day's heading travels.
+const HELD_STILL = '[data-slot="day-arrow"], [data-slot="day-trip-switcher"]';
+
+// Clips the sides (the neighbour) and the bottom (the height between the two),
+// never the top: the bell's unread badge and the top bar's focus rings sit above the area's edge.
+const HEADING_CLIP = "inset(-1rem 0 0 0)";
+
+/** Read once per gesture and per commit, so a frame of the gesture only writes. */
+interface HeadingMeasure {
+  width: number;
+  shown: number;
+  toward: number | null;
+  held: HTMLElement[];
+}
+
+function measureHeading(area: HTMLElement): HeadingMeasure {
+  const shown = area.querySelector<HTMLElement>("[data-day-heading-panel]:not([inert])");
+  const toward = area.querySelector<HTMLElement>("[data-day-heading-panel][inert]");
+  return { width: area.offsetWidth, shown: shown?.offsetHeight ?? 0, toward: toward ? toward.offsetHeight : null, held: shown ? Array.from(shown.querySelectorAll<HTMLElement>(HELD_STILL)) : [] };
+}
+
+function restHeading(area: HTMLElement, track: HTMLElement) {
+  track.style.transform = "";
+  area.style.height = "";
+  area.style.clipPath = "";
+  for (const el of area.querySelectorAll<HTMLElement>(HELD_STILL)) el.style.transform = "";
+}
+
+function moveHeading(area: HTMLElement, track: HTMLElement, progress: number, lerp: boolean, m: HeadingMeasure) {
+  area.style.clipPath = HEADING_CLIP;
+  track.style.transform = `translate3d(${-progress * 100}%, 0, 0)`;
+  // These sit in the day in view's header but hold still: the track's move, undone.
+  const still = `translate3d(${progress * m.width}px, 0, 0)`;
+  for (const el of m.held) el.style.transform = still;
+  area.style.height = lerp && m.toward != null ? `${lerpHeight(m.shown, m.toward, progress)}px` : "";
+}
+
+/**
+ * The heading area (ADR 0065, amended 2026-11-22): the day in view's header
+ * and, while the body moves, the header of the day it moves towards, side by
+ * side in a track that follows the body, the area's height moving between
+ * theirs. Only the day's own heading travels: the arrows and the top bar are
+ * held still and the neighbour's are hidden. Transform and height are written
+ * to the DOM as progress arrives, from measures taken at the gesture's start
+ * and on each commit; only a change of neighbour renders. A settle onto the
+ * neighbour leaves the track where it is until the day in view changes, so
+ * the outgoing heading never shows for a frame on the way.
+ */
+function DayHeadingTrack({ carousel, view, panels, header }: { carousel: DayCarouselApi; view: string; panels: DayPanel[]; header: (iso: string) => React.ReactNode }) {
+  const area = React.useRef<HTMLDivElement>(null);
+  const track = React.useRef<HTMLDivElement>(null);
+  const panelsRef = React.useRef(panels);
+  const [toward, setToward] = React.useState<{ from: string; iso: string } | null>(null);
+  const towardRef = React.useRef(toward);
+  const progress = React.useRef(0);
+  const measured = React.useRef<HeadingMeasure | null>(null);
+  // Decided once a gesture starts, and null between gestures. Scrolled into
+  // the header, the Traveller is reading the body: the height holds, and the
+  // carousel's correction on the swap keeps the body still, as before.
+  const lerp = React.useRef<boolean | null>(null);
+
+  React.useLayoutEffect(() => {
+    panelsRef.current = panels;
+  }, [panels]);
+
+  React.useEffect(() => {
+    const a = area.current;
+    const t = track.current;
+    if (!a || !t) return;
+    const off = carousel.subscribe((p, settled) => {
+      progress.current = p;
+      const ps = panelsRef.current;
+      const from = carousel.current();
+      const n = settled ? null : neighbourIndex(ps.findIndex((d) => d.iso === from), p, ps.length);
+      const next = n == null ? null : { from, iso: ps[n].iso };
+      if (next?.iso !== towardRef.current?.iso || next?.from !== towardRef.current?.from) {
+        towardRef.current = next;
+        setToward(next);
+      }
+      if (settled) {
+        if (Math.round(p) === 0) {
+          lerp.current = null;
+          measured.current = null;
+          restHeading(a, t);
+        }
+        return;
+      }
+      if (lerp.current == null || measured.current == null) {
+        lerp.current = a.getBoundingClientRect().top >= 0;
+        measured.current = measureHeading(a);
+      }
+      moveHeading(a, t, p, lerp.current, measured.current);
+    });
+    // A carousel rebuilt mid-gesture never settles this one: leave nothing moved.
+    return () => {
+      off();
+      lerp.current = null;
+      measured.current = null;
+      towardRef.current = null;
+      setToward(null);
+      restHeading(a, t);
+    };
+  }, [carousel]);
+
+  const neighbour = toward?.from === view ? toward.iso : null;
+
+  React.useLayoutEffect(() => {
+    const a = area.current;
+    const t = track.current;
+    lerp.current = null;
+    measured.current = null;
+    if (a && t) restHeading(a, t);
+  }, [view]);
+
+  // Every commit mid-gesture (a neighbour come or gone, a header filled in)
+  // re-measures, and places the track before it paints.
+  React.useLayoutEffect(() => {
+    const a = area.current;
+    const t = track.current;
+    if (!a || !t || lerp.current == null) return;
+    measured.current = measureHeading(a);
+    moveHeading(a, t, progress.current, lerp.current, measured.current);
+  });
+
+  const viewAt = panels.findIndex((p) => p.iso === view);
+  return (
+    // Full-bleed as the body's scroller is, so the heading moves as far as the body does.
+    <div ref={area} data-day-heading-area className="-mx-4 sm:-mx-6 md:mx-0">
+      <div ref={track} data-day-heading-track className="relative">
+        {[view, ...(neighbour ? [neighbour] : [])].map((iso) => {
+          const away = iso !== view;
+          const before = away && panels.findIndex((p) => p.iso === iso) < viewAt;
+          return (
+            <div
+              key={iso}
+              data-day-heading-panel={iso}
+              inert={away ? true : undefined}
+              aria-hidden={away ? "true" : undefined}
+              className={cn("px-4 sm:px-6 md:px-0", away && "absolute top-0 w-full [&_[data-slot=day-arrow]]:invisible [&_[data-slot=day-trip-switcher]]:invisible", away && (before ? "right-full" : "left-full"))}
+            >
+              {header(iso)}
+            </div>
+          );
+        })}
+      </div>
+    </div>
   );
 }

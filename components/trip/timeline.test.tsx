@@ -288,6 +288,41 @@ describe("Timeline — per-hop directions link", () => {
   });
 });
 
+describe("Timeline — check-in and check-out are rows on the Day view", () => {
+  const timed = (day: DayPlan, kind: "accommodation-checkin" | "accommodation-checkout", over: Record<string, string>): DayPlan => ({
+    ...day,
+    accommodationEntries: [{ kind, accommodation: { ...day.accommodationEntries[0].accommodation, confirmation: "HX-4471", ...over } } as DayPlan["accommodationEntries"][number]],
+  });
+
+  it("check-in is an Item-shaped row with a LogIn tile, the time in the gutter, and no purple CHECK-IN card", () => {
+    const day = timed(dayPlanWithCheckin, "accommodation-checkin", { name: "1 Bedroom private pool @Kuta", checkInTime: "15:00" });
+    const { container } = render(<Timeline day={day} variant="day" size="large" needsConfirmationIds={["acc-1"]} />);
+    const row = screen.getByText("Check in · 1 Bedroom private pool @Kuta").closest("[data-timeline-row]") as HTMLElement;
+    expect(row).toHaveTextContent("15:00");
+    const tile = within(row).getByTestId("timeline-tile");
+    expect(tile.querySelector("svg")!.getAttribute("class")).toContain("lucide-log-in");
+    expect(tile.className).toContain("bg-lilac");
+    expect(screen.queryByText(/^check-in$/i)).toBeNull();
+    expect(container.querySelector('[data-slot="stay-band"]')).toBeNull();
+    expect(row).not.toHaveTextContent("HX-4471");
+    expect(row).not.toHaveTextContent("No booking confirmation yet");
+  });
+
+  it("check-in without a time still has an (empty) time column", () => {
+    render(<Timeline day={dayPlanWithCheckin} variant="day" size="large" />);
+    const row = screen.getByText(`Check in · ${LONG_ACCOMMODATION_NAME}`).closest("[data-timeline-row]") as HTMLElement;
+    expect(row.children).toHaveLength(3);
+  });
+
+  it("check-out is a row with a LogOut tile and no CHECK-OUT card", () => {
+    const { container } = render(<Timeline day={dayPlanWithCheckout} variant="day" size="large" />);
+    const row = screen.getByText(`Check out · ${LONG_ACCOMMODATION_NAME}`).closest("[data-timeline-row]") as HTMLElement;
+    expect(within(row).getByTestId("timeline-tile").querySelector("svg")!.getAttribute("class")).toContain("lucide-log-out");
+    expect(screen.queryByText(/^check-out$/i)).toBeNull();
+    expect(container.querySelector('[data-slot="stay-band"]')).toBeNull();
+  });
+});
+
 describe("Timeline — long-name wrapping (LA-021)", () => {
   it("check-in row text wraps instead of truncating, with no now-redundant title", () => {
     render(<Timeline day={dayPlanWithCheckin} variant="day" />);
@@ -1073,48 +1108,20 @@ describe("Timeline — Day view rows (size=\"large\")", () => {
     expect(row.querySelector("[data-testid='timeline-tile']")!.className).toContain("max-md:size-8");
     expect(row.className).toContain("max-md:gap-2");
   });
-  it("a Check-in's name wraps to two lines and its To book badge sits on its own line", () => {
+  it("a Check-in's name wraps instead of truncating, and the sun tile stays on transport only", () => {
     const { container } = render(<Timeline day={dayWithCheckinAndTransport} variant="day" size="large" />);
-    const name = screen.getByText("Osaka Hotel");
-    expect(name.className).toContain("line-clamp-2");
+    const name = screen.getByText("Check in · Osaka Hotel");
+    expect(name.className).toContain("break-words");
     expect(name.className).not.toContain("truncate");
-    expect(name).toHaveAttribute("title", "Osaka Hotel");
-    expect(container.querySelector("[data-slot='stay-band']")).not.toBeNull();
-  });
-  it("colours transport tiles sun and renders stays as StayCards, not lilac tiles", () => {
-    const { container } = render(<Timeline day={dayWithCheckinAndTransport} variant="day" size="large" />);
     const fills = [...container.querySelectorAll("[data-testid='timeline-tile']")].map((t) => t.className);
-    expect(fills.some((c) => c.includes("bg-sun"))).toBe(true);
-    expect(fills.some((c) => c.includes("bg-lilac"))).toBe(false);
-    expect(fills.some((c) => c.includes("bg-background"))).toBe(false);
-    const band = container.querySelector("[data-slot='stay-band']")!;
-    expect(band.textContent).toBe("Check-in");
-    expect(band.className).toContain("bg-lilac");
-    expect(container.querySelector("[data-slot='stay-body']")!.className).not.toContain("bg-lilac ");
-    expect(screen.getByText("Osaka Hotel")).toBeInTheDocument();
+    expect(fills.filter((c) => c.includes("bg-sun"))).toHaveLength(1);
+    expect(fills.some((c) => c.includes("bg-lilac"))).toBe(true);
   });
-  it("a check-out is a StayCard labelled Check-out", () => {
-    const { container } = render(<Timeline day={dayWithCheckoutAndItems} variant="day" size="large" />);
-    expect(container.querySelector("[data-slot='stay-band']")!.textContent).toBe("Check-out");
-  });
-  it("an untimed check-in and check-out reserve no time gutter, a timed Item row still does", () => {
-    const inRow = render(<Timeline day={dayWithCheckinAndTransport} variant="day" size="large" />).container;
-    const stayRow = inRow.querySelector("[data-slot='stay-band']")!.closest("[data-timeline-row]")!;
-    expect(stayRow.querySelector("span.tabular-nums")).toBeNull();
-    expect(stayRow.firstElementChild!.querySelector("[data-slot='stay-band']")).not.toBeNull();
-    cleanup();
-    const outRow = render(<Timeline day={dayWithCheckoutAndItems} variant="day" size="large" />).container;
-    const outStay = outRow.querySelector("[data-slot='stay-band']")!.closest("[data-timeline-row]")!;
-    expect(outStay.querySelector("span.tabular-nums")).toBeNull();
-    cleanup();
-    const timed = render(<Timeline day={dayPlanWithTimedFood} variant="day" size="large" />).container;
-    expect(timed.querySelector("[data-timeline-row] span.tabular-nums")).not.toBeNull();
-  });
-  it("a Check-out's name wraps to two lines like Check-in's", () => {
+  it("a Check-out's name wraps instead of truncating", () => {
     render(<Timeline day={dayWithCheckoutAndItems} variant="day" size="large" />);
-    const name = document.querySelector("[data-slot='stay-body'] span.line-clamp-2")!;
+    const name = screen.getByText(/^Check out · /);
+    expect(name.className).toContain("break-words");
     expect(name.className).not.toContain("truncate");
-    expect(name).toHaveAttribute("title", name.textContent!);
   });
   it("a compact Check-in and Check-out title keeps normal line spacing when it wraps", () => {
     render(<Timeline day={dayWithCheckinAndTransport} variant="day" />);
@@ -1130,6 +1137,7 @@ describe("Timeline — Day view rows (size=\"large\")", () => {
   it("the default size keeps the neutral stay tile and no StayCard", () => {
     const { container } = render(<Timeline day={dayWithCheckinAndTransport} variant="day" />);
     expect(container.querySelector("[data-slot='stay-band']")).toBeNull();
+    expect(screen.queryByText("Check in · Osaka Hotel")).toBeNull();
     expect(screen.getByText("Check-in: Osaka Hotel")).toBeInTheDocument();
   });
   it("the default size keeps the kit 28px tile and dotted rule", () => {
@@ -1475,5 +1483,77 @@ describe("Timeline — Directions is recorded", () => {
     fireEvent.click(link);
     expect(recordUsageAction).toHaveBeenCalledTimes(1);
     expect(recordUsageAction).toHaveBeenCalledWith("directions-tapped");
+  });
+});
+
+describe("Timeline — Any time label", () => {
+  const stop = { id: "stop-1", name: "Tokyo", timezone: "Asia/Tokyo", arriveDate: "2025-07-01", departDate: "2025-07-03", sortOrder: 0 };
+  const item = (id: string, title: string, startTime?: string) => ({
+    kind: "item" as const,
+    item: { id, title, category: "FOOD", date: "2025-07-01", bookingStateSet: false, ...(startTime ? { startTime } : {}) },
+  });
+  const day = (timed: ReturnType<typeof item>[], untimed: ReturnType<typeof item>[]): DayPlan => ({
+    dateISO: "2025-07-01",
+    stop,
+    timedItems: timed,
+    untimedItems: untimed,
+    transportEntries: [],
+    accommodationEntries: [],
+  });
+
+  it("sits once between the timed rows and the untimed Items, in the eyebrow style, keeping the order", () => {
+    const { container } = render(
+      <Timeline day={day([item("d", "Dinner", "19:00")], [item("w", "Morning wander"), item("l", "Lunch")])} variant="day" size="large" />,
+    );
+    const label = screen.getAllByText("Any time");
+    expect(label).toHaveLength(1);
+    expect(label[0].className).toContain("uppercase");
+    expect(label[0].className).toContain("tracking-[0.08em]");
+    const text = container.textContent!;
+    expect(text.indexOf("Dinner")).toBeLessThan(text.indexOf("Any time"));
+    expect(text.indexOf("Any time")).toBeLessThan(text.indexOf("Morning wander"));
+    expect(text.indexOf("Morning wander")).toBeLessThan(text.indexOf("Lunch"));
+  });
+
+  it("is absent on a day of only untimed Items", () => {
+    render(<Timeline day={day([], [item("w", "Morning wander")])} variant="day" size="large" />);
+    expect(screen.queryByText("Any time")).toBeNull();
+  });
+
+  it("is absent on a day of only timed entries", () => {
+    render(<Timeline day={day([item("d", "Dinner", "19:00")], [])} variant="day" size="large" />);
+    expect(screen.queryByText("Any time")).toBeNull();
+  });
+});
+
+describe("Timeline — Transport row alignment", () => {
+  it("keeps the time and icon beside the title, not centred against the attachment links", () => {
+    const attachment = {
+      id: "att-1", filename: "ticket.pdf", mime: "application/pdf", size: 10, url: "/api/attachments/att-1",
+      uploadedById: "u1", createdAt: new Date("2025-07-01"),
+    };
+    const day: DayPlan = {
+      ...dayPlanWithTransport,
+      transportEntries: [{ ...(dayPlanWithTransport.transportEntries[0] as TransportDepartureEntry), depTimeLabel: "09:30" }],
+    };
+    render(<Timeline day={day} variant="day" size="large" attachmentsByTarget={{ "tr-1": [attachment, { ...attachment, id: "att-2", filename: "boarding.pdf" }] }} />);
+    const wrapper = screen.getByTestId("timeline-tile").parentElement!;
+    expect(wrapper.className).toContain("self-start");
+    expect(wrapper).toHaveTextContent("09:30");
+  });
+
+  it("sits at the top beside the title with no attachments too", () => {
+    const day: DayPlan = {
+      ...dayPlanWithTransport,
+      transportEntries: [{ ...(dayPlanWithTransport.transportEntries[0] as TransportDepartureEntry), depTimeLabel: "09:30" }],
+    };
+    render(<Timeline day={day} variant="day" size="large" />);
+    const wrapper = screen.getByTestId("timeline-tile").parentElement!;
+    expect(wrapper.className).toContain("self-start");
+    expect(wrapper).toHaveTextContent("09:30");
+    const row = wrapper.closest("[data-timeline-row]")!;
+    expect(row.className.split(/\s+/)).toContain("items-start");
+    const titleLine = wrapper.nextElementSibling!.firstElementChild!;
+    expect(titleLine.className.split(/\s+/)).toEqual(expect.arrayContaining(["min-h-10", "max-md:min-h-8"]));
   });
 });

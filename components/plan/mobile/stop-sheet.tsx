@@ -8,8 +8,9 @@ import { m } from "motion/react";
 import { LayoutMotion } from "@/components/ui/layout-motion";
 import { Segmented, SegmentedItem } from "@/components/ui/segmented";
 import { categoryDotClass } from "@/components/trip/category-dot";
+import { CATEGORIES } from "@/lib/categories";
 import { cn } from "@/lib/cn";
-import { formatDayLabel, nightsBetween } from "@/lib/dates";
+import { formatDayLabel } from "@/lib/dates";
 import { Stepper } from "@/components/ui/stepper";
 import { stopHue } from "@/lib/stop-colours";
 import { HUE_CLASSES } from "@/lib/hues";
@@ -82,6 +83,31 @@ function TabPill({ stopId }: { stopId: string }) {
   );
 }
 
+// Dots on the day rows carry their own outline: the shared `border-border` ink ring swallowed the hue at this size.
+// The mix goes through a custom property because jsdom discards color-mix() in a border-color declaration.
+function DayDot({ category }: { category: string }) {
+  const fill = `hsl(var(--hue-${CATEGORIES.find((c) => c.value === category)?.hue ?? "stone"}))`;
+  return (
+    <span
+      className="size-3 shrink-0 rounded-full"
+      style={
+        {
+          backgroundColor: fill,
+          borderWidth: 2,
+          borderStyle: "solid",
+          borderColor: "var(--dot-ring)",
+          "--dot-ring": `color-mix(in oklab, ${fill} 60%, black)`,
+        } as React.CSSProperties
+      }
+      aria-hidden="true"
+    />
+  );
+}
+
+function AnyTime() {
+  return <p className="pt-1 text-[11px] font-extrabold uppercase tracking-[0.08em] text-muted-foreground">Any time</p>;
+}
+
 function NeedsDates() {
   return <p className="py-6 text-center text-[13px] font-semibold text-muted-foreground">Needs dates first</p>;
 }
@@ -133,49 +159,51 @@ export function StopSheet({
           aria-describedby={undefined}
           className="fixed inset-0 z-50 flex flex-col bg-background data-[state=open]:tp-slide-up data-[state=closed]:tp-slide-down"
         >
-          <div className="flex items-center gap-3 border-b-2 border-muted px-4 pb-3 pt-[calc(0.75rem+env(safe-area-inset-top))]">
-            <button
-              type="button"
-              aria-label="Back to the plan"
-              onClick={onClose}
-              className="pressable grid size-11 shrink-0 place-items-center rounded-full border-2 border-border bg-card"
-            >
-              <ArrowLeft className="size-5" aria-hidden />
-            </button>
-            <span
-              className={cn(
-                "grid size-11 shrink-0 place-items-center rounded-xl border-2 border-border font-display text-lg font-extrabold text-on-accent",
-                rough ? "border-dashed bg-muted text-foreground" : HUE_CLASSES[stopHue(stop.sortOrder)].fill,
-              )}
-            >
-              {number}
-            </span>
-            <div className="min-w-0 flex-1">
-              <DialogPrimitive.Title className="truncate font-display text-[28px] font-extrabold leading-none">
-                {stop.name}
-              </DialogPrimitive.Title>
-              <p className="mt-1.5 text-balance text-xs font-semibold text-muted-foreground">{stopSheetMeta(stop)}</p>
-              {onSetNights && !surprised && (
-                <Stepper
-                  value={rough ? (stop.nights ?? 1) : nightsBetween(stop.arriveDate!, stop.departDate!)}
-                  onChange={onSetNights}
-                  min={0}
-                  max={366}
-                  unit="n"
-                  label={`Nights in ${stop.name}`}
-                  className="mt-2 flex w-fit"
-                />
-              )}
-            </div>
-            {!surprised && (
+          <div className="border-b-2 border-muted px-4 pb-3 pt-[calc(0.75rem+env(safe-area-inset-top))]">
+            <div className="flex items-center gap-3">
               <button
                 type="button"
-                aria-label={`Actions for ${stop.name}`}
-                onClick={onActions}
+                aria-label="Back to the plan"
+                onClick={onClose}
                 className="pressable grid size-11 shrink-0 place-items-center rounded-full border-2 border-border bg-card"
               >
-                <Ellipsis className="size-5" aria-hidden />
+                <ArrowLeft className="size-5" aria-hidden />
               </button>
+              <span
+                className={cn(
+                  "grid size-11 shrink-0 place-items-center rounded-xl border-2 border-border font-display text-lg font-extrabold text-on-accent",
+                  rough ? "border-dashed bg-muted text-foreground" : HUE_CLASSES[stopHue(stop.sortOrder)].fill,
+                )}
+              >
+                {number}
+              </span>
+              <div className="min-w-0 flex-1">
+                <DialogPrimitive.Title className="truncate font-display text-[28px] font-extrabold leading-none">
+                  {stop.name}
+                </DialogPrimitive.Title>
+              </div>
+              {!surprised && (
+                <button
+                  type="button"
+                  aria-label={`Actions for ${stop.name}`}
+                  onClick={onActions}
+                  className="pressable grid size-11 shrink-0 place-items-center rounded-full border-2 border-border bg-card"
+                >
+                  <Ellipsis className="size-5" aria-hidden />
+                </button>
+              )}
+            </div>
+            <p className="mt-2 text-balance text-xs font-semibold text-muted-foreground">{stopSheetMeta(stop)}</p>
+            {onSetNights && !surprised && rough && (
+              <Stepper
+                value={stop.nights ?? 1}
+                onChange={onSetNights}
+                min={0}
+                max={366}
+                unit="n"
+                label={`Nights in ${stop.name}`}
+                className="mt-2 flex w-fit"
+              />
             )}
           </div>
 
@@ -227,6 +255,7 @@ export function StopSheet({
                   const label = dayLabelNoMonth(d);
                   const tag = dayTag({ arriveDate: stop.arriveDate!, departDate: stop.departDate! }, d);
                   const items = itemsByDate.get(d) ?? [];
+                  const firstUntimed = items.findIndex((x) => !x.startTime);
                   return (
                     <section key={d} data-testid={`sheet-day-${d}`} data-day={d} className="border-b-2 border-muted py-3">
                       <div className="flex items-center gap-2">
@@ -245,23 +274,27 @@ export function StopSheet({
                       {items.length === 0 ? (
                         <p className="text-[13px] text-muted-foreground">Free day. Tap + or pick an idea.</p>
                       ) : (
-                        items.map((it) => {
+                        items.map((it, i) => {
                           const owner = ownerMarker(it, stop.id, stopNames);
                           // A surprised Item: only that something is planned, and who is planning it. No edit.
                           if (it.surprise?.youAreSurprised) {
                             return (
-                              <div key={it.id} className="flex min-h-11 w-full items-center gap-3 text-sm">
+                              <React.Fragment key={it.id}>
+                              {i > 0 && i === firstUntimed && <AnyTime />}
+                              <div className="flex min-h-11 w-full items-center gap-3 text-sm">
                                 <span className="w-12 shrink-0 text-xs font-bold tabular-nums">{it.startTime ?? ""}</span>
-                                <span className={cn("size-[9px] shrink-0 rounded-full", categoryDotClass(it.category))} aria-hidden />
+                                <DayDot category={it.category} />
                                 <span className="flex min-w-0 flex-1 items-center gap-1.5">
                                   <span className="min-w-0 truncate font-semibold">{it.title}</span>
                                   <SurpriseBadge view={it.surprise} size="sm" className="shrink-0" />
                                 </span>
                               </div>
+                              </React.Fragment>
                             );
                           }
                           return (
                             <React.Fragment key={it.id}>
+                            {i > 0 && i === firstUntimed && <AnyTime />}
                             <button
                               type="button"
                               aria-label={`${`${it.startTime ?? ""} ${it.title}`.trim()}${owner ? ` (${owner})` : ""}`}
@@ -269,7 +302,7 @@ export function StopSheet({
                               className="flex min-h-11 w-full items-center gap-3 text-left text-sm"
                             >
                               <span className="w-12 shrink-0 text-xs font-bold tabular-nums">{it.startTime ?? ""}</span>
-                              <span className={cn("size-[9px] shrink-0 rounded-full", categoryDotClass(it.category))} aria-hidden />
+                              <DayDot category={it.category} />
                               <span className="flex min-w-0 flex-1 items-baseline gap-1.5">
                                 <span className="min-w-0 truncate font-semibold">{it.title}</span>
                                 {/* ADR 0049 rule 3: on a Changeover day, the Stop whose Budget line this plan counts toward. */}

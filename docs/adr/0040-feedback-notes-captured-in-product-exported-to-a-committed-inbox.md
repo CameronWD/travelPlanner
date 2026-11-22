@@ -237,3 +237,20 @@ without changing the model).
 `toInboxNote`'s unknown-status fallback stays `OPEN`. A note an Admin declines
 carries `WONTFIX` and a resolution like any other, so the tester sees an
 honest "Won't fix" rather than silence.
+
+## Amended 2026-11-22: a note can carry pictures
+
+A Feedback note can hold up to four pictures. They live in their own table,
+`FeedbackPicture`, rather than as Attachments: an Attachment dies with its
+Trip, and a note outlives its Trip. A picture is visible to its note's author
+and to Admins, and to no one else.
+
+Pictures are **not committed**. `npm run feedback:pull` downloads those of open
+and needs-review notes into `docs/feedback/pictures/<note id>/`, which is
+git-ignored, and the inbox lists each path. Screenshots show names and booking
+references, and a committed one would stay in history after the note closed.
+The folder is a cache: the pull skips a file already there at the same size and
+removes the folders of notes that are no longer open or awaiting review.
+
+The picker needs a connection. The offline queue lives in local storage, which
+cannot hold image bytes, so a note with pictures cannot be written offline.

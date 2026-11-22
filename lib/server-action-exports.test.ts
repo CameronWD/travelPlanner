@@ -80,7 +80,13 @@ const ALLOWLIST: Record<string, string[]> = {
   "digest.ts": ["getDigestSettings", "listDigestSettingsForUser", "sendTestDigest", "setDigestEnabled"],
   "driving-settings.ts": ["updateDrivingSettings"],
   "error-reports.ts": ["clearAllErrorReports", "clearErrorReport", "listErrorReports"],
-  "feedback.ts": ["createFeedbackNote", "deleteFeedbackNote", "listFeedbackNeedingReview", "listFeedbackNotes"],
+  "feedback.ts": [
+    "addFeedbackPicture",
+    "createFeedbackNote",
+    "deleteFeedbackNote",
+    "listFeedbackNeedingReview",
+    "listFeedbackNotes",
+  ],
   "flag-dismissals.ts": ["markFlagFine", "unmarkFlagFine"],
   "forks.ts": [
     "createFork",

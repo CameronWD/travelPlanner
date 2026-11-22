@@ -357,22 +357,113 @@ describe("DayCarousel", () => {
     expect(api!.current()).toBe(WEEK[6]);
   });
 
-  it("goTo any Trip day, filled or not, lights it at once, glides there and pushes it once on arrival without the progress bar's pending state", () => {
+  it("goTo the next day, filled or not, lights it at once, glides there and pushes it once on arrival without the progress bar's pending state", () => {
     vi.useFakeTimers(FAKE_TIMERS);
-    const { scroller, heading } = mount();
+    const { scroller, heading } = mount({ shownDate: WEEK[5] });
     let handled = false;
     act(() => { handled = api!.goTo(href(WEEK[6])); });
     expect(handled).toBe(true);
     expect(pendingPath).toBe(href(WEEK[6]));
     expect(push).not.toHaveBeenCalled();
     act(() => { vi.advanceTimersByTime(120); });
-    expect(scroller.scrollLeft).toBeGreaterThan(SHOWN * WIDTH);
+    expect(scroller.scrollLeft).toBeGreaterThan(5 * WIDTH);
     expect(scroller.scrollLeft).toBeLessThan(6 * WIDTH);
     act(() => { vi.advanceTimersByTime(400); });
     expect(scroller.scrollLeft).toBe(6 * WIDTH);
     expect(heading()).toBe(`fallback ${WEEK[6]}`);
     expect(push.mock.calls).toEqual([[href(WEEK[6]), { scroll: false }]]);
     expect(pendingPath).toBeNull();
+  });
+
+  describe("a day further than one away is a cut (ADR 0065, amended 2026-11-22)", () => {
+    function countWrites(el: HTMLElement) {
+      const own = Object.getOwnPropertyDescriptor(Element.prototype, "scrollLeft")!;
+      const writes: number[] = [];
+      Object.defineProperty(el, "scrollLeft", {
+        configurable: true,
+        get() { return own.get!.call(this); },
+        set(v: number) { writes.push(v); own.set!.call(this, v); },
+      });
+      return writes;
+    }
+
+    it("goTo sets the scroller once to that day's panel with no glide, shows the day and its header in the same commit, and pushes it once", () => {
+      vi.useFakeTimers(FAKE_TIMERS);
+      const commits: Array<[string | undefined, string | null | undefined]> = [];
+      let read = () => {};
+      const r = render(
+        <React.Profiler id="carousel" onRender={() => read()}>
+          {tree()}
+        </React.Profiler>,
+      );
+      const scroller = r.container.querySelector("[data-day-carousel]") as HTMLElement;
+      read = () => commits.push([r.container.querySelector("h1")?.textContent ?? undefined, r.container.querySelector('[data-day-panel][data-shown="true"]')?.getAttribute("data-day-panel")]);
+      const writes = countWrites(scroller);
+      act(() => { expect(api!.goTo(href(WEEK[0]))).toBe(true); });
+      act(() => { vi.advanceTimersByTime(500); });
+      expect(writes).toEqual([0]);
+      expect(api!.current()).toBe(WEEK[0]);
+      expect(r.container.querySelector("h1")?.textContent).toBe(`fallback ${WEEK[0]}`);
+      for (const [h, shown] of commits) expect(h === `fallback ${WEEK[0]}`).toBe(shown === WEEK[0]);
+      expect(push.mock.calls).toEqual([[href(WEEK[0]), { scroll: false }]]);
+      expect(pendingPath).toBeNull();
+    });
+
+    it("an adjacent goTo still glides", () => {
+      vi.useFakeTimers(FAKE_TIMERS);
+      const { scroller } = mount();
+      const writes = countWrites(scroller);
+      act(() => { api!.goTo(href("2026-12-11")); });
+      act(() => { vi.advanceTimersByTime(500); });
+      expect(writes.length).toBeGreaterThan(2);
+      expect(writes.at(-1)).toBe(2 * WIDTH);
+    });
+
+    it("a far tap during a glide cuts, settling the glide's tap so only the far day is lit and pushed", () => {
+      vi.useFakeTimers(FAKE_TIMERS);
+      const { scroller } = mount();
+      act(() => { api!.goTo(href("2026-12-13")); });
+      act(() => { vi.advanceTimersByTime(60); });
+      act(() => { api!.goTo(href(WEEK[0])); });
+      act(() => { vi.advanceTimersByTime(500); });
+      expect(scroller.scrollLeft).toBe(0);
+      expect(api!.current()).toBe(WEEK[0]);
+      expect(api!.isMoving()).toBe(false);
+      expect(pendingPath).toBeNull();
+      expect(push.mock.calls).toEqual([[href(WEEK[0]), { scroll: false }]]);
+    });
+
+    it("subscribers hear the cut as a settle where the day in view now is", () => {
+      vi.useFakeTimers(FAKE_TIMERS);
+      const heard = vi.fn();
+      mount();
+      api!.subscribe(heard);
+      act(() => { api!.goTo(href(WEEK[6])); });
+      expect(heard.mock.calls).toEqual([[0, true]]);
+    });
+  });
+
+  it("subscribeNearest hears the day the body mostly shows as a drag crosses halfway either way, and once more on settle", () => {
+    vi.useFakeTimers(FAKE_TIMERS);
+    const near: string[] = [];
+    const { scroller } = mount();
+    api!.subscribeNearest!((iso) => near.push(iso));
+    for (const at of [3.2, 3.49, 3.51, 3.8, 3.4, 3.6, 4]) {
+      scroller.scrollLeft = at * WIDTH;
+      fireEvent.scroll(scroller);
+    }
+    expect(near).toEqual(["2026-12-13", WEEK[SHOWN], "2026-12-13"]);
+    act(() => { vi.advanceTimersByTime(SETTLE_QUIET_MS + 10); });
+    expect(near).toEqual(["2026-12-13", WEEK[SHOWN], "2026-12-13", "2026-12-13"]);
+    expect(api!.current()).toBe("2026-12-13");
+  });
+
+  it("subscribeNearest follows a day in view that changes without a gesture (Back)", () => {
+    const near: string[] = [];
+    const { rerenderWith } = mount();
+    api!.subscribeNearest!((iso) => near.push(iso));
+    rerenderWith({ shownDate: "2026-12-10" });
+    expect(near).toEqual(["2026-12-10"]);
   });
 
   it("a settled drag onto another day records one swipe with the day it settled on and the day it left", () => {
@@ -439,17 +530,17 @@ describe("DayCarousel", () => {
     expect(push).toHaveBeenCalledTimes(1);
   });
 
-  it("a scrollend on a day the glide only passes over does not land there", () => {
+  it("a scrollend on the day a glide is leaving does not land there", () => {
     vi.useFakeTimers(FAKE_TIMERS);
     Object.defineProperty(HTMLElement.prototype, "onscrollend", { configurable: true, value: null });
     const { scroller } = mount();
-    act(() => { api!.goTo(href(WEEK[6])); });
-    act(() => { vi.advanceTimersByTime(60); });
-    scroller.scrollLeft = 4 * WIDTH;
+    act(() => { api!.goTo(href("2026-12-13")); });
+    act(() => { vi.advanceTimersByTime(16); });
+    scroller.scrollLeft = SHOWN * WIDTH;
     act(() => { fireEvent(scroller, new Event("scrollend")); });
     expect(push).not.toHaveBeenCalled();
     act(() => { vi.advanceTimersByTime(500); });
-    expect(push.mock.calls).toEqual([[href(WEEK[6]), { scroll: false }]]);
+    expect(push.mock.calls).toEqual([[href("2026-12-13"), { scroll: false }]]);
   });
 
   it("goTo turns scroll-snap off for the glide and restores it on arrival", () => {

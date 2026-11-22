@@ -805,6 +805,27 @@ Then check on the live site:
 Usage records older than 180 days are deleted by the nightly `purge-trips` job (§5); a
 failure in that step is reported but does not fail the job.
 
+## 4m. 2026-11-22 Phone fixes and Feedback pictures (`feat/phone-fixes-2026-11-22`) — deploy order
+
+This branch carries one migration:
+
+- `prisma/migrations/20261124130000_feedback_pictures` — adds one new table,
+  `FeedbackPicture`, with a foreign key to `FeedbackNote` that cascades on delete.
+
+Applying it under the old build is safe: the table is new, so the code already running
+never touches it. The reverse is the risk. Only a production build runs
+`prisma migrate deploy` (`vercel.json`); beta and previews share the production
+database (§4d) and do not migrate. Until production has migrated, the Feedback panel on
+a beta build or a preview of this branch reads and writes a table that does not exist,
+so its log fails to load, sending any note fails (the saved note is read back with its
+pictures), and pictures fail to upload; and `npm run feedback:pull`
+run from this branch fails the same way, because it selects each note's pictures.
+
+**Deploy `main` first, confirm the production build log shows `migrate deploy` applying
+`20261124130000_feedback_pictures`, confirm the site is live, and only then push
+`beta`.** Do not push `main` and `beta` together, and do not let a preview of this
+branch run before `main` has deployed.
+
 ## 5. GitHub Actions cron (reminder delivery)
 
 In the GitHub repo settings:

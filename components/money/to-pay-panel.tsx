@@ -249,6 +249,7 @@ export function ToPayPanel({
           cost={editingCost}
           open={editing != null}
           onOpenChange={(o) => !o && setEditing(null)}
+          cover="always"
         />
       ) : editingCost ? (
         <OwnedCostFormDialog
@@ -256,6 +257,7 @@ export function ToPayPanel({
           homeCurrency={homeCurrency}
           open={editing != null}
           onOpenChange={(o) => !o && setEditing(null)}
+          cover="always"
         />
       ) : null}
 
