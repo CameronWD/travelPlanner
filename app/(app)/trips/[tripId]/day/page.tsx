@@ -18,6 +18,7 @@ import { DayCarouselFrame } from "@/components/trip/day/day-chrome-registry";
 import { DaySlot, dayChrome, type DaySlotShared } from "@/components/trip/day/day-slot";
 import { DaySlotSkeleton } from "@/components/trip/day/day-slot-skeleton";
 import { DayStrip } from "@/components/trip/day/day-strip";
+import { TopBarBell } from "@/components/trip/day/top-bar-bell";
 import { DayKeyboardNav } from "@/components/trip/day/day-keyboard-nav";
 
 const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
@@ -128,11 +129,11 @@ export default async function DayPage({ params, searchParams }: { params: Promis
           unreadCount,
           recent,
           members,
-          slimOnPhone: d.phase === "travelling",
         }}
         chrome={
           <>
             <DayKeyboardNav prevHref={prevHref} nextHref={nextHref} />
+            <TopBarBell tripId={tripId} unreadCount={unreadCount} recent={recent} />
             <div className="md:hidden">
               <DayStrip tripId={tripId} dates={d.strip.dates} line={d.strip.line} size="phone" />
             </div>

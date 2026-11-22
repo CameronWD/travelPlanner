@@ -49,7 +49,7 @@ describe("DayCarouselFrame: the heading travels with the body (below lg)", () =>
   const HEIGHTS: Record<string, number> = { "2026-12-18": 110, "2026-12-19": 96, "2026-12-20": 120, "2026-12-21": 96 };
   const href = (iso: string) => `/trips/t1/day/${iso}` as Route;
   const panels: DayPanel[] = DAYS.map((iso) => ({ iso, href: href(iso), content: <p>{`body ${iso}`}</p> }));
-  const fallback: DayChromeFallbackInputs = { tripId: "t1", tripSlug: "t1", tripName: "Europe", days: DAYS.map((iso) => ({ iso, heading: iso })), unreadCount: 0, recent: [], members: [], slimOnPhone: false };
+  const fallback: DayChromeFallbackInputs = { tripId: "t1", tripSlug: "t1", tripName: "Europe", days: DAYS.map((iso) => ({ iso, heading: iso })), unreadCount: 0, recent: [], members: [] };
   const FAKE: Parameters<typeof vi.useFakeTimers>[0] = { toFake: ["setTimeout", "clearTimeout", "setInterval", "clearInterval", "Date", "performance", "requestAnimationFrame", "cancelAnimationFrame"] };
   const releases: Array<() => void> = [];
   const RECT = { top: 0, bottom: 0, left: 0, right: WIDTH, width: WIDTH, height: 0, x: 0, y: 0, toJSON() {} } as DOMRect;

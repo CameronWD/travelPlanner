@@ -112,7 +112,6 @@ export function dayChrome(day: DayViewData, s: DaySlotShared) {
       recent={s.recent}
       members={s.members}
       addButton={addButton}
-      slimOnPhone={day.phase === "travelling"}
     />
   );
 }
