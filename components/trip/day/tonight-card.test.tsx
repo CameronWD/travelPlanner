@@ -1,5 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, fireEvent, within } from "@testing-library/react";
+vi.mock("next/navigation", () => ({ useRouter: () => ({ refresh: vi.fn() }) }));
+vi.mock("@/server/actions/booking-confirmation", () => ({ setNothingToAttach: vi.fn() }));
 import { TonightCard } from "@/components/trip/day/tonight-card";
 vi.mock("next/link", () => ({ useLinkStatus: () => ({ pending: false }), default: ({ href, children, ...r }: { href: string; children: React.ReactNode } & Record<string, unknown>) => <a href={href} {...r}>{children}</a> }));
 
@@ -70,6 +72,21 @@ describe("TonightCard (spec 2026-09-29 D1)", () => {
     fireEvent.click(toggle());
     expect(toggle()).toHaveAttribute("aria-expanded", "false");
     expect(screen.queryByRole("link", { name: "Edit in plan" })).toBeNull();
+  });
+
+  it("an Accommodation that needs a booking confirmation says so while the card is collapsed", () => {
+    render(<TonightCard tripId="t1" tonight={bare} needsBookingConfirmation isLastDay={false} stopId="s1" size="desktop" />);
+    expect(toggle()).toHaveAttribute("aria-expanded", "false");
+    expect(screen.getByText("No booking confirmation yet")).toBeInTheDocument();
+    expect(toggle()).not.toContainElement(screen.getByText("No booking confirmation yet"));
+  });
+
+  it("says nothing about a confirmation when none is needed, and shows the reference in the expanded body", () => {
+    render(<TonightCard tripId="t1" tonight={tonight} isLastDay={false} stopId="s1" size="desktop" />);
+    expect(screen.queryByText("No booking confirmation yet")).toBeNull();
+    expect(screen.queryByText("HX-4471")).toBeNull();
+    fireEvent.click(toggle());
+    expect(screen.getByText("HX-4471")).toBeInTheDocument();
   });
 
   it("shows only the details that are present", () => {

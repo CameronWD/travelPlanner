@@ -38,7 +38,6 @@ import { ItemPhotoThumb } from "@/components/trip/item-photo-thumb";
 import { SurpriseBadge } from "@/components/plan/surprise-badge";
 import { BookingStateBadge } from "@/components/trip/booking-state-badge";
 import { BookingConfirmationMarker } from "@/components/trip/booking-confirmation-marker";
-import { STAY_NAME_CLASS, StayCard, StayConfirmation } from "@/components/trip/stay-card";
 import { SlotFacts } from "@/components/trip/slot-facts";
 import { OpeningHoursLine } from "@/components/trip/opening-hours-line";
 import { TryListTicks } from "@/components/trip/try-list-ticks";
@@ -337,8 +336,9 @@ function Tile({ icon: I, className, large }: { icon: LucideIcon | undefined; cla
 }
 
 const NEUTRAL_TILE = "bg-background text-foreground";
-/** Day view (large) rows colour by idea (HOME.md §0): sun = transport; beds are StayCards. */
+/** Day view (large) rows colour by idea (HOME.md §0): sun = transport, lilac = a stay. */
 const TRANSPORT_TILE_LARGE = "island bg-sun text-on-accent";
+const STAY_TILE_LARGE = "island bg-lilac text-on-accent";
 
 function ItemTile({ category, large }: { category: Category; large?: boolean }) {
   const meta = CATEGORIES_BY_VALUE.get(category) ?? CATEGORIES_BY_VALUE.get("OTHER")!;
@@ -556,41 +556,32 @@ function AccomCheckinRow({
       className="block"
     >
       {large ? (
-        <span className={STAY_NAME_CLASS} title={a.name}>{a.name}</span>
+        <span className="block min-w-0 break-words text-sm font-semibold leading-tight text-foreground">Check in · {a.name}</span>
       ) : (
         <span className="block break-words py-1 text-sm font-semibold leading-5 text-foreground">Check-in: {a.name}</span>
       )}
     </EntryTitle>
   );
+  // On the Day view the booking reference and its confirmation marker live on Tonight's card, not here.
   const details = (
     <>
-      {a.confirmation &&
-        (large ? (
-          <StayConfirmation value={a.confirmation} />
-        ) : (
-          <p className="mt-0.5 flex items-center gap-1 text-xs font-medium text-muted-foreground">
-            <Hash className="size-3 shrink-0" aria-hidden="true" />
-            {a.confirmation}
-          </p>
-        ))}
+      {!large && a.confirmation && (
+        <p className="mt-0.5 flex items-center gap-1 text-xs font-medium text-muted-foreground">
+          <Hash className="size-3 shrink-0" aria-hidden="true" />
+          {a.confirmation}
+        </p>
+      )}
       {a.bookingState === "TO_BOOK" && (
         <p className="mt-1 flex"><BookingStateBadge state={a.bookingState} bookBy={a.bookBy} compact /></p>
       )}
       <AttachmentLinks attachments={attachments} />
-      {needsConfirmation && !editor?.readFirst && <div className="mt-0.5"><BookingConfirmationMarker kind="ACCOMMODATION" id={a.id} /></div>}
-    </>
-  );
-  const content = large ? (
-    <StayCard label="Check-in" icon={LogIn} name={title}>{details}</StayCard>
-  ) : (
-    <>
-      {title}
-      {details}
+      {!large && needsConfirmation && !editor?.readFirst && <div className="mt-0.5"><BookingConfirmationMarker kind="ACCOMMODATION" id={a.id} /></div>}
     </>
   );
   return (
-    <DayRow large={large} time={a.checkInTime ?? null} gutter={!large || !!a.checkInTime} tile={large ? null : <Tile icon={LogIn} className={NEUTRAL_TILE} />}>
-      {content}
+    <DayRow large={large} time={a.checkInTime ?? null} tile={<Tile large={large} icon={LogIn} className={large ? STAY_TILE_LARGE : NEUTRAL_TILE} />}>
+      {title}
+      {details}
     </DayRow>
   );
 }
@@ -608,33 +599,21 @@ function AccomCheckoutRow({
 }) {
   const { accommodation: a } = entry;
   const accom = editor?.accommodations[a.id];
-  const title = (
-    <EntryTitle
-      editor={editor}
-      target={accom ? { kind: "accommodation", ...accom } : undefined}
-      attachments={attachments}
-      className="block"
-    >
-      {large ? (
-        <span className={STAY_NAME_CLASS} title={a.name}>{a.name}</span>
-      ) : (
-        <span className="block break-words py-1 text-sm font-semibold leading-5 text-foreground">Check-out: {a.name}</span>
-      )}
-    </EntryTitle>
-  );
-  const content = large ? (
-    <StayCard label="Check-out" icon={LogOut} name={title}>
-      <AttachmentLinks attachments={attachments} />
-    </StayCard>
-  ) : (
-    <>
-      {title}
-      <AttachmentLinks attachments={attachments} />
-    </>
-  );
   return (
-    <DayRow large={large} time={a.checkOutTime ?? null} gutter={!large || !!a.checkOutTime} tile={large ? null : <Tile icon={LogOut} className={NEUTRAL_TILE} />}>
-      {content}
+    <DayRow large={large} time={a.checkOutTime ?? null} tile={<Tile large={large} icon={LogOut} className={large ? STAY_TILE_LARGE : NEUTRAL_TILE} />}>
+      <EntryTitle
+        editor={editor}
+        target={accom ? { kind: "accommodation", ...accom } : undefined}
+        attachments={attachments}
+        className="block"
+      >
+        {large ? (
+          <span className="block min-w-0 break-words text-sm font-semibold leading-tight text-foreground">Check out · {a.name}</span>
+        ) : (
+          <span className="block break-words py-1 text-sm font-semibold leading-5 text-foreground">Check-out: {a.name}</span>
+        )}
+      </EntryTitle>
+      <AttachmentLinks attachments={attachments} />
     </DayRow>
   );
 }
