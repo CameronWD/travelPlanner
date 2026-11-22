@@ -34,3 +34,19 @@ export function panelProgress(scrollLeft: number, shownIndex: number, panelWidth
 export function isFar(index: number, viewIndex: number): boolean {
   return Math.abs(index - viewIndex) > 1;
 }
+
+/** The day the body mostly shows: it changes as the body crosses halfway. */
+export function nearestIndex(viewIndex: number, progress: number, count: number): number {
+  return Math.min(count - 1, Math.max(0, Math.round(viewIndex + progress)));
+}
+
+/** The day the body is moving towards, or null at rest or past either end. */
+export function neighbourIndex(viewIndex: number, progress: number, count: number): number | null {
+  if (progress === 0) return null;
+  const i = progress > 0 ? viewIndex + 1 : viewIndex - 1;
+  return i >= 0 && i < count ? i : null;
+}
+
+export function lerpHeight(from: number, to: number, progress: number): number {
+  return from + (to - from) * Math.min(1, Math.abs(progress));
+}

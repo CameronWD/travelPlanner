@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { easeOut, panelProgress, panelWidth, settledPanel } from "./carousel-maths";
+import { easeOut, lerpHeight, nearestIndex, neighbourIndex, panelProgress, panelWidth, settledPanel } from "./carousel-maths";
 
 describe("settledPanel", () => {
   it("names the panel a scroller rests on, within a pixel", () => {
@@ -40,5 +40,32 @@ describe("easeOut", () => {
     expect(easeOut(0.5)).toBeGreaterThan(0.8);
     expect(easeOut(-1)).toBe(0);
     expect(easeOut(2)).toBe(1);
+  });
+});
+
+describe("nearestIndex", () => {
+  it("is the day the body is mostly showing, rounded at halfway and clamped to the Trip", () => {
+    expect(nearestIndex(5, 0.49, 36)).toBe(5);
+    expect(nearestIndex(5, 0.5, 36)).toBe(6);
+    expect(nearestIndex(5, -0.51, 36)).toBe(4);
+    expect(nearestIndex(35, 0.9, 36)).toBe(35);
+  });
+});
+
+describe("neighbourIndex", () => {
+  it("is the day the body is moving towards, or null at rest and past either end", () => {
+    expect(neighbourIndex(5, 0.2, 36)).toBe(6);
+    expect(neighbourIndex(5, -0.2, 36)).toBe(4);
+    expect(neighbourIndex(5, 0, 36)).toBeNull();
+    expect(neighbourIndex(0, -0.3, 36)).toBeNull();
+    expect(neighbourIndex(35, 0.3, 36)).toBeNull();
+  });
+});
+
+describe("lerpHeight", () => {
+  it("moves between two heights with the progress either way, and stops at the second", () => {
+    expect(lerpHeight(96, 120, 0.5)).toBe(108);
+    expect(lerpHeight(96, 120, -1.4)).toBe(120);
+    expect(Number.isFinite(lerpHeight(96, 96, 0))).toBe(true);
   });
 });

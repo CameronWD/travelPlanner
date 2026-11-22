@@ -5,9 +5,10 @@
  * under a fixed frame, and the strip slides beneath it in one glide. A look
  * around by hand glides back to it after a quiet moment.
  *
- * Phone (< lg, ADR 0065): the selected day sits in the centre of the strip's
- * viewport. The scroller's end padding lets the first and last day centre
- * too, so the far end never needs clamping; 0 is clamped for safety.
+ * Phone (< lg, ADR 0065): the day in view sits in the centre of the strip's
+ * viewport, placed from its index. The scroller's end padding lets the first
+ * and last day centre too, so the far end never needs clamping; 0 is clamped
+ * for safety.
  */
 export const STRIP_CHIP_GAP_PX = 8;
 export const STRIP_GLIDE_WIDE_MS = 250;
@@ -23,7 +24,9 @@ export interface StripScrollInput {
   gap: number;
 }
 
-// Assumes the strip's `lg:px-[calc(50%-1.75rem)]`: (viewportWidth - chipWidth) / 2 at each end.
+// Assumes end padding of (viewportWidth - chipWidth) / 2: the strip's `lg:px-[calc(50%-1.75rem)]`
+// from lg, and the phone strip's `px-[calc(50%-1.5rem)]`, which places it from a fractional
+// index as the body moves (ADR 0065, amended 2026-11-22).
 export function centredScrollLeft(index: number, chipWidth: number, gap: number, viewportWidth: number): number {
   const chipCentre = (viewportWidth - chipWidth) / 2 + index * (chipWidth + gap) + chipWidth / 2;
   return Math.max(0, chipCentre - viewportWidth / 2);
