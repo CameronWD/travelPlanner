@@ -17,13 +17,14 @@ const { DaySlot } = await import("./day-slot");
 
 const shared = { tripId: "t1", slug: "t1", tripName: "Trip", shownDate: "2026-12-08", unreadCount: 0, recent: [], members: [] };
 
-function day(needsConfirmationIds: string[]) {
+function day(needsConfirmationIds: string[], readFirst = false) {
   return {
     date: "2026-12-08",
     isLast: false,
     stop: { id: "s1", name: "Lisbon" },
     tonight: { id: "acc1" },
     needsConfirmationIds,
+    editor: { readFirst },
     surprise: null,
     trip: { homeCurrency: "AUD", homeName: null, homeTimezone: null },
     stopOptions: [],
@@ -41,6 +42,11 @@ describe("DaySlot Tonight", () => {
 
   it("does not when it is not on the list", () => {
     render(<DaySlot iso="2026-12-08" read={[day(["other"])]} shared={shared} chrome={null} />);
+    for (const el of screen.getAllByTestId("tonight")) expect(el).toHaveAttribute("data-needs", "false");
+  });
+
+  it("does not while the trip is being travelled or is past (readFirst), as the old row did", () => {
+    render(<DaySlot iso="2026-12-08" read={[day(["acc1"], true)]} shared={shared} chrome={null} />);
     for (const el of screen.getAllByTestId("tonight")) expect(el).toHaveAttribute("data-needs", "false");
   });
 });
