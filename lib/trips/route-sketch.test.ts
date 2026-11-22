@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { pickMainCluster, projectToBox, sampleDotIndices, sketchModel } from "./route-sketch";
 
-const s = (id: string, lat: number, lng: number, nights: number) => ({ id, name: id, lat, lng, nights });
+const s = (id: string, lat: number, lng: number, nights: number) => ({ id, name: id, lat, lng, nights, sortOrder: 0 });
 
 // Christmas in Europe: Sydney (home, excluded by the caller) → Bali 4n → London … Rome 31n.
 const europe = [
@@ -37,12 +37,12 @@ describe("pickMainCluster", () => {
     expect(pickMainCluster([s("A", 0, 0, 3), s("B", 40, 40, 1)])).toBeNull();
   });
   it("silently excludes unlocated stops (NaN coordinates) from both main and offFrame", () => {
-    const r = pickMainCluster([...europe, { id: "ghost", name: "Ghost", lat: NaN, lng: NaN, nights: 3 }])!;
+    const r = pickMainCluster([...europe, { id: "ghost", name: "Ghost", lat: NaN, lng: NaN, nights: 3, sortOrder: 0 }])!;
     expect(r.main.map((x) => x.id)).toEqual(["London", "Paris", "Munich", "Vienna", "Venice", "Florence", "Rome"]);
     expect(r.offFrame.map((x) => x.id)).toEqual(["Bali"]);
   });
   it("sketchModel chip is unaffected by unlocated stops", () => {
-    const m = sketchModel([...europe, { id: "ghost", name: "Ghost", lat: NaN, lng: NaN, nights: 3 }], { w: 100, h: 133, pad: 0.12 })!;
+    const m = sketchModel([...europe, { id: "ghost", name: "Ghost", lat: NaN, lng: NaN, nights: 3, sortOrder: 0 }], { w: 100, h: 133, pad: 0.12 })!;
     expect(m.chip).toBe("+ Bali");
   });
 });

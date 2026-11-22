@@ -4,10 +4,10 @@ import { CoverRouteSketch } from "./cover-route-sketch";
 import { sketchModel } from "@/lib/trips/route-sketch";
 
 const stops = [
-  { id: "b", name: "Bali", lat: -8.65, lng: 115.13, nights: 4 },
-  { id: "l", name: "London", lat: 51.5, lng: -0.12, nights: 5 },
-  { id: "p", name: "Paris", lat: 48.85, lng: 2.35, nights: 4 },
-  { id: "r", name: "Rome", lat: 41.9, lng: 12.5, nights: 6 },
+  { id: "b", name: "Bali", lat: -8.65, lng: 115.13, nights: 4, sortOrder: 0 },
+  { id: "l", name: "London", lat: 51.5, lng: -0.12, nights: 5, sortOrder: 0 },
+  { id: "p", name: "Paris", lat: 48.85, lng: 2.35, nights: 4, sortOrder: 0 },
+  { id: "r", name: "Rome", lat: 41.9, lng: 12.5, nights: 6, sortOrder: 0 },
 ];
 
 describe("CoverRouteSketch", () => {

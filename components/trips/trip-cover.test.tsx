@@ -24,9 +24,9 @@ const base = {
   canEdit: true,
 };
 const europe = [
-  { id: "l", name: "London", lat: 51.5, lng: -0.12, nights: 5 },
-  { id: "p", name: "Paris", lat: 48.85, lng: 2.35, nights: 4 },
-  { id: "r", name: "Rome", lat: 41.9, lng: 12.5, nights: 6 },
+  { id: "l", name: "London", lat: 51.5, lng: -0.12, nights: 5, sortOrder: 0 },
+  { id: "p", name: "Paris", lat: 48.85, lng: 2.35, nights: 4, sortOrder: 0 },
+  { id: "r", name: "Rome", lat: 41.9, lng: 12.5, nights: 6, sortOrder: 0 },
 ];
 
 describe("TripCover", () => {

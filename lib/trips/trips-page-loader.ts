@@ -108,7 +108,7 @@ export async function loadTripsPage(userId: string, today?: string): Promise<Tri
     const plan = orderPlanStops(t.stops);
     const sketchStops: SketchStop[] = plan
       .filter((s): s is typeof s & { lat: number; lng: number } => s.lat != null && s.lng != null)
-      .map((s) => ({ id: s.id, name: s.name, lat: s.lat, lng: s.lng, nights: s.arriveDate && s.departDate ? nightsBetween(s.arriveDate, s.departDate) : (s.nights ?? 0) }));
+      .map((s) => ({ id: s.id, name: s.name, lat: s.lat, lng: s.lng, nights: s.arriveDate && s.departDate ? nightsBetween(s.arriveDate, s.departDate) : (s.nights ?? 0), sortOrder: s.sortOrder }));
     const currentStop = whereYouAre(t.stops, t.transports, now)?.name ?? null;
     const big = cardBigNumber({ kind, startDate: t.startDate, endDate: t.endDate, today: tToday, roughMonth: t.roughMonth });
     // Only the FIRST card is ever the hero (§ "the hero's next step: one extra

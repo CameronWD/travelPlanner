@@ -20,8 +20,8 @@ const base: ShareHeroProps = {
   progress: null,
   travellers: [],
   coverStops: [
-    { id: "a", name: "London", lat: 51.5, lng: -0.1, nights: 5 },
-    { id: "b", name: "Paris", lat: 48.9, lng: 2.35, nights: 5 },
+    { id: "a", name: "London", lat: 51.5, lng: -0.1, nights: 5, sortOrder: 0 },
+    { id: "b", name: "Paris", lat: 48.9, lng: 2.35, nights: 5, sortOrder: 0 },
   ],
   refKey: "abc",
 };

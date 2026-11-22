@@ -3,8 +3,8 @@ import { shareOgModel } from "./og";
 
 const trip = { name: "Christmas in Europe", startDate: "2026-12-04", endDate: "2027-01-08" };
 const stops = [
-  { id: "a", name: "London", lat: 51.5, lng: -0.1, arriveDate: "2026-12-05", departDate: "2026-12-10" },
-  { id: "b", name: "Paris", lat: 48.9, lng: 2.35, arriveDate: "2026-12-10", departDate: "2026-12-15" },
+  { id: "a", name: "London", lat: 51.5, lng: -0.1, arriveDate: "2026-12-05", departDate: "2026-12-10", sortOrder: 0 },
+  { id: "b", name: "Paris", lat: 48.9, lng: 2.35, arriveDate: "2026-12-10", departDate: "2026-12-15", sortOrder: 0 },
 ];
 
 describe("shareOgModel (SHARE.md §3: OG = hero at 1200×630)", () => {

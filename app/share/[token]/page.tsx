@@ -531,7 +531,7 @@ export default async function SharePage({
   const countdown = countdownFor({ startDate: trip.startDate, endDate: trip.endDate, today: todayISO });
   const coverStops: SketchStop[] = scheduled.flatMap((s) =>
     s.lat != null && s.lng != null
-      ? [{ id: s.id, name: s.name, lat: s.lat, lng: s.lng, nights: nightsBetween(s.arriveDate, s.departDate) }]
+      ? [{ id: s.id, name: s.name, lat: s.lat, lng: s.lng, nights: nightsBetween(s.arriveDate, s.departDate), sortOrder: s.sortOrder }]
       : [],
   );
 
