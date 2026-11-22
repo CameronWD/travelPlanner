@@ -8,7 +8,7 @@ const BODY_PROPERTIES = ["position", "top", "width"];
 const ROOT_PROPERTIES = ["overscroll-behavior"];
 
 let holders = 0;
-let saved: { scrollY: number; body: SavedStyle; root: SavedStyle } | null = null;
+let saved: { scrollY: number; pathname: string; body: SavedStyle; root: SavedStyle } | null = null;
 
 function save(style: CSSStyleDeclaration, properties: string[]): SavedStyle {
   return properties.map((property) => ({ property, value: style.getPropertyValue(property), priority: style.getPropertyPriority(property) }));
@@ -27,7 +27,7 @@ function lock() {
   const body = document.body.style;
   const root = document.documentElement.style;
   const scrollY = window.scrollY;
-  saved = { scrollY, body: save(body, BODY_PROPERTIES), root: save(root, ROOT_PROPERTIES) };
+  saved = { scrollY, pathname: location.pathname, body: save(body, BODY_PROPERTIES), root: save(root, ROOT_PROPERTIES) };
   // !important: Radix's modal overlay (react-remove-scroll-bar) injects
   // `body[data-scroll-locked] { position: relative !important }`, which beats
   // a plain inline value; only an inline !important beats that.
@@ -40,10 +40,19 @@ function lock() {
 function unlock() {
   holders -= 1;
   if (holders > 0 || !saved) return;
+  const { scrollY, pathname } = saved;
   restore(document.body.style, saved.body);
   restore(document.documentElement.style, saved.root);
-  window.scrollTo(0, saved.scrollY);
   saved = null;
+  if (location.pathname === pathname) {
+    window.scrollTo(0, scrollY);
+    return;
+  }
+  // The sheet closed into a new page (it navigates as it slides out), and the
+  // router's scroll to the top or to the #anchor ran while the body was fixed
+  // and could not scroll. Top is where the unfixed page already is; the
+  // anchor has to be redone.
+  if (location.hash) document.getElementById(decodeURIComponent(location.hash.slice(1)))?.scrollIntoView();
 }
 
 /*

@@ -1,19 +1,26 @@
 // @vitest-environment happy-dom
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { renderHook } from "@testing-library/react";
+import { cleanup, renderHook } from "@testing-library/react";
 import { usePageScrollLock } from "./use-page-scroll-lock";
 
 describe("usePageScrollLock", () => {
   let scrollTo: ReturnType<typeof vi.spyOn>;
+  let startUrl: string;
   beforeEach(() => {
+    startUrl = location.href;
     Object.defineProperty(window, "scrollY", { configurable: true, value: 480 });
     scrollTo = vi.spyOn(window, "scrollTo").mockImplementation(() => {});
   });
   afterEach(() => {
+    // Unmount first: a lock still held once its user is gone fails here, in the test that leaked it.
+    cleanup();
+    const leaked = document.body.style.position;
+    history.replaceState(null, "", startUrl);
     scrollTo.mockRestore();
     Object.defineProperty(window, "scrollY", { configurable: true, value: 0 });
     document.body.removeAttribute("style");
     document.documentElement.removeAttribute("style");
+    expect(leaked).toBe("");
   });
 
   const body = () => document.body.style;
@@ -60,6 +67,7 @@ describe("usePageScrollLock", () => {
     expect(body().width).toBe("");
     expect(root().getPropertyValue("overscroll-behavior")).toBe("contain");
     expect(scrollTo).toHaveBeenCalledExactlyOnceWith(0, 480);
+    body().removeProperty("position");
   });
 
   it("holds while any user is active: releasing one keeps the lock, releasing the last restores", () => {
@@ -83,5 +91,51 @@ describe("usePageScrollLock", () => {
     expect(body().width).toBe("");
     expect(root().getPropertyValue("overscroll-behavior")).toBe("");
     expect(scrollTo).toHaveBeenCalledExactlyOnceWith(0, 480);
+  });
+
+  describe("a sheet that closes into a new page", () => {
+    it("leaves a new pathname's scroll to the router", () => {
+      const { unmount } = renderHook(() => usePageScrollLock(true));
+      history.pushState(null, "", "/elsewhere");
+      unmount();
+      expect(body().position).toBe("");
+      expect(body().top).toBe("");
+      expect(body().width).toBe("");
+      expect(root().getPropertyValue("overscroll-behavior")).toBe("");
+      expect(scrollTo).not.toHaveBeenCalled();
+    });
+
+    it("keeps the position when only the search changed on the same page", () => {
+      history.replaceState(null, "", "/trips/t1/plan");
+      const { unmount } = renderHook(() => usePageScrollLock(true));
+      history.pushState(null, "", "/trips/t1/plan?plan=p2");
+      unmount();
+      expect(scrollTo).toHaveBeenCalledExactlyOnceWith(0, 480);
+    });
+
+    it("scrolls a new page's #anchor into view, since the router's scroll ran while the body was fixed", () => {
+      history.replaceState(null, "", "/trips/t1");
+      const anchor = document.createElement("section");
+      anchor.id = "sharing";
+      document.body.appendChild(anchor);
+      const scrollIntoView = vi.fn();
+      anchor.scrollIntoView = scrollIntoView;
+      try {
+        const { unmount } = renderHook(() => usePageScrollLock(true));
+        history.pushState(null, "", "/trips/t1/settings#sharing");
+        unmount();
+        expect(scrollTo).not.toHaveBeenCalled();
+        expect(scrollIntoView).toHaveBeenCalledOnce();
+      } finally {
+        anchor.remove();
+      }
+    });
+
+    it("a new page's #anchor that is not there leaves the page at the top", () => {
+      const { unmount } = renderHook(() => usePageScrollLock(true));
+      history.pushState(null, "", "/elsewhere#missing");
+      expect(() => unmount()).not.toThrow();
+      expect(scrollTo).not.toHaveBeenCalled();
+    });
   });
 });
