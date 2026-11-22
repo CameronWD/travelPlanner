@@ -795,7 +795,7 @@ function ItemForm({
           (no stops on the trip) can't shift Date into pairing with something
           else via auto-flow; with no Stop, Date alone still spans full width. */}
       {stops.length > 0 ? (
-        <div className="sm:col-span-2 grid gap-4 sm:grid-cols-2">
+        <div className="sm:col-span-2 grid grid-cols-1 gap-4 sm:grid-cols-2">
           <Field label="Stop" error={errors.stopId?.[0]}>
             <Select
               value={stopId}
@@ -861,7 +861,7 @@ function ItemForm({
       )}
 
       {/* Times (enabled only when date is set) — own sub-grid so they always pair. */}
-      <div className="sm:col-span-2 grid gap-4 sm:grid-cols-2">
+      <div className="sm:col-span-2 grid grid-cols-1 gap-4 sm:grid-cols-2">
         <Field
           label="Start time"
           error={errors.startTime?.[0]}
@@ -907,7 +907,7 @@ function ItemForm({
             </span>
           )}
         </summary>
-        <div className="mt-2 grid gap-4 sm:grid-cols-2">
+        <div className="mt-2 grid grid-cols-1 gap-4 sm:grid-cols-2">
           <Field label="Slot time" description="The time on the ticket" error={errors.slotTime?.[0]}>
             <Input type="time" value={slotTime} onChange={(e) => setSlotTime(e.target.value)} disabled={isPending} />
           </Field>
@@ -966,7 +966,7 @@ function ItemForm({
       </Field>
 
       {/* Booking reference + Link — own sub-grid so they always pair (spec 2026-10-05 §D). */}
-      <div data-pair="booking" className="sm:col-span-2 grid gap-4 sm:grid-cols-2">
+      <div data-pair="booking" className="sm:col-span-2 grid grid-cols-1 gap-4 sm:grid-cols-2">
         <Field label="Booking reference" error={errors.booking?.[0]}>
           <Input
             value={booking}

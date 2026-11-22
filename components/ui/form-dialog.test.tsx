@@ -3,6 +3,7 @@ import * as React from "react";
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { FormDialog, useFormDirty } from "./form-dialog";
+import { DialogFooter } from "./dialog";
 
 function Counter({ seed }: { seed: string }) {
   const [value] = React.useState(seed);
@@ -108,5 +109,25 @@ describe("FormDialog dirty guard (spec 2026-10-06 §M)", () => {
     expect(screen.queryByText("Discard changes?")).toBeNull();
     expect(onOpenChange).not.toHaveBeenCalled();
     expect(screen.getByLabelText("Name")).toHaveValue("Rome");
+  });
+});
+
+describe("FormDialog footer space (phone sheets, 2026-11-22)", () => {
+  it("a form's footer, reached through the remount wrapper and the form, takes the scroll body's bottom padding away", () => {
+    render(
+      <FormDialog open onOpenChange={() => {}} title="Edit Item">
+        <form>
+          <input aria-label="Date paid" />
+          <DialogFooter>
+            <button type="submit">Save changes</button>
+          </DialogFooter>
+        </form>
+      </FormDialog>,
+    );
+    const body = screen.getByRole("dialog").querySelector<HTMLElement>('[data-slot="dialog-body"]')!;
+    const footer = screen.getByRole("button", { name: "Save changes" }).closest<HTMLElement>('[data-slot="dialog-footer"]')!;
+    expect(body.className.split(/\s+/)).toContain("has-[[data-slot=dialog-footer]]:pb-0");
+    expect(body.matches(':has([data-slot="dialog-footer"])')).toBe(true);
+    expect(footer.className.split(/\s+/)).toContain("pb-[max(0.75rem,env(safe-area-inset-bottom))]");
   });
 });

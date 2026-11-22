@@ -354,3 +354,60 @@ describe("Sheet: phone keyboard (spec 2026-10-11-phone-keyboard-sheets)", () => 
     expectNoKeyboardStyle(reopened);
   });
 });
+
+describe("Sheet: a sheet opened from a sheet covers it", () => {
+  function Nested({ innerSide = "bottom" }: { innerSide?: "bottom" | "right" }) {
+    return (
+      <Sheet open>
+        <SheetContent aria-describedby={undefined}>
+          <SheetTitle>Outer</SheetTitle>
+          <Sheet open>
+            <SheetContent side={innerSide} aria-describedby={undefined}>
+              <SheetTitle>Inner</SheetTitle>
+            </SheetContent>
+          </Sheet>
+        </SheetContent>
+      </Sheet>
+    );
+  }
+  const frame = (title: string) =>
+    [...document.querySelectorAll<HTMLElement>('[role="dialog"]')].find((d) => d.querySelector("h2")?.textContent === title)!;
+
+  it("a bottom sheet inside another sheet's content is at least 90dvh tall; the first one is not", () => {
+    render(<Nested />);
+    expect(frame("Inner").className.split(/\s+/)).toContain("min-h-[90dvh]");
+    expect(frame("Outer").className).not.toContain("min-h-");
+  });
+
+  it("only bottom sheets take the floor", () => {
+    render(<Nested innerSide="right" />);
+    expect(frame("Inner").className).not.toContain("min-h-");
+  });
+
+  it("drops the floor while the phone keyboard is open", () => {
+    setMatchMedia(false);
+    setInnerHeight(844);
+    const raf = runFramesSynchronously();
+    installVV(500, 0);
+    try {
+      render(<Nested />);
+      expect(frame("Inner")).toHaveAttribute("data-keyboard", "open");
+      expect(frame("Inner").className).not.toContain("min-h-");
+    } finally {
+      removeVV();
+      raf.mockRestore();
+    }
+  });
+
+  it("the scroll body can never be panned sideways, nor hand a sideways pan on to the page", () => {
+    render(
+      <Sheet open>
+        <SheetContent aria-describedby={undefined}>
+          <SheetTitle>Default</SheetTitle>
+        </SheetContent>
+      </Sheet>,
+    );
+    const body = screen.getByRole("dialog").querySelector<HTMLElement>('[class*="overflow-y-auto"]')!;
+    expect(body.className.split(/\s+/)).toEqual(expect.arrayContaining(["overflow-x-hidden", "overscroll-x-none"]));
+  });
+});

@@ -8,6 +8,7 @@ import { cn } from "@/lib/cn";
 import { SPRING_POP } from "@/lib/motion";
 import { DESKTOP_QUERY } from "@/lib/viewport";
 import { trackScrollEdges } from "./scroll-edges";
+import { SheetDepthProvider, useSheetDepth } from "./sheet-depth";
 import { useKeyboardViewport } from "./use-keyboard-viewport";
 
 // Gates the spring pop to the sm+ (desktop) centred dialog — the phone
@@ -145,6 +146,7 @@ const DialogSheet = React.forwardRef<
    */
   const kb = useKeyboardViewport(!isDesktop);
   const keyboard = !isDesktop && kb.keyboardOpen;
+  const depth = useSheetDepth();
   const contentStyle: React.CSSProperties | undefined = keyboard
     ? {
         ...style,
@@ -196,15 +198,16 @@ const DialogSheet = React.forwardRef<
           trackScrollEdges keeps data-scrolled / data-more-below on it for
           the sticky header and footer edges (group/dialog-body). With the
           phone keyboard open the keyboard covers the home indicator, so the
-          bottom padding drops its safe-area part, in step with DialogFooter's
-          negative margin. */}
+          bottom padding drops its safe-area part. A DialogFooter inside
+          removes the bottom padding altogether: see DialogFooter. */}
       <div
         ref={setBody}
         data-slot="dialog-body"
         onFocus={(event) => revealFocusedField(event.currentTarget, event.target as HTMLElement)}
         className={cn(
-          "group/dialog-body relative flex flex-col gap-3.5 overflow-y-auto scroll-pb-24 px-[18px] pb-[calc(1.375rem+env(safe-area-inset-bottom))] pt-3.5 sm:px-6 sm:pt-6",
+          "group/dialog-body relative flex flex-col gap-3.5 overflow-y-auto overflow-x-hidden overscroll-x-none scroll-pb-24 px-[18px] pb-[calc(1.375rem+env(safe-area-inset-bottom))] pt-3.5 sm:px-6 sm:pt-6",
           "group-data-[keyboard=open]/dialog:pb-[1.375rem]",
+          "has-[[data-slot=dialog-footer]]:pb-0",
           size === "full" && "min-h-0 flex-1",
         )}
       >
@@ -225,6 +228,10 @@ const DialogSheet = React.forwardRef<
         // overflow-hidden stays as the fallback for browsers without clip.
         "fixed z-50 flex flex-col overflow-hidden supports-[overflow:clip]:overflow-clip border-2 border-border bg-background text-foreground",
         "inset-x-0 bottom-0 max-h-[90dvh] rounded-t-2xl border-b-0",
+        // Opened from inside another sheet, the phone sheet covers it rather
+        // than sitting short over it. Not while the keyboard is up: a
+        // min-height beats the inline max-height that fits it above the keys.
+        depth > 0 && !keyboard && "max-sm:min-h-[90dvh]",
         // The phone bottom sheet's slide stays plain CSS either way.
         "data-[state=open]:tp-slide-up data-[state=closed]:tp-slide-down",
         "sm:inset-x-auto sm:bottom-auto sm:left-1/2 sm:top-1/2 sm:w-[calc(100%-2rem)] sm:max-h-[85vh] sm:-translate-x-1/2 sm:-translate-y-1/2 sm:rounded-2xl sm:border-b-2 sm:shadow-hard-5",
@@ -252,7 +259,7 @@ const DialogSheet = React.forwardRef<
         animate={{ scale: 1, opacity: 1 }}
         transition={SPRING_POP}
       >
-        {body}
+        <SheetDepthProvider>{body}</SheetDepthProvider>
       </m.div>
       {!hideClose ? (
         <DialogPrimitive.Close className="absolute right-4 top-4 z-20 grid size-11 place-items-center rounded-sm border-2 border-border bg-card text-foreground sm:right-5 sm:top-5">
@@ -290,24 +297,18 @@ function DialogHeader({ className, ...props }: React.HTMLAttributes<HTMLDivEleme
   // line-box edge). Giving the scroll body sole ownership sidesteps the bug
   // instead of working around it: at rest the header sits pt-3.5/pt-6 below
   // the true edge (its normal flex-flow position — gap-3.5/mb-1 measured
-  // correct in-browser, no more shortfall). Per spec, scrolling that same
-  // 14/24px should engage `sticky`'s own top-0 constraint and dock it flush
-  // at the true edge from then on, without a jump (it only ever reaches
-  // that edge, never overshoots it) — the at-rest geometry above is verified
-  // in-browser, but this environment's headless Chromium doesn't visibly
-  // move a `position: sticky` element on programmatic or synthetic-wheel
-  // scroll at all (confirmed on the pre-fix code too, so it's a harness
-  // limitation, not a regression), so the actual engage/dock transition
-  // during a real scroll is unverified here.
+  // correct in-browser, no more shortfall).
   //
-  // before: sized to that same 14/24px, so it now covers exactly the padding
-  // strip between the header and the true edge — at rest that strip is
-  // already the scroll body's own (borderless, backgroundless) padding
-  // showing DialogContent's own bg-background through it, so this is a
-  // belt-and-braces cover for iOS elastic/rubber-band overscroll rather than
-  // load-bearing (verified the geometry above in-browser; iOS's own bounce
-  // physics aren't reproducible in this environment, so the overscroll case
-  // itself is unverified on a real device).
+  // Docking: WebKit and Blink measure a sticky inset from inside the scroll
+  // body's padding, so `top-0` docked the header 14px below the true edge
+  // (measured at 402×874, scrolled), leaving a strip above it that only the
+  // before: pseudo covered (an iPhone showed row fragments there). The inset
+  // is therefore minus the body's top padding, tier for tier
+  // (-top-3.5 / sm:-top-6): at rest nothing moves, and once scrolled the
+  // header docks flush with the true edge.
+  //
+  // before: sized to that same 14/24px, covering the strip above the header
+  // during iOS elastic/rubber-band overscroll at the top.
   return (
     <div
       data-slot="dialog-header"
@@ -315,7 +316,7 @@ function DialogHeader({ className, ...props }: React.HTMLAttributes<HTMLDivEleme
         // pl/pr, not px: an `sm:px-6` would re-set the right padding from 640px and
         // put the title back under the Close (LA-131). pr-18 = the 44px Close + its
         // 20px sm inset + 8px of air, so it holds at both tiers.
-        "sticky top-0 z-10 shrink-0 -mx-[18px] mb-1 flex min-h-12 flex-col justify-center gap-1 bg-background pl-[18px] pr-18 text-left sm:-mx-6 sm:pl-6",
+        "sticky -top-3.5 z-10 shrink-0 -mx-[18px] mb-1 flex min-h-12 flex-col justify-center gap-1 bg-background pl-[18px] pr-18 text-left sm:-top-6 sm:-mx-6 sm:pl-6",
         "before:content-[''] before:absolute before:inset-x-0 before:bottom-full before:h-3.5 before:bg-background sm:before:h-6",
         // Scroll-aware edge (spec 2026-10-04 §G): once the body is scrolled,
         // a 2px rule in the border colour and a soft downward shadow show
@@ -334,32 +335,26 @@ DialogHeader.displayName = "DialogHeader";
 export const DIALOG_DESTRUCTIVE_CLASS = "border-destructive text-destructive hover:bg-destructive/10 hover:text-destructive sm:mr-auto";
 
 function DialogFooter({ className, ...props }: React.HTMLAttributes<HTMLDivElement>) {
-  // The first shadow covers the gap the negative bottom margin opens below
-  // the sticky footer during elastic/rubber-band overscroll on iOS Safari (it
-  // also covers the strip under the stuck footer in grid forms, where the
-  // negative margin doesn't shrink the grid). It was an `after:` box, but an
-  // absolutely positioned pseudo hanging past the content adds scrollable
-  // overflow: every short dialog scrolled a phantom 22px. A shadow never
-  // does. The scroll-aware edge (spec 2026-10-04 §G) appends a 2px rule in
-  // the border colour and a soft upward shadow while content is hidden
-  // beneath; scrolled to the end, both fade out.
+  // WebKit and Blink dock a sticky footer at the scroll body's padding edge,
+  // not its true bottom, so body padding under a footer added to the
+  // footer's own beneath the docked row and, scrolled to the end, lifted the
+  // footer over the last field by the body's padding. So the body
+  // drops its bottom padding while it holds a footer (`has-[...]:pb-0`) and
+  // the footer's own padding is the only space under its controls. The
+  // scroll-aware edge (spec 2026-10-04 §G) is a 2px rule in the border
+  // colour and a soft upward shadow while content is hidden beneath.
   //
   // Phone keyboard open (spec 2026-10-11-phone-keyboard-sheets): the keyboard
-  // covers the home indicator, so the safe-area inset is dropped from all
-  // three — the negative margin (matching the scroll body's keyboard-open
-  // pb-[1.375rem]), the gap-covering shadow, and the footer's own padding,
-  // which tightens to pb-3 (matching pt-3) to keep the docked row compact.
+  // covers the home indicator, so the padding tightens to pb-3 (matching
+  // pt-3) to keep the docked row compact.
   return (
     <div
       data-slot="dialog-footer"
       className={cn(
-        "sticky bottom-0 z-10 -mx-[18px] -mb-[calc(1.375rem+env(safe-area-inset-bottom))] mt-2 bg-background px-[18px] pb-[calc(0.75rem+env(safe-area-inset-bottom))] pt-3 sm:-mx-6 sm:px-6",
-        "shadow-[0_calc(1.375rem+env(safe-area-inset-bottom))_0_var(--color-background)]",
+        "sticky bottom-0 z-10 -mx-[18px] mt-2 bg-background px-[18px] pb-[max(0.75rem,env(safe-area-inset-bottom))] pt-3 sm:-mx-6 sm:px-6",
         "transition-shadow duration-[var(--dur-base)] motion-reduce:transition-none",
-        "group-data-[more-below]/dialog-body:shadow-[0_calc(1.375rem+env(safe-area-inset-bottom))_0_var(--color-background),0_-2px_0_var(--color-border),0_-10px_16px_-10px_hsl(var(--shadow-ink)/0.3)]",
-        "group-data-[keyboard=open]/dialog:-mb-[1.375rem] group-data-[keyboard=open]/dialog:pb-3",
-        "group-data-[keyboard=open]/dialog:shadow-[0_1.375rem_0_var(--color-background)]",
-        "group-data-[keyboard=open]/dialog:group-data-[more-below]/dialog-body:shadow-[0_1.375rem_0_var(--color-background),0_-2px_0_var(--color-border),0_-10px_16px_-10px_hsl(var(--shadow-ink)/0.3)]",
+        "group-data-[more-below]/dialog-body:shadow-[0_-2px_0_var(--color-border),0_-10px_16px_-10px_hsl(var(--shadow-ink)/0.3)]",
+        "group-data-[keyboard=open]/dialog:pb-3",
         "flex flex-row flex-wrap gap-2 [&>*]:flex-1 [&>*]:min-w-[8rem] [&>*]:whitespace-normal sm:justify-end sm:[&>*]:flex-initial",
         className,
       )}

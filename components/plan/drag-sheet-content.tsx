@@ -4,6 +4,7 @@ import * as React from "react";
 import * as DialogPrimitive from "@radix-ui/react-dialog";
 import { X } from "lucide-react";
 import { SheetOverlay, SheetPortal, sheetVariants } from "@/components/ui/sheet";
+import { SheetDepthProvider, useSheetDepth } from "@/components/ui/sheet-depth";
 import { cn } from "@/lib/cn";
 import { useDragDismiss } from "./use-drag-dismiss";
 
@@ -25,18 +26,19 @@ export function DragSheetContent({
   ...props
 }: React.ComponentPropsWithoutRef<typeof DialogPrimitive.Content> & { onDismiss(): void; hideCloseIcon?: boolean }) {
   const { handleProps } = useDragDismiss({ onDismiss });
+  const depth = useSheetDepth();
   return (
     <SheetPortal>
       <SheetOverlay data-sheet-overlay className="bg-foreground/45 backdrop-blur-none" />
-      <DialogPrimitive.Content className={cn(sheetVariants({ side: "bottom" }), className)} {...props}>
+      <DialogPrimitive.Content className={cn(sheetVariants({ side: "bottom" }), depth > 0 && "min-h-[90dvh]", className)} {...props}>
         <div
           {...handleProps}
           data-drag-handle
           aria-hidden="true"
           className="tap-target mx-auto mt-3.5 h-[5px] w-11 shrink-0 cursor-grab touch-none rounded-full bg-border"
         />
-        <div className="flex min-h-0 flex-col gap-4 overflow-y-auto px-6 pt-4 pb-[calc(1.5rem+env(safe-area-inset-bottom))]">
-          {children}
+        <div className="flex min-h-0 flex-col gap-4 overflow-y-auto overflow-x-hidden overscroll-x-none px-6 pt-4 pb-[calc(1.5rem+env(safe-area-inset-bottom))]">
+          <SheetDepthProvider>{children}</SheetDepthProvider>
         </div>
         <DialogPrimitive.Close
           className={

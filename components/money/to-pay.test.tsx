@@ -24,6 +24,7 @@ vi.mock("@/components/money/paid-confirm", () => ({
 }));
 
 import { ToPayCard } from "./to-pay-card";
+import { Dialog, DialogContent, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import type { ToPayInput } from "@/lib/money/to-pay";
 import type { CostRow } from "@/server/actions/costs";
 
@@ -255,5 +256,46 @@ describe("To pay (MONEY.md §4)", () => {
     expect(classes).not.toContain("flex-1");
     expect(classes).not.toContain("overflow-y-auto");
     expect(list.nextElementSibling).toBe(screen.getByRole("button", { name: "All 6 costs" }));
+  });
+
+  it("All costs: its header leads the scroll body and docks opaque and flush, so no row paints above its bottom edge", async () => {
+    const user = userEvent.setup();
+    renderCard();
+    await user.click(screen.getByRole("button", { name: /^All costs/ }));
+    const dialog = await screen.findByRole("dialog", { name: "All costs" });
+    const body = dialog.querySelector<HTMLElement>('[data-slot="dialog-body"]')!;
+    const header = within(dialog).getByRole("heading", { name: "All costs" }).closest<HTMLElement>('[data-slot="dialog-header"]')!;
+    expect(body.firstElementChild).toBe(header);
+    const classes = header.className.split(/\s+/);
+    expect(classes).toEqual(expect.arrayContaining(["sticky", "bg-background", "z-10"]));
+    // Docked flush with the true top edge (the body's pt-3.5), not 14px down
+    // with a strip above it that only a pseudo-element covered.
+    expect(classes).toContain("-top-3.5");
+  });
+
+  it("a rate opened from All costs covers it rather than opening short over it", async () => {
+    const user = userEvent.setup();
+    render(
+      <ToPayCard
+        tripId="t1"
+        homeCurrency="AUD"
+        today="2026-10-10"
+        costs={COSTS}
+        costRows={costRows}
+        recentIds={["flights"]}
+        ratesFooter={
+          <Dialog>
+            <DialogTrigger>EUR rate 2</DialogTrigger>
+            <DialogContent aria-describedby={undefined}>
+              <DialogTitle>EUR to AUD</DialogTitle>
+            </DialogContent>
+          </Dialog>
+        }
+      />,
+    );
+    await user.click(screen.getByRole("button", { name: /^All costs/ }));
+    await user.click(await screen.findByRole("button", { name: "EUR rate 2" }));
+    const rate = await screen.findByRole("dialog", { name: "EUR to AUD" });
+    expect(rate.className.split(/\s+/)).toContain("max-sm:min-h-[90dvh]");
   });
 });
