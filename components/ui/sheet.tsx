@@ -6,6 +6,7 @@ import { cva, type VariantProps } from "class-variance-authority";
 import { X } from "lucide-react";
 import { cn } from "@/lib/cn";
 import { useKeyboardViewport } from "./use-keyboard-viewport";
+import { usePageScrollLock } from "./use-page-scroll-lock";
 import { SheetDepthProvider, useSheetDepth } from "./sheet-depth";
 
 // The `docked` variant switches from phone bottom sheet to desktop card at
@@ -35,7 +36,18 @@ function useIsDockedDesktop() {
   return React.useSyncExternalStore(subscribeDockedDesktopQuery, getDockedDesktopSnapshot, getDockedDesktopServerSnapshot);
 }
 
-const Sheet = DialogPrimitive.Root;
+// Radix keeps `modal` in a context it does not export; the frame needs it
+// because a non-modal sheet (the md+ Feedback card) leaves the page usable.
+const SheetModalContext = React.createContext(true);
+
+function Sheet({ modal = true, ...props }: React.ComponentProps<typeof DialogPrimitive.Root>) {
+  return (
+    <SheetModalContext.Provider value={modal}>
+      <DialogPrimitive.Root modal={modal} {...props} />
+    </SheetModalContext.Provider>
+  );
+}
+
 const SheetTrigger = DialogPrimitive.Trigger;
 const SheetPortal = DialogPrimitive.Portal;
 
@@ -123,6 +135,8 @@ const SheetFrame = React.forwardRef<
   const keyboardAware = side === "bottom" || (side === "docked" && !isDockedDesktop);
   const kb = useKeyboardViewport(keyboardAware);
   const keyboard = keyboardAware && kb.keyboardOpen;
+  // A modal sheet covers the page below md; the md+ docked card sits beside a usable one.
+  usePageScrollLock(React.useContext(SheetModalContext) && !isDockedDesktop);
   const depth = useSheetDepth();
   const content = <SheetDepthProvider>{children}</SheetDepthProvider>;
   const contentStyle: React.CSSProperties | undefined = keyboard
@@ -135,52 +149,60 @@ const SheetFrame = React.forwardRef<
     : style;
 
   return (
-    <DialogPrimitive.Content
-      ref={ref}
-      data-keyboard={keyboard ? "open" : undefined}
-      style={contentStyle}
-      className={cn(
-        sheetVariants({ side }),
-        keyboardAware && "group/sheet",
-        // A bottom sheet opened from inside another sheet covers it (see DialogSheet).
-        side === "bottom" && depth > 0 && !keyboard && "min-h-[90dvh]",
-        className,
-        // The docked sheet has no scroll body of its own, so its frame drops
-        // the safe-area part of any bottom padding (the keyboard covers the
-        // home indicator). Last, so tailwind-merge overrides a caller's pb.
-        keyboard && side === "docked" && "pb-6",
-      )}
-      {...props}
-    >
-      {side === "docked" ? (
-        content
-      ) : (
-        <>
-          {side === "bottom" ? (
-            <div
-              aria-hidden="true"
-              className="mx-auto mt-3.5 h-[5px] w-11 shrink-0 rounded-full bg-border group-data-[keyboard=open]/sheet:hidden"
-            />
-          ) : null}
-          {/* Scrollable body — the frame never scrolls, so the ✕ and handle stay put (mirrors dialog.tsx).
-              `relative` anchors sr-only controls here so focusing one scrolls this body, not the frame (spec 2026-10-04 §G).
-              With the phone keyboard open the keyboard covers the home indicator, so the bottom padding drops its safe-area part. */}
-          <div className="relative flex min-h-0 flex-col gap-4 overflow-y-auto overflow-x-hidden overscroll-x-none px-6 pt-4 pb-[calc(1.5rem+env(safe-area-inset-bottom))] group-data-[keyboard=open]/sheet:pb-6">
-            {content}
-          </div>
-        </>
-      )}
-      {!hideClose ? (
-        <DialogPrimitive.Close
-          className={cn(
-            "absolute right-4 top-4 z-20 grid size-11 place-items-center rounded-sm border-2 border-border bg-card text-foreground",
-          )}
-        >
-          <X className="size-5" strokeWidth={2.5} aria-hidden="true" />
-          <span className="sr-only">Close</span>
-        </DialogPrimitive.Close>
+    <>
+      {/* iOS keyboards are translucent: the page would show through them, so
+          the sheet's colour fills the layout viewport under it. As tall as
+          the sheet is lifted, so its top is the sheet's bottom edge. */}
+      {keyboard ? (
+        <div aria-hidden="true" data-slot="keyboard-backing" className="fixed inset-x-0 bottom-0 z-50 bg-background" style={{ height: kb.bottom }} />
       ) : null}
-    </DialogPrimitive.Content>
+      <DialogPrimitive.Content
+        ref={ref}
+        data-keyboard={keyboard ? "open" : undefined}
+        style={contentStyle}
+        className={cn(
+          sheetVariants({ side }),
+          keyboardAware && "group/sheet",
+          // A bottom sheet opened from inside another sheet covers it (see DialogSheet).
+          side === "bottom" && depth > 0 && !keyboard && "min-h-[90dvh]",
+          className,
+          // The docked sheet has no scroll body of its own, so its frame drops
+          // the safe-area part of any bottom padding (the keyboard covers the
+          // home indicator). Last, so tailwind-merge overrides a caller's pb.
+          keyboard && side === "docked" && "pb-6",
+        )}
+        {...props}
+      >
+        {side === "docked" ? (
+          content
+        ) : (
+          <>
+            {side === "bottom" ? (
+              <div
+                aria-hidden="true"
+                className="mx-auto mt-3.5 h-[5px] w-11 shrink-0 rounded-full bg-border group-data-[keyboard=open]/sheet:hidden"
+              />
+            ) : null}
+            {/* Scrollable body — the frame never scrolls, so the ✕ and handle stay put (mirrors dialog.tsx).
+                `relative` anchors sr-only controls here so focusing one scrolls this body, not the frame (spec 2026-10-04 §G).
+                With the phone keyboard open the keyboard covers the home indicator, so the bottom padding drops its safe-area part. */}
+            <div className="relative flex min-h-0 flex-col gap-4 overflow-y-auto overflow-x-hidden overscroll-x-none px-6 pt-4 pb-[calc(1.5rem+env(safe-area-inset-bottom))] group-data-[keyboard=open]/sheet:pb-6">
+              {content}
+            </div>
+          </>
+        )}
+        {!hideClose ? (
+          <DialogPrimitive.Close
+            className={cn(
+              "absolute right-4 top-4 z-20 grid size-11 place-items-center rounded-sm border-2 border-border bg-card text-foreground",
+            )}
+          >
+            <X className="size-5" strokeWidth={2.5} aria-hidden="true" />
+            <span className="sr-only">Close</span>
+          </DialogPrimitive.Close>
+        ) : null}
+      </DialogPrimitive.Content>
+    </>
   );
 });
 SheetFrame.displayName = "SheetFrame";

@@ -262,6 +262,28 @@ describe("Sheet: phone keyboard (spec 2026-10-11-phone-keyboard-sheets)", () => 
     expect(panel.style.height).toBe("");
   }
   const bodyOf = (panel: HTMLElement) => panel.querySelector<HTMLElement>('[class*="overflow-y-auto"]');
+  const backing = () => document.querySelector<HTMLElement>('[data-slot="keyboard-backing"]');
+
+  it("bottom, keyboard open: a backing in the sheet's colour fills from its bottom edge to the bottom of the screen", () => {
+    installVV(500, 120);
+    const panel = openSheet("bottom");
+    const el = backing()!;
+    expect(el).toHaveAttribute("aria-hidden", "true");
+    // As tall as the sheet is lifted: both are percentages of the same viewport.
+    expect(el.style.height).toBe("calc(100% - 620px)");
+    expect(el.className.split(/\s+/)).toEqual(expect.arrayContaining(["fixed", "inset-x-0", "bottom-0", "z-50", "bg-background"]));
+    // Same portal, painted above the overlay and under the sheet.
+    const overlay = document.querySelector(".backdrop-blur-sm")!;
+    expect(overlay.compareDocumentPosition(el) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(el.nextElementSibling).toBe(panel);
+  });
+
+  it("docked below md, keyboard open: backed too", () => {
+    installVV(500, 0);
+    openSheet("docked");
+    expect(backing()).toHaveAttribute("aria-hidden", "true");
+    expect(backing()!.style.height).toBe("calc(100% - 500px)");
+  });
 
   it("bottom, keyboard open: sits on the keyboard, hides the handle, drops the safe-area padding", () => {
     installVV(500, 120);
@@ -287,6 +309,7 @@ describe("Sheet: phone keyboard (spec 2026-10-11-phone-keyboard-sheets)", () => 
     expect(panel).toHaveAttribute("data-keyboard", "open");
     expect(panel.style.bottom).toBe("calc(100% - 490px)");
     expect(panel.style.maxHeight).toBe("450px");
+    expect(backing()!.style.height).toBe("calc(100% - 490px)");
     act(() => {
       vv.height = 844;
       vv.offsetTop = 0;
@@ -294,6 +317,7 @@ describe("Sheet: phone keyboard (spec 2026-10-11-phone-keyboard-sheets)", () => 
     });
     expect(panel).not.toHaveAttribute("data-keyboard");
     expectNoKeyboardStyle(panel);
+    expect(backing()).toBeNull();
   });
 
   it("bottom, keyboard closed: today's classes, no inline style", () => {
@@ -302,6 +326,7 @@ describe("Sheet: phone keyboard (spec 2026-10-11-phone-keyboard-sheets)", () => 
     expect(panel).not.toHaveAttribute("data-keyboard");
     expectNoKeyboardStyle(panel);
     expect(panel.className).toContain("max-h-[90dvh]");
+    expect(backing()).toBeNull();
   });
 
   it("docked below md, keyboard open: same geometry, safe-area padding dropped", () => {
@@ -323,6 +348,7 @@ describe("Sheet: phone keyboard (spec 2026-10-11-phone-keyboard-sheets)", () => 
     expectNoKeyboardStyle(panel);
     expect(panel.className).not.toContain("group/sheet");
     expect(panel.className).toContain("pb-[calc(1.5rem+env(safe-area-inset-bottom))]");
+    expect(backing()).toBeNull();
   });
 
   it.each(["right", "left"] as const)("%s sheets never react to the keyboard", (side) => {
@@ -331,6 +357,7 @@ describe("Sheet: phone keyboard (spec 2026-10-11-phone-keyboard-sheets)", () => 
     expect(panel).not.toHaveAttribute("data-keyboard");
     expectNoKeyboardStyle(panel);
     expect(panel.className).not.toContain("group/sheet");
+    expect(backing()).toBeNull();
   });
 
   it("reopening a sheet closed with the keyboard open starts clean", async () => {
@@ -353,6 +380,59 @@ describe("Sheet: phone keyboard (spec 2026-10-11-phone-keyboard-sheets)", () => 
     const reopened = await screen.findByRole("dialog");
     expect(reopened).not.toHaveAttribute("data-keyboard");
     expectNoKeyboardStyle(reopened);
+  });
+});
+
+describe("Sheet: the page behind a phone sheet stays still", () => {
+  function Example({ side = "bottom", modal }: { side?: "bottom" | "docked"; modal?: boolean }) {
+    return (
+      <Sheet modal={modal}>
+        <SheetTrigger>Open</SheetTrigger>
+        <SheetContent side={side} hideOverlay={modal === false} aria-describedby={undefined}>
+          <SheetTitle>Feedback</SheetTitle>
+        </SheetContent>
+      </Sheet>
+    );
+  }
+
+  it.each(["bottom", "docked"] as const)("a modal %s sheet below md fixes the body, over Radix's own lock, until it closes", async (side) => {
+    setMatchMedia(false);
+    const user = userEvent.setup();
+    render(<Example side={side} />);
+    await user.click(screen.getByRole("button", { name: "Open" }));
+    await screen.findByRole("dialog");
+    expect(document.body).toHaveAttribute("data-scroll-locked");
+    expect(getComputedStyle(document.body).position).toBe("fixed");
+    await user.keyboard("{Escape}");
+    expect(screen.queryByRole("dialog")).toBeNull();
+    expect(document.body.style.position).toBe("");
+  });
+
+  it("the md+ docked card (non-modal) leaves the page alone", async () => {
+    setMatchMedia((query) => query === "(min-width: 640px)" || query === "(min-width: 768px)");
+    const user = userEvent.setup();
+    render(<Example side="docked" modal={false} />);
+    await user.click(screen.getByRole("button", { name: "Open" }));
+    await screen.findByRole("dialog");
+    expect(document.body.style.position).toBe("");
+  });
+
+  it("a non-modal sheet below md leaves the page alone", async () => {
+    setMatchMedia(false);
+    const user = userEvent.setup();
+    render(<Example modal={false} />);
+    await user.click(screen.getByRole("button", { name: "Open" }));
+    await screen.findByRole("dialog");
+    expect(document.body.style.position).toBe("");
+  });
+
+  it("from md up a modal sheet does not lock either", async () => {
+    setMatchMedia((query) => query === "(min-width: 640px)" || query === "(min-width: 768px)");
+    const user = userEvent.setup();
+    render(<Example side="docked" />);
+    await user.click(screen.getByRole("button", { name: "Open" }));
+    await screen.findByRole("dialog");
+    expect(document.body.style.position).toBe("");
   });
 });
 

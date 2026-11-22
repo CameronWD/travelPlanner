@@ -897,6 +897,30 @@ describe("phone keyboard (spec 2026-10-11-phone-keyboard-sheets)", () => {
     });
   }
 
+  const backing = () => document.querySelector<HTMLElement>('[data-slot="keyboard-backing"]');
+
+  it("keyboard open: a backing in the sheet's colour fills from its bottom edge to the bottom of the screen", async () => {
+    installVV(500, 120);
+    const { content } = await open();
+    const el = backing()!;
+    expect(el).toHaveAttribute("aria-hidden", "true");
+    expect(el.style.height).toBe("calc(100% - 620px)");
+    expect(el.className.split(/\s+/)).toEqual(expect.arrayContaining(["fixed", "inset-x-0", "bottom-0", "z-50", "bg-background"]));
+    const overlay = document.querySelector('[data-state="open"].fixed.inset-0')!;
+    expect(overlay.compareDocumentPosition(el) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(el.nextElementSibling).toBe(content);
+  });
+
+  it("the backing comes and goes with the keyboard", async () => {
+    const vv = installVV(844, 0);
+    await open();
+    expect(backing()).toBeNull();
+    resize(vv, 500, 40);
+    expect(backing()!.style.height).toBe("calc(100% - 540px)");
+    resize(vv, 844);
+    expect(backing()).toBeNull();
+  });
+
   it("keyboard open: sits on the keyboard, fills the visible area, marks data-keyboard", async () => {
     installVV(500, 120);
     const { content } = await open();
@@ -989,6 +1013,7 @@ describe("phone keyboard (spec 2026-10-11-phone-keyboard-sheets)", () => {
     expect(content).not.toHaveAttribute("data-keyboard");
     expect(content.getAttribute("style") ?? "").not.toMatch(/bottom|max-height|height/);
     expect(addEventListenerSpy).not.toHaveBeenCalled();
+    expect(backing()).toBeNull();
   });
 
   it("compact state: header, description, drag handle and footer carry the keyboard-open classes", async () => {
@@ -1046,6 +1071,43 @@ describe("phone keyboard (spec 2026-10-11-phone-keyboard-sheets)", () => {
       vv.dispatchEvent(new Event("scroll"));
     });
     expect(scrollBy).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("the page behind a phone sheet stays still", () => {
+  function Example() {
+    return (
+      <Dialog>
+        <DialogTrigger>Open dialog</DialogTrigger>
+        <DialogContent aria-describedby={undefined}>
+          <DialogTitle>Edit Item</DialogTitle>
+        </DialogContent>
+      </Dialog>
+    );
+  }
+
+  async function openExample() {
+    const user = userEvent.setup();
+    render(<Example />);
+    await user.click(screen.getByRole("button", { name: "Open dialog" }));
+    await screen.findByRole("dialog");
+    return user;
+  }
+
+  it("the phone sheet fixes the body, over Radix's own lock, until it closes", async () => {
+    setMatchMedia(false);
+    const user = await openExample();
+    expect(document.body).toHaveAttribute("data-scroll-locked");
+    expect(getComputedStyle(document.body).position).toBe("fixed");
+    await user.keyboard("{Escape}");
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    expect(document.body.style.position).toBe("");
+  });
+
+  it("the centred (sm+) dialog leaves the page alone", async () => {
+    setMatchMedia((query) => query === "(min-width: 640px)");
+    await openExample();
+    expect(document.body.style.position).toBe("");
   });
 });
 
