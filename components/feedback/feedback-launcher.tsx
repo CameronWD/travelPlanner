@@ -419,6 +419,7 @@ export function FeedbackLauncher() {
           <ToastAction
             altText="Put the discarded feedback back in the box"
             onClick={() => {
+              pictureNoteKeyRef.current = null;
               setBody(lost);
               bodyRef.current?.focus();
             }}
@@ -570,8 +571,6 @@ export function FeedbackLauncher() {
           setSent((prev) => [...prev, result.note]);
         }
         clearDraft();
-        setPictureFiles([]);
-        if (files.length > 0) await uploadPictures(result.note.id, files);
         return;
       }
       setPending(readQueue());
@@ -670,7 +669,7 @@ export function FeedbackLauncher() {
       <SheetContent
         side="docked"
         hideOverlay={docked}
-        className="gap-3 pb-[calc(1.5rem+env(safe-area-inset-bottom))]"
+        className="gap-3 pb-[calc(1.5rem+env(safe-area-inset-bottom))] max-md:h-[90dvh]"
         /*
           A chat widget does not vanish the moment you touch the page behind
           it, and neither does this: the glossary promises the page stays

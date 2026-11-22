@@ -37,6 +37,13 @@ describe("WhatsAroundSheet", () => {
     await screen.findByText("Cathédrale");
     expect(whatsAround).toHaveBeenCalledWith("t1", { from: { kind: "accommodation", id: "a1" }, nearbyKind: "sights" });
   });
+  it("sizes to its content on a phone, not to the Feedback panel's 90dvh", async () => {
+    setup();
+    await screen.findByText("Cathédrale");
+    const classes = screen.getByRole("dialog").className.split(/\s+/);
+    expect(classes).toContain("h-auto");
+    expect(classes.filter((c) => /(^|:)h-\[90dvh\]$/.test(c))).toEqual([]);
+  });
   it("refetches on a kind switch", async () => {
     setup();
     await screen.findByText("Cathédrale");

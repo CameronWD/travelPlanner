@@ -1363,9 +1363,10 @@ describe("FeedbackLauncher", () => {
       await openPanel();
 
       const frame = await screen.findByRole("dialog");
-      expect(frame.className).toContain("h-[90dvh]");
-      expect(frame.className).not.toMatch(/(^|\s)h-auto/);
-      expect(frame.className).toContain("md:h-auto");
+      const classes = frame.className.split(/\s+/);
+      expect(classes).toContain("max-md:h-[90dvh]");
+      expect(classes).not.toContain("h-[90dvh]");
+      expect(classes).toContain("md:h-auto");
 
       const list = (await screen.findByText("Budget totals look wrong")).closest("ul")!
         .parentElement!;
@@ -1650,6 +1651,51 @@ describe("FeedbackLauncher pictures", () => {
     await user.click(send());
     await waitFor(() => expect(createMock).toHaveBeenCalledTimes(3));
     expect(createMock.mock.calls[2][0].clientKey).not.toBe(createMock.mock.calls[1][0].clientKey);
+  });
+
+  it("gives a draft put back by Restore a fresh key", async () => {
+    createMock.mockRejectedValueOnce(new Error("down"));
+    const user = await openPanel();
+    const box = screen.getByPlaceholderText(/what's on your mind/i);
+    await user.type(box, "First");
+    await user.upload(fileInput(), [png("a.png")]);
+    await screen.findByRole("button", { name: "Remove picture" });
+    const send = () => screen.getByRole("button", { name: /send/i });
+    await user.click(send());
+    await waitFor(() => expect(createMock).toHaveBeenCalledTimes(1));
+    await waitFor(() => expect(send()).toBeEnabled());
+
+    window.localStorage.setItem(
+      "teepee.feedback.queue.v1",
+      JSON.stringify([{
+        clientKey: "fk_doomed",
+        body: "Refused words",
+        route: "/trips/t1/plan",
+        pageLabel: "Plan editor",
+        tripId: "t1",
+        tripName: null,
+        viewport: "390x844",
+        userAgent: "iPhone",
+        authoredAt: "2026-09-08T04:05:06.000Z",
+      }]),
+    );
+    createMock.mockResolvedValueOnce({ success: false, errors: { body: ["no"] } });
+    onlineMock.mockReturnValue(false);
+    rerenderPanel(<FeedbackLauncher />);
+    onlineMock.mockReturnValue(true);
+    rerenderPanel(<FeedbackLauncher />);
+    await waitFor(() => expect(createMock).toHaveBeenCalledTimes(2));
+    const restore = await waitFor(() => {
+      const call = toastMock.mock.calls.find((c) => c[0].action);
+      expect(call).toBeDefined();
+      return call![0].action as React.ReactElement<{ onClick: () => void }>;
+    });
+    act(() => restore.props.onClick());
+    expect(box).toHaveValue("Refused words");
+
+    await user.click(send());
+    await waitFor(() => expect(createMock).toHaveBeenCalledTimes(3));
+    expect(createMock.mock.calls[2][0].clientKey).not.toBe(createMock.mock.calls[0][0].clientKey);
   });
 
   it("creates one note and uploads each picture once on a double click", async () => {
