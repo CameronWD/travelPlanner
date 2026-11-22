@@ -23,9 +23,8 @@ export function BookingConfirmationMarker({ kind, id }: { kind: ConfirmationKind
   }
 
   return (
-    <p className="flex flex-wrap items-center gap-x-1.5 text-xs text-muted-foreground">
+    <p className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted-foreground">
       <span>No booking confirmation yet</span>
-      <span aria-hidden="true">·</span>
       <button
         type="button"
         disabled={pending}

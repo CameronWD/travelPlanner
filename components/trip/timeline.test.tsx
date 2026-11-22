@@ -1485,3 +1485,60 @@ describe("Timeline — Directions is recorded", () => {
     expect(recordUsageAction).toHaveBeenCalledWith("directions-tapped");
   });
 });
+
+describe("Timeline — Any time label", () => {
+  const stop = { id: "stop-1", name: "Tokyo", timezone: "Asia/Tokyo", arriveDate: "2025-07-01", departDate: "2025-07-03", sortOrder: 0 };
+  const item = (id: string, title: string, startTime?: string) => ({
+    kind: "item" as const,
+    item: { id, title, category: "FOOD", date: "2025-07-01", bookingStateSet: false, ...(startTime ? { startTime } : {}) },
+  });
+  const day = (timed: ReturnType<typeof item>[], untimed: ReturnType<typeof item>[]): DayPlan => ({
+    dateISO: "2025-07-01",
+    stop,
+    timedItems: timed,
+    untimedItems: untimed,
+    transportEntries: [],
+    accommodationEntries: [],
+  });
+
+  it("sits once between the timed rows and the untimed Items, in the eyebrow style, keeping the order", () => {
+    const { container } = render(
+      <Timeline day={day([item("d", "Dinner", "19:00")], [item("w", "Morning wander"), item("l", "Lunch")])} variant="day" size="large" />,
+    );
+    const label = screen.getAllByText("Any time");
+    expect(label).toHaveLength(1);
+    expect(label[0].className).toContain("uppercase");
+    expect(label[0].className).toContain("tracking-[0.08em]");
+    const text = container.textContent!;
+    expect(text.indexOf("Dinner")).toBeLessThan(text.indexOf("Any time"));
+    expect(text.indexOf("Any time")).toBeLessThan(text.indexOf("Morning wander"));
+    expect(text.indexOf("Morning wander")).toBeLessThan(text.indexOf("Lunch"));
+  });
+
+  it("is absent on a day of only untimed Items", () => {
+    render(<Timeline day={day([], [item("w", "Morning wander")])} variant="day" size="large" />);
+    expect(screen.queryByText("Any time")).toBeNull();
+  });
+
+  it("is absent on a day of only timed entries", () => {
+    render(<Timeline day={day([item("d", "Dinner", "19:00")], [])} variant="day" size="large" />);
+    expect(screen.queryByText("Any time")).toBeNull();
+  });
+});
+
+describe("Timeline — Transport row alignment", () => {
+  it("keeps the time and icon beside the title, not centred against the attachment links", () => {
+    const attachment = {
+      id: "att-1", filename: "ticket.pdf", mime: "application/pdf", size: 10, url: "/api/attachments/att-1",
+      uploadedById: "u1", createdAt: new Date("2025-07-01"),
+    };
+    const day: DayPlan = {
+      ...dayPlanWithTransport,
+      transportEntries: [{ ...(dayPlanWithTransport.transportEntries[0] as TransportDepartureEntry), depTimeLabel: "09:30" }],
+    };
+    render(<Timeline day={day} variant="day" size="large" attachmentsByTarget={{ "tr-1": [attachment, { ...attachment, id: "att-2", filename: "boarding.pdf" }] }} />);
+    const wrapper = screen.getByTestId("timeline-tile").parentElement!;
+    expect(wrapper.className).toContain("self-start");
+    expect(wrapper).toHaveTextContent("09:30");
+  });
+});

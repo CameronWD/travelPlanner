@@ -204,7 +204,7 @@ export function Timeline({
       {/* Untimed items, grouped by Category */}
       {anytime.length > 0 && (
         <div className={cn("flex flex-col border-t-2 border-border-soft pt-2.5 first:border-t-0 first:pt-0", !large && "border-dotted")}>
-          <p className="text-[11px] font-bold uppercase tracking-[0.08em] text-muted-foreground">Anytime</p>
+          {entries.length > 0 && <p className="text-[11px] font-extrabold uppercase tracking-[0.08em] text-muted-foreground">Any time</p>}
           {groupByCategory(anytime.map((e) => e.item)).map((group) => (
             <div key={group.category} className="flex flex-col pt-4 first-of-type:pt-1 [&>h4+*]:border-t-0 [&>h4+*]:pt-1.5">
               <h4 className="text-[10px] font-bold uppercase tracking-[0.08em] text-muted-foreground">
@@ -288,12 +288,15 @@ function DayRow({
   tile,
   large,
   gutter = true,
+  alignTop,
   children,
 }: {
   time?: string | null;
   tile: React.ReactNode;
   large?: boolean;
   gutter?: boolean;
+  /** Large rows only: the time and tile sit beside the title instead of centring on a tall body. */
+  alignTop?: boolean;
   children: React.ReactNode;
 }) {
   return (
@@ -303,11 +306,20 @@ function DayRow({
         "flex border-t-2 border-border-soft first:border-t-0 first:pt-0 last:pb-0",
         // Large (Day view): the time, the 40px tile and the title block share
         // one centre line, as in the handoff's rows.
-        large ? "items-center gap-3 py-3 max-md:gap-2" : "items-start gap-2.5 border-dotted py-2.5",
+        large ? cn("gap-3 py-3 max-md:gap-2", alignTop ? "items-start" : "items-center") : "items-start gap-2.5 border-dotted py-2.5",
       )}
     >
-      {gutter && <TimeGutter time={time} large={large} />}
-      {tile}
+      {large && alignTop ? (
+        <div className="flex shrink-0 items-center gap-3 self-start max-md:gap-2">
+          {gutter && <TimeGutter time={time} large={large} />}
+          {tile}
+        </div>
+      ) : (
+        <>
+          {gutter && <TimeGutter time={time} large={large} />}
+          {tile}
+        </>
+      )}
       {/* min-w-0 lets the body shrink in its flex track so titles truncate instead of overflowing at narrow widths. */}
       <div className="min-w-0 flex-1">{children}</div>
     </div>
@@ -411,8 +423,8 @@ function TransportRow({
       : null;
 
   return (
-    <DayRow large={large} time={gutterTime} tile={<Tile large={large} icon={Icon} className={large ? TRANSPORT_TILE_LARGE : NEUTRAL_TILE} />}>
-      <div className="flex min-h-7 min-w-0 flex-wrap items-center gap-1.5 text-sm leading-tight">
+    <DayRow large={large} alignTop={attachments.length > 0} time={gutterTime} tile={<Tile large={large} icon={Icon} className={large ? TRANSPORT_TILE_LARGE : NEUTRAL_TILE} />}>
+      <div className={cn("flex min-w-0 flex-wrap items-center gap-1.5 text-sm leading-tight", large && attachments.length > 0 ? "min-h-10 max-md:min-h-8" : "min-h-7")}>
         <EntryTitle
           editor={editor}
           target={tx ? { kind: "transport", transport: tx } : undefined}
