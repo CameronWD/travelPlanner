@@ -622,3 +622,78 @@ describe("SummaryPage — page header (S3)", () => {
     expect(screen.getByRole("heading", { level: 1, name: "Summary" })).toBeInTheDocument();
   });
 });
+
+describe("SummaryPage — shared pieces (feedback)", () => {
+  const stats = () => screen.getByTestId("summary-stat-grid");
+
+  it("builds the four stat tiles from StatTile and the Flags tile uses icons, not emoji", async () => {
+    const { detectFlags } = await import("@/lib/flags");
+    const flags = [
+      ...Array.from({ length: 11 }, (_, i) => ({ id: `w${i}`, severity: "warning" })),
+      ...Array.from({ length: 26 }, (_, i) => ({ id: `n${i}`, severity: "info" })),
+    ];
+    vi.mocked(detectFlags).mockReturnValueOnce(flags as unknown as ReturnType<typeof detectFlags>);
+    readPlanMock.mockResolvedValue(rowsFrom({ trip: trip(BASE_TRIP), stops: [DATED_STOP] }));
+
+    render(await renderSummary());
+
+    expect(stats().querySelectorAll("[data-stat-tile]")).toHaveLength(4);
+    const flagsTile = within(stats()).getByText("Flags").parentElement!;
+    expect(flagsTile.textContent).not.toMatch(/[⚠ℹ]/);
+    expect(within(flagsTile).getByText("11")).toBeInTheDocument();
+    expect(within(flagsTile).getByText("26")).toBeInTheDocument();
+    expect(within(flagsTile).getByText("11 warnings, 26 notes")).toBeInTheDocument();
+    expect(flagsTile.querySelectorAll("svg[aria-hidden='true']")).toHaveLength(2);
+  });
+
+  it("reads None when there are no Flags", async () => {
+    readPlanMock.mockResolvedValue(rowsFrom({ trip: trip(BASE_TRIP), stops: [DATED_STOP] }));
+    render(await renderSummary());
+    expect(within(within(stats()).getByText("Flags").parentElement!).getByText("None")).toBeInTheDocument();
+  });
+
+  it("has no warning sign anywhere, even in the missing-rates line", async () => {
+    readPlanMock.mockResolvedValue(rowsFrom({ trip: trip(BASE_TRIP), stops: [DATED_STOP] }));
+    vi.mocked(buildBudget).mockReturnValueOnce({
+      grandTotal: { costTotalMinor: 0, paidTotalMinor: 0 },
+      byCategory: [],
+      byStop: [],
+      byChapter: [],
+      hasMissingRates: true,
+      missingRates: ["JPY"],
+    } as unknown as ReturnType<typeof buildBudget>);
+    const { container } = render(await renderSummary());
+    expect(screen.getByText(/Some costs in JPY are excluded/)).toBeInTheDocument();
+    expect(container.textContent).not.toContain("⚠");
+  });
+
+  it("gives dated and rough Stop cards a numbered badge and a band in the Stop's colour", async () => {
+    readPlanMock.mockResolvedValue(rowsFrom({ trip: trip(BASE_TRIP), stops: [DATED_STOP, ROUGH_STOP] }));
+    render(await renderSummary());
+
+    const bands = document.querySelectorAll("[data-stop-band]");
+    expect(bands).toHaveLength(2);
+    const datedCard = screen.getByRole("heading", { level: 3, name: "Rome" }).closest("[data-stop-card]")!;
+    const roughCard = screen.getByRole("heading", { level: 3, name: "Someday Place" }).closest("[data-stop-card]")!;
+    expect(datedCard.querySelector("[data-stop-band]")).toHaveClass("h-1.5", "bg-hue-sky");
+    expect(roughCard.querySelector("[data-stop-band]")).toHaveClass("h-1.5", "bg-hue-sun");
+    expect(within(datedCard as HTMLElement).getByText("1")).toHaveClass("size-6", "bg-hue-sky");
+    expect(within(roughCard as HTMLElement).getByText("2")).toHaveClass("border-dashed", "bg-muted");
+  });
+
+  it("renders the outgoing Transport with the Day view's mode tile and no pill ground", async () => {
+    readPlanMock.mockResolvedValue(
+      rowsFrom({
+        trip: trip(BASE_TRIP),
+        stops: [DATED_STOP, LONG_STOP],
+        transports: [
+          transport({ id: "t1", mode: "flight", fromStopId: "s1", toStopId: "s2", depPlace: "FCO", arrPlace: "CDG", depAt: null, arrAt: null, sortOrder: 0, depIsHome: false, arrIsHome: false }),
+        ],
+      }),
+    );
+    render(await renderSummary());
+    const row = screen.getByText(/from FCO/).parentElement!;
+    expect(row.querySelector("[data-testid='timeline-tile']")).not.toBeNull();
+    expect(row.className).not.toContain("bg-muted/30");
+  });
+});

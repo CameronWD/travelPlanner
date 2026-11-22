@@ -330,7 +330,7 @@ function DayRow({
  * 28px outlined tile (onthego.jsx Today timeline). `className` sets its fill:
  * an item's category hue (identity, from lib/hues.ts) or neutral paper.
  */
-function Tile({ icon: I, className, large }: { icon: LucideIcon | undefined; className: string; large?: boolean }) {
+export function Tile({ icon: I, className, large }: { icon: LucideIcon | undefined; className: string; large?: boolean }) {
   return (
     <span
       data-testid="timeline-tile"
@@ -347,9 +347,9 @@ function Tile({ icon: I, className, large }: { icon: LucideIcon | undefined; cla
   );
 }
 
-const NEUTRAL_TILE = "bg-background text-foreground";
+export const NEUTRAL_TILE = "bg-background text-foreground";
 /** Day view (large) rows colour by idea (HOME.md §0): sun = transport, lilac = a stay. */
-const TRANSPORT_TILE_LARGE = "island bg-sun text-on-accent";
+export const TRANSPORT_TILE_LARGE = "island bg-sun text-on-accent";
 const STAY_TILE_LARGE = "island bg-lilac text-on-accent";
 
 function ItemTile({ category, large }: { category: Category; large?: boolean }) {
