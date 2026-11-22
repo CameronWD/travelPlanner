@@ -69,11 +69,13 @@ export function FeedbackPicturePicker({
   onChange,
   disabled,
   onPicking,
+  trailing,
 }: {
   files: File[];
   onChange: (files: File[]) => void;
   disabled: boolean;
   onPicking?: (picking: boolean) => void;
+  trailing?: React.ReactNode;
 }) {
   const online = useOnlineStatus();
   // Compression is slow; `files` is captured when the pick starts, so nothing
@@ -118,7 +120,19 @@ export function FeedbackPicturePicker({
 
   return (
     <div className="flex flex-col gap-2">
-      <div className="flex flex-wrap items-center gap-3">
+      {files.length > 0 ? (
+        <ul className="flex flex-wrap gap-3">
+          {files.map((file, i) => (
+            <PickedThumb
+              key={`${i}:${file.name}:${file.size}`}
+              file={file}
+              disabled={disabled || picking}
+              onRemove={() => onChange(files.filter((_, at) => at !== i))}
+            />
+          ))}
+        </ul>
+      ) : null}
+      <div className="flex items-center gap-3">
         <input
           ref={inputRef}
           type="file"
@@ -139,18 +153,7 @@ export function FeedbackPicturePicker({
           <ImagePlus aria-hidden />
           Pictures
         </Button>
-        {files.length > 0 ? (
-          <ul className="flex flex-wrap gap-3">
-            {files.map((file, i) => (
-              <PickedThumb
-                key={`${i}:${file.name}:${file.size}`}
-                file={file}
-                disabled={disabled || picking}
-                onRemove={() => onChange(files.filter((_, at) => at !== i))}
-              />
-            ))}
-          </ul>
-        ) : null}
+        {trailing}
       </div>
       {line ? <p className="text-xs text-muted-foreground">{line}</p> : null}
     </div>

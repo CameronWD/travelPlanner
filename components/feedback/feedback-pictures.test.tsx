@@ -51,6 +51,32 @@ describe("FeedbackPicturePicker", () => {
   });
 });
 
+describe("FeedbackPicturePicker layout", () => {
+  const png = () => new File(["x"], "a.png", { type: "image/png" });
+
+  it("puts thumbnails above the button row, trailing in that row, offline line last", async () => {
+    onlineMock.mockReturnValue(false);
+    const { container } = render(
+      <FeedbackPicturePicker
+        files={[png()]}
+        onChange={() => {}}
+        disabled={false}
+        trailing={<button type="button">Trail</button>}
+      />,
+    );
+    const list = container.querySelector("ul")!;
+    const pictures = screen.getByRole("button", { name: "Add pictures" });
+    const trail = screen.getByRole("button", { name: "Trail" });
+    const row = pictures.parentElement!;
+    expect(row).toContainElement(trail);
+    expect(list.compareDocumentPosition(row) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(list.contains(row)).toBe(false);
+    const line = container.querySelector("p")!;
+    expect(row.compareDocumentPosition(line) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(row.parentElement!.lastElementChild).toBe(line);
+  });
+});
+
 describe("FeedbackPictureStrip", () => {
   it("renders nothing without pictures", () => {
     const { container } = render(<FeedbackPictureStrip pictures={[]} />);

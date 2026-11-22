@@ -790,43 +790,45 @@ export function FeedbackLauncher() {
             }}
             disabled={isSending}
             onPicking={setPicking}
+            trailing={
+              <>
+                {/*
+                  Always mounted, stable position — same reasoning as
+                  components/trip/journal-editor.tsx:227-230. Mounting it at
+                  COUNT_FROM moved the Send button sideways mid-sentence, and an
+                  aria-live region that appears is announced as new content rather
+                  than as an update (FN-09).
+                */}
+                <p
+                  role="status"
+                  aria-live="polite"
+                  className={cn(
+                    "text-xs",
+                    body.length >= BODY_MAX
+                      ? "font-medium text-destructive"
+                      : "text-muted-foreground",
+                  )}
+                >
+                  {body.length >= COUNT_FROM ? `${body.length}/${BODY_MAX}` : ""}
+                </p>
+                <Button
+                  type="button"
+                  size="sm"
+                  className="ml-auto"
+                  loading={isSending}
+                  disabled={
+                    isSending ||
+                    body.trim().length === 0 ||
+                    picking ||
+                    (!online && pictureFiles.length > 0)
+                  }
+                  onClick={() => void handleSend()}
+                >
+                  Send
+                </Button>
+              </>
+            }
           />
-          <div className="flex items-center gap-2">
-            {/*
-              Always mounted, stable position — same reasoning as
-              components/trip/journal-editor.tsx:227-230. Mounting it at
-              COUNT_FROM moved the Send button sideways mid-sentence, and an
-              aria-live region that appears is announced as new content rather
-              than as an update (FN-09).
-            */}
-            <p
-              role="status"
-              aria-live="polite"
-              className={cn(
-                "text-xs",
-                body.length >= BODY_MAX
-                  ? "font-medium text-destructive"
-                  : "text-muted-foreground",
-              )}
-            >
-              {body.length >= COUNT_FROM ? `${body.length}/${BODY_MAX}` : ""}
-            </p>
-            <Button
-              type="button"
-              size="sm"
-              className="ml-auto"
-              loading={isSending}
-              disabled={
-                isSending ||
-                body.trim().length === 0 ||
-                picking ||
-                (!online && pictureFiles.length > 0)
-              }
-              onClick={() => void handleSend()}
-            >
-              Send
-            </Button>
-          </div>
         </div>
       </SheetContent>
     </Sheet>
