@@ -817,7 +817,8 @@ never touches it. The reverse is the risk. Only a production build runs
 `prisma migrate deploy` (`vercel.json`); beta and previews share the production
 database (§4d) and do not migrate. Until production has migrated, the Feedback panel on
 a beta build or a preview of this branch reads and writes a table that does not exist,
-so its log fails to load and its pictures fail to upload; and `npm run feedback:pull`
+so its log fails to load, sending any note fails (the saved note is read back with its
+pictures), and pictures fail to upload; and `npm run feedback:pull`
 run from this branch fails the same way, because it selects each note's pictures.
 
 **Deploy `main` first, confirm the production build log shows `migrate deploy` applying
