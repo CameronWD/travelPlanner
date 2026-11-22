@@ -37,12 +37,17 @@ import {
 } from "@/lib/feedback/trip-store";
 import { subscribeAttention } from "@/lib/attention";
 import {
+  addFeedbackPicture,
   createFeedbackNote,
   deleteFeedbackNote,
   listFeedbackNotes,
   type FeedbackNoteView,
 } from "@/server/actions/feedback";
 import { isHiddenResolved, resolutionLine } from "@/lib/feedback/view";
+import {
+  FeedbackPicturePicker,
+  FeedbackPictureStrip,
+} from "@/components/feedback/feedback-pictures";
 
 /** A note in the log: either landed on the server, or still queued locally. */
 type LogEntry =
@@ -70,6 +75,8 @@ const EMPTY_LOG = "No feedback yet. Tell me what’s annoying.";
 const OFFLINE_SAVED = "Saved. It sends when you’re back online";
 const SEND_FAILED = "Couldn’t send that yet. It’s saved and will retry on its own.";
 const STORAGE_FAILED = "Couldn’t save your note. It’s still in the box. Try again.";
+const pictureFailedMessage = (failed: number) =>
+  `Note sent, but ${failed === 1 ? "1 picture" : `${failed} pictures`} didn’t upload.`;
 const DELETE_FAILED = "Couldn’t remove that note. Try again.";
 
 /**
@@ -299,6 +306,7 @@ export function FeedbackLauncher() {
   const [sent, setSent] = React.useState<FeedbackNoteView[]>([]);
   const [pending, setPending] = React.useState<QueuedFeedbackNote[]>([]);
   const [isSending, setIsSending] = React.useState(false);
+  const [pictureFiles, setPictureFiles] = React.useState<File[]>([]);
   // Spec 2026-10-05 §A: a closed note stays listed for a week so its author
   // sees the Resolution, then waits behind "Show resolved". `openedAt` is the
   // "now" for that week, so render stays pure. Both are set on the way open
@@ -338,6 +346,29 @@ export function FeedbackLauncher() {
    * user is right now); non-empty → empty releases it (the draft is gone,
    * so the next one should track the live route again).
    */
+  /** Already compressed when picked. One at a time, in the order chosen: the server's cap is read-then-write. */
+  async function uploadPictures(noteId: string, files: File[]) {
+    const uploaded: Array<{ id: string; url: string }> = [];
+    for (const file of files) {
+      try {
+        const form = new FormData();
+        form.set("noteId", noteId);
+        form.set("file", file);
+        const res = await addFeedbackPicture(form);
+        if (res.success) uploaded.push({ id: res.id, url: res.url });
+      } catch {
+        // counted as failed below
+      }
+    }
+    if (uploaded.length > 0) {
+      setSent((prev) =>
+        prev.map((n) => (n.id === noteId ? { ...n, pictures: [...n.pictures, ...uploaded] } : n)),
+      );
+    }
+    const failed = files.length - uploaded.length;
+    if (failed > 0) toast({ variant: "destructive", title: pictureFailedMessage(failed) });
+  }
+
   function handleBodyChange(e: React.ChangeEvent<HTMLTextAreaElement>) {
     const value = e.target.value;
     const wasEmpty = body.trim().length === 0;
@@ -434,6 +465,8 @@ export function FeedbackLauncher() {
   async function handleSend() {
     const trimmed = body.trim();
     if (!trimmed || isSending) return;
+    const files = pictureFiles;
+    if (!online && files.length > 0) return;
 
     // The box went empty→non-empty at least once to get here, so it should
     // have frozen a context already; falling back to the live one only
@@ -498,6 +531,8 @@ export function FeedbackLauncher() {
           setSent((prev) => [...prev, result.note]);
         }
         clearDraft();
+        setPictureFiles([]);
+        if (files.length > 0) await uploadPictures(result.note.id, files);
         return;
       }
       setPending(readQueue());
@@ -709,6 +744,11 @@ export function FeedbackLauncher() {
             rows={3}
             maxLength={BODY_MAX}
           />
+          <FeedbackPicturePicker
+            files={pictureFiles}
+            onChange={setPictureFiles}
+            disabled={isSending}
+          />
           <div className="flex items-center gap-2">
             {/*
               Always mounted, stable position — same reasoning as
@@ -734,7 +774,11 @@ export function FeedbackLauncher() {
               size="sm"
               className="ml-auto"
               loading={isSending}
-              disabled={isSending || body.trim().length === 0}
+              disabled={
+                isSending ||
+                body.trim().length === 0 ||
+                (!online && pictureFiles.length > 0)
+              }
               onClick={() => void handleSend()}
             >
               Send
@@ -792,6 +836,7 @@ function SentEntry({
       >
         {note.body}
       </p>
+      <FeedbackPictureStrip pictures={note.pictures} />
       {resolved ? (
         <p className="mt-1 pl-3 text-xs text-muted-foreground">{resolved}</p>
       ) : null}
