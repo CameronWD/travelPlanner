@@ -1541,4 +1541,19 @@ describe("Timeline — Transport row alignment", () => {
     expect(wrapper.className).toContain("self-start");
     expect(wrapper).toHaveTextContent("09:30");
   });
+
+  it("sits at the top beside the title with no attachments too", () => {
+    const day: DayPlan = {
+      ...dayPlanWithTransport,
+      transportEntries: [{ ...(dayPlanWithTransport.transportEntries[0] as TransportDepartureEntry), depTimeLabel: "09:30" }],
+    };
+    render(<Timeline day={day} variant="day" size="large" />);
+    const wrapper = screen.getByTestId("timeline-tile").parentElement!;
+    expect(wrapper.className).toContain("self-start");
+    expect(wrapper).toHaveTextContent("09:30");
+    const row = wrapper.closest("[data-timeline-row]")!;
+    expect(row.className.split(/\s+/)).toContain("items-start");
+    const titleLine = wrapper.nextElementSibling!.firstElementChild!;
+    expect(titleLine.className.split(/\s+/)).toEqual(expect.arrayContaining(["min-h-10", "max-md:min-h-8"]));
+  });
 });

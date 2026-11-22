@@ -423,8 +423,8 @@ function TransportRow({
       : null;
 
   return (
-    <DayRow large={large} alignTop={attachments.length > 0} time={gutterTime} tile={<Tile large={large} icon={Icon} className={large ? TRANSPORT_TILE_LARGE : NEUTRAL_TILE} />}>
-      <div className={cn("flex min-w-0 flex-wrap items-center gap-1.5 text-sm leading-tight", large && attachments.length > 0 ? "min-h-10 max-md:min-h-8" : "min-h-7")}>
+    <DayRow large={large} alignTop={large} time={gutterTime} tile={<Tile large={large} icon={Icon} className={large ? TRANSPORT_TILE_LARGE : NEUTRAL_TILE} />}>
+      <div className={cn("flex min-w-0 flex-wrap items-center gap-1.5 text-sm leading-tight", large ? "min-h-10 max-md:min-h-8" : "min-h-7")}>
         <EntryTitle
           editor={editor}
           target={tx ? { kind: "transport", transport: tx } : undefined}
