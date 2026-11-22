@@ -147,7 +147,13 @@ export async function deleteFeedbackNote(id: string): Promise<ActionResult> {
     note.pictures.map((p) =>
       getStorage()
         .delete(p.storageKey)
-        .catch((err) => reportError(err, { route: "server/actions/feedback.ts#deleteFeedbackNote", source: "server" })),
+        .catch((err) =>
+          // ReportErrorContext has no field for it, so the key rides on the route.
+          reportError(err, {
+            route: `server/actions/feedback.ts#deleteFeedbackNote ${p.storageKey}`,
+            source: "server",
+          }),
+        ),
     ),
   );
   return ok();
@@ -209,7 +215,10 @@ export async function addFeedbackPicture(
       },
     });
   } catch (err) {
-    await storage.delete(storageKey).catch(() => {});
+    await storage.delete(storageKey).catch((cleanupErr) =>
+      // The blob is now an orphan no row points at; the key is the only handle.
+      reportError(cleanupErr, { route: `${route} ${storageKey}`, source: "server" }),
+    );
     await reportError(err, { route, source: "server" });
     return formFail("Couldn't attach the picture. Nothing was saved. Try again.");
   }

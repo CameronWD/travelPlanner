@@ -3,6 +3,8 @@ import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 const session = vi.hoisted(() => ({
   current: null as { user: { id: string; email: string; name: string | null; image: string | null } } | null,
 }));
+const reportErrorMock = vi.hoisted(() => vi.fn<(err: unknown, ctx: { route?: string }) => Promise<void>>());
+vi.mock("@/lib/error-sink", () => ({ reportError: reportErrorMock }));
 vi.mock("@/lib/auth/auth", () => ({ auth: async () => session.current }));
 
 type DbModule = typeof import("@/lib/db");
@@ -129,6 +131,25 @@ describe.skipIf(process.env.INTEGRATION !== "1")("Feedback note pictures (real P
     expect(await getStorage().read(key)).toBeNull();
     create.mockRestore();
     save.mockRestore();
+  });
+
+  it("reports the storage key when the cleanup delete fails too", async () => {
+    const note = await db.feedbackNote.findFirstOrThrow({ where: { clientKey: KEYS[0] } });
+    signIn(AUTHOR);
+    reportErrorMock.mockClear();
+    const save = vi.spyOn(getStorage(), "save");
+    const del = vi.spyOn(getStorage(), "delete").mockRejectedValueOnce(new Error("cleanup boom"));
+    const create = vi.spyOn(db.feedbackPicture, "create").mockRejectedValueOnce(new Error("boom"));
+    const res = await actions.addFeedbackPicture(form(note.id, jpeg()));
+    expect(res.success).toBe(false);
+    const key = save.mock.calls[0][0];
+    const cleanup = reportErrorMock.mock.calls.find(([e]) => (e as Error).message === "cleanup boom");
+    expect(cleanup).toBeDefined();
+    expect(cleanup![1].route!).toContain(key);
+    create.mockRestore();
+    del.mockRestore();
+    save.mockRestore();
+    await getStorage().delete(key);
   });
 
   it("lists each note's pictures in position order", async () => {
