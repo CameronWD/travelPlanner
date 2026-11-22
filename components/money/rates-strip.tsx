@@ -1,8 +1,11 @@
-import { useId, type CSSProperties } from "react";
+"use client";
+
+import { useId, useState, type CSSProperties } from "react";
 import { ArrowRight } from "lucide-react";
 import { cn } from "@/lib/cn";
 import type { RateEntry } from "@/components/trip/rates-panel";
 import { CollapsibleLine, RateCell } from "./rate-cell";
+import { RatesRefreshButton } from "./rates-refresh-button";
 
 /** The sun tile: one cell per foreign currency, and the missing-rates line (MONEY.md §6). */
 export function RatesStrip({
@@ -24,6 +27,9 @@ export function RatesStrip({
 }) {
   // Rendered twice on one page (Money, and the All costs footer).
   const headingId = useId();
+  // The rates array the refresh landed on; "Updated just now" holds until the prop is a different array.
+  const [refreshedOn, setRefreshedOn] = useState<RateEntry[] | null>(null);
+  const shownNote = refreshedOn === rates ? "Updated just now" : note;
   if (rates.length === 0) return null;
 
   return (
@@ -38,7 +44,15 @@ export function RatesStrip({
           Rates <ArrowRight className="size-3" aria-hidden="true" />
           <span className="sr-only">to</span> {homeCurrency}
         </h2>
-        {note ? <p className="text-xs font-semibold text-on-accent-muted">{note}</p> : null}
+        <div className="flex items-center gap-1">
+          {shownNote ? <p className="text-xs font-semibold text-on-accent-muted">{shownNote}</p> : null}
+          <RatesRefreshButton
+            tripId={tripId}
+            homeCurrency={homeCurrency}
+            currencies={rates.map((r) => r.currency)}
+            onRefreshed={() => setRefreshedOn(rates)}
+          />
+        </div>
       </div>
       <ul className="mt-2.5 grid grid-cols-3 gap-2">
         {rates.map((r) => (

@@ -1,21 +1,27 @@
-import { describe, it, expect, vi } from "vitest";
-import { render, screen, within } from "@testing-library/react";
+import { describe, it, expect, vi, beforeEach } from "vitest";
+import { render, screen, within, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 
 // rates-panel.tsx imports server actions that hit Postgres at module-eval
 // time (see components/trip/rates-panel.test.tsx) — mock them so the real
 // module (spread via `orig` below) can load under vitest with no DATABASE_URL.
+const refreshRates = vi.fn();
 vi.mock("@/server/actions/rates", () => ({
   setManualRate: vi.fn(),
   clearManualRate: vi.fn(),
-  refreshRates: vi.fn(),
+  refreshRates: (...a: unknown[]) => refreshRates(...a),
 }));
+const toastMock = vi.fn();
+vi.mock("@/components/ui/use-toast", () => ({ toast: (...a: unknown[]) => toastMock(...a) }));
+const reduced = { current: false };
+vi.mock("motion/react", async (orig) => ({ ...(await orig<typeof import("motion/react")>()), useReducedMotion: () => reduced.current }));
 
 vi.mock("@/components/trip/rates-panel", async (orig) => ({
   ...(await orig<typeof import("@/components/trip/rates-panel")>()),
   RatesPanel: ({ rates }: { rates: { currency: string }[] }) => <div data-testid="rates-panel" data-currencies={rates.map((r) => r.currency).join(",")} />,
 }));
 
+import { MotionProvider } from "@/components/ui/motion-provider";
 import { RatesStrip } from "./rates-strip";
 import { rateFigureFontSize } from "./rate-cell";
 import { formatRate, type RateEntry } from "@/components/trip/rates-panel";
@@ -115,5 +121,84 @@ describe("Rates strip (MONEY.md §6)", () => {
     const idr = screen.getByRole("button", { name: "1 AUD = 10000 IDR" });
     expect(idr.className).toContain("tp-pop");
     expect(idr.className).not.toContain("border-dashed");
+  });
+
+  describe("refresh all", () => {
+    beforeEach(() => {
+      refreshRates.mockReset();
+      toastMock.mockReset();
+      reduced.current = false;
+    });
+
+    it("the header holds an icon-only Refresh all rates button", () => {
+      render(<RatesStrip {...base} />);
+      const strip = screen.getByRole("region", { name: /Rates to AUD/ });
+      const button = within(strip).getByRole("button", { name: "Refresh all rates" });
+      expect(button.textContent).toBe("");
+    });
+
+    it("refreshes every currency in the strip and the note reads Updated just now", async () => {
+      refreshRates.mockResolvedValueOnce({ results: [{ base: "EUR", rate: 1.7 }] });
+      render(<RatesStrip {...base} />);
+      await userEvent.click(screen.getByRole("button", { name: "Refresh all rates" }));
+      expect(refreshRates).toHaveBeenCalledWith("t1", ["EUR", "GBP", "IDR"], "AUD");
+      expect(await screen.findByText("Updated just now")).toBeInTheDocument();
+      expect(screen.queryByText("Updated 2h ago")).toBeNull();
+    });
+
+    it("Updated just now gives way to the note when the rates next change", async () => {
+      refreshRates.mockResolvedValueOnce({ results: [{ base: "EUR", rate: 1.7 }] });
+      const { rerender } = render(<RatesStrip {...base} />);
+      await userEvent.click(screen.getByRole("button", { name: "Refresh all rates" }));
+      await screen.findByText("Updated just now");
+      rerender(<RatesStrip {...base} rates={[{ ...RATES[0], rate: 1.7 }, RATES[1], RATES[2]]} note="Updated 1m ago" />);
+      expect(screen.getByText("Updated 1m ago")).toBeInTheDocument();
+    });
+
+    it("a failed refresh toasts and leaves the note alone", async () => {
+      refreshRates.mockRejectedValueOnce(new Error("down"));
+      render(<RatesStrip {...base} />);
+      await userEvent.click(screen.getByRole("button", { name: "Refresh all rates" }));
+      await waitFor(() => expect(toastMock).toHaveBeenCalledWith({ variant: "destructive", title: "Couldn’t refresh rates. Try again." }));
+      expect(screen.getByText("Updated 2h ago")).toBeInTheDocument();
+    });
+  });
+
+  describe("a rate that changes", () => {
+    beforeEach(() => {
+      reduced.current = false;
+    });
+    const withEur = (rate: number) => [{ currency: "EUR", rate, source: "fetched" as const, stale: false }];
+
+    it("counts to the new figure over 400ms and the cell pops", async () => {
+      const { rerender } = render(<RatesStrip {...base} rates={withEur(1.5)} />, { wrapper: MotionProvider });
+      rerender(<RatesStrip {...base} rates={withEur(2.5)} />);
+      const cell = screen.getByRole("button", { name: "EUR rate 2.5" });
+      expect(cell.className).toContain("tp-pop");
+      const seen = new Set<string>();
+      await waitFor(
+        () => {
+          seen.add(within(cell).getByTestId("rate-figure").textContent!);
+          expect(within(cell).getByTestId("rate-figure").textContent).toBe("2.5");
+        },
+        { timeout: 1500, interval: 10 },
+      );
+      expect([...seen].some((t) => t !== "1.5" && t !== "2.5")).toBe(true);
+    });
+
+    it("shows the new figure at once under reduced motion", async () => {
+      reduced.current = true;
+      const { rerender } = render(<RatesStrip {...base} rates={withEur(1.5)} />, { wrapper: MotionProvider });
+      rerender(<RatesStrip {...base} rates={withEur(2.5)} />);
+      await waitFor(() => expect(screen.getByTestId("rate-figure").textContent).toBe("2.5"), { timeout: 100 });
+    });
+
+    it("a stale cell loses its icon once its rate is fetched", () => {
+      const stale = [{ currency: "GBP", rate: 1.94, source: "stale" as const, stale: true }];
+      const { rerender } = render(<RatesStrip {...base} rates={stale} />, { wrapper: MotionProvider });
+      expect(screen.getByRole("button", { name: /GBP rate 1.94/ }).querySelector("svg")).not.toBeNull();
+      rerender(<RatesStrip {...base} rates={[{ ...stale[0], source: "fetched", stale: false }]} />);
+      expect(screen.getByRole("button", { name: "GBP rate 1.94" }).querySelector("svg")).toBeNull();
+    });
   });
 });
