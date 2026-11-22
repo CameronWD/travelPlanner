@@ -382,14 +382,14 @@ export default async function SummaryPage({
 
       {/* ── Header stat bar ── */}
       <div className={SUMMARY_STAT_GRID_CLASS} data-testid="summary-stat-grid">
-        <StatTile label="Stops" value={<StatNumber>{String(stops.length)}</StatNumber>} />
-        <StatTile label="Nights" value={<StatNumber>{String(totalNights)}</StatNumber>} />
+        <StatTile label="Stops" value={String(stops.length)} />
+        <StatTile label="Nights" value={String(totalNights)} />
         <StatTile
           label={hasActual ? "Paid so far" : "Cost budget"}
           value={
-            <StatNumber>
+            <span data-stat-money className="whitespace-normal break-words">
               {formatMoney(hasActual ? grandTotal.paidTotalMinor : grandTotal.costTotalMinor, homeCurrency)}
-            </StatNumber>
+            </span>
           }
         />
         <StatTile
@@ -428,7 +428,7 @@ export default async function SummaryPage({
             <section aria-labelledby="rough-heading">
           <SectionHeading id="rough-heading" icon={MapPin} title="Not yet scheduled" />
           <div className={SUMMARY_STOP_LIST_CLASS}>
-            {roughStops.map((stop, roughIdx) => {
+            {roughStops.map((stop) => {
               const nights = stop.nights ?? 1;
               const chapter = stop.chapterId
                 ? chapters.find((c) => c.id === stop.chapterId)
@@ -441,7 +441,6 @@ export default async function SummaryPage({
                 >
                   <div data-stop-band className={cn("h-1.5", HUE_CLASSES[stopHue(stop.sortOrder)].fill)} />
                   <div className="flex flex-wrap items-center gap-2 p-5">
-                    <StopBadge number={stops.length + roughIdx + 1} sortOrder={stop.sortOrder} rough className="size-6 rounded-full text-xs" />
                     <h3 className="min-w-0 break-words font-display text-base font-semibold text-foreground">
                       {stop.name}
                     </h3>
@@ -729,11 +728,6 @@ function SectionHeading({
       </h2>
     </div>
   );
-}
-
-// StatTile truncates its value; a money amount must wrap instead of being cut.
-function StatNumber({ children }: { children: string }) {
-  return <p className="whitespace-normal break-words font-mono text-base sm:text-xl">{children}</p>;
 }
 
 function Stat({ label, value }: { label: string; value: string }) {

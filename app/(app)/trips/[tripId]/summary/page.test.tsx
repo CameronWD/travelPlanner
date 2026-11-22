@@ -585,9 +585,10 @@ describe("SummaryPage — phone cards keep their shadow (U2)", () => {
     const { container } = render(await renderSummary());
 
     expect(container.firstElementChild).toHaveClass("-mr-1.5", "pr-1.5", "overflow-x-clip");
-    const values = screen.getByTestId("summary-stat-grid").querySelectorAll("p.font-mono");
-    expect(values.length).toBeGreaterThan(0);
-    values.forEach((v) => expect(v.className).not.toMatch(/\btruncate\b/));
+    const money = screen.getByTestId("summary-stat-grid").querySelector("[data-stat-money]")!;
+    expect(money).toHaveClass("whitespace-normal", "break-words");
+    expect(money.className).not.toMatch(/\btruncate\b/);
+    expect(screen.getByTestId("summary-stat-grid").querySelector(".font-mono")).toBeNull();
   });
 });
 
@@ -667,7 +668,7 @@ describe("SummaryPage — shared pieces (feedback)", () => {
     expect(container.textContent).not.toContain("⚠");
   });
 
-  it("gives dated and rough Stop cards a numbered badge and a band in the Stop's colour", async () => {
+  it("gives dated Stop cards a numbered badge and band, and rough ones a band with no number", async () => {
     readPlanMock.mockResolvedValue(rowsFrom({ trip: trip(BASE_TRIP), stops: [DATED_STOP, ROUGH_STOP] }));
     render(await renderSummary());
 
@@ -678,7 +679,9 @@ describe("SummaryPage — shared pieces (feedback)", () => {
     expect(datedCard.querySelector("[data-stop-band]")).toHaveClass("h-1.5", "bg-hue-sky");
     expect(roughCard.querySelector("[data-stop-band]")).toHaveClass("h-1.5", "bg-hue-sun");
     expect(within(datedCard as HTMLElement).getByText("1")).toHaveClass("size-6", "bg-hue-sky");
-    expect(within(roughCard as HTMLElement).getByText("2")).toHaveClass("border-dashed", "bg-muted");
+    expect(roughCard.querySelector("[data-stop-band]")).not.toBeNull();
+    expect(within(roughCard as HTMLElement).queryByText("2")).toBeNull();
+    expect(roughCard.querySelector(".size-6")).toBeNull();
   });
 
   it("renders the outgoing Transport with the Day view's mode tile and no pill ground", async () => {
