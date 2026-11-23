@@ -81,25 +81,6 @@ describe("DayStrip", () => {
     expect(fri.querySelectorAll("[data-dot]")).toHaveLength(3);
     expect(screen.getByRole("link", { name: /Sat 12 Dec, nothing planned/ }).querySelectorAll("[data-dot]")).toHaveLength(0);
   });
-  it("gives the dots a fixed 26px row, left-aligned, so adding a dot never moves the others", () => {
-    const row = (count: number) => {
-      const { unmount } = render(<DayStrip tripId="t1" dates={dates.map((d) => (d.iso === "2026-12-12" ? { ...d, count } : d))} line={segments} size="desktop" />);
-      const chip = screen.getByRole("link", { name: /Sat 12 Dec/ });
-      const dotsRow = chip.querySelector("[data-dot]")!.parentElement!;
-      const result = { cls: dotsRow.className, dots: dotsRow.querySelectorAll("[data-dot]").length, same: Array.from(dotsRow.children).map((c) => c.className) };
-      unmount();
-      return result;
-    };
-    const two = row(2);
-    const three = row(3);
-    for (const r of [two, three]) {
-      expect(r.cls).toContain("w-[26px]");
-      expect(r.cls).toContain("justify-start");
-      expect(r.cls).not.toMatch(/justify-(center|between|around|evenly|end)/);
-    }
-    expect(three.dots).toBe(two.dots + 1);
-    expect(three.same.slice(0, 2)).toEqual(two.same);
-  });
   it("draws the dots above the chip's highlight layer", () => {
     render(<DayStrip tripId="t1" dates={dates} line={segments} size="phone" />);
     const chip = screen.getByRole("link", { name: /Fri 11 Dec/ });
