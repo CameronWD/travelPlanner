@@ -519,7 +519,8 @@ export function DayCarousel({
   // While React prepares a view transition it stops dispatching events for the
   // whole document until the transition's update runs, and dropped events are
   // not replayed: a click on a day link then falls through to the browser,
-  // which loads the page. Do what the control would have done. On window in the
+  // which loads the page. For a day link, do what the control would have done;
+  // any other link in the header is left to the browser. On window in the
   // bubble phase because that runs after React's own listener, so this only
   // acts when nothing handled the click.
   React.useEffect(() => {
@@ -528,11 +529,12 @@ export function DayCarousel({
       if (e.defaultPrevented || e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
       const link = e.target instanceof Element ? e.target.closest<HTMLAnchorElement>("[data-day-heading-area] a[href], [data-day-strip] a[href]") : null;
       if (!link) return;
-      e.preventDefault();
       const to = link.getAttribute("href") as Route;
       const by = link.dataset.dayStep;
-      const moved = by === "-1" || by === "1" ? machine.api.step(by === "1" ? 1 : -1) : false;
-      if (!moved) machine.api.goTo(to);
+      if (by === "-1" || by === "1") {
+        e.preventDefault();
+        if (!machine.api.step(by === "1" ? 1 : -1)) machine.api.goTo(to);
+      } else if (machine.api.goTo(to)) e.preventDefault();
     };
     window.addEventListener("click", onClick);
     return () => window.removeEventListener("click", onClick);

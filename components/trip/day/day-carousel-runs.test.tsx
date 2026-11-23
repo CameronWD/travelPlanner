@@ -429,6 +429,37 @@ describe("a click React did not handle (the outgoing header during a view transi
       expect(calls()).toEqual([]);
     });
 
+    it("a link in the header that is not a day link is left to the browser", async () => {
+      // eslint-disable-next-line @next/next/no-html-link-for-pages -- a raw link, as a click the router did not handle
+      chromeOf = () => <a href="/trips/x/settings#travellers">travellers</a>;
+      mount(pageFor("2026-12-12"));
+      let event!: MouseEvent;
+      await press(() => { event = click(screen.getByText("travellers")); });
+      expect(event.defaultPrevented).toBe(false);
+      expect(api!.current()).toBe("2026-12-12");
+      expect(calls()).toEqual([]);
+    });
+
+    it("a strip chip for a day in hand is prevented and moves; for the day already shown it is prevented and nothing moves", async () => {
+      chromeOf = () => (
+        <div data-day-strip>
+          <a href={href("2026-12-13")}>chip 13</a>
+          <a href={href("2026-12-12")}>chip 12</a>
+        </div>
+      );
+      mount(pageFor("2026-12-12"));
+      let same!: MouseEvent;
+      await press(() => { same = click(screen.getByText("chip 12")); });
+      expect(same.defaultPrevented).toBe(true);
+      expect(calls()).toEqual([]);
+      act(() => { vi.advanceTimersByTime(QUICK_PRESS_MS * 2); });
+      let moved!: MouseEvent;
+      await press(() => { moved = click(screen.getByText("chip 13")); });
+      expect(moved.defaultPrevented).toBe(true);
+      expect(api!.current()).toBe("2026-12-13");
+      expect(calls()).toEqual([["push", "2026-12-13"]]);
+    });
+
     it("is removed on unmount", async () => {
       const add = vi.spyOn(window, "addEventListener");
       const remove = vi.spyOn(window, "removeEventListener");

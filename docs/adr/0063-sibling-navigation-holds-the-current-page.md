@@ -109,8 +109,9 @@ so a day change does not wait for the server. When days are changed quickly
   never queue. Reduced motion always cuts.
 - A navigation that lands after the Traveller has moved on does not take the
   content away from the day on screen: it keeps what an earlier payload sent.
-  That kept content is only ever shown to stop the day on screen going blank
-  during a quick run, and is replaced as soon as the navigation lands.
+  Kept content is shown only to stop the day on screen going blank, or, in a
+  quick run, for a day pressed that was seen earlier; it is replaced as soon as
+  that navigation lands.
 - A chip for a day the page sent no content for, pressed on its own (not in a
   quick run), holds the current day with the chip lit (and the progress bar
   after about 300ms) until that day is ready. A day seen earlier in the session
@@ -120,8 +121,8 @@ so a day change does not wait for the server. When days are changed quickly
   replayed: a click on a day link in that window would fall through to the
   browser and load the page. A listener on `window` (bubble phase, so it runs
   only if nothing handled the click) does what the control would have done and
-  always prevents the default, so a click on a day link never becomes a page
-  load.
+  prevents the default for a day link (an arrow or a chip), so that click never
+  becomes a page load; other links in the header are left to the browser.
 - At the very fastest pace (presses about 90ms apart) a press that lands while a
   slide is on screen can be dropped by the browser, so a run may end one day
   short.
