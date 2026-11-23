@@ -528,6 +528,6 @@ export async function fileAttachment(
   }
 
   revalidateTrip(tripId, "plan", "journal");
-  if (copyFailed) return fail(`Attached to ${filed.length} of ${places.length}. Try the rest again.`);
+  if (copyFailed) return fail(`Attached to the first ${filed.length} of ${places.length}. To finish, name the first one again, then the ones still missing.`);
   return { success: true, tripId, attachmentIds: filed.map((f) => f.id) };
 }

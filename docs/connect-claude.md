@@ -108,9 +108,9 @@ It can change:
 - Reminders: add, edit, delete
 - Checklists: add, edit, tick/untick, reorder, delete; mark Need to buy;
   save as packing template; apply a template
-- files: attach a file already on the Trip to a Stop, Transport, stay or thing
-  to do (several at once, each further one gets its own copy), and give it a
-  title
+- Files: attach a file already on the Trip to a Stop, Transport, stay or thing
+  to do, or back to the Trip itself (several at once, each further one gets its
+  own copy), and give it a title
 - Make it fit: preview, then apply
 - Surprises: make a Stop or thing to do a Surprise, reveal one you planned
 - Feedback: leave a note for the operator (see below)

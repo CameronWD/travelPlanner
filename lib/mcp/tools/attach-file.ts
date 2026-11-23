@@ -23,7 +23,7 @@ export function registerAttachFileTool(server: McpServer): void {
     {
       title: "Attach a file",
       description:
-        "Files an Attachment that is already on the Trip onto one or more things: it moves to the first and each further one gets its own copy. Optionally gives it a title. Find files with the files read first. Cannot upload or delete a file, and cannot touch an Item photo.",
+        "Files an Attachment that is already on the Trip onto one or more things: it moves to the first and each further one gets its own copy. Optionally gives it a title. Find files with list_attachments first. The file moves to whichever thing is named first, so when finishing a partly done call, name the place it already sits first. Cannot upload or delete a file, and cannot touch an Item photo.",
       inputSchema: { attachmentId: z.string(), targets: z.array(target).min(1).max(6), title: z.string().optional() },
     },
     ({ attachmentId, targets, title }) =>

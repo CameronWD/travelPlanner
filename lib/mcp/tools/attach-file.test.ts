@@ -80,11 +80,11 @@ describe("attach_file", () => {
   });
 
   it("surfaces the action's error text, partial result included", async () => {
-    m.fileAttachment.mockResolvedValue({ success: false, errors: { _: ["Attached to 2 of 3. Try the rest again."] } });
+    m.fileAttachment.mockResolvedValue({ success: false, errors: { _: ["Attached to the first 2 of 3. To finish, name the first one again, then the ones still missing."] } });
     const c = await connectTestClient();
     const r = await c.callTool({ name: "attach_file", arguments: { attachmentId: "a1", targets: [{ kind: "TRIP" }] } });
     expect(r.isError).toBe(true);
-    expect(text(r)).toContain("Attached to 2 of 3. Try the rest again.");
+    expect(text(r)).toContain("Attached to the first 2 of 3. To finish, name the first one again, then the ones still missing.");
     expect(m.loadAttachmentIndexForMcp).not.toHaveBeenCalled();
   });
 

@@ -1160,7 +1160,7 @@ describe("fileAttachment", () => {
       { type: "TRANSPORT", id: "t2" },
       { type: "TRANSPORT", id: "t3" },
     ]);
-    expect(result).toEqual({ success: false, errors: { _: ["Attached to 2 of 3. Try the rest again."] } });
+    expect(result).toEqual({ success: false, errors: { _: ["Attached to the first 2 of 3. To finish, name the first one again, then the ones still missing."] } });
     expect(attachmentUpdateMock).toHaveBeenCalledWith({ where: { id: ATTACHMENT_ID }, data: { targetType: "TRANSPORT", targetId: "t1" } });
     expect(copyCreates()).toHaveLength(1);
     expect(copyCreates()[0]).toMatchObject({ targetId: "t2" });
