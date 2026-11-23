@@ -71,12 +71,15 @@ async function holdServerAnswers(route: Route): Promise<void> {
   }
 }
 
-/** A trip page's server-action answers can be aborted by the client once
- * their headers are in, so the body is waited for only briefly. */
+/** The answer to the first server action asked for from now on: one asked
+ * for earlier (a page's own rememberLastTrip) is ignored, whenever its answer
+ * lands. A trip page's answers can be aborted by the client once their
+ * headers are in, so the body is waited for only briefly. */
 function serverAnswer(page: Page): Promise<void> {
   return page
-    .waitForResponse((r) => isServerAction(r.request()), { timeout: ANSWER_TIMEOUT_MS })
-    .then((r) => Promise.race([r.finished(), sleep(BODY_WAIT_MS)]))
+    .waitForRequest(isServerAction, { timeout: ANSWER_TIMEOUT_MS })
+    .then((request) => request.response())
+    .then((response) => Promise.race([response?.finished(), sleep(BODY_WAIT_MS)]))
     .then(() => {});
 }
 
@@ -99,9 +102,8 @@ async function press(page: Page, target: Locator): Promise<void> {
   await answer;
 }
 
-/** A trip page calls a server action of its own once it has loaded
- * (rememberLastTrip), which must be out of the way before a click's answer
- * is waited for. */
+/** Long enough for the page's own rememberLastTrip to have been asked for
+ * before any click is waited on. */
 async function load(page: Page, url: string): Promise<void> {
   await page.goto(url, { waitUntil: "load", timeout: 60_000 });
   await settle(page);
