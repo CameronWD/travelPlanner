@@ -684,6 +684,15 @@ describe("SummaryPage — shared pieces (feedback)", () => {
     expect(roughCard.querySelector(".size-6")).toBeNull();
   });
 
+  it("keeps a dated Stop's badge beside its name when the name wraps", async () => {
+    readPlanMock.mockResolvedValue(rowsFrom({ trip: trip(BASE_TRIP), stops: [DATED_STOP] }));
+    render(await renderSummary());
+    const heading = screen.getByRole("heading", { level: 3, name: "Rome" });
+    const badge = within(heading.closest("[data-stop-card]") as HTMLElement).getByText("1");
+    expect(badge.parentElement!.className).not.toMatch(/\bflex-wrap\b/);
+    expect(badge.nextElementSibling).toContainElement(heading);
+  });
+
   it("renders the outgoing Transport with the Day view's mode tile and no pill ground", async () => {
     readPlanMock.mockResolvedValue(
       rowsFrom({

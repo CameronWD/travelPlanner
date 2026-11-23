@@ -545,16 +545,18 @@ export default async function SummaryPage({
                                 so the name column is never squeezed (LA-144). */}
                             <div className="mb-3 flex min-w-0 flex-col gap-2 sm:flex-row sm:items-start sm:justify-between sm:gap-3">
                               <div className="min-w-0 flex-1">
-                                <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-0.5">
-                                  <StopBadge number={stopNum} sortOrder={stop.sortOrder} rough={false} className="size-6 shrink-0 rounded-full text-xs" />
-                                  <h3 className="min-w-0 break-words font-display text-lg font-semibold text-foreground">
-                                    {stop.name}
-                                  </h3>
-                                  {stop.country && (
-                                    <span className="shrink-0 text-sm text-muted-foreground">
-                                      {stop.country}
-                                    </span>
-                                  )}
+                                <div className="flex min-w-0 items-start gap-2">
+                                  <StopBadge number={stopNum} sortOrder={stop.sortOrder} rough={false} className="mt-0.5 size-6 shrink-0 rounded-full text-xs" />
+                                  <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-0.5">
+                                    <h3 className="min-w-0 break-words font-display text-lg font-semibold text-foreground">
+                                      {stop.name}
+                                    </h3>
+                                    {stop.country && (
+                                      <span className="shrink-0 text-sm text-muted-foreground">
+                                        {stop.country}
+                                      </span>
+                                    )}
+                                  </div>
                                 </div>
                                 <p className="mt-0.5 text-sm text-muted-foreground">
                                   {formatDateRange(stop.arriveDate, stop.departDate)}
