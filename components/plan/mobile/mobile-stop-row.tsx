@@ -16,6 +16,7 @@ export interface MobileStopRowProps {
   number: number;
   stay: StayStatus | null;
   plansCount: number;
+  isPending?: boolean;
   onOpen(): void;
   dragProps?: React.HTMLAttributes<HTMLButtonElement>;
 }
@@ -23,7 +24,7 @@ export interface MobileStopRowProps {
 /** The mobile Plan list's stop row (PLAN.md §7.1): a whole-row tap target that
  * opens the stop sheet (Task 18). Rough rows are long-pressed to reorder
  * (spec D7) via `dragProps`, spread straight onto the button. */
-export function MobileStopRow({ stop, number, stay, plansCount, onOpen, dragProps }: MobileStopRowProps) {
+export function MobileStopRow({ stop, number, stay, plansCount, isPending, onOpen, dragProps }: MobileStopRowProps) {
   const rough = !stop.arriveDate || !stop.departDate;
   const nights = !rough ? nightsBetween(stop.arriveDate as string, stop.departDate as string) : 0;
   const summary = summaryContent(rough, stay, plansCount);
@@ -34,11 +35,13 @@ export function MobileStopRow({ stop, number, stay, plansCount, onOpen, dragProp
       id={`m-stop-${stop.id}`}
       data-mobile-stop-id={stop.id}
       aria-label={`Open ${stop.name}`}
+      aria-busy={isPending || undefined}
       onClick={onOpen}
       {...dragProps}
       className={cn(
         "pressable flex min-h-16 w-full scroll-mt-6 items-center gap-3 rounded-[18px] border-2 border-border px-3 py-2.5 text-left",
         rough ? "border-dashed bg-background" : "bg-card shadow-hard-3",
+        isPending && "pointer-events-none opacity-60",
       )}
     >
       <StopBadge number={number} sortOrder={stop.sortOrder} rough={rough} className="size-9 shrink-0 text-base" />

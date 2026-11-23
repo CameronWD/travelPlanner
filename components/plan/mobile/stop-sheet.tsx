@@ -41,6 +41,7 @@ export interface StopSheetProps {
   onOpenIdea(idea: ThingToDo): void;
   onEditDates(): void;
   onActions(): void;
+  isPending?: boolean;
   /** Spec 2026-10-06 §N: the −/+ nights stepper on the meta line. */
   onSetNights?(nights: number): void;
   needsConfirmationIds?: ReadonlySet<string>;
@@ -129,6 +130,7 @@ export function StopSheet({
   onOpenIdea,
   onEditDates,
   onActions,
+  isPending,
   onSetNights,
   needsConfirmationIds,
 }: StopSheetProps) {
@@ -156,6 +158,7 @@ export function StopSheet({
       <DialogPrimitive.Portal>
         <DialogPrimitive.Content
           aria-describedby={undefined}
+          aria-busy={isPending || undefined}
           className="fixed inset-0 z-50 flex flex-col bg-background data-[state=open]:tp-slide-up data-[state=closed]:tp-slide-down"
         >
           <div className="border-b-2 border-muted px-4 pb-3 pt-[calc(0.75rem+env(safe-area-inset-top))]">
@@ -179,7 +182,8 @@ export function StopSheet({
                   type="button"
                   aria-label={`Actions for ${stop.name}`}
                   onClick={onActions}
-                  className="pressable grid size-11 shrink-0 place-items-center rounded-full border-2 border-border bg-card"
+                  disabled={isPending}
+                  className="pressable grid size-11 shrink-0 place-items-center rounded-full border-2 border-border bg-card disabled:pointer-events-none disabled:opacity-60"
                 >
                   <Ellipsis className="size-5" aria-hidden />
                 </button>
@@ -237,7 +241,7 @@ export function StopSheet({
               (rough ? (
                 <div className="flex flex-col items-center gap-3 py-6">
                   <p className="text-[13px] font-semibold text-muted-foreground">Needs dates first</p>
-                  <Button variant="primary" size="md" onClick={onEditDates}>
+                  <Button variant="primary" size="md" onClick={onEditDates} disabled={isPending}>
                     Give it dates
                   </Button>
                 </div>
@@ -367,7 +371,7 @@ export function StopSheet({
 
           {!surprised && (
             <div className="flex gap-2.5 border-t-2 border-border bg-background px-4 pb-[calc(0.75rem+env(safe-area-inset-bottom))] pt-3">
-              <Button variant="outline" size="lg" onClick={onEditDates}>
+              <Button variant="outline" size="lg" onClick={onEditDates} disabled={isPending}>
                 Edit dates
               </Button>
               <Button variant="primary" size="lg" className="flex-1" onClick={() => onAddPlan(topDay())}>

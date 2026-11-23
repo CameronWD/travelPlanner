@@ -1715,6 +1715,7 @@ export function ItineraryManager({
                 plansCount={plansCount}
                 onOpen={() => openStopSheet(stop.id)}
                 dragProps={stop.surprise?.youAreSurprised ? undefined : dragProps}
+                isPending={pendingId === stop.id}
               />
             )}
           </SortableMobileStop>
@@ -2311,6 +2312,7 @@ export function ItineraryManager({
           onActions={() => setActionsStopId(sheetStop.id)}
           onSetNights={sheetStop.surprise?.youAreSurprised ? undefined : (n) => void handleSetNights(sheetStop.id, n)}
           needsConfirmationIds={needsConfirmation}
+          isPending={pendingId === sheetStop.id}
         />
       )}
 

@@ -3686,3 +3686,58 @@ describe("planner controls answer at once (Task 9)", () => {
     });
   });
 });
+
+describe("the phone Stop row and Stop sheet say when they are busy", () => {
+  beforeEach(() => setMatchMedia((q) => q === "(min-width: 640px)"));
+  const mobileRow = (id: string) => screen.getByTestId("plan-mobile-list").querySelector(`[data-mobile-stop-id="${id}"]`)!;
+  const LYON = makeStop({ id: "s-1", name: "Lyon", sortOrder: 0 });
+  const BERLIN = makeStop({ id: "s-2", name: "Berlin", sortOrder: 1 });
+  const OSLO = makeStop({ id: "s-3", name: "Oslo", sortOrder: 2 });
+
+  function deferredOk() {
+    let resolve!: () => void;
+    const promise = new Promise<{ success: true }>((res) => {
+      resolve = () => res({ success: true });
+    });
+    return { promise, resolve };
+  }
+
+  it("Pin dates: the Stop's row is busy, the sheet's actions and dates buttons are off, and another Stop's row is untouched", async () => {
+    const d = deferredOk();
+    vi.mocked(toggleStopPin).mockReturnValueOnce(d.promise);
+    navState.search = "stop=par";
+    const user = userEvent.setup();
+    renderPlan(<ItineraryManager {...baseProps} initialStops={[PARIS, ROME]} />);
+    expect(mobileRow("par")).not.toHaveAttribute("aria-busy");
+    await user.click(screen.getByRole("button", { name: "Actions for Paris" }));
+    await user.click(await screen.findByRole("button", { name: /^Pin dates/ }));
+    await waitFor(() => expect(mobileRow("par")).toHaveAttribute("aria-busy", "true"));
+    expect(mobileRow("rom")).not.toHaveAttribute("aria-busy");
+    expect(screen.getByRole("dialog", { name: "Paris" })).toHaveAttribute("aria-busy", "true");
+    expect(screen.getByRole("button", { name: "Actions for Paris" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Edit dates" })).toBeDisabled();
+    await user.click(screen.getByRole("button", { name: "Actions for Paris" }));
+    expect(screen.queryByRole("group", { name: "Actions 1" })).toBeNull();
+    expect(toggleStopPin).toHaveBeenCalledTimes(1);
+    await act(async () => d.resolve());
+    expect(mobileRow("par")).not.toHaveAttribute("aria-busy");
+    expect(screen.getByRole("button", { name: "Actions for Paris" })).toBeEnabled();
+  });
+
+  it("Move down: the moved Stop's row is busy, the others are not, and the move is sent once", async () => {
+    const d = deferredOk();
+    vi.mocked(moveStop).mockReturnValueOnce(d.promise);
+    navState.search = "stop=s-1";
+    const user = userEvent.setup();
+    renderPlan(<ItineraryManager {...baseProps} initialStops={[LYON, BERLIN, OSLO]} />);
+    await user.click(screen.getByRole("button", { name: "Actions for Lyon" }));
+    await user.click(await screen.findByRole("button", { name: /^Move down$/ }));
+    await waitFor(() => expect(mobileRow("s-1")).toHaveAttribute("aria-busy", "true"));
+    expect(mobileRow("s-2")).not.toHaveAttribute("aria-busy");
+    expect(mobileRow("s-3")).not.toHaveAttribute("aria-busy");
+    expect(screen.getByRole("button", { name: "Actions for Lyon" })).toBeDisabled();
+    expect(moveStop).toHaveBeenCalledTimes(1);
+    await act(async () => d.resolve());
+    expect(mobileRow("s-1")).not.toHaveAttribute("aria-busy");
+  });
+});

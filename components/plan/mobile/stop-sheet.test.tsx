@@ -255,3 +255,30 @@ describe("StopSheet booking confirmation marker", () => {
     expect(screen.queryByText("No booking confirmation yet")).toBeNull();
   });
 });
+
+describe("StopSheet, busy", () => {
+  it("while its Stop's action is in flight it is busy and its actions and dates buttons are off", async () => {
+    const { props } = renderSheet({ isPending: true });
+    expect(screen.getByRole("dialog", { name: "Paris" })).toHaveAttribute("aria-busy", "true");
+    const actions = screen.getByRole("button", { name: "Actions for Paris" });
+    expect(actions).toBeDisabled();
+    await userEvent.click(actions);
+    await userEvent.click(screen.getByRole("button", { name: "Edit dates" }));
+    expect(props.onActions).not.toHaveBeenCalled();
+    expect(props.onEditDates).not.toHaveBeenCalled();
+  });
+
+  it("a rough Stop's Give it dates is off while busy", async () => {
+    const { props } = renderSheet({ isPending: true, stop: { ...PARIS, arriveDate: null, departDate: null, nights: 3 }, slots: [] });
+    const give = screen.getByRole("button", { name: "Give it dates" });
+    expect(give).toBeDisabled();
+    await userEvent.click(give);
+    expect(props.onEditDates).not.toHaveBeenCalled();
+  });
+
+  it("is not busy otherwise", () => {
+    renderSheet();
+    expect(screen.getByRole("dialog", { name: "Paris" })).not.toHaveAttribute("aria-busy");
+    expect(screen.getByRole("button", { name: "Actions for Paris" })).toBeEnabled();
+  });
+});
