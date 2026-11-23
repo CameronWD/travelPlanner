@@ -9,6 +9,7 @@ vi.mock("@/server/actions/checklists", () => ({
   deleteChecklistItem: vi.fn().mockResolvedValue({ success: true }),
   reorderChecklistItem: vi.fn().mockResolvedValue({ success: true }),
   setBuyState: vi.fn().mockResolvedValue({ success: true }),
+  movePackingItem: vi.fn().mockResolvedValue({ success: true }),
 }));
 vi.mock("@/components/ui/use-toast", () => ({ toast: vi.fn() }));
 import { toast } from "@/components/ui/use-toast";
@@ -19,6 +20,8 @@ import {
   deleteChecklistItem,
   setBuyState,
   updateChecklistItem,
+  reorderChecklistItem,
+  movePackingItem,
 } from "@/server/actions/checklists";
 import { OFFLINE_MESSAGE } from "@/components/ui/failure-message";
 
@@ -412,6 +415,99 @@ describe("Checklist", () => {
     await act(async () => resolve({ success: false, errors: { _: ["Couldn't update that item."] } }));
     expect(box).not.toBeChecked();
     expect(toast).toHaveBeenCalledWith({ variant: "destructive", title: "Couldn't update that item." });
+  });
+});
+
+describe("Checklist feedback (shift check)", () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  const packing = (id: string, text: string, sortOrder: number): ChecklistItemRow => ({
+    id,
+    kind: "PACKING",
+    text,
+    done: false,
+    dueDate: null,
+    sortOrder,
+    assignedTo: null,
+    buy: null,
+  });
+  const pending = <T,>(fn: unknown) => {
+    let resolve!: (v: unknown) => void;
+    vi.mocked(fn as () => Promise<T>).mockImplementationOnce(() => new Promise((r) => (resolve = r)) as never);
+    return (v: unknown) => act(async () => resolve(v));
+  };
+
+  it("Need to buy shows the To buy badge at once and goes back with the server's message when refused", async () => {
+    const settle = pending(setBuyState);
+    const user = userEvent.setup();
+    render(<Checklist tripId="t" kind="PACKING" items={[packing("p1", "Sunscreen", 0)]} showDueDate={false} showAssignee={false} />);
+    await user.click(screen.getByRole("button", { name: "Need to buy" }));
+    expect(screen.getByText("To buy")).toBeInTheDocument();
+    await settle({ success: false, errors: { _: ["Not yours."] } });
+    expect(screen.queryByText("To buy")).toBeNull();
+    expect(screen.getByRole("button", { name: "Need to buy" })).toBeInTheDocument();
+    expect(toast).toHaveBeenCalledWith({ variant: "destructive", title: "Not yours." });
+  });
+
+  it("Need to buy goes back and says why when the save rejects offline", async () => {
+    const user = userEvent.setup();
+    vi.mocked(setBuyState).mockRejectedValueOnce(new TypeError("Failed to fetch"));
+    render(<Checklist tripId="t" kind="PACKING" items={[packing("p1", "Sunscreen", 0)]} showDueDate={false} showAssignee={false} />);
+    goOffline();
+    await user.click(screen.getByRole("button", { name: "Need to buy" }));
+    expect(await screen.findByRole("button", { name: "Need to buy" })).toBeInTheDocument();
+    expect(toast).toHaveBeenCalledWith({ variant: "destructive", title: OFFLINE_MESSAGE });
+  });
+
+  it("Move down swaps the two rows at once and swaps them back when refused", async () => {
+    const settle = pending(reorderChecklistItem);
+    const user = userEvent.setup();
+    const items = [packing("p1", "Sunscreen", 0), packing("p2", "Adapter", 1)];
+    render(<Checklist tripId="t" kind="PACKING" items={items} showDueDate={false} showAssignee={false} />);
+    const order = () => screen.getAllByRole("checkbox").map((c) => c.closest("li")?.textContent);
+    expect(order()[0]).toContain("Sunscreen");
+    await user.click(screen.getAllByRole("button", { name: "Move down" })[0]);
+    expect(order()[0]).toContain("Adapter");
+    expect(reorderChecklistItem).toHaveBeenCalledWith("p1", "down");
+    await settle({ success: false, errors: { _: ["Not yours."] } });
+    expect(order()[0]).toContain("Sunscreen");
+    expect(toast).toHaveBeenCalledWith({ variant: "destructive", title: "Not yours." });
+  });
+
+  it("Move to another list says it is working and ignores a second pick", async () => {
+    const settle = pending(movePackingItem);
+    const user = userEvent.setup();
+    render(
+      <Checklist
+        tripId="t"
+        kind="PACKING"
+        items={[{ ...packing("p1", "Sunscreen", 0), ownerId: "u1" }]}
+        showDueDate={false}
+        showAssignee={false}
+        moveTargets={[{ to: "SHARED", label: "Move to Shared" }]}
+      />,
+    );
+    await user.click(screen.getByRole("button", { name: "Move Sunscreen" }));
+    await user.click(await screen.findByRole("menuitem", { name: "Move to Shared" }));
+    const trigger = screen.getByRole("button", { name: "Move Sunscreen" });
+    expect(trigger).toHaveAttribute("aria-busy", "true");
+    expect(trigger).toBeDisabled();
+    await settle({ success: true });
+    expect(movePackingItem).toHaveBeenCalledTimes(1);
+  });
+
+  it("delete says it is working on its button while the delete runs, and a second click does nothing", async () => {
+    const settle = pending(deleteChecklistItem);
+    const user = userEvent.setup();
+    render(<Checklist tripId="t" kind="PRETRIP" items={[seedItems[0]]} showDueDate={false} showAssignee={false} />);
+    await user.click(screen.getByRole("button", { name: "Delete Item" }));
+    await user.click(await screen.findByRole("button", { name: "Delete" }));
+    const del = screen.getByRole("button", { name: "Delete Item" });
+    expect(del).toHaveAttribute("aria-busy", "true");
+    expect(del).toBeDisabled();
+    await user.click(del);
+    expect(deleteChecklistItem).toHaveBeenCalledTimes(1);
+    await settle({ success: true });
   });
 });
 

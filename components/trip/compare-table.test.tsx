@@ -1,3 +1,4 @@
+import { act } from "react";
 import { render, screen, within, fireEvent, waitFor } from "@testing-library/react";
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import userEvent from "@testing-library/user-event";
@@ -15,6 +16,9 @@ vi.mock("@/server/actions/forks", () => ({
 }));
 
 const { compareRefresh } = vi.hoisted(() => ({ compareRefresh: vi.fn() }));
+vi.mock("@/components/ui/use-toast", () => ({ toast: vi.fn() }));
+import { toast } from "@/components/ui/use-toast";
+
 vi.mock("next/navigation", () => ({
   useRouter: vi.fn(() => ({ refresh: compareRefresh })),
 }));
@@ -445,6 +449,37 @@ describe("CompareTable — reorder arrows", () => {
     render(<CompareTable trip={{ id: "trip-1", name: "Trip", homeCurrency: "AUD" }} plans={[real, b]} />);
 
     expect(screen.queryByRole("button", { name: /move Real plan/i })).not.toBeInTheDocument();
+  });
+
+  it("moving a variant shows the new order at once, and puts it back with the server's message when refused", async () => {
+    const { moveFork } = await import("@/server/actions/forks");
+    let resolve!: (v: unknown) => void;
+    vi.mocked(moveFork).mockImplementationOnce(() => new Promise((r) => (resolve = r)) as never);
+    const forkB: ComparisonPlan = { ...forkA, forkId: "fork-2", name: "Coast variant" };
+    render(<CompareTable trip={trip} plans={[realPlan, forkA, forkB]} />);
+    const names = () => screen.getAllByTestId("plan-card").map((c) => within(c).getByRole("heading", { level: 3 }).textContent);
+    expect(names()).toEqual(["Real plan", "Beach variant", "Coast variant"]);
+    await userEvent.click(screen.getByRole("button", { name: `Move ${forkA.name} right` }));
+    expect(names()).toEqual(["Real plan", "Coast variant", "Beach variant"]);
+    await act(async () => resolve({ success: false, errors: { _: ["Not yours."] } }));
+    expect(names()).toEqual(["Real plan", "Beach variant", "Coast variant"]);
+    expect(toast).toHaveBeenCalledWith({ variant: "destructive", title: "Not yours." });
+  });
+
+  it("a move that rejects offline goes back and says why", async () => {
+    const { moveFork } = await import("@/server/actions/forks");
+    vi.mocked(moveFork).mockRejectedValueOnce(new TypeError("Failed to fetch"));
+    const forkB: ComparisonPlan = { ...forkA, forkId: "fork-2", name: "Coast variant" };
+    render(<CompareTable trip={trip} plans={[realPlan, forkA, forkB]} />);
+    Object.defineProperty(navigator, "onLine", { value: false, configurable: true });
+    try {
+      await userEvent.click(screen.getByRole("button", { name: `Move ${forkA.name} right` }));
+      await waitFor(() => expect(toast).toHaveBeenCalled());
+    } finally {
+      Object.defineProperty(navigator, "onLine", { value: true, configurable: true });
+    }
+    const names = screen.getAllByTestId("plan-card").map((c) => within(c).getByRole("heading", { level: 3 }).textContent);
+    expect(names).toEqual(["Real plan", "Beach variant", "Coast variant"]);
   });
 
   it("moving a variant calls moveFork and leaves the redraw to its revalidation (spec 2026-10-06 §J)", async () => {

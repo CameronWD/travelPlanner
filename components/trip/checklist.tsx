@@ -89,6 +89,11 @@ export interface ChecklistItemRow {
   packedBy?: TravellerLike | null;
 }
 
+type OptimisticChange =
+  | { kind: "done"; id: string; done: boolean }
+  | { kind: "buy"; id: string }
+  | { kind: "move"; id: string; direction: "up" | "down" };
+
 export type ChecklistMoveTarget = { to: PackingOwnerRef; label: string };
 
 interface ChecklistProps {
@@ -486,6 +491,8 @@ function ChecklistRow({
   showAssignee,
   today,
   onToggle,
+  onNeedToBuy,
+  onMove,
   readOnly,
   showPackedBy,
   moveTargets,
@@ -498,6 +505,8 @@ function ChecklistRow({
   showAssignee?: boolean;
   today: string;
   onToggle: () => void;
+  onNeedToBuy: () => void;
+  onMove: (direction: "up" | "down") => void;
   readOnly?: boolean;
   showPackedBy?: boolean;
   moveTargets?: ChecklistMoveTarget[];
@@ -515,26 +524,6 @@ function ChecklistRow({
   });
 
   const status = dueDateStatus(item.dueDate, item.done, today);
-
-  function needToBuy() {
-    startTransition(async () => {
-      try {
-        await setBuyState(item.id, "NEEDED");
-      } catch {
-        toastRejected("Couldn’t update that item.");
-      }
-    });
-  }
-
-  function move(direction: "up" | "down") {
-    startTransition(async () => {
-      try {
-        await reorderChecklistItem(item.id, direction);
-      } catch {
-        toastRejected("Couldn’t move that item.");
-      }
-    });
-  }
 
   function moveTo(to: PackingOwnerRef) {
     startTransition(async () => {
@@ -664,7 +653,7 @@ function ChecklistRow({
                 variant="ghost"
                 size="icon"
                 className={ROW_ICON_BUTTON}
-                onClick={needToBuy}
+                onClick={onNeedToBuy}
                 disabled={pending}
                 aria-label="Need to buy"
                 title="Need to buy"
@@ -677,7 +666,7 @@ function ChecklistRow({
               variant="ghost"
               size="icon"
               className={ROW_ICON_BUTTON}
-              onClick={() => move("up")}
+              onClick={() => onMove("up")}
               disabled={pending || isFirst}
               aria-label="Move up"
             >
@@ -688,7 +677,7 @@ function ChecklistRow({
               variant="ghost"
               size="icon"
               className={ROW_ICON_BUTTON}
-              onClick={() => move("down")}
+              onClick={() => onMove("down")}
               disabled={pending || isLast}
               aria-label="Move down"
             >
@@ -703,6 +692,7 @@ function ChecklistRow({
                     size="icon"
                     className={ROW_ICON_BUTTON}
                     disabled={pending}
+                    loading={pending}
                     aria-label={`Move ${item.text}`}
                     title="Move to another list"
                   >
@@ -724,7 +714,8 @@ function ChecklistRow({
               onDelete={() => requestDelete(item.id)}
               editLabel="Edit Item"
               deleteLabel="Delete Item"
-              disabled={pending || deleteIsPending}
+              disabled={pending || undefined}
+              loading={deleteIsPending}
             />
           </div>
         )}
@@ -779,19 +770,50 @@ export function Checklist({
 
   // Spec 2026-10-06 §W: a tick shows at once (and moves the progress bar);
   // it reverts to the server's answer when the action settles.
-  const [shown, setShownDone] = React.useOptimistic(items, (state, u: { id: string; done: boolean }) =>
-    state.map((i) => (i.id === u.id ? { ...i, done: u.done } : i)),
-  );
+  const [shown, applyOptimistic] = React.useOptimistic(items, (state, u: OptimisticChange) => {
+    if (u.kind === "done") return state.map((i) => (i.id === u.id ? { ...i, done: u.done } : i));
+    if (u.kind === "buy") return state.map((i) => (i.id === u.id ? { ...i, buy: "NEEDED" } : i));
+    const from = state.findIndex((i) => i.id === u.id);
+    const to = u.direction === "up" ? from - 1 : from + 1;
+    if (from === -1 || to < 0 || to >= state.length) return state;
+    const next = [...state];
+    [next[from], next[to]] = [next[to], next[from]];
+    return next;
+  });
   const doneCount = shown.filter((i) => i.done).length;
 
   function toggleItem(item: ChecklistItemRow) {
     React.startTransition(async () => {
-      setShownDone({ id: item.id, done: !item.done });
+      applyOptimistic({ kind: "done", id: item.id, done: !item.done });
       try {
         const r = await toggleChecklistItem(item.id, !item.done);
         if (!r.success) toastRefused(r.errors, "Couldn’t update that item.");
       } catch {
         toastRejected("Couldn’t update that item.");
+      }
+    });
+  }
+
+  function needToBuy(item: ChecklistItemRow) {
+    React.startTransition(async () => {
+      applyOptimistic({ kind: "buy", id: item.id });
+      try {
+        const r = await setBuyState(item.id, "NEEDED");
+        if (!r.success) toastRefused(r.errors, "Couldn’t update that item.");
+      } catch {
+        toastRejected("Couldn’t update that item.");
+      }
+    });
+  }
+
+  function moveItem(item: ChecklistItemRow, direction: "up" | "down") {
+    React.startTransition(async () => {
+      applyOptimistic({ kind: "move", id: item.id, direction });
+      try {
+        const r = await reorderChecklistItem(item.id, direction);
+        if (!r.success) toastRefused(r.errors, "Couldn’t move that item.");
+      } catch {
+        toastRejected("Couldn’t move that item.");
       }
     });
   }
@@ -843,6 +865,8 @@ export function Checklist({
             isFirst={idx === 0}
             isLast={idx === shown.length - 1}
             onToggle={() => toggleItem(item)}
+            onNeedToBuy={() => needToBuy(item)}
+            onMove={(direction) => moveItem(item, direction)}
             members={members}
             showDueDate={showDueDate}
             showAssignee={showAssignee}
