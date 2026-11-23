@@ -1,0 +1,34 @@
+import { describe, it, expect } from "vitest";
+import { afterPush, isQuickPress, QUICK_PRESS_MS } from "./day-moves";
+
+describe("isQuickPress (from lg, a press soon after the last cuts rather than crossfades)", () => {
+  it("the first press of a run crossfades", () => {
+    expect(isQuickPress(null, 1000)).toBe(false);
+  });
+  it("a press within QUICK_PRESS_MS of the last is quick", () => {
+    expect(isQuickPress(1000, 1000 + QUICK_PRESS_MS - 1)).toBe(true);
+  });
+  it("a press after a pause crossfades again", () => {
+    expect(isQuickPress(1000, 1000 + QUICK_PRESS_MS)).toBe(false);
+  });
+});
+
+describe("afterPush (what the carousel does when its push ends)", () => {
+  it("the day shown is the day in view: nothing", () => {
+    expect(afterPush({ wide: true, pushed: "13", shown: "13", view: "13", committing: false })).toBe("none");
+    expect(afterPush({ wide: false, pushed: "13", shown: "13", view: "13", committing: false })).toBe("none");
+  });
+  it("from lg, presses moved the view on while the push was in flight: push the day in view", () => {
+    expect(afterPush({ wide: true, pushed: "13", shown: "13", view: "16", committing: false })).toBe("push");
+  });
+  it("from lg, a press is still waiting to commit behind a view transition: leave it to that commit", () => {
+    expect(afterPush({ wide: true, pushed: "13", shown: "13", view: "16", committing: true })).toBe("none");
+  });
+  it("the push ended without landing on the day it was for: park back on the day shown", () => {
+    expect(afterPush({ wide: true, pushed: "13", shown: "12", view: "13", committing: false })).toBe("reconcile");
+  });
+  it("below lg it parks back whenever the day shown is not the day in view, as before", () => {
+    expect(afterPush({ wide: false, pushed: "13", shown: "12", view: "13", committing: false })).toBe("reconcile");
+    expect(afterPush({ wide: false, pushed: "13", shown: "13", view: "16", committing: false })).toBe("reconcile");
+  });
+});

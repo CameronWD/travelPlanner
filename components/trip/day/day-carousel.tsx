@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import { PENDING_NAVIGATION_TIMEOUT_MS, useBeginNavigation, useSettleNavigation } from "@/components/navigation/navigation-pending";
 import { ViewTransition } from "@/components/ui/view-transition";
 import { DAY_BODY_TRANSITION_WIDE, dayTransitionType } from "@/components/trip/day/day-transition";
+import { afterPush, isQuickPress } from "@/components/trip/day/day-moves";
 import { isFar, lerpHeight, nearestIndex, neighbourIndex, panelProgress, panelWidth, settledPanel } from "@/components/trip/day/carousel-maths";
 import { prefersReducedMotion, tweenScrollLeft } from "@/components/trip/day/scroll-tween";
 import { LG_UP, useMediaQuery } from "@/components/ui/use-media-query";
@@ -16,6 +17,8 @@ export interface DayPanel {
   iso: string;
   href: Route;
   content: React.ReactNode;
+  /** False when the page sent only a skeleton for this day: from lg it is not shown until it lands. */
+  filled?: boolean;
 }
 
 export interface DayCarouselApi {
@@ -82,7 +85,10 @@ export function useIsDayInView(): boolean | null {
  * remounting anything, and the slots around it fill.
  *
  * From lg only the day in view renders, in a plain block that scrolls with
- * the page, and a day change crossfades it before the same push. The server
+ * the page, and a day change crossfades it before the same push; a quick run
+ * of presses cuts instead, and pushes once per push in flight, the latest day
+ * last (day-moves.ts). A day the page sent no content for is not shown until
+ * its push lands: the day in view holds, with the chip lit. The server
  * markup is the phone tree with lg: classes hiding the others, so the first
  * paint is already one day before the viewport is known.
  */
@@ -122,6 +128,11 @@ export function DayCarousel({
   // A day shown that arrived mid-gesture, for the settle to apply.
   const deferred = React.useRef<string | null>(null);
   const crossfadeTo = React.useRef<string | null>(null);
+  // From lg: a day not in hand, pressed on its own with no push in flight (a
+  // far chip). The day in view stays (ADR 0063) and the chip is lit through
+  // the pending state until it lands; any other press drops the hold.
+  const heldFor = React.useRef<string | null>(null);
+  const lastPressAt = React.useRef<number | null>(null);
   const shownRef = React.useRef(shownDate);
   const backstop = React.useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   const headerBox = React.useRef<HTMLDivElement>(null);
@@ -172,6 +183,8 @@ export function DayCarousel({
       const el = scroller.current;
       cancelGlide.current();
       glideTo.current = null;
+      crossfadeTo.current = null;
+      heldFor.current = null;
       showDay(iso);
       if (!el || desktop) return;
       el.style.scrollSnapType = "";
@@ -201,19 +214,38 @@ export function DayCarousel({
         navigate(p);
       } else if (held != null && held !== p.iso) place(held);
     };
+    const dropHold = () => {
+      const h = heldFor.current == null ? null : panelsRef.current[indexOf(heldFor.current)];
+      heldFor.current = null;
+      if (h) settleBegun(h.href);
+    };
     const goTo = (href: Route) => {
       const idx = panelsRef.current.findIndex((p) => p.href === href);
       if (idx < 0) return false;
       const p = panelsRef.current[idx];
       if (desktop) {
+        if (p.iso === heldFor.current) return true;
+        dropHold();
         if (p.iso === viewRef.current) return true;
+        const now = performance.now();
+        const quick = isQuickPress(lastPressAt.current, now);
+        lastPressAt.current = now;
+        // Only a press on its own: within a quick run the day in view keeps up with the presses.
+        if (p.filled === false && !quick && target.current == null && crossfadeTo.current == null) {
+          heldFor.current = p.iso;
+          begin(p.href);
+          navigate(p);
+          return true;
+        }
         const type = dayTransitionType(viewRef.current, p.iso);
         viewRef.current = p.iso;
         for (const cb of dayListeners.current) cb(p.iso);
         tellNearest(p.iso);
         crossfadeTo.current = p.iso;
+        // Untyped maps to "none": a quick run and reduced motion cut.
+        const crossfade = !quick && !prefersReducedMotion();
         React.startTransition(() => {
-          React.addTransitionType(type);
+          if (crossfade) React.addTransitionType(type);
           setView(p.iso);
         });
         return true;
@@ -281,7 +313,26 @@ export function DayCarousel({
       },
       isMoving: () => moving.current,
     };
-    return { api, indexOf, land, navigate, reconcile, tellNearest, settled: () => clearTimeout(backstop.current) };
+    // From lg, one push at a time: a press while one is in flight only moves
+    // the day in view, and the push's end sends the latest (pushEnded).
+    const follow = () => {
+      if (target.current != null && !gaveUp.current) return;
+      const p = panelsRef.current[indexOf(viewRef.current)];
+      if (p) navigate(p);
+    };
+    const landHeld = (iso: string) => {
+      if (heldFor.current !== iso) return false;
+      dropHold();
+      place(iso);
+      return true;
+    };
+    const pushEnded = (pushed: string, shown: string) => {
+      dropHold();
+      const next = afterPush({ wide: desktop, pushed, shown, view: viewRef.current, committing: crossfadeTo.current != null });
+      if (next === "push") follow();
+      else if (next === "reconcile") reconcile(shown);
+    };
+    return { api, indexOf, land, follow, landHeld, pushEnded, reconcile, tellNearest, settled: () => clearTimeout(backstop.current) };
   }, [router, begin, settleBegun, desktop]);
 
   // On the day in view before first paint, and again when the phone tree comes back.
@@ -296,6 +347,9 @@ export function DayCarousel({
       deferred.current = null;
       return;
     }
+    // A held day landing is shown before this commit paints: the day it
+    // replaces may have just become a skeleton, outside the new window.
+    if (machine.landHeld(shownDate)) return;
     // Our own push landing: its end decides. Any other day arriving while it
     // is in flight (Back) is followed at once, and the push is given up.
     if (target.current === shownDate) return;
@@ -307,19 +361,21 @@ export function DayCarousel({
 
   React.useEffect(() => {
     if (navigating || target.current == null) return;
+    const pushed = target.current;
     target.current = null;
     gaveUp.current = false;
     machine.settled();
-    if (shownDate !== viewRef.current) machine.reconcile(shownDate);
+    machine.pushEnded(pushed, shownDate);
   }, [navigating, shownDate, machine]);
 
   // From lg the crossfade commits first and the push follows: one transition
   // carrying both would hold the new day back until the server answered.
+  // Presses made during a view transition commit together after it, so only
+  // the commit of the latest press pushes.
   React.useEffect(() => {
     if (crossfadeTo.current !== view) return;
     crossfadeTo.current = null;
-    const p = panelsRef.current[machine.indexOf(view)];
-    if (p) machine.navigate(p);
+    machine.follow();
   }, [view, machine]);
 
   // These rely on the order each commit runs them in: the insertion effect

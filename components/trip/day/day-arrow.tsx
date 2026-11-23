@@ -40,7 +40,9 @@ export function DayArrow({ href, label, dir }: { href: Route | null; label: stri
       pendingClassName="translate-y-px bg-coral shadow-none"
       onNavigate={(e) => {
         if (!carousel?.isMoving()) recordUsageDayChange("arrow", dayFromPathname(href));
-        if (carousel?.goTo(href)) e.preventDefault();
+        // From the day in view, not this header's: from lg the header redraws
+        // after a press commits, and a tap before that would repeat the last move.
+        if (carousel && (carousel.step(dir === "prev" ? -1 : 1) || carousel.goTo(href))) e.preventDefault();
       }}
     >
       {icon}

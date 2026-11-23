@@ -101,6 +101,15 @@ describe("DayArrow", () => {
     expect(goTo).toHaveBeenCalledWith("/n");
     expect(screen.getByRole("link", { name: "Next day: Sun" }).className).not.toContain("bg-coral");
   });
+  it("steps from the carousel's day in view, so a tap on an arrow the header has not redrawn yet still moves on", () => {
+    const goTo = vi.fn(() => true);
+    const step = vi.fn(() => true);
+    render(<NavigationPendingProvider><DayCarouselContext.Provider value={carousel(goTo, step)}><DayArrow href={"/n" as Route} label="Next day: Sun" dir="next" /><DayArrow href={"/p" as Route} label="Previous day: Fri" dir="prev" /></DayCarouselContext.Provider></NavigationPendingProvider>);
+    fireEvent.click(screen.getByRole("link", { name: "Next day: Sun" }));
+    fireEvent.click(screen.getByRole("link", { name: "Previous day: Fri" }));
+    expect(step.mock.calls).toEqual([[1], [-1]]);
+    expect(goTo).not.toHaveBeenCalled();
+  });
   it("stays a plain link when the carousel does not have the day (AppLink reports the navigation itself)", () => {
     const goTo = vi.fn(() => false);
     render(<NavigationPendingProvider><DayCarouselContext.Provider value={carousel(goTo)}><DayArrow href={"/n" as Route} label="Next day: Sun" dir="next" /></DayCarouselContext.Provider></NavigationPendingProvider>);
