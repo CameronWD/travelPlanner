@@ -52,7 +52,14 @@ function unlock() {
   // router's scroll to the top or to the #anchor ran while the body was fixed
   // and could not scroll. Top is where the unfixed page already is; the
   // anchor has to be redone.
-  if (location.hash) document.getElementById(decodeURIComponent(location.hash.slice(1)))?.scrollIntoView();
+  if (!location.hash) return;
+  let id: string;
+  try {
+    id = decodeURIComponent(location.hash.slice(1));
+  } catch {
+    return; // Not valid percent-encoding: this runs in an unmount, where throwing would reach an error boundary.
+  }
+  document.getElementById(id)?.scrollIntoView();
 }
 
 /*

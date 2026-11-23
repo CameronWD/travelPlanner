@@ -137,5 +137,16 @@ describe("usePageScrollLock", () => {
       expect(() => unmount()).not.toThrow();
       expect(scrollTo).not.toHaveBeenCalled();
     });
+
+    it("a malformed #hash on the new page is ignored, not thrown", () => {
+      const { unmount } = renderHook(() => usePageScrollLock(true));
+      history.pushState(null, "", "/settings#a%zz");
+      expect(() => unmount()).not.toThrow();
+      expect(body().position).toBe("");
+      expect(body().top).toBe("");
+      expect(body().width).toBe("");
+      expect(root().getPropertyValue("overscroll-behavior")).toBe("");
+      expect(scrollTo).not.toHaveBeenCalled();
+    });
   });
 });
