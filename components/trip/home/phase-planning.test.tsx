@@ -115,6 +115,7 @@ vi.mock("@/components/ui/animated-list", () => ({
 const { PLANNING_DESKTOP_GRID_CLASS, PhasePlanning } = await import("./phase-planning");
 const { AnimatedItem } = await import("@/components/ui/animated-list");
 const { RouteMapLoader } = await import("@/components/trip/route-map-loader");
+const { MapFallback } = await import("@/components/trip/route-map-fallback");
 const { UpcomingPaymentsCard } = await import("@/components/trip/upcoming-payments-card");
 
 // Server components aren't run through a renderer here (see file-header note),
@@ -497,6 +498,7 @@ describe("PhasePlanning Playground kit restyle (Task 10b)", () => {
   const DATED = [
     { id: "a", name: "Rome", country: "Italy", lat: 41.9, lng: 12.5, timezone: "Europe/Rome", arriveDate: "2026-01-01", departDate: "2026-01-05", sortOrder: 0 },
   ];
+  const DRAWABLE = [...DATED, { ...DATED[0], id: "b", lat: 43.8, lng: 11.3, arriveDate: "2026-01-06", departDate: "2026-01-08", sortOrder: 1 }];
 
   it("leads the tile grid with the countdown hero, the cover tile beside it (kit DHome grid)", async () => {
     const { CountdownHero } = await import("@/components/trip/home/countdown-hero");
@@ -557,7 +559,7 @@ describe("PhasePlanning Playground kit restyle (Task 10b)", () => {
     });
 
     it("with a cover photo, the cover stays on top and the map stays in the tile row", async () => {
-      stopFindManyMock.mockResolvedValue(DATED);
+      stopFindManyMock.mockResolvedValue(DRAWABLE);
       const tree = await renderWith(true);
       const order = typesInOrder(tree);
       expect(order).toContain("cover-tile");
@@ -578,7 +580,11 @@ describe("PhasePlanning Playground kit restyle (Task 10b)", () => {
         stopFindManyMock.mockResolvedValue(stops);
         const tree = await renderWith(false);
         expect(typesInOrder(tree)).toContain("cover-tile");
-        expect(findElementByType(findByTestId(tree, "planning-tile-row"), RouteMapLoader)!.props.aspect).toBe("4/3");
+        const row = findByTestId(tree, "planning-tile-row");
+        expect(findElementByType(row, RouteMapLoader)).toBeNull();
+        const card = findElementByType(row, MapFallback)!;
+        expect(card.props.stops).toHaveLength(stops.length);
+        expect((findParentOf(row, MapFallback) as unknown as { props: { className: string } }).props.className).toBe("lg:hidden");
       }
     });
 
@@ -690,7 +696,7 @@ describe("PhasePlanning Playground kit restyle (Task 10b)", () => {
 
   it("draws the home map at a 4/3 tile aspect, not a fixed full-width height", async () => {
     stopFindManyMock.mockImplementation((args: { select?: { lat?: boolean } }) =>
-      Promise.resolve(args.select?.lat ? DATED : [{ id: "a", name: "Rome", sortOrder: 0 }]),
+      Promise.resolve(args.select?.lat ? DRAWABLE : [{ id: "a", name: "Rome", sortOrder: 0 }]),
     );
     const tree = await PhasePlanning({
       tripId: "trip-1", userId: "u-viewer", trip: baseTrip, today: "2025-12-01", phase: "planning", coverIsPhoto: true,
@@ -736,7 +742,7 @@ describe("PhasePlanning Playground kit restyle (Task 10b)", () => {
     const { QuickActions } = await import("@/components/trip/home/quick-actions");
     const { CountdownHero } = await import("@/components/trip/home/countdown-hero");
     stopFindManyMock.mockImplementation((args: { select?: { lat?: boolean } }) =>
-      Promise.resolve(args.select?.lat ? DATED : [{ id: "a", name: "Rome", sortOrder: 0 }]),
+      Promise.resolve(args.select?.lat ? DRAWABLE : [{ id: "a", name: "Rome", sortOrder: 0 }]),
     );
     const tree = await PhasePlanning({
       tripId: "trip-1", userId: "u-viewer",
@@ -806,7 +812,7 @@ describe("PhasePlanning Playground kit restyle (Task 10b)", () => {
 
   it("renders the route map bare — it draws its own kit frame, so no Card doubles the outline", async () => {
     stopFindManyMock.mockImplementation((args: { select?: { lat?: boolean } }) =>
-      Promise.resolve(args.select?.lat ? DATED : [{ id: "a", name: "Rome", sortOrder: 0 }]),
+      Promise.resolve(args.select?.lat ? DRAWABLE : [{ id: "a", name: "Rome", sortOrder: 0 }]),
     );
     const { Card } = await import("@/components/ui/card");
     const tree = await render();

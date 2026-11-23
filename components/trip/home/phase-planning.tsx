@@ -15,6 +15,7 @@ import { STILL_TO_BOOK_LIMIT_PHONE } from "@/lib/still-to-book";
 import { BudgetGlance } from "@/components/trip/home/budget-glance";
 import { QuickActions } from "@/components/trip/home/quick-actions";
 import { RouteMapLoader as RouteMap } from "@/components/trip/route-map-loader";
+import { MapFallback } from "@/components/trip/route-map-fallback";
 import { routeMapCanDraw, type RouteMapStop } from "@/lib/route-map";
 import { UpcomingPaymentsCard } from "@/components/trip/upcoming-payments-card";
 import { StatTile } from "@/components/trip/home/stat-tile";
@@ -178,8 +179,13 @@ export async function PhasePlanning({
         <div key="route" className={MAP_HEADER_BOX_CLASS}>
           <RouteMap stops={mapStops} frameClassName="h-full rounded-lg shadow-hard-2" mountWhen="phone" />
         </div>
-      ) : (
+      ) : routeMapCanDraw(mapStops) ? (
         <RouteMap key="route" stops={mapStops} aspect="4/3" mountWhen="phone" />
+      ) : (
+        // The map is phone-only, so the card it would show is drawn here and hidden from lg up.
+        <div key="route" className="lg:hidden">
+          <MapFallback stops={mapStops} />
+        </div>
       )
     ) : (
       // Kit shared/states.jsx "Plan" empty: the route has nothing to draw yet.

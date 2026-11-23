@@ -61,6 +61,7 @@ import { FlagList } from "@/components/trip/flag-list";
 import { MakeItFit } from "@/components/trip/make-it-fit";
 import { RouteMapLoader as RouteMap } from "@/components/trip/route-map-loader";
 import type { RouteMapStop } from "@/components/trip/route-map";
+import { MapFallback } from "@/components/trip/route-map-fallback";
 import type { FitStop } from "@/lib/make-it-fit";
 
 export const metadata: Metadata = { title: "Summary" };
@@ -457,13 +458,13 @@ export default async function SummaryPage({
       {/* ── Route Map ── */}
       <section aria-labelledby="map-heading">
         <SectionHeading id="map-heading" icon={MapPin} title="Route" />
-        {/* RouteMap is client-only via dynamic import; the box is in the server HTML so nothing below moves when it arrives. */}
+        {/* RouteMap is client-only via dynamic import; the box is in the server HTML so nothing below moves when it arrives. A route that cannot draw never needs it: its card is drawn here. */}
         {routeMapCanDraw(mapStops) ? (
           <div className="h-[380px] w-full [&_[data-map-fallback]]:max-h-full [&_[data-map-fallback]]:overflow-y-auto">
             <RouteMap stops={mapStops} frameClassName="h-full rounded-lg shadow-hard-2" home={homeMapPoint(trip)} showReturn={trip.roundTrip ?? false} legPaths={routeLegPaths(datedStops, transports, travel, homePointOf(trip))} />
           </div>
         ) : (
-          <RouteMap stops={mapStops} height={380} home={homeMapPoint(trip)} showReturn={trip.roundTrip ?? false} legPaths={routeLegPaths(datedStops, transports, travel, homePointOf(trip))} />
+          <MapFallback stops={mapStops} />
         )}
       </section>
 

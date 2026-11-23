@@ -740,11 +740,14 @@ describe("SummaryPage — route map space", () => {
     expect(box.className).toContain("[&_[data-map-fallback]]:overflow-y-auto");
   });
 
-  it("a route that cannot draw (one located Stop) gets no fixed-size box, so the short card is not wrapped in empty space", async () => {
+  it("a route that cannot draw (one located Stop) draws its card in the server HTML, not through the lazy map loader", async () => {
     readPlanMock.mockResolvedValue(rowsFrom({ trip: trip(BASE_TRIP), stops: [DATED_STOP] }));
     render(await renderSummary());
-    const box = screen.getByTestId("route-map").parentElement!;
-    expect(box.className).not.toContain("h-[380px]");
-    expect(box.tagName).toBe("SECTION");
+    const section = document.querySelector('section[aria-labelledby="map-heading"]')!;
+    expect(screen.queryByTestId("route-map")).toBeNull();
+    const card = section.querySelector("[data-map-fallback]")!;
+    expect(card.textContent).toContain("Add coordinates to your stops to see the route map.");
+    expect(card.textContent).toContain("Rome");
+    expect(card.parentElement).toBe(section);
   });
 });
