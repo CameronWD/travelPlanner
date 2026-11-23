@@ -1762,6 +1762,32 @@ describe("public/sw.js — the launch page", () => {
     expect(next.response.headers.get("Location")).toBe("https://teepee.example/trips/a");
   });
 
+  it("the any-store lookup throwing is treated as a miss: offline, it redirects to /", async () => {
+    const c = matchingCaches();
+    c.api.match = vi.fn().mockRejectedValue(new Error("storage unavailable")) as never;
+    const { dispatch } = loadServiceWorker({ caches: c.api });
+    globalThis.fetch = vi.fn().mockRejectedValue(new TypeError("offline"));
+    vi.spyOn(console, "warn").mockImplementation(() => {});
+
+    const { response, settled } = await navigate(dispatch, LAUNCH);
+    await settled();
+
+    expect(response.status).toBe(302);
+    expect(response.headers.get("Location")).toBe("https://teepee.example/");
+  });
+
+  it("the any-store lookup throwing is treated as a miss: online, the page is fetched and served", async () => {
+    const c = matchingCaches();
+    c.api.match = vi.fn().mockRejectedValue(new Error("storage unavailable")) as never;
+    const { dispatch } = loadServiceWorker({ caches: c.api });
+    globalThis.fetch = vi.fn().mockResolvedValue(new Response("fresh-launch"));
+
+    const { response, settled } = await navigate(dispatch, LAUNCH);
+    await settled();
+
+    expect(await response.text()).toBe("fresh-launch");
+  });
+
   it("with no launch page anywhere and a hanging network, redirects to / within the navigation timeout", async () => {
     vi.useFakeTimers();
     try {

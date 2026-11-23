@@ -545,7 +545,7 @@ const LAUNCH_HANDOVER_PATH = '/';
 async function launchPage(event) {
   const { request } = event;
   const own = await caches.open(CACHE_NAMES.static).then((cache) => cache.match(request.url)).catch(() => undefined);
-  const cached = own || (await caches.match(request.url));
+  const cached = own || (await caches.match(request.url).catch(() => undefined));
   if (cached) return cached;
 
   const network = fetchAndKeep(event);
