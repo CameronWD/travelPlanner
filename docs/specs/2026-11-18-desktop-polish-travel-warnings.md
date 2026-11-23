@@ -147,7 +147,8 @@ Note: `cmwkhuwmq000208jq3r8l7znl`.
 - Day content changes with a short crossfade (about 150 ms), not the
   page-turn view transition. Reduced motion: no animation.
 - ADR 0063 still holds: the tapped chip lights at once and the page holds
-  until the next is ready.
+  until the next is ready (a single press, or a chip for a far day; a quick run
+  of presses cuts through the days instead).
 - Phone: the strip keeps its current behaviour.
 
 *Amended 2026-11-23.* The owner reported empty space on the left at the top

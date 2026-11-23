@@ -109,11 +109,24 @@ so a day change does not wait for the server. When days are changed quickly
   never queue. Reduced motion always cuts.
 - A navigation that lands after the Traveller has moved on does not take the
   content away from the day on screen: it keeps what an earlier payload sent.
-- A chip for a day the page sent no content for, pressed on its own, holds the
-  current day with the chip lit (and the progress bar after about 300ms) until
-  that day is ready.
+  That kept content is only ever shown to stop the day on screen going blank
+  during a quick run, and is replaced as soon as the navigation lands.
+- A chip for a day the page sent no content for, pressed on its own (not in a
+  quick run), holds the current day with the chip lit (and the progress bar
+  after about 300ms) until that day is ready. A day seen earlier in the session
+  but sent as a placeholder by the current payload holds the same way.
+- While React prepares a view transition it stops dispatching events for the
+  whole document until the transition's update runs, and dropped events are not
+  replayed: a click on a day link in that window would fall through to the
+  browser and load the page. A listener on `window` (bubble phase, so it runs
+  only if nothing handled the click) does what the control would have done and
+  always prevents the default, so a click on a day link never becomes a page
+  load.
+- At the very fastest pace (presses about 90ms apart) a press that lands while a
+  slide is on screen can be dropped by the browser, so a run may end one day
+  short.
 
-Not solved: a quick run more than three days past the loaded window still shows
-placeholders until the server answers. `npm run audit:nav` is stale for the Day
+Not solved: a quick run past the loaded window still shows placeholders until
+the server answers. `npm run audit:nav` is stale for the Day
 view (its checks predate the carousel, ADR 0065) and proves nothing there until
 it is updated.
