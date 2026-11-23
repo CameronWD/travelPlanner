@@ -145,7 +145,7 @@ Screenshots and the raw numbers are in the audit's out dir for this run (`after-
 
 **Tests and build.** On d9e0cb52: `npm test` 985 files and 14,563 tests passed; `npm run build` finished cleanly; `npm run test:integration` 58 files and 298 tests passed. Two small code commits came after that (23165262 and 879eff7b), so these numbers are for d9e0cb52.
 
-_Final run after the last two fixes: to be filled in by the orchestrator_
+**Final run, on the finished branch (5658d52c):** `npm test` 987 files and 14,614 tests passed; `npm run build` finished cleanly; `npm run test:integration` 58 files and 298 tests passed. One earlier full run on the same day had a single failure, `driving-estimates-panel.test.tsx` (typing "1.8" registered as "18"); that is the test already listed on 20 November as failing now and then under load. It passed three times out of three on its own and in the final run, and nothing on this branch touches it.
 
 ### Measured after the main run: the cover preview (S11) and the undrawable-route card (S12)
 
@@ -216,9 +216,7 @@ These were not in the original plan.
 
 ### Found by this check, not fixed
 
-- **A cover photo uploaded before shapes were stored.** The Settings preview reserves a 4:3 box until the photo loads, then takes the photo's own shape, so the form below moves about 40px once on a slow load (0.0043 desktop, 0.0122 phone). Every demo cover is like this. Choosing the photo again stores its shape and removes the move.
 - **The desktop Summary read 0.0236 once** in one of six runs (the whole page moved 34px down about 3.5 seconds after load, not the map), and 0 in the other five. Not found again, so not explained.
-- **The Planning home's card for a route that cannot be drawn** was not seen in a browser: no demo trip is in that state.
 
 ### Launch
 
