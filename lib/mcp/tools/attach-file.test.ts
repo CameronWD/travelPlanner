@@ -80,7 +80,7 @@ describe("attach_file", () => {
   });
 
   it("surfaces the action's error text, partial result included", async () => {
-    m.fileAttachment.mockResolvedValue({ success: false, error: "Attached to 2 of 3. Try the rest again." });
+    m.fileAttachment.mockResolvedValue({ success: false, errors: { _: ["Attached to 2 of 3. Try the rest again."] } });
     const c = await connectTestClient();
     const r = await c.callTool({ name: "attach_file", arguments: { attachmentId: "a1", targets: [{ kind: "TRIP" }] } });
     expect(r.isError).toBe(true);

@@ -36,8 +36,7 @@ export function registerAttachFileTool(server: McpServer): void {
           await requireRealPlanRows(
             targets.flatMap((t): [RealPlanKind, string][] => (t.kind === "TRIP" ? [] : [[PLAN_KIND[t.kind], t.id!]])),
           );
-          const result = await fileAttachment(attachmentId, moves, title);
-          return result.success ? result : { success: false as const, errors: { _: [result.error] } };
+          return fileAttachment(attachmentId, moves, title);
         },
         async ({ tripId, attachmentIds }) => {
           const { attachments } = await loadAttachmentIndexForMcp(tripId);

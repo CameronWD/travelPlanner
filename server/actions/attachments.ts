@@ -430,9 +430,7 @@ export async function moveAttachment(id: string, target: MoveTarget): Promise<Ac
   return { success: true };
 }
 
-type FileAttachmentResult =
-  | { success: true; tripId: string; attachmentIds: string[] }
-  | { success: false; error: string };
+type FileAttachmentResult = ActionResult<{ tripId: string; attachmentIds: string[] }>;
 
 const MAX_FILE_TARGETS = 6;
 
@@ -442,7 +440,7 @@ export async function fileAttachment(
   title?: string,
 ): Promise<FileAttachmentResult> {
   const { attachment, userId } = await requireAttachmentAccess(id);
-  const fail = (error: string): FileAttachmentResult => ({ success: false, error });
+  const fail = (error: string): FileAttachmentResult => formFail(error);
   if (!attachment.tripId) return fail("Only a trip's files can be moved.");
   const tripId = attachment.tripId;
   if (attachment.targetType === "JOURNAL") return fail("Journal photos stay with their day.");

@@ -975,14 +975,14 @@ describe("fileAttachment", () => {
     it("refuses a Globe file", async () => {
       attachmentFindUniqueMock.mockResolvedValue({ ...makeAttachmentRow(), title: null, tripId: null, globeId: "g1" });
       const result = await fileAttachment(ATTACHMENT_ID, [{ type: "TRIP" }]);
-      expect(result).toEqual({ success: false, error: "Only a trip's files can be moved." });
+      expect(result).toEqual({ success: false, errors: { _: ["Only a trip's files can be moved."] } });
       expect(attachmentUpdateMock).not.toHaveBeenCalled();
     });
 
     it("refuses a Journal photo", async () => {
       attachmentFindUniqueMock.mockResolvedValue({ ...makeAttachmentRow({ targetType: "JOURNAL", targetId: "2026-07-10" }), title: null, globeId: null });
       const result = await fileAttachment(ATTACHMENT_ID, [{ type: "TRIP" }]);
-      expect(result).toEqual({ success: false, error: "Journal photos stay with their day." });
+      expect(result).toEqual({ success: false, errors: { _: ["Journal photos stay with their day."] } });
       expect(attachmentUpdateMock).not.toHaveBeenCalled();
     });
 
@@ -990,20 +990,20 @@ describe("fileAttachment", () => {
       itemFindFirstMock.mockResolvedValue({ id: "item-1" });
       const result = await fileAttachment(ATTACHMENT_ID, [{ type: "TRIP" }]);
       expect(itemFindFirstMock).toHaveBeenCalledWith({ where: { photoAttachmentId: ATTACHMENT_ID } });
-      expect(result).toEqual({ success: false, error: "Remove it as the photo first." });
+      expect(result).toEqual({ success: false, errors: { _: ["Remove it as the photo first."] } });
       expect(attachmentUpdateMock).not.toHaveBeenCalled();
     });
 
     it("refuses a target on another trip", async () => {
       requireRowAccessMock.mockResolvedValueOnce({ row: { id: "x", tripId: "trip-2" }, user: { id: "user-1" }, membership: { role: "member" }, surpriseOf: null });
       const result = await fileAttachment(ATTACHMENT_ID, [{ type: "STOP", id: "x" }]);
-      expect(result).toEqual({ success: false, error: "That isn't on this trip." });
+      expect(result).toEqual({ success: false, errors: { _: ["That isn't on this trip."] } });
       expect(attachmentUpdateMock).not.toHaveBeenCalled();
     });
 
     it("refuses an unknown target type", async () => {
       const result = await fileAttachment(ATTACHMENT_ID, [{ type: "COST", id: "c1" } as never]);
-      expect(result).toEqual({ success: false, error: "That isn't on this trip." });
+      expect(result).toEqual({ success: false, errors: { _: ["That isn't on this trip."] } });
       expect(requireRowAccessMock).not.toHaveBeenCalled();
       expect(attachmentUpdateMock).not.toHaveBeenCalled();
     });
@@ -1095,7 +1095,7 @@ describe("fileAttachment", () => {
 
     it("an invalid title fails with the normalizer's error and changes nothing", async () => {
       const result = await fileAttachment(ATTACHMENT_ID, [{ type: "TRIP" }, { type: "STOP", id: "s1" }], "x".repeat(121));
-      expect(result).toEqual({ success: false, error: "Title must be 120 characters or fewer." });
+      expect(result).toEqual({ success: false, errors: { _: ["Title must be 120 characters or fewer."] } });
       expect(attachmentUpdateMock).not.toHaveBeenCalled();
       expect(storageCopyMock).not.toHaveBeenCalled();
       expect(attachmentCreateMock).not.toHaveBeenCalled();
@@ -1104,14 +1104,14 @@ describe("fileAttachment", () => {
 
   it("no targets fails", async () => {
     const result = await fileAttachment(ATTACHMENT_ID, []);
-    expect(result).toEqual({ success: false, error: "Say what to attach it to." });
+    expect(result).toEqual({ success: false, errors: { _: ["Say what to attach it to."] } });
     expect(attachmentUpdateMock).not.toHaveBeenCalled();
   });
 
   it("more than 6 targets fails", async () => {
     const targets = Array.from({ length: 7 }, (_, i) => ({ type: "STOP" as const, id: `s${i}` }));
     const result = await fileAttachment(ATTACHMENT_ID, targets);
-    expect(result).toEqual({ success: false, error: "That's too many at once." });
+    expect(result).toEqual({ success: false, errors: { _: ["That's too many at once."] } });
     expect(requireRowAccessMock).not.toHaveBeenCalled();
     expect(attachmentUpdateMock).not.toHaveBeenCalled();
   });
@@ -1145,7 +1145,7 @@ describe("fileAttachment", () => {
       { type: "TRANSPORT", id: "t1" },
       { type: "TRANSPORT", id: "t2" },
     ]);
-    expect(result).toEqual({ success: false, error: "That isn't on this trip." });
+    expect(result).toEqual({ success: false, errors: { _: ["That isn't on this trip."] } });
     expect(attachmentUpdateMock).not.toHaveBeenCalled();
     expect(storageCopyMock).not.toHaveBeenCalled();
     expect(attachmentCreateMock).not.toHaveBeenCalled();
@@ -1160,7 +1160,7 @@ describe("fileAttachment", () => {
       { type: "TRANSPORT", id: "t2" },
       { type: "TRANSPORT", id: "t3" },
     ]);
-    expect(result).toEqual({ success: false, error: "Attached to 2 of 3. Try the rest again." });
+    expect(result).toEqual({ success: false, errors: { _: ["Attached to 2 of 3. Try the rest again."] } });
     expect(attachmentUpdateMock).toHaveBeenCalledWith({ where: { id: ATTACHMENT_ID }, data: { targetType: "TRANSPORT", targetId: "t1" } });
     expect(copyCreates()).toHaveLength(1);
     expect(copyCreates()[0]).toMatchObject({ targetId: "t2" });
@@ -1179,7 +1179,7 @@ describe("fileAttachment", () => {
       { type: "TRANSPORT", id: "t3" },
     ]);
     expect(checkQuotaMock).toHaveBeenCalledWith({ tripId: TRIP_ID, size: 2048 });
-    expect(result).toEqual({ success: false, error: quotaError });
+    expect(result).toEqual({ success: false, errors: { _: [quotaError] } });
     expect(attachmentUpdateMock).not.toHaveBeenCalled();
     expect(storageCopyMock).not.toHaveBeenCalled();
   });
