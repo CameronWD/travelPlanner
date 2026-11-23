@@ -21,11 +21,11 @@ describe("CoverRouteSnapshot", () => {
     expect((container.firstElementChild as HTMLElement).className).toContain("bg-map-fill");
     expect(screen.queryByTestId("fallback")).toBeNull();
   });
-  it("shows the chip on the hero size only", () => {
+  it("shows the chip on both sizes", () => {
     const { rerender } = render(<CoverRouteSnapshot src="/map.png" chip="+ Bali" size="hero" fallback={fallback} />);
     expect(screen.getByText("+ Bali")).toBeInTheDocument();
     rerender(<CoverRouteSnapshot src="/map.png" chip="+ Bali" size="small" fallback={fallback} />);
-    expect(screen.queryByText("+ Bali")).toBeNull();
+    expect(screen.getByText("+ Bali")).toBeInTheDocument();
   });
   it("falls back when the image errors", () => {
     const { container } = render(<CoverRouteSnapshot src="/map.png" chip="+ Bali" size="hero" fallback={fallback} />);

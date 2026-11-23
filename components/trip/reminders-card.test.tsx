@@ -462,6 +462,8 @@ describe("RemindersCard Reminder row on a phone", () => {
     const cls = rowOf("Pack").className;
     expect(cls).toMatch(/\bflex-col\b/);
     expect(cls).toMatch(/\bmd:grid\b/);
+    expect(cls).toContain("md:grid-cols-[minmax(0,auto)_1fr_auto_auto]");
+    expect(screen.getByText("Pack").className).toMatch(/\bmd:min-w-0\b/);
     expect(screen.getByText("Pack").closest("li")!.querySelector("[data-reminder-foot]")!.className).toMatch(/\bmd:contents\b/);
   });
 

@@ -8,8 +8,8 @@ import { decodeSnapshotPins, SNAPSHOT_SIZE, type SnapshotShape } from "@/lib/tri
  * GET /api/trips/:tripId/route-snapshot?shape=<tall|square|band>&p=<pins>
  *
  * Draws the pins the URL carries as a Google static map. The page chooses the
- * pins (it already hides Stops a viewer must not see), so this route never
- * reads Stops: it only checks the caller is a member of the Trip.
+ * pins and the route never reads Stops, so it can draw nothing the caller did
+ * not send. It only checks the caller is a member of the Trip.
  */
 const NO_STORE = { "Cache-Control": "no-store" };
 

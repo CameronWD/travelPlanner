@@ -9,7 +9,7 @@ export interface CoverRouteSnapshotProps {
   fallback: React.ReactNode;
 }
 
-export function CoverRouteSnapshot({ src, chip, size, fallback }: CoverRouteSnapshotProps) {
+export function CoverRouteSnapshot({ src, chip, fallback }: CoverRouteSnapshotProps) {
   const [failed, setFailed] = React.useState(false);
   const [prevSrc, setPrevSrc] = React.useState(src);
   if (src !== prevSrc) {
@@ -28,7 +28,7 @@ export function CoverRouteSnapshot({ src, chip, size, fallback }: CoverRouteSnap
     <div className="relative size-full bg-map-fill">
       {/* eslint-disable-next-line @next/next/no-img-element */}
       <img ref={markIfBroken} src={src} alt="" onError={() => setFailed(true)} className="absolute inset-0 size-full object-cover" />
-      {chip && size === "hero" ? (
+      {chip ? (
         <span className="absolute bottom-[5px] left-[5px] whitespace-nowrap shrink-0 rounded-full border-[1.5px] border-border bg-card px-[6px] py-px text-[9px] font-extrabold text-foreground">
           {chip}
         </span>

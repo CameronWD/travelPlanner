@@ -349,7 +349,7 @@ export function Tile({ icon: I, className, large }: { icon: LucideIcon | undefin
 
 export const NEUTRAL_TILE = "bg-background text-foreground";
 /** Day view (large) rows colour by idea (HOME.md §0): sun = transport, lilac = a stay. */
-export const TRANSPORT_TILE_LARGE = "island bg-sun text-on-accent";
+const TRANSPORT_TILE_LARGE = "island bg-sun text-on-accent";
 const STAY_TILE_LARGE = "island bg-lilac text-on-accent";
 
 function ItemTile({ category, large }: { category: Category; large?: boolean }) {

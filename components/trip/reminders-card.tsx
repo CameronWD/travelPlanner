@@ -246,9 +246,9 @@ function ReminderRow({
 
   return (
     <li
-      className={`flex min-w-0 flex-col gap-y-1 py-2 md:grid md:grid-cols-[auto_1fr_auto_auto] md:items-start md:gap-x-3 md:gap-y-0 [&_p]:max-w-prose${reminder.past ? " opacity-60" : ""}`}
+      className={`flex min-w-0 flex-col gap-y-1 py-2 md:grid md:grid-cols-[minmax(0,auto)_1fr_auto_auto] md:items-start md:gap-x-3 md:gap-y-0 [&_p]:max-w-prose${reminder.past ? " opacity-60" : ""}`}
     >
-      <p className="break-words text-sm font-medium text-foreground md:col-start-1 md:row-start-1">{reminder.title}</p>
+      <p className="break-words text-sm font-medium text-foreground md:min-w-0 md:col-start-1 md:row-start-1">{reminder.title}</p>
       <div data-reminder-foot className="flex flex-wrap items-center gap-x-1.5 gap-y-1 md:contents">
         {about && (
           <span className="inline-flex items-center rounded-full border-2 border-border bg-card px-2 py-0.5 text-[10px] font-extrabold text-muted-foreground md:col-start-2 md:row-start-1 md:-ml-1.5 md:self-center md:justify-self-start">
