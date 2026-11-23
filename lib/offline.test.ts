@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { cacheStrategyFor, isNextStaticAsset, isApiRoute, isAttachmentRoute, isCoverRoute, tripOfflinePaths, MAX_WARM_DAYS, MAX_WARM_ATTACHMENT_BYTES, MAX_WARM_TRIP_BYTES, warmDayDates, isWarmFresh, isConstrainedConnection, WARM_FRESH_MS, isRouterRequest, cacheStoreFor, cacheNames, CACHE_ENTRY_LIMITS, evictionCount, staleCacheNames, isPinnedCacheEntry, nextBuildMeta, META_CACHE_NAME, storableResponse, isServableCacheHit, asksForBytes, OFFLINE_BYTES_PARAM, warmUrlFor, fileCacheKey, pickOfflineStart, isCachedTripHome, lastTripMessagePath, LAST_TRIP_PATH, NAVIGATION_TIMEOUT_MS, SAVED_COPY_HEADER, SAVED_COPY_MESSAGE, isServerFailure, savedCopyResponse, savedCopyMessage, assetUrlsIn, WAS_SAVED_COPY_MESSAGE, SAVED_COPY_RECORD_TTL_MS, SAVED_COPY_RECORD_LIMIT, withSavedCopyRecord, withoutSavedCopyRecord, wasSavedCopy, wasSavedCopyQueryPath, shouldStoreResponse, queryFallbackPath, cacheKeyFor, signOutCacheNames } from './offline';
+import { cacheStrategyFor, isNextStaticAsset, isApiRoute, isAttachmentRoute, isCoverRoute, tripOfflinePaths, MAX_WARM_DAYS, MAX_WARM_ATTACHMENT_BYTES, MAX_WARM_TRIP_BYTES, warmDayDates, isWarmFresh, isConstrainedConnection, WARM_FRESH_MS, isRouterRequest, cacheStoreFor, cacheNames, CACHE_ENTRY_LIMITS, evictionCount, staleCacheNames, isPinnedCacheEntry, nextBuildMeta, META_CACHE_NAME, storableResponse, isServableCacheHit, asksForBytes, OFFLINE_BYTES_PARAM, warmUrlFor, fileCacheKey, pickOfflineStart, isCachedTripHome, lastTripMessagePath, LAST_TRIP_PATH, NAVIGATION_TIMEOUT_MS, SAVED_COPY_HEADER, SAVED_COPY_MESSAGE, isServerFailure, savedCopyResponse, savedCopyMessage, assetUrlsIn, WAS_SAVED_COPY_MESSAGE, SAVED_COPY_RECORD_TTL_MS, SAVED_COPY_RECORD_LIMIT, withSavedCopyRecord, withoutSavedCopyRecord, wasSavedCopy, wasSavedCopyQueryPath, shouldStoreResponse, queryFallbackPath, cacheKeyFor, signOutCacheNames, isLaunchPage, PRECACHED_PATHS } from './offline';
 import { RESERVED_TRIP_SLUGS } from './trip-slug';
 
 // ---------------------------------------------------------------------------
@@ -406,6 +406,7 @@ describe('service-worker cache bounds (spec 2026-10-06 §T)', () => {
   it('sorts requests into three stores', () => {
     expect(cacheStoreFor(`${origin}/_next/static/chunks/a.js`)).toBe('static');
     expect(cacheStoreFor(`${origin}/offline.html`)).toBe('static');
+    expect(cacheStoreFor(`${origin}/launch.html`)).toBe('static');
     expect(cacheStoreFor(`${origin}/api/attachments/a1`)).toBe('files');
     expect(cacheStoreFor(`${origin}/api/trips/t1/cover?v=k&w=480`)).toBe('files');
     expect(cacheStoreFor(`${origin}/trips/x/plan`)).toBe('pages');
@@ -422,8 +423,9 @@ describe('service-worker cache bounds (spec 2026-10-06 §T)', () => {
     expect(evictionCount(5000, null)).toBe(0);
   });
 
-  it('never evicts the offline page', () => {
+  it('never evicts the offline page or the launch page', () => {
     expect(isPinnedCacheEntry(`${origin}/offline.html`)).toBe(true);
+    expect(isPinnedCacheEntry(`${origin}/launch.html`)).toBe(true);
     expect(isPinnedCacheEntry(`${origin}/_next/static/chunks/a.js`)).toBe(false);
   });
 
@@ -745,5 +747,29 @@ describe('signOutCacheNames', () => {
 
   it('deletes nothing when only the kept stores exist', () => {
     expect(signOutCacheNames(['teepee-static-b1', META_CACHE_NAME], 'b1')).toEqual([]);
+  });
+});
+
+describe('the launch page (manifest start_url)', () => {
+  const origin = 'https://teepee.example';
+  const get = (url: string) => cacheStrategyFor({ method: 'GET', url, sameOrigin: true, routerRequest: false });
+
+  it('is recognised by its path alone', () => {
+    expect(isLaunchPage(`${origin}/launch.html`)).toBe(true);
+    expect(isLaunchPage(`${origin}/launch.html?x=1`)).toBe(true);
+    expect(isLaunchPage(`${origin}/trips/launch.html`)).toBe(false);
+    expect(isLaunchPage('not a url')).toBe(false);
+  });
+
+  it('is cache-first, never the private network-first navigation', () => {
+    expect(get(`${origin}/launch.html`)).toBe('cache-first');
+    expect(get(`${origin}/offline.html`)).toBe('network-first');
+    expect(get(`${origin}/`)).toBe('network-first');
+    expect(get(`${origin}/trips`)).toBe('network-first');
+    expect(cacheStrategyFor({ method: 'POST', url: `${origin}/launch.html`, sameOrigin: true, routerRequest: false })).toBe('network-only');
+  });
+
+  it('is precached beside the offline page', () => {
+    expect(PRECACHED_PATHS).toEqual(['/offline.html', '/launch.html']);
   });
 });

@@ -1437,11 +1437,13 @@ describe("public/sw.js — an unsaved query falls back to the saved page (ADR 00
 describe("public/sw.js — sign-out keeps the offline page", () => {
   const navigation = (url: string) => ({ url, method: "GET", mode: "navigate", headers: new Headers() });
   const OFFLINE_PAGE = "https://teepee.example/offline.html";
+  const LAUNCH_PAGE = "https://teepee.example/launch.html";
 
   async function signedInCaches() {
     const c = matchingCaches();
     const statics = await c.api.open("teepee-static-b1");
     await statics.put(new Request(OFFLINE_PAGE), new Response("offline-page"));
+    await statics.put(new Request(LAUNCH_PAGE), new Response("launch-page"));
     await statics.put(new Request("https://teepee.example/_next/static/chunks/a.js"), new Response("js"));
     await (await c.api.open("teepee-static-b0")).put(new Request("https://teepee.example/_next/static/chunks/old.js"), new Response("js"));
     await (await c.api.open("teepee-pages-v1")).put(new Request("https://teepee.example/trips/a"), new Response("trip-home"));
@@ -1470,14 +1472,14 @@ describe("public/sw.js — sign-out keeps the offline page", () => {
     expect(await response.text()).toBe("offline-page");
   });
 
-  it("clears every private entry and keeps only the offline page and the build record", async () => {
+  it("clears every private entry and keeps only the offline page, the launch page and the build record", async () => {
     const c = await signedInCaches();
     const { dispatch } = loadServiceWorker({ caches: c.api });
 
     await dispatch("message", { data: { type: "CLEAR_CACHE" } });
 
     expect([...c.stores.keys()].sort()).toEqual([META_CACHE_NAME, "teepee-static-b1"]);
-    expect(c.stores.get("teepee-static-b1")!.keys.map((k) => k.url)).toEqual([OFFLINE_PAGE]);
+    expect(c.stores.get("teepee-static-b1")!.keys.map((k) => k.url)).toEqual([OFFLINE_PAGE, LAUNCH_PAGE]);
     const meta = c.stores.get(META_CACHE_NAME)!;
     expect(meta.keys.map((k) => new URL(k.url).pathname)).toEqual([BUILD_META_PATH]);
     expect(await meta.bodies.get(`https://teepee.example${BUILD_META_PATH}`)!.json()).toEqual({ build: "b1", previous: "b0" });
@@ -1493,7 +1495,7 @@ describe("public/sw.js — sign-out keeps the offline page", () => {
 
     await dispatch("message", { data: { type: "CLEAR_CACHE" } });
 
-    expect(addAll).toHaveBeenCalledWith(["/offline.html"]);
+    expect(addAll).toHaveBeenCalledWith(["/offline.html", "/launch.html"]);
     expect(c.stores.has("teepee-pages-v1")).toBe(false);
   });
 
@@ -1670,5 +1672,77 @@ describe("public/sw.js — the redirect to a saved page (R1-8)", () => {
     expect(SW_SOURCE).toContain("function redirectToSavedTrip(path) {");
     expect(SW_SOURCE).not.toContain("redirect.savedCopy");
     expect(SW_SOURCE).toContain("function cacheKeyFor(request) {\n  if (cacheStoreFor(request.url) !== 'files') return request;\n  const key = fileCacheKey(request.url);\n  return key === request.url ? request : key;\n}");
+  });
+});
+
+describe("public/sw.js — the launch page", () => {
+  const navigation = (url: string) => ({ url, method: "GET", mode: "navigate", headers: new Headers() });
+  const LAUNCH = "https://teepee.example/launch.html";
+
+  async function navigate(dispatch: (type: string, event: Record<string, unknown>) => Promise<unknown>, url: string) {
+    let answered: Promise<Response> | undefined;
+    const waits: Promise<unknown>[] = [];
+    dispatch("fetch", { request: navigation(url), respondWith: (p: Promise<Response>) => { answered = p; }, waitUntil: (p: Promise<unknown>) => waits.push(p) });
+    return { response: await answered!, settled: () => Promise.all(waits) };
+  }
+
+  it("precaches /launch.html beside /offline.html", () => {
+    expect(SW_SOURCE).toContain("const PRECACHE_URLS = ['/offline.html', '/launch.html'];");
+    expect(SW_SOURCE).toContain("function isLaunchPage(url) {\n  try {\n    return new URL(url).pathname === '/launch.html';");
+    expect(SW_SOURCE).toContain("if (isLaunchPage(url)) return 'cache-first';");
+  });
+
+  it("answers from this build's static store without touching the network, and without a saved-copy mark", async () => {
+    const c = matchingCaches();
+    await (await c.api.open("teepee-static-b0")).put(new Request(LAUNCH), new Response("old-launch"));
+    await (await c.api.open("teepee-static-b1")).put(new Request(LAUNCH), new Response("new-launch"));
+    const { dispatch } = loadServiceWorker({ caches: c.api });
+    globalThis.fetch = vi.fn().mockRejectedValue(new TypeError("offline"));
+
+    const { response } = await navigate(dispatch, LAUNCH);
+
+    expect(await response.text()).toBe("new-launch");
+    expect(response.headers.get("X-Teepee-Saved-Copy")).toBeNull();
+    expect(globalThis.fetch).not.toHaveBeenCalled();
+  });
+
+  it("fetches and keeps it in the static store when this build has none yet", async () => {
+    const c = matchingCaches();
+    const { dispatch } = loadServiceWorker({ caches: c.api });
+    globalThis.fetch = vi.fn().mockResolvedValue(new Response("fresh-launch"));
+
+    const { response, settled } = await navigate(dispatch, LAUNCH);
+    await settled();
+
+    expect(await response.text()).toBe("fresh-launch");
+    expect(c.stores.get("teepee-static-b1")!.keys.map((k) => k.url)).toEqual([LAUNCH]);
+    expect(c.stores.has("teepee-pages-v1")).toBe(false);
+  });
+
+  it("offline, the hand-over to / still redirects to the saved Trip as before", async () => {
+    const c = matchingCaches();
+    await (await c.api.open("teepee-pages-v1")).put(new Request("https://teepee.example/trips/a"), new Response("trip-home"));
+    const { dispatch } = loadServiceWorker({ caches: c.api });
+    globalThis.fetch = vi.fn().mockRejectedValue(new TypeError("offline"));
+    vi.spyOn(console, "warn").mockImplementation(() => {});
+
+    const { response } = await navigate(dispatch, "https://teepee.example/");
+
+    expect(response.status).toBe(302);
+    expect(response.headers.get("Location")).toBe("https://teepee.example/trips/a");
+  });
+
+  it("is never trimmed out of the static store", async () => {
+    const c = matchingCaches();
+    const statics = await c.api.open("teepee-static-b1");
+    await statics.put(new Request(LAUNCH), new Response("launch"));
+    for (let i = 0; i < 305; i++) await statics.put(new Request(`https://teepee.example/_next/static/chunks/${i}.js`), new Response("js"));
+    const { dispatch } = loadServiceWorker({ caches: c.api });
+    globalThis.fetch = vi.fn().mockResolvedValue(new Response("js"));
+
+    const { settled } = await navigate(dispatch, "https://teepee.example/_next/static/chunks/new.js");
+    await settled();
+
+    expect(c.stores.get("teepee-static-b1")!.keys.map((k) => k.url)).toContain(LAUNCH);
   });
 });
