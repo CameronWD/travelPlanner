@@ -246,4 +246,23 @@ describe("CoverImageField", () => {
       expect(marker.style.top).toBe("60%");
     });
   });
+
+  describe("preview box", () => {
+    const previewImg = (c: HTMLElement) => c.querySelector("img") as HTMLImageElement;
+
+    it("carries the stored aspect from the first render", () => {
+      const { container } = render(<CoverImageField tripId="t1" hasCover aspect={0.75} />);
+      expect(previewImg(container).style.aspectRatio).toBe("0.75 / 1");
+    });
+
+    it("falls back to 4/3 when the stored aspect is null", () => {
+      const { container } = render(<CoverImageField tripId="t1" hasCover aspect={null} />);
+      expect(previewImg(container).style.aspectRatio).toBe("4 / 3");
+    });
+
+    it("shows no preview without a cover", () => {
+      const { container } = render(<CoverImageField tripId="t1" hasCover={false} aspect={1.5} />);
+      expect(container.querySelector("img")).toBeNull();
+    });
+  });
 });

@@ -19,7 +19,11 @@ export interface CoverImageFieldProps {
   /** Trip.coverFocalX / coverFocalY — 0–1; null = centre. */
   focalX?: number | null;
   focalY?: number | null;
+  /** Trip.coverAspect — width/height; the preview reserves its shape before the photo arrives. */
+  aspect?: number | null;
 }
+
+const COVER_FALLBACK_ASPECT = "4 / 3";
 
 /** The real picker, visually hidden; the Field's label and the Choose photo button both reach it. */
 function HiddenCoverInput({
@@ -46,7 +50,7 @@ function HiddenCoverInput({
   );
 }
 
-export function CoverImageField({ tripId, hasCover, coverVersion, focalX, focalY }: CoverImageFieldProps) {
+export function CoverImageField({ tripId, hasCover, coverVersion, focalX, focalY, aspect }: CoverImageFieldProps) {
   const [isPending, startTransition] = useTransition();
   const [working, setWorking] = React.useState<"upload" | "remove" | "focal" | null>(null);
   // Optimistic marker: moves on click, before the action's revalidation brings the saved point back.
@@ -149,6 +153,7 @@ export function CoverImageField({ tripId, hasCover, coverVersion, focalX, focalY
               src={`/api/trips/${tripId}/cover${coverVersion ? `?v=${encodeURIComponent(coverVersion)}` : ""}`}
               alt=""
               className="block h-auto w-full"
+              style={{ aspectRatio: aspect ?? COVER_FALLBACK_ASPECT }}
             />
             <span
               data-testid="cover-focal-marker"

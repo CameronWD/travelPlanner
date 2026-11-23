@@ -85,6 +85,7 @@ export default async function SettingsPage({
       coverImageKey: true,
       coverFocalX: true,
       coverFocalY: true,
+      coverAspect: true,
       homeCurrency: true,
       homeName: true,
       homeTimezone: true,
@@ -162,6 +163,7 @@ export default async function SettingsPage({
                   coverVersion={trip.coverImageKey}
                   focalX={trip.coverFocalX}
                   focalY={trip.coverFocalY}
+                  aspect={trip.coverAspect}
                 />
               </div>
               <TripDetailsForm
