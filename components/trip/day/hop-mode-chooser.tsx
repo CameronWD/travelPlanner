@@ -42,6 +42,7 @@ export function HopModeChooser({ fromItemId, toItemId, mode, modeSetByHand }: Ho
     <DropdownMenu>
       <DropdownMenuTrigger
         disabled={isPending}
+        aria-busy={isPending || undefined}
         aria-label={`How this hop is travelled: ${current ? HOP_MODE_LABEL[current] : "Automatic"}`}
         className="tap-target inline-flex shrink-0 items-center gap-1 rounded-md border-2 border-border bg-card px-2 py-0.5 text-xs font-bold focus-visible:outline-[3px] focus-visible:outline-offset-2 focus-visible:outline-ring disabled:opacity-50"
       >

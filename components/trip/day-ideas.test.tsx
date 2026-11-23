@@ -17,6 +17,27 @@ import { scheduleItem } from "@/server/actions/items";
 import { toast } from "@/components/ui/use-toast";
 
 describe("DayIdeas", () => {
+  it("while scheduling, the pressed button says it is working and a second click does nothing", async () => {
+    vi.mocked(scheduleItem).mockClear();
+    vi.mocked(scheduleItem).mockReturnValueOnce(new Promise(() => {}));
+    render(
+      <DayIdeas
+        tripId="t1"
+        date="2026-12-09"
+        thingsToDo={[]}
+        wishlistIdeas={[
+          { id: "w1", title: "Marienplatz", category: "ATTRACTION", distanceKm: 0.4, reason: "nearby" },
+        ]}
+      />,
+    );
+    const btn = screen.getByRole("button", { name: /add marienplatz/i });
+    await userEvent.click(btn);
+    expect(btn).toHaveAttribute("aria-busy", "true");
+    expect(btn).toBeDisabled();
+    await userEvent.click(btn);
+    expect(scheduleItem).toHaveBeenCalledTimes(1);
+  });
+
   it("renders the stop's things to do and wishlist ideas with add buttons", () => {
     render(
       <DayIdeas

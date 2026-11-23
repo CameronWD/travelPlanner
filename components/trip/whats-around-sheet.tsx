@@ -205,8 +205,8 @@ export function WhatsAroundSheet({ tripId, date, dateLabel, stopId, startPoints,
                           <span className="block text-[13px] text-muted-foreground">{meta.join(" · ")}</span>
                         </span>
                         <span className="flex gap-2">
-                          <button type="button" aria-label={dayDone ? `Added ${p.name} to ${dateLabel}` : `+ Day: add ${p.name} to ${dateLabel}`} disabled={pending !== null || dayDone} onClick={() => save(p, "day")} className={actionClass}>{dayDone ? "Added" : "+ Day"}</button>
-                          <button type="button" aria-label={wishDone ? `Saved ${p.name} to the Wishlist` : `♡ Wishlist: save ${p.name}`} disabled={pending !== null || wishDone} onClick={() => save(p, "wishlist")} className={actionClass}>{wishDone ? "Saved" : "♡ Wishlist"}</button>
+                          <button type="button" aria-label={dayDone ? `Added ${p.name} to ${dateLabel}` : `+ Day: add ${p.name} to ${dateLabel}`} disabled={pending !== null || dayDone} aria-busy={pending === `${p.placeId}|day` || undefined} onClick={() => save(p, "day")} className={actionClass}>{dayDone ? "Added" : "+ Day"}</button>
+                          <button type="button" aria-label={wishDone ? `Saved ${p.name} to the Wishlist` : `♡ Wishlist: save ${p.name}`} disabled={pending !== null || wishDone} aria-busy={pending === `${p.placeId}|wishlist` || undefined} onClick={() => save(p, "wishlist")} className={actionClass}>{wishDone ? "Saved" : "♡ Wishlist"}</button>
                         </span>
                       </li>
                     );

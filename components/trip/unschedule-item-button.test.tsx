@@ -4,7 +4,7 @@
  * mode-aware undo toast (P1-5 UI half).
  */
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { render, screen, waitFor, cleanup } from "@testing-library/react";
+import { render, screen, waitFor, cleanup, fireEvent } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 
 const refreshMock = vi.fn();
@@ -75,6 +75,19 @@ describe("UnscheduleItemButton", () => {
     expect(label.tagName).toBe("SPAN");
     expect(label.className).toContain("hidden");
     expect(label.className).toContain("sm:inline");
+  });
+
+  it("says it is working while unscheduleItem is unresolved and ignores a second click", async () => {
+    unscheduleItemMock.mockReturnValue(new Promise(() => {}));
+    render(
+      <UnscheduleItemButton itemId="placed-1" itemTitle="Colosseum" date="2026-07-02" startTime={null} endTime={null} />,
+    );
+    const button = screen.getByRole("button", { name: /unschedule/i });
+    fireEvent.click(button);
+    await waitFor(() => expect(button).toHaveAttribute("aria-busy", "true"));
+    expect(button).toBeDisabled();
+    fireEvent.click(button);
+    expect(unscheduleItemMock).toHaveBeenCalledTimes(1);
   });
 
   it("placement-removed: undo re-schedules the SOURCE idea", async () => {

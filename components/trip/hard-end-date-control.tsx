@@ -32,10 +32,13 @@ export function HardEndDateControl({ tripId, hardEndDate, startDate, label }: Ha
   const [editing, setEditing] = React.useState(false);
   const [value, setValue] = React.useState(hardEndDate ?? "");
   const [isPending, startTransition] = useTransition();
+  const [clearing, setClearing] = React.useState(false);
 
   function commit(next: string | null) {
+    setClearing(next === null);
     startTransition(async () => {
       const r = await setTripHardEndDate(tripId, next);
+      setClearing(false);
       if (!r.success) {
         toast({ variant: "destructive", title: firstErrorMessage(r, "Couldn’t update the home-by date.") });
       } else {
@@ -77,14 +80,14 @@ export function HardEndDateControl({ tripId, hardEndDate, startDate, label }: Ha
       <Button
         size="sm"
         variant="primary"
-        loading={isPending}
+        loading={isPending && !clearing}
         disabled={isPending || value === "" || value === (hardEndDate ?? "")}
         onClick={() => commit(value)}
       >
         Save
       </Button>
       {hardEndDate && (
-        <Button size="sm" variant="ghost" disabled={isPending} onClick={() => commit(null)}>
+        <Button size="sm" variant="ghost" disabled={isPending} loading={clearing} onClick={() => commit(null)}>
           Clear
         </Button>
       )}

@@ -81,6 +81,7 @@ export function GlobeSuggestionsStrip({
               size="l"
               onClick={() => handleAdd(marker)}
               disabled={pending === marker.id}
+              aria-busy={pending === marker.id || undefined}
               aria-label={`Add ${marker.title}`}
               touch
             >

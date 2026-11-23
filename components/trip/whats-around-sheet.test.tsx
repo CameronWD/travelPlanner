@@ -73,6 +73,17 @@ describe("WhatsAroundSheet", () => {
     }));
     await waitFor(() => expect(toast).toHaveBeenCalledWith(expect.objectContaining({ title: "Added to Sat 12 Dec" })));
   });
+  it("+ Day says it is working while the add is unresolved and ignores a second click", async () => {
+    createItem.mockReturnValue(new Promise(() => {}));
+    setup();
+    await screen.findByText("Cathédrale");
+    const day = screen.getByRole("button", { name: "+ Day: add Cathédrale to Sat 12 Dec" });
+    fireEvent.click(day);
+    await waitFor(() => expect(day).toHaveAttribute("aria-busy", "true"));
+    expect(day).toBeDisabled();
+    fireEvent.click(day);
+    expect(createItem).toHaveBeenCalledTimes(1);
+  });
   it("+ Day on a Gap day sends no stopId", async () => {
     setup({ stopId: null });
     await screen.findByText("Cathédrale");

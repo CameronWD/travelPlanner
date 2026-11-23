@@ -114,7 +114,7 @@ export function DayIdeas({
                   variant="secondary"
                   size="md"
                   aria-label={`Add ${thing.title} to today`}
-                  disabled={pendingId === thing.id}
+                  loading={pendingId === thing.id}
                   className="shrink-0"
                   onClick={() =>
                     addToToday(thing.id, thing.title, () =>
@@ -169,7 +169,7 @@ export function DayIdeas({
                   variant="secondary"
                   size="md"
                   aria-label={`Add ${idea.title} to today`}
-                  disabled={pendingId === idea.id}
+                  loading={pendingId === idea.id}
                   className="shrink-0"
                   onClick={() =>
                     addToToday(idea.id, idea.title, () => scheduleItem(idea.id, { date }))

@@ -36,6 +36,17 @@ describe("DayIdeasRows", () => {
     fireEvent.click(screen.getByRole("button", { name: "Add Kehl bridge to Sat 12 Dec" }));
     await waitFor(() => expect(scheduleItem).toHaveBeenCalledWith("d", { date: "2026-12-12" }));
   });
+  it("the pressed add says it is working while scheduleItem is unresolved and ignores a second click", async () => {
+    scheduleItem.mockClear();
+    scheduleItem.mockReturnValueOnce(new Promise(() => {}));
+    render(<DayIdeasRows tripId="t1" date="2026-12-12" dateLabel="Sat 12 Dec" rows={rows} eyebrow="x" size="desktop" />);
+    const btn = screen.getByRole("button", { name: "Add Cathédrale to Sat 12 Dec" });
+    fireEvent.click(btn);
+    await waitFor(() => expect(btn).toHaveAttribute("aria-busy", "true"));
+    expect(btn).toBeDisabled();
+    fireEvent.click(btn);
+    expect(scheduleItem).toHaveBeenCalledTimes(1);
+  });
   it("phone: the add control is a 44px square", () => {
     render(<DayIdeasRows tripId="t1" date="2026-12-12" dateLabel="Sat 12 Dec" rows={rows} eyebrow="IDEAS FOR STRASBOURG" size="phone" />);
     expect(screen.getByRole("button", { name: "Add Cathédrale to Sat 12 Dec" }).className).toContain("size-11");

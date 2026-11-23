@@ -100,6 +100,7 @@ export function NotificationBell({ tripId, unreadCount, recent }: Props) {
             type="button"
             onClick={handleMarkAllRead}
             disabled={isPending || unreadCount === 0}
+            aria-busy={isPending || undefined}
             className="grid h-11 place-items-center rounded-full px-3 text-[13px] font-bold text-foreground hover:bg-muted disabled:cursor-not-allowed disabled:text-muted-foreground disabled:hover:bg-transparent"
           >
             Mark all read

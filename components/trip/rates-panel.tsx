@@ -116,6 +116,7 @@ function RateRow({
   const initialInput = entry.rate === null ? "" : inverted ? formatRate(1 / entry.rate) : String(entry.rate);
   const [rateInput, setRateInput] = React.useState(initialInput);
   const [saving, setSaving] = React.useState(false);
+  const [clearing, setClearing] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
 
   async function handleSetManual(e: React.FormEvent) {
@@ -140,10 +141,12 @@ function RateRow({
 
   async function handleClearManual() {
     setSaving(true);
+    setClearing(true);
     try {
       await clearManualRate(tripId, entry.currency, homeCurrency);
     } finally {
       setSaving(false);
+      setClearing(false);
     }
   }
 
@@ -178,6 +181,7 @@ function RateRow({
               aria-label={`Clear manual rate for ${entry.currency}`}
               onClick={handleClearManual}
               disabled={saving}
+              loading={clearing}
             >
               <Unlock className="size-3.5" aria-hidden="true" />
             </Button>
@@ -288,6 +292,7 @@ export function RatesPanel({ tripId, homeCurrency, rates }: RatesPanelProps) {
           className={cn("shrink-0 gap-1.5", refreshing && "opacity-70")}
           onClick={handleRefresh}
           disabled={refreshing}
+          aria-busy={refreshing || undefined}
           aria-label="Refresh all rates"
         >
           <RefreshCw className={cn("size-3.5", refreshing && "animate-spin")} aria-hidden="true" />

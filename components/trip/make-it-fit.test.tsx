@@ -80,6 +80,37 @@ describe("MakeItFit", () => {
     await waitFor(() => expect(deleteStop).toHaveBeenCalledWith("a"));
   });
 
+  it("Apply trim says it is working and ignores a second click while the save is unresolved", async () => {
+    setStopNights.mockReturnValue(new Promise(() => {}));
+    render(<MakeItFit tripId="t1" stops={overStops} anchor="2026-07-01" deadline={{ kind: "hard-end", date: "2026-07-07" }} />);
+    fireEvent.click(screen.getByRole("button", { name: /make it fit/i }));
+    const apply = await screen.findByRole("button", { name: /apply trim/i });
+    fireEvent.click(apply);
+    await waitFor(() => expect(apply).toHaveAttribute("aria-busy", "true"));
+    expect(apply).toBeDisabled();
+    const calls = setStopNights.mock.calls.length;
+    fireEvent.click(apply);
+    expect(setStopNights).toHaveBeenCalledTimes(calls);
+  });
+
+  it("Drop says it is working on the pressed stop only while deleteStop is unresolved", async () => {
+    deleteStop.mockReturnValue(new Promise(() => {}));
+    const user = userEvent.setup();
+    render(<MakeItFit tripId="t1" stops={overStops} anchor="2026-07-01" deadline={{ kind: "hard-end", date: "2026-07-07" }} />);
+    fireEvent.click(screen.getByRole("button", { name: /make it fit/i }));
+    await user.click(await screen.findByRole("button", { name: /drop rome/i }));
+    await waitFor(() => expect(screen.getByRole("button", { name: "Drop" })).toBeEnabled());
+    await user.click(screen.getByRole("button", { name: "Drop" }));
+    await waitFor(() => expect(deleteStop).toHaveBeenCalledTimes(1));
+    const rome = await screen.findByRole("button", { name: /drop rome/i });
+    await waitFor(() => expect(rome).toHaveAttribute("aria-busy", "true"));
+    expect(rome).toBeDisabled();
+    const florence = screen.getByRole("button", { name: /drop florence/i });
+    expect(florence).toBeDisabled();
+    expect(florence).not.toHaveAttribute("aria-busy");
+    expect(screen.getByRole("button", { name: /apply trim/i })).not.toHaveAttribute("aria-busy");
+  });
+
   it("drop does NOT fire when the dialog is cancelled", async () => {
     const user = userEvent.setup();
     render(<MakeItFit tripId="t1" stops={overStops} anchor="2026-07-01" deadline={{ kind: "hard-end", date: "2026-07-07" }} />);

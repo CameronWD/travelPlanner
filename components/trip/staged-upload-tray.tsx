@@ -264,6 +264,7 @@ export function StagedUploadTray({
         type="button"
         size={compact ? "sm" : "md"}
         disabled={n === 0 || tray.uploading}
+        loading={tray.uploading}
         onClick={tray.uploadAll}
       >
         {n === 0 ? "Add files" : `Add ${n} file${n === 1 ? "" : "s"}`}

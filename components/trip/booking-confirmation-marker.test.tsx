@@ -33,6 +33,17 @@ describe("BookingConfirmationMarker", () => {
     expect(container.firstElementChild!.className).toContain("flex flex-wrap items-center gap-x-2 gap-y-1");
   });
 
+  it("says it is working while the save is unresolved and ignores a second click", async () => {
+    vi.mocked(setNothingToAttach).mockReturnValueOnce(new Promise(() => {}));
+    render(<BookingConfirmationMarker kind="TRANSPORT" id="t1" />);
+    const button = screen.getByRole("button", { name: "Doesn’t need one" });
+    await userEvent.click(button);
+    await waitFor(() => expect(button).toHaveAttribute("aria-busy", "true"));
+    expect(button).toBeDisabled();
+    await userEvent.click(button);
+    expect(setNothingToAttach).toHaveBeenCalledTimes(1);
+  });
+
   it("saves for the kind and id, refreshes and offers Undo", async () => {
     render(<BookingConfirmationMarker kind="ACCOMMODATION" id="a1" />);
     await userEvent.click(screen.getByRole("button", { name: "Doesn’t need one" }));

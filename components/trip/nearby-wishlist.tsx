@@ -87,7 +87,7 @@ export function NearbyWishlist({
                     variant="secondary"
                     size="md"
                     aria-label={`Add ${item.title} to today`}
-                    disabled={pendingId === item.id}
+                    loading={pendingId === item.id}
                     className="shrink-0"
                     onClick={() => {
                       setPendingId(item.id);

@@ -2,6 +2,7 @@ import { describe, it, expect, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { NearbyWishlist } from "./nearby-wishlist";
+import { scheduleItem } from "@/server/actions/items";
 import type { NearbyResult } from "@/lib/nearby";
 
 // Mock the server action so its next/server import chain doesn't load in jsdom.
@@ -22,6 +23,20 @@ const nonEmptyItems: NearbyResult[] = [
 ];
 
 describe("NearbyWishlist", () => {
+  it("while scheduling, the pressed button says it is working and a second click does nothing", async () => {
+    vi.mocked(scheduleItem).mockClear();
+    vi.mocked(scheduleItem).mockReturnValueOnce(new Promise(() => {}));
+    const user = userEvent.setup();
+    render(<NearbyWishlist tripId="trip-1" date="2026-07-01" items={nonEmptyItems} />);
+    await user.click(screen.getByRole("button", { name: /nearby wishlist items/i }));
+    const add = screen.getByRole("button", { name: "Add Senso-ji Temple to today" });
+    await user.click(add);
+    expect(add).toHaveAttribute("aria-busy", "true");
+    expect(add).toBeDisabled();
+    await user.click(add);
+    expect(scheduleItem).toHaveBeenCalledTimes(1);
+  });
+
   it("renders nothing when items array is empty", () => {
     const { container } = render(
       <NearbyWishlist tripId="trip-1" date="2026-07-01" items={emptyItems} />,

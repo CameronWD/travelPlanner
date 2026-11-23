@@ -48,6 +48,7 @@ export function AiActivitySuggestions({
 }: AiActivitySuggestionsProps) {
   const [fetchPending, startFetch] = useTransition();
   const [addPending, startAdd] = useTransition();
+  const [addingTitle, setAddingTitle] = React.useState<string | null>(null);
 
   const [suggestions, setSuggestions] = React.useState<Suggestion[] | null>(null);
   const [addedTitles, setAddedTitles] = React.useState<Set<string>>(new Set());
@@ -70,6 +71,7 @@ export function AiActivitySuggestions({
   }
 
   function handleAdd(suggestion: Suggestion) {
+    setAddingTitle(suggestion.title);
     startAdd(async () => {
       const result = await createItem(tripId, {
         title: suggestion.title,
@@ -80,6 +82,7 @@ export function AiActivitySuggestions({
       if (result.success) {
         setAddedTitles((prev) => new Set([...prev, suggestion.title]));
       }
+      setAddingTitle(null);
     });
   }
 
@@ -153,6 +156,7 @@ export function AiActivitySuggestions({
                     size="md"
                     className="shrink-0"
                     disabled={added || addPending}
+                    loading={addPending && addingTitle === s.title}
                     onClick={() => handleAdd(s)}
                     title={added ? "Already added" : `Add “${s.title}” to wishlist`}
                   >

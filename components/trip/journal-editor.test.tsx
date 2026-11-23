@@ -173,6 +173,23 @@ describe("JournalEditor", () => {
       expect(screen.getByRole("button", { name: /remove/i })).toBeInTheDocument();
     });
 
+    it("Remove entry is aria-busy and disabled while deleteJournalEntry is unresolved", async () => {
+      const user = userEvent.setup();
+      let release!: (v: { success: true }) => void;
+      vi.mocked(deleteJournalEntry).mockReturnValueOnce(new Promise((r) => { release = r; }) as never);
+      render(<JournalEditor {...BASE_PROPS} updatedAt={new Date("2026-06-01T10:00:00Z")} />);
+
+      const remove = screen.getByRole("button", { name: /remove/i });
+      await user.click(remove);
+      await screen.findByRole("heading");
+      await user.click(screen.getByRole("button", { name: /^remove$/i }));
+      await waitFor(() => expect(remove).toHaveAttribute("aria-busy", "true"));
+      expect(remove).toBeDisabled();
+      expect(deleteJournalEntry).toHaveBeenCalledTimes(1);
+      release({ success: true });
+      await waitFor(() => expect(screen.queryByRole("button", { name: /^remove/i })).not.toBeInTheDocument());
+    });
+
     it("deletes the entry and clears the textarea once confirmed", async () => {
       const user = userEvent.setup();
       render(<JournalEditor {...BASE_PROPS} updatedAt={new Date("2026-06-01T10:00:00Z")} />);
@@ -436,6 +453,34 @@ describe("JournalEditor", () => {
       await user.click(screen.getByRole("button", { name: /remove photo beach\.jpg/i }));
 
       await waitFor(() => expect(deleteAttachment).toHaveBeenCalledWith("photo-1"));
+    });
+
+    it("the photo remove x is aria-busy and disabled while deleteAttachment is unresolved", async () => {
+      const user = userEvent.setup();
+      const { deleteAttachment } = await import("@/server/actions/attachments");
+      let release!: (v: { success: true }) => void;
+      vi.mocked(deleteAttachment).mockReturnValueOnce(new Promise((r) => { release = r; }) as never);
+      render(<JournalEditor {...BASE_PROPS} photo={EXISTING_PHOTO} />);
+
+      const remove = screen.getByRole("button", { name: /remove photo beach\.jpg/i });
+      await user.click(remove);
+      await waitFor(() => expect(remove).toHaveAttribute("aria-busy", "true"));
+      expect(remove).toBeDisabled();
+      release({ success: true });
+      await waitFor(() => expect(remove).not.toHaveAttribute("aria-busy"));
+    });
+
+    it("the photo picker is aria-busy and disabled while the upload is unresolved", async () => {
+      const user = userEvent.setup();
+      let release!: (v: { success: true }) => void;
+      vi.mocked(uploadAttachment).mockReturnValueOnce(new Promise((r) => { release = r; }) as never);
+      const { container } = render(<JournalEditor {...BASE_PROPS} />);
+      const fileInput = container.querySelector('input[type="file"]') as HTMLInputElement;
+      await user.upload(fileInput, new File([new Uint8Array(5)], "big.jpg", { type: "image/jpeg" }));
+      await waitFor(() => expect(fileInput).toHaveAttribute("aria-busy", "true"));
+      expect(fileInput).toBeDisabled();
+      release({ success: true });
+      await waitFor(() => expect(fileInput).not.toHaveAttribute("aria-busy"));
     });
 
     it("the photo and earlier photos are lazy, async-decoded and sized (spec 2026-10-06 §S)", () => {
