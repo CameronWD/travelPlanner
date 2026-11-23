@@ -15,7 +15,7 @@ import { STILL_TO_BOOK_LIMIT_PHONE } from "@/lib/still-to-book";
 import { BudgetGlance } from "@/components/trip/home/budget-glance";
 import { QuickActions } from "@/components/trip/home/quick-actions";
 import { RouteMapLoader as RouteMap } from "@/components/trip/route-map-loader";
-import type { RouteMapStop } from "@/components/trip/route-map";
+import { routeMapCanDraw, type RouteMapStop } from "@/lib/route-map";
 import { UpcomingPaymentsCard } from "@/components/trip/upcoming-payments-card";
 import { StatTile } from "@/components/trip/home/stat-tile";
 import { formatMoneyAuto } from "@/lib/money/money";
@@ -74,6 +74,9 @@ export const PLANNING_DESKTOP_GRID_CLASS =
 
 /** The second row of tiles (map, next steps, quick actions) at tile widths. */
 const PLANNING_TILE_ROW_CLASS = `grid grid-cols-1 ${HOME_GRID_GAP} lg:grid-cols-3 lg:items-start`;
+
+const MAP_HEADER_BOX_CLASS =
+  "h-56 w-full sm:h-48 [&_[data-map-fallback]]:max-h-full [&_[data-map-fallback]]:overflow-y-auto";
 
 export async function PhasePlanning({
   tripId,
@@ -165,14 +168,14 @@ export async function PhasePlanning({
     <UpcomingPaymentsCard key="upcoming-payments" payments={upcomingPayments} tripId={tripId} tripSlug={slug} />
   );
 
-  const mapIsHeader = !coverIsPhoto && mapStops.length > 0;
+  const mapIsHeader = !coverIsPhoto && routeMapCanDraw(mapStops);
 
   const route =
     mapStops.length > 0 ? (
       // The map draws its own kit frame (2px outline, hard shadow) — no Card around it.
       mapIsHeader ? (
         // The box is in the server HTML at the cover tile's size; the map only fills it.
-        <div key="route" className="h-56 w-full sm:h-48">
+        <div key="route" className={MAP_HEADER_BOX_CLASS}>
           <RouteMap stops={mapStops} frameClassName="h-full rounded-lg shadow-hard-2" mountWhen="phone" />
         </div>
       ) : (

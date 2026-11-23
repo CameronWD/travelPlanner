@@ -12,6 +12,7 @@ import { Card } from "@/components/ui/card";
 import { StatCard } from "@/components/ui/stat-card";
 import { EmptyState } from "@/components/ui/empty-state";
 import { RouteMapLoader as RouteMap } from "@/components/trip/route-map-loader";
+import { routeMapCanDraw } from "@/lib/route-map";
 import { PastDesktopGrid } from "@/components/trip/home/desktop/desktop-home-grid";
 import { CountdownTile, type CountdownTileProps } from "@/components/trip/home/desktop/countdown-tile";
 import { HOME_GRID_GAP, HOME_STACK } from "@/components/trip/home/spacing";
@@ -70,6 +71,8 @@ export const PAST_DESKTOP_GRID_CLASS =
  * spacing.test.ts guard's allowlist for the same reason.
  */
 export const PAST_CTAS_ROW_CLASS = "flex flex-col gap-3 sm:flex-row lg:flex-col";
+
+const MAP_BOX_CLASS = "w-full [&_[data-map-fallback]]:max-h-full [&_[data-map-fallback]]:overflow-y-auto";
 
 // ---------------------------------------------------------------------------
 // Component
@@ -154,7 +157,14 @@ export async function PhasePast({ tripId, userId, trip, reminders, layout = "pho
   // Taller as the desktop grid's full-width row than in the phone column.
   const routeMapAt = (height: number, mountWhen: "phone" | "desktop") => mapStops.length > 0 ? (
     // The map draws its own kit frame (2px outline, hard shadow) — no Card around it.
-    <RouteMap stops={mapStops} height={height} mountWhen={mountWhen} />
+    mountWhen === "phone" ? (
+      // The box is in the server HTML at the map's final height; the map only fills it.
+      <div style={{ height }} className={MAP_BOX_CLASS}>
+        <RouteMap stops={mapStops} frameClassName="h-full rounded-lg shadow-hard-2" mountWhen={mountWhen} />
+      </div>
+    ) : (
+      <RouteMap stops={mapStops} height={height} mountWhen={mountWhen} />
+    )
   ) : (
     // Kit shared/states.jsx "Plan" empty — the route has nothing to draw.
     <EmptyState
@@ -226,7 +236,7 @@ export async function PhasePast({ tripId, userId, trip, reminders, layout = "pho
   // ---------------------------------------------------------------------------
   return (
     <div className={HOME_STACK}>
-      {coverIsPhoto || mapStops.length === 0 ? phoneCover : null}
+      {coverIsPhoto || !routeMapCanDraw(mapStops) ? phoneCover : null}
       {recap}
       <div className={PAST_DESKTOP_GRID_CLASS} data-testid="past-grid">
         {/* Main: route map */}

@@ -4,7 +4,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { MapPin } from "lucide-react";
 import { cn } from "@/lib/cn";
 import { formatDateRange } from "@/lib/dates";
-import type { HomeMapPoint, RouteMapStop } from "@/lib/route-map";
+import { routeMapCanDraw, stopsWithCoords, type HomeMapPoint, type RouteMapStop } from "@/lib/route-map";
 import { useTheme } from "@/components/ui/theme-provider";
 import { GoogleMapFrame } from "@/components/map/google-map-frame";
 import { HtmlPin } from "@/components/map/html-pin";
@@ -121,21 +121,6 @@ export function routeFitPoints<P extends { lat: number; lng: number }>(
   return [...stops, home];
 }
 
-/**
- * Stops that have valid coordinates.
- */
-function stopsWithCoords(
-  stops: RouteMapStop[],
-): (RouteMapStop & { lat: number; lng: number })[] {
-  return stops.filter(
-    (s): s is RouteMapStop & { lat: number; lng: number } =>
-      typeof s.lat === "number" &&
-      typeof s.lng === "number" &&
-      !isNaN(s.lat) &&
-      !isNaN(s.lng),
-  );
-}
-
 function RouteStopList({ stops }: { stops: RouteMapStop[] }) {
   if (stops.length === 0) return null;
   return (
@@ -226,7 +211,7 @@ export function RouteMap({ stops, height = 360, home = null, showReturn = false,
   const [openId, setOpenId] = useState<string | null>(null);
 
   const coordStops = stopsWithCoords(stops);
-  const hasEnoughCoords = coordStops.length >= 2;
+  const hasEnoughCoords = routeMapCanDraw(stops);
 
   const fitPoints = routeFitPoints(
     coordStops.map((s) => ({ lat: s.lat, lng: s.lng })),

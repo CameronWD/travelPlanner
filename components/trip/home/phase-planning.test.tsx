@@ -542,7 +542,7 @@ describe("PhasePlanning Playground kit restyle (Task 10b)", () => {
 
     it("with no cover photo and a drawable Stop, the map is the header: no cover tile, one map, before the stat tiles", async () => {
       const { StatTile } = await import("@/components/trip/home/stat-tile");
-      stopFindManyMock.mockResolvedValue(DATED);
+      stopFindManyMock.mockResolvedValue([...DATED, { ...DATED[0], id: "b", lat: 43.8, lng: 11.3, arriveDate: "2026-01-06", departDate: "2026-01-08", sortOrder: 1 }]);
       const tree = await renderWith(false);
       const order = typesInOrder(tree);
       expect(order).not.toContain("cover-tile");
@@ -565,6 +565,28 @@ describe("PhasePlanning Playground kit restyle (Task 10b)", () => {
       expect(order.indexOf("cover-tile")).toBeLessThan(order.indexOf(RouteMapLoader));
       const row = findByTestId(tree, "planning-tile-row")!;
       expect(findElementByType(row, RouteMapLoader)!.props.aspect).toBe("4/3");
+    });
+
+    it("with no cover photo and a map that cannot draw (one located Stop, or Stops with no coordinates), the generated cover stays", async () => {
+      const stop = (id: string, lat: number | null, lng: number | null, n: number) =>
+        ({ id, name: id, country: "IT", lat, lng, timezone: "Europe/Rome", arriveDate: `2026-01-0${n}`, departDate: `2026-01-0${n + 1}`, sortOrder: n });
+      for (const stops of [
+        [stop("a", 41.9, 12.5, 1)],
+        [stop("a", null, null, 1), stop("b", null, null, 3)],
+        [stop("a", 41.9, 12.5, 1), stop("b", null, null, 3)],
+      ]) {
+        stopFindManyMock.mockResolvedValue(stops);
+        const tree = await renderWith(false);
+        expect(typesInOrder(tree)).toContain("cover-tile");
+        expect(findElementByType(findByTestId(tree, "planning-tile-row"), RouteMapLoader)!.props.aspect).toBe("4/3");
+      }
+    });
+
+    it("the header box holds whatever the map shows, so a fallback list cannot spill onto the tiles below", async () => {
+      stopFindManyMock.mockResolvedValue([...DATED, { ...DATED[0], id: "b", lat: 43.8, lng: 11.3, arriveDate: "2026-01-06", departDate: "2026-01-08", sortOrder: 1 }]);
+      const box = findParentOf(await renderWith(false), RouteMapLoader) as unknown as { props: { className: string } };
+      expect(box.props.className).toContain("[&_[data-map-fallback]]:max-h-full");
+      expect(box.props.className).toContain("[&_[data-map-fallback]]:overflow-y-auto");
     });
 
     it("with no cover photo and nothing to draw, the generated cover shows and there is no map", async () => {
