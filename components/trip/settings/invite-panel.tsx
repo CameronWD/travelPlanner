@@ -58,6 +58,7 @@ export function InvitePanel({
   const [emailValue, setEmailValue] = React.useState("");
   const [invitePending, startInviteTransition] = useTransition();
   const [cancelPending, startCancelTransition] = useTransition();
+  const [cancelingId, setCancelingId] = React.useState<string | null>(null);
   const [removingUserId, setRemovingUserId] = React.useState<string | null>(null);
   const [leavePending, startLeaveTransition] = useTransition();
   const [inviteError, setInviteError] = React.useState<string | undefined>();
@@ -82,6 +83,7 @@ export function InvitePanel({
   }
 
   function handleCancel(inviteId: string) {
+    setCancelingId(inviteId);
     startCancelTransition(async () => {
       await cancelInvite(inviteId);
     });
@@ -149,7 +151,7 @@ export function InvitePanel({
                   size="icon"
                   className="tap-target size-8 text-destructive hover:bg-destructive/5"
                   onClick={() => handleRemove(m)}
-                  disabled={removingUserId === m.userId}
+                  loading={removingUserId === m.userId}
                   aria-label={`Remove ${label} from this trip`}
                 >
                   <UserMinus className="size-4" aria-hidden="true" />
@@ -186,6 +188,7 @@ export function InvitePanel({
                   className="tap-target size-8"
                   onClick={() => handleCancel(invite.id)}
                   disabled={cancelPending}
+                  loading={cancelPending && cancelingId === invite.id}
                   aria-label={`Cancel invite for ${invite.email}`}
                 >
                   <X className="size-4" aria-hidden="true" />

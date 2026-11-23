@@ -111,6 +111,37 @@ describe("CoverImageField", () => {
     expect(screen.queryByRole("button", { name: /remove/i })).not.toBeInTheDocument();
   });
 
+  it("Remove says it is working and is disabled while removeTripCover is unresolved; Choose photo is only disabled", async () => {
+    let release!: (v: { success: true }) => void;
+    vi.mocked(removeTripCover).mockReturnValueOnce(new Promise((r) => { release = r; }));
+    const user = userEvent.setup();
+    render(<CoverImageField tripId="t1" hasCover={true} />);
+    const removeBtn = screen.getByRole("button", { name: /remove/i });
+    await user.click(removeBtn);
+    await waitFor(() => expect(removeBtn).toHaveAttribute("aria-busy", "true"));
+    expect(removeBtn).toBeDisabled();
+    const choose = screen.getByRole("button", { name: "Choose photo" });
+    expect(choose).toBeDisabled();
+    expect(choose).not.toHaveAttribute("aria-busy");
+    await user.click(removeBtn);
+    expect(removeTripCover).toHaveBeenCalledTimes(1);
+    release({ success: true });
+    await waitFor(() => expect(removeBtn).not.toHaveAttribute("aria-busy"));
+  });
+
+  it("Choose photo says it is working and is disabled while the upload is unresolved", async () => {
+    let release!: (v: { success: true }) => void;
+    vi.mocked(setTripCover).mockReturnValueOnce(new Promise((r) => { release = r; }));
+    const user = userEvent.setup();
+    const { container } = render(<CoverImageField tripId="t1" hasCover={false} />);
+    await user.upload(fileInput(container), new File(["img"], "photo.png", { type: "image/png" }));
+    const choose = screen.getByRole("button", { name: "Choose photo" });
+    await waitFor(() => expect(choose).toHaveAttribute("aria-busy", "true"));
+    expect(choose).toBeDisabled();
+    release({ success: true });
+    await waitFor(() => expect(choose).not.toHaveAttribute("aria-busy"));
+  });
+
   it("compresses the selected file before calling setTripCover", async () => {
     const user = userEvent.setup();
     const compressedFile = new File([new Uint8Array(10)], "photo.webp", { type: "image/webp" });
