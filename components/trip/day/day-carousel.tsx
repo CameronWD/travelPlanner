@@ -17,7 +17,7 @@ export interface DayPanel {
   iso: string;
   href: Route;
   content: React.ReactNode;
-  /** False when the page sent only a skeleton for this day: from lg it is not shown until it lands. */
+  /** False when the page sent only a skeleton for this day: from lg the day on screen keeps what an earlier payload sent, and any other waits for its navigation. */
   filled?: boolean;
 }
 
@@ -89,9 +89,11 @@ export function useIsDayInView(): boolean | null {
  *
  * From lg only the day in view renders, in a plain block that scrolls with
  * the page, and a day change crossfades it before the same push; a quick run
- * of presses cuts instead, and pushes once per push in flight, the latest day
- * last (day-moves.ts). A day the page sent no content for is not shown until
- * its push lands: the day in view holds, with the chip lit. The server
+ * of presses cuts instead, and navigates once per navigation in flight (a push,
+ * then replaces), the latest day last (day-moves.ts). A press on its own to a
+ * day the page sent no content for holds the day in view, with the chip lit,
+ * until it lands; in a quick run the day shows at once, and a day on screen
+ * that a landing sends as a placeholder keeps its earlier content. The server
  * markup is the phone tree with lg: classes hiding the others, so the first
  * paint is already one day before the viewport is known.
  */
@@ -152,20 +154,16 @@ export function DayCarousel({
   const desktop = useMediaQuery(LG_UP) === true;
   const hydrating = React.useSyncExternalStore(noSubscription, () => false, () => true);
   const { chromeFor } = React.useContext(DayChromeRegistryContext);
-  const [kept, setKept] = React.useState(() => keepFilled(new Map(), panels));
-  const [keptFrom, setKeptFrom] = React.useState(panels);
-  if (keptFrom !== panels) {
+  const [kept, setKept] = React.useState(() => new Map<string, React.ReactNode>());
+  const [keptFrom, setKeptFrom] = React.useState<DayPanel[] | null>(null);
+  if (desktop && keptFrom !== panels) {
     setKeptFrom(panels);
     setKept((prev) => keepFilled(prev, panels));
   }
-  const keptRef = React.useRef(kept);
 
   React.useLayoutEffect(() => {
     panelsRef.current = panels;
   }, [panels]);
-  React.useLayoutEffect(() => {
-    keptRef.current = kept;
-  }, [kept]);
   React.useLayoutEffect(() => {
     committedView.current = view;
   }, [view]);
@@ -256,7 +254,7 @@ export function DayCarousel({
         const quick = isQuickPress(lastPressAt.current, now);
         lastPressAt.current = now;
         // Only a press on its own: within a quick run the day in view keeps up with the presses.
-        const inHand = p.filled !== false || keptRef.current.has(p.iso);
+        const inHand = p.filled !== false;
         if (!inHand && !quick && (target.current == null || gaveUp.current) && crossfadeTo.current == null) {
           heldFor.current = p.iso;
           begin(p.href);
@@ -518,18 +516,23 @@ export function DayCarousel({
     };
   }, [view, desktop]);
 
-  // From lg a click can land on the outgoing header or strip while a view
-  // transition swaps them in: React no longer handles that node, and the
-  // browser followed its href as a full page load. Do what the control would
-  // have done instead. Only a day link: anything else keeps its own default.
+  // While React prepares a view transition it stops dispatching events for the
+  // whole document until the transition's update runs, and dropped events are
+  // not replayed: a click on a day link then falls through to the browser,
+  // which loads the page. Do what the control would have done. On window in the
+  // bubble phase because that runs after React's own listener, so this only
+  // acts when nothing handled the click.
   React.useEffect(() => {
     if (!desktop) return;
     const onClick = (e: MouseEvent) => {
       if (e.defaultPrevented || e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
       const link = e.target instanceof Element ? e.target.closest<HTMLAnchorElement>("[data-day-heading-area] a[href], [data-day-strip] a[href]") : null;
       if (!link) return;
+      e.preventDefault();
+      const to = link.getAttribute("href") as Route;
       const by = link.dataset.dayStep;
-      if (by === "-1" || by === "1" ? machine.api.step(by === "1" ? 1 : -1) : machine.api.goTo(link.getAttribute("href") as Route)) e.preventDefault();
+      const moved = by === "-1" || by === "1" ? machine.api.step(by === "1" ? 1 : -1) : false;
+      if (!moved) machine.api.goTo(to);
     };
     window.addEventListener("click", onClick);
     return () => window.removeEventListener("click", onClick);
