@@ -138,10 +138,7 @@ export default async function SummaryPage({
                   ? datelessChapters.find((c) => c.id === stop.chapterId)
                   : undefined;
                 return (
-                  <div
-                    key={stop.id}
-                    className="rounded-2xl border border-border bg-card p-5 shadow-soft"
-                  >
+                  <Card key={stop.id} className="p-5">
                     <div className="flex flex-wrap items-center gap-2">
                       <h3 className="min-w-0 break-words font-display text-base font-semibold text-foreground">
                         {stop.name}
@@ -156,7 +153,7 @@ export default async function SummaryPage({
                         <ChapterChip name={chapter.name} colour={chapter.colour} />
                       )}
                     </div>
-                  </div>
+                  </Card>
                 );
               })}
             </div>
@@ -434,11 +431,7 @@ export default async function SummaryPage({
                 ? chapters.find((c) => c.id === stop.chapterId)
                 : undefined;
               return (
-                <div
-                  key={stop.id}
-                  data-stop-card
-                  className="overflow-hidden rounded-2xl border border-border bg-card shadow-soft"
-                >
+                <Card key={stop.id} data-stop-card className="overflow-hidden">
                   <div data-stop-band className={cn("h-1.5", HUE_CLASSES[stopHue(stop.sortOrder)].fill)} />
                   <div className="flex flex-wrap items-center gap-2 p-5">
                     <h3 className="min-w-0 break-words font-display text-base font-semibold text-foreground">
@@ -454,7 +447,7 @@ export default async function SummaryPage({
                       <ChapterChip name={chapter.name} colour={chapter.colour} />
                     )}
                   </div>
-                </div>
+                </Card>
               );
             })}
           </div>
@@ -533,11 +526,7 @@ export default async function SummaryPage({
                         const isLast = globalIdx === totalGroupedStops;
 
                         return (
-                          <div
-                            key={stop.id}
-                            data-stop-card
-                            className="overflow-hidden rounded-2xl border border-border bg-card shadow-soft"
-                          >
+                          <Card key={stop.id} data-stop-card className="overflow-hidden">
                             <div data-stop-band className={cn("h-1.5", HUE_CLASSES[stopHue(stop.sortOrder)].fill)} />
                             <div className="p-5">
                             {/* Stop name + country; the cost block sits under
@@ -617,7 +606,7 @@ export default async function SummaryPage({
                               </div>
                             )}
                             </div>
-                          </div>
+                          </Card>
                         );
                       })}
                     </div>

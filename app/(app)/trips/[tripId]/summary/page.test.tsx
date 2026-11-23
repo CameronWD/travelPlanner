@@ -684,6 +684,24 @@ describe("SummaryPage — shared pieces (feedback)", () => {
     expect(roughCard.querySelector(".size-6")).toBeNull();
   });
 
+  it("draws dated and rough Stop cards as the shared Card", async () => {
+    readPlanMock.mockResolvedValue(rowsFrom({ trip: trip(BASE_TRIP), stops: [DATED_STOP, ROUGH_STOP] }));
+    render(await renderSummary());
+    for (const name of ["Rome", "Someday Place"]) {
+      const card = screen.getByRole("heading", { level: 3, name }).closest("[data-stop-card]")!;
+      expect(card).toHaveClass("rounded-lg", "border-2", "shadow-hard-2", "bg-card", "overflow-hidden");
+      expect(card.className).not.toMatch(/\brounded-2xl\b|\bshadow-soft\b/);
+    }
+  });
+
+  it("draws a date-less Trip's Stop cards as the shared Card", async () => {
+    readPlanMock.mockResolvedValue(rowsFrom({ trip: trip({ ...BASE_TRIP, startDate: null, endDate: null }), stops: [ROUGH_STOP] }));
+    render(await renderSummary());
+    const card = screen.getByRole("heading", { level: 3, name: "Someday Place" }).parentElement!.parentElement!;
+    expect(card).toHaveClass("rounded-lg", "border-2", "shadow-hard-2", "p-5");
+    expect(card.className).not.toMatch(/\brounded-2xl\b|\bshadow-soft\b/);
+  });
+
   it("keeps a dated Stop's badge beside its name when the name wraps", async () => {
     readPlanMock.mockResolvedValue(rowsFrom({ trip: trip(BASE_TRIP), stops: [DATED_STOP] }));
     render(await renderSummary());
