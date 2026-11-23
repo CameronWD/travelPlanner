@@ -232,7 +232,7 @@ Decisions that are yours:
 
 - **The date strip at the ends of a trip.** On 18 November you chose that the selected day always sits in a fixed centre frame, with padding so the first and last days can centre. Removing the empty space you reported meant dropping that padding. At your MacBook's width, on roughly the first nine and last nine days of a 36-day trip, the strip now stands still and the highlight moves along it. A trip shorter than the row never shows the frame. Look at it on beta. If you prefer the centred strip, that half of `24e0950b` (the strip files only) comes out on its own.
 - **On a window about 1656px or wider**, the top left of the Day view still has a deliberate empty column that keeps the date truly centred (a decision from 29 September). Not changed.
-- **The trip's name at the top left of the desktop Day view** repeats the name on the rail's trip card, as the Plan and other trip pages already do.
+- **The trip's name at the top left of the desktop Day view** repeats the name on the rail's trip card, as the Plan and other trip pages already do. Decided 2026-11-24: removed; the buttons moved into the date row.
 - **Thing-to-do rows and the Tonight card show no "file attached" sign yet.** Transport pills and stay rows have the paperclip. Thing-to-do rows on the plan and in the phone's Stop sheet only need a value passed down, which could be built quickly. The Tonight card would need extra data fetched.
 - **Two other screens describe a missing confirmation in their own words and were left alone:** the Files page heading "Booking confirmations to add", and the Home's next step "Add booking confirmations" with "Booked, but no ticket or confirmation attached."
 

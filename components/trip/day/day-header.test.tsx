@@ -70,7 +70,7 @@ describe("DayHeader", () => {
   it("below lg, a top bar carries the switcher pill and the bell (the trip header is hidden on this route)", () => {
     render(<DayHeader tripId="t1" tripSlug="t1" tripName="Christmas in Europe" eyebrow="E" heading="Sat 12 Dec" subLine="" subLineCompact="" dayTitle={null} prevHref={null} nextHref={null} prevLabel={null} nextLabel={null} unreadCount={0} recent={[]} members={[]} addButton={<button>+ Add to this day</button>} />);
     const bar = document.querySelector('[data-slot="day-trip-switcher"]') as HTMLElement;
-    expect(bar.className).toContain("@min-[84rem]:hidden");
+    expect(bar.className).toContain("xl:hidden");
     expect(bar.querySelector('[data-slot="day-trip-switcher-pill"]')!.className).toContain("xl:hidden");
     expect(bar.querySelector('[aria-label="Switch trip"]')).not.toBeNull();
     const bell = bar.querySelector('[aria-label="Notifications"]') as HTMLElement;
@@ -79,20 +79,15 @@ describe("DayHeader", () => {
     expect(bell.parentElement).toContainElement(screen.getAllByRole("button", { name: "Share" })[0]);
     expect(screen.getAllByRole("button", { name: "Notifications" })).toHaveLength(3);
   });
-  it("from xl, where the rail's card replaces the switcher pill, the row's left carries the Trip's name as the other trip pages' eyebrow does", () => {
+  it("the Trip's name is not shown on the Day view at any width", () => {
     render(<DayHeader tripId="t1" tripSlug="t1" tripName="Christmas in Europe" eyebrow="E" heading="Sat 12 Dec" subLine="" subLineCompact="" dayTitle={null} prevHref={null} nextHref={null} prevLabel={null} nextLabel={null} unreadCount={0} recent={[]} members={[]} addButton={<button>+</button>} />);
-    const bar = document.querySelector('[data-slot="day-trip-switcher"]') as HTMLElement;
-    const name = bar.querySelector('[data-slot="day-trip-name"]') as HTMLElement;
-    expect(name).toHaveTextContent("Christmas in Europe");
-    expect(name.tagName).toBe("P");
-    expect(name.className.split(/\s+/)).toEqual(expect.arrayContaining(["hidden", "xl:block", "truncate", "text-muted-foreground"]));
-    expect(name.compareDocumentPosition(bar.querySelector('[data-slot="day-pill-row-cluster"]')!) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(document.querySelector('[data-slot="day-trip-name"]')).toBeNull();
   });
   it("the switcher, Share and bell row starts at md: hidden on a phone, whatever the day", () => {
     render(<DayHeader tripId="t1" tripSlug="t1" tripName="Christmas in Europe" eyebrow="E" heading="Sat 12 Dec" subLine="" subLineCompact="" dayTitle={null} prevHref={null} nextHref={null} prevLabel={null} nextLabel={null} unreadCount={0} recent={[]} members={[]} addButton={<button>+</button>} />);
     const bar = document.querySelector('[data-slot="day-trip-switcher"]') as HTMLElement;
     expect(bar.className).toContain("max-md:hidden");
-    expect(bar.className).toContain("@min-[84rem]:hidden");
+    expect(bar.className).toContain("xl:hidden");
     expect(bar.querySelector('[aria-label="Switch trip"]')).not.toBeNull();
     expect(bar.querySelector('[aria-label="Notifications"]')).not.toBeNull();
   });
@@ -167,34 +162,34 @@ describe("DayHeader", () => {
   });
   describe("desktop centring (spec 2026-09-29 D2)", () => {
     const props = { tripId: "t1", tripSlug: "t1", eyebrow: "E", heading: "Sat 12 Dec", subLine: "", subLineCompact: "", dayTitle: null, prevHref: "/trips/t1/day/2026-12-11" as Route, nextHref: "/trips/t1/day/2026-12-13" as Route, prevLabel: "Previous day: Fri 11 Dec", nextLabel: "Next day: Sun 13 Dec", unreadCount: 0, recent: [], members: [], addButton: <button>+</button> };
-    it("when the header is 84rem wide it is a 1fr | auto | 1fr grid: an empty spacer, the date with its arrows centred, the right cluster at the end", () => {
+    it("from xl it is a grid whose right column is never narrower than the buttons: an empty spacer, the date with its arrows, the right cluster at the end", () => {
       render(<DayHeader {...props} />);
       const row = document.querySelector('[data-slot="day-header-row"]') as HTMLElement;
-      expect(row.className).toContain("@min-[84rem]:grid");
-      expect(row.className).toContain("@min-[84rem]:grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)]");
+      expect(row.className).toContain("xl:grid");
+      expect(row.className).toContain("xl:grid-cols-[minmax(0,1fr)_auto_minmax(max-content,1fr)]");
       const spacer = row.querySelector('[data-slot="day-header-spacer"]') as HTMLElement;
       expect(spacer).toHaveAttribute("aria-hidden", "true");
       expect(spacer.className).toContain("hidden");
-      expect(spacer.className).toContain("@min-[84rem]:block");
+      expect(spacer.className).toContain("xl:block");
       const arrows = (document.querySelector('[data-slot="day-title-block"]') as HTMLElement).parentElement as HTMLElement;
       expect(arrows.className).toContain("lg:justify-center");
       expect(arrows.className).toContain("lg:flex-none");
-      expect(row.querySelector('[data-slot="day-header-cluster"]')!.className).toContain("@min-[84rem]:justify-self-end");
+      expect(row.querySelector('[data-slot="day-header-cluster"]')!.className).toContain("xl:justify-self-end");
     });
-    it("the cluster follows the header's width: upper row until the header is 84rem wide, then the date row's grid", () => {
+    it("the cluster sits in the upper row until xl, then in the date row's grid", () => {
       render(<DayHeader {...props} tripName="Christmas in Europe" members={[{ id: "u1", name: "Cam", email: "c@x", image: null }]} addButton={<button>+ Add to this day</button>} />);
-      expect(document.querySelector('[data-slot="day-trip-switcher"]')!.parentElement!.className.split(/\s+/)).toContain("@container");
       const upper = document.querySelector('[data-slot="day-pill-row-cluster"]') as HTMLElement;
       expect(upper.className.split(/\s+/)).toEqual(expect.arrayContaining(["hidden", "lg:flex", "flex-wrap", "ml-auto", "justify-end"]));
-      expect(upper.parentElement!.className).toContain("@min-[84rem]:hidden");
+      expect(upper.parentElement!.className).toContain("xl:hidden");
       expect(upper.className).not.toMatch(/absolute|xl:hidden/);
       for (const label of ["Notifications", "Share", "Travellers (1)"]) expect(upper.querySelector(`[aria-label="${label}"]`)).not.toBeNull();
       expect(upper.textContent).toContain("+ Add to this day");
       const row = document.querySelector('[data-slot="day-header-row"]') as HTMLElement;
       const lower = row.querySelector('[data-slot="day-header-cluster"]') as HTMLElement;
-      expect(lower.className.split(/\s+/)).toEqual(expect.arrayContaining(["hidden", "@min-[84rem]:flex"]));
-      expect(lower.className).not.toMatch(/(^|\s)(lg|xl):/);
-      expect(row.className).not.toMatch(/(^|\s)(lg|xl):grid/);
+      expect(lower.className.split(/\s+/)).toEqual(expect.arrayContaining(["hidden", "xl:flex"]));
+      expect(lower.className.split(/\s+/)).not.toContain("flex-wrap");
+      expect(lower.className).not.toContain("@min-");
+      expect(row.className).not.toContain("@min-");
       expect(row.className).toContain("lg:justify-center");
       expect(row.className).not.toMatch(/absolute/);
     });
