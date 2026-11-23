@@ -3,9 +3,10 @@
  * (components/trip/day/day-carousel.tsx) scrolls the body itself, so no day
  * change runs a view transition there. From lg a day change made in the app
  * is typed by direction and the body crossfades in place
- * (DAY_BODY_TRANSITION_WIDE), as does the header's text. Untyped navigations
- * (browser back/forward, router.refresh(), the push that lands a day already
- * on screen) map to "none".
+ * (DAY_BODY_TRANSITION_WIDE), as does the header's text, unless it is part of
+ * a quick run of presses or reduced motion is on: those are untyped and cut.
+ * Untyped navigations (browser back/forward, router.refresh(), the push that
+ * lands a day already on screen) map to "none".
  */
 export const DAY_FORWARD = "day-forward";
 export const DAY_BACK = "day-back";

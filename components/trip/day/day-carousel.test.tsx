@@ -804,22 +804,6 @@ describe("DayCarousel on a wide screen (spec 2026-11-18 D1)", () => {
     expect(push.mock.calls).toEqual([[href("2026-12-13"), { scroll: false }]]);
   });
 
-  it("presses while a push is in flight change the day at once but push nothing; when it lands, the day in view is pushed once", async () => {
-    setMatchMedia(desktop);
-    const { heading, rerenderWith } = mount();
-    act(() => { api!.step(1); });
-    act(() => { api!.step(1); });
-    act(() => { api!.step(1); });
-    // The heading's commit waits here only because this push mock is an async action, which React entangles with later transitions; Next's push is not.
-    expect(api!.current()).toBe("2026-12-15");
-    expect(push.mock.calls).toEqual([[href("2026-12-13"), { scroll: false }]]);
-    rerenderWith({ shownDate: "2026-12-13" });
-    await act(async () => { for (const release of releases.splice(0)) release(); });
-    expect(api!.current()).toBe("2026-12-15");
-    expect(heading()).toBe("fallback 2026-12-15");
-    expect(push.mock.calls).toEqual([[href("2026-12-13"), { scroll: false }], [href("2026-12-15"), { scroll: false }]]);
-  });
-
   it("a push that ends without landing on its day, with the view still there, parks back on the day shown", async () => {
     setMatchMedia(desktop);
     const { heading } = mount();

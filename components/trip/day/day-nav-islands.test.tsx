@@ -87,10 +87,19 @@ describe("DayArrow", () => {
     fireEvent.click(screen.getByRole("link", { name: "Next day: Sat" }));
     expect(usage.recordUsageDayChange.mock.calls).toEqual([["arrow", "2026-12-05"]]);
   });
+  it("records the day the carousel goes to, not a header that has not redrawn yet", () => {
+    usage.recordUsageDayChange.mockClear();
+    const api = { ...carousel(() => true, () => true), current: () => "2026-12-06" };
+    render(<NavigationPendingProvider><DayCarouselContext.Provider value={api}><DayArrow href={"/trips/t1/day/2026-12-05" as Route} label="Next day: Sat" dir="next" /><DayArrow href={"/trips/t1/day/2026-12-03" as Route} label="Previous day: Thu" dir="prev" /></DayCarouselContext.Provider></NavigationPendingProvider>);
+    fireEvent.click(screen.getByRole("link", { name: "Next day: Sat" }));
+    fireEvent.click(screen.getByRole("link", { name: "Previous day: Thu" }));
+    expect(usage.recordUsageDayChange.mock.calls).toEqual([["arrow", "2026-12-07"], ["arrow", "2026-12-05"]]);
+  });
   it("is a link typed by direction that keeps the vertical position; a missing day is a disabled span", () => {
     render(<><DayArrow href={"/n" as Route} label="Next day: Sun" dir="next" /><DayArrow href={null} label={null} dir="prev" /></>);
     const next = screen.getByRole("link", { name: "Next day: Sun" });
     expect(next).toHaveAttribute("data-transition", "day-forward");
+    expect(next).toHaveAttribute("data-day-step", "1");
     expect(next).toHaveAttribute("data-scroll", "false");
     expect(screen.getByLabelText("Previous day")).toHaveAttribute("aria-disabled", "true");
   });

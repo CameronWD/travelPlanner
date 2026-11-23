@@ -101,7 +101,9 @@ export function DayStrip({ tripId, dates, line, size }: { tripId: string; dates:
   // Every other strip centres the lit chip. Below lg (the md–lg band shows
   // the desktop strip) it is measured against the strip's viewport; from lg
   // it goes under the fixed centre frame, the strip's one movement (spec
-  // 2026-11-18 D2). A first render after a full load is positioned cold;
+  // 2026-11-18 D2), except near the Trip's ends, where the unpadded strip
+  // rests against its edge and the frame fades (amended 2026-11-23). A first
+  // render after a full load is positioned cold;
   // every later mount or lit change glides from where the strip was, except
   // mid-gesture.
   React.useLayoutEffect(() => {

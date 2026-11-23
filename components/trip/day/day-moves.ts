@@ -31,3 +31,15 @@ export function afterPush({ wide, pushed, shown, view, committing }: { wide: boo
   if (wide && view !== pushed) return "push";
   return "reconcile";
 }
+
+/**
+ * Every day's content from the newest payload that had it. From lg a push can
+ * land while the view has moved on (a reversal, a press during a hold), and
+ * its payload fills the days around the day it landed on, not the day shown:
+ * the day shown keeps what an earlier payload sent until its own push lands.
+ */
+export function keepFilled<T>(kept: ReadonlyMap<string, T>, panels: ReadonlyArray<{ iso: string; filled?: boolean; content: T }>): Map<string, T> {
+  const next = new Map(kept);
+  for (const p of panels) if (p.filled !== false) next.set(p.iso, p.content);
+  return next;
+}
