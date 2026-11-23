@@ -1372,7 +1372,6 @@ export function ItineraryManager({
         label={legLabel(t, stops, homeBaseName, homeTimezone)}
         bookingState={t.bookingState}
         bookBy={t.bookBy}
-        marker={needsConfirmation.has(t.id) ? { kind: "TRANSPORT", id: t.id } : null}
         onClick={() => {
           setEditingTransport(enrichTransport(t, stops));
           setEditingTransportCosts(t.costs);
@@ -1523,7 +1522,6 @@ export function ItineraryManager({
         attachments={attachmentsByAccommodationId?.get(acc.id) ?? []}
         currentUserId={currentUserId}
         forkId={forkId ?? null}
-        needsConfirmation={needsConfirmation.has(acc.id)}
       />
     ));
   }
@@ -1618,7 +1616,6 @@ export function ItineraryManager({
                     onEditItem={(it) => setItemForm({ mode: "edit", item: toItemCardItem(it) })}
                     onGiveDates={() => handleAdjustDates(stop)}
                     onOpenExtras={(kind) => setExtras({ stopId: stop.id, kind })}
-                    needsConfirmationIds={needsConfirmation}
                   />
                 )}
               </StopRow>
@@ -2314,7 +2311,6 @@ export function ItineraryManager({
           onActions={() => setActionsStopId(sheetStop.id)}
           isPending={pendingId === sheetStop.id}
           onSetNights={sheetStop.surprise?.youAreSurprised ? undefined : (n) => void handleSetNights(sheetStop.id, n)}
-          needsConfirmationIds={needsConfirmation}
         />
       )}
 

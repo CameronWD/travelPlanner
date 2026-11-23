@@ -195,12 +195,14 @@ describe("LegPill Booking state (spec 2026-10-17 R2)", () => {
     expect(screen.getByRole("button", { name: FLIGHT.accessibleName })).toBeInTheDocument();
   });
 
-  it("marks a booked leg with no confirmation, except on a compact pill", () => {
-    const { rerender } = render(<LegPill label={FLIGHT} onClick={vi.fn()} />);
+  it("never shows the missing-confirmation note, booked or not", () => {
+    render(<LegPill label={FLIGHT} onClick={vi.fn()} bookingState="BOOKED" />);
     expect(screen.queryByText("No booking confirmation attached")).toBeNull();
-    rerender(<LegPill label={FLIGHT} onClick={vi.fn()} marker={{ kind: "TRANSPORT", id: "t1" }} />);
-    expect(screen.getByText("No booking confirmation attached")).toBeInTheDocument();
-    rerender(<LegPill label={FLIGHT} onClick={vi.fn()} compact marker={{ kind: "TRANSPORT", id: "t1" }} />);
-    expect(screen.queryByText("No booking confirmation attached")).toBeNull();
+    expect(screen.queryByRole("button", { name: "Nothing to attach" })).toBeNull();
+  });
+
+  it("renders the pill alone, with no wrapper stacked around it", () => {
+    const { container } = render(<LegPill label={FLIGHT} onClick={vi.fn()} />);
+    expect(container.firstElementChild).toBe(screen.getByRole("button"));
   });
 });

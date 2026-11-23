@@ -296,7 +296,7 @@ describe("Timeline — check-in and check-out are rows on the Day view", () => {
 
   it("check-in is an Item-shaped row with a LogIn tile, the time in the gutter, and no purple CHECK-IN card", () => {
     const day = timed(dayPlanWithCheckin, "accommodation-checkin", { name: "1 Bedroom private pool @Kuta", checkInTime: "15:00" });
-    const { container } = render(<Timeline day={day} variant="day" size="large" needsConfirmationIds={["acc-1"]} />);
+    const { container } = render(<Timeline day={day} variant="day" size="large" />);
     const row = screen.getByText("Check in · 1 Bedroom private pool @Kuta").closest("[data-timeline-row]") as HTMLElement;
     expect(row).toHaveTextContent("15:00");
     const tile = within(row).getByTestId("timeline-tile");
@@ -1431,39 +1431,15 @@ describe("Try list on the Timeline (CONTEXT.md Try list)", () => {
 describe("Timeline: booking confirmation marker", () => {
   const MARKER = /No booking confirmation attached/;
 
-  it("marks a timed item, an untimed item, a transport row and a check-in row listed by id", () => {
-    render(<Timeline day={dayPlan} variant="day" needsConfirmationIds={[ITEM_ID, UNTIMED_ITEM_ID]} />);
-    expect(screen.getAllByText(MARKER)).toHaveLength(2);
-    render(<Timeline day={dayPlanWithTransport} variant="day" needsConfirmationIds={["tr-1"]} />);
-    expect(screen.getAllByText(MARKER)).toHaveLength(3);
-    render(<Timeline day={dayPlanWithCheckin} variant="day" needsConfirmationIds={["acc-1"]} />);
-    expect(screen.getAllByText(MARKER)).toHaveLength(4);
-  });
-
-  it("shows nothing when the id is not listed or the prop is absent", () => {
-    render(<Timeline day={dayPlan} variant="day" needsConfirmationIds={["other"]} />);
-    render(<Timeline day={dayPlanWithCheckin} variant="day" />);
-    expect(screen.queryByText(MARKER)).toBeNull();
-  });
-
-  it("drops the marker from item, transport and check-in rows when the editor reads first (Travelling or Past)", () => {
-    const editor = { tripId: "t1", stops: [], readFirst: true, transports: {}, accommodations: {}, items: {}, costsByOwner: {} };
-    render(<Timeline day={dayPlan} variant="day" editor={editor} needsConfirmationIds={[ITEM_ID, UNTIMED_ITEM_ID]} />);
-    render(<Timeline day={dayPlanWithTransport} variant="day" editor={editor} needsConfirmationIds={["tr-1"]} />);
-    render(<Timeline day={dayPlanWithCheckin} variant="day" editor={editor} needsConfirmationIds={["acc-1"]} />);
+  it("never shows the note on an item, a transport row or a check-in row, planning or not", () => {
+    const planning = { tripId: "t1", stops: [], readFirst: false, transports: {}, accommodations: {}, items: {}, costsByOwner: {} };
+    for (const editor of [undefined, planning]) {
+      render(<Timeline day={dayPlan} variant="day" editor={editor} />);
+      render(<Timeline day={dayPlanWithTransport} variant="day" editor={editor} />);
+      render(<Timeline day={dayPlanWithCheckin} variant="day" editor={editor} />);
+    }
     expect(screen.queryByText(MARKER)).toBeNull();
     expect(screen.queryByRole("button", { name: "Nothing to attach" })).toBeNull();
-  });
-
-  it("keeps the marker while planning (readFirst false)", () => {
-    const editor = { tripId: "t1", stops: [], readFirst: false, transports: {}, accommodations: {}, items: {}, costsByOwner: {} };
-    render(<Timeline day={dayPlan} variant="day" editor={editor} needsConfirmationIds={[ITEM_ID]} />);
-    expect(screen.getAllByText(MARKER)).toHaveLength(1);
-  });
-
-  it("never marks the check-out row", () => {
-    render(<Timeline day={dayPlanWithCheckout} variant="day" needsConfirmationIds={["acc-1"]} />);
-    expect(screen.queryByText(MARKER)).toBeNull();
   });
 });
 

@@ -84,7 +84,6 @@ export function DayPlanCard({ data, size, addButton, shown = true }: { data: Day
                   showUnschedule
                   editor={data.editor}
                   todayISO={data.today}
-                  needsConfirmationIds={data.needsConfirmationIds}
                 />
                 <DayFeasibility tripId={data.tripId} entries={data.feasibility as DayFeasibilityEntry[]} markedFine={data.markedFine} hops={data.hops} />
                 <NearbyWishlist tripId={data.tripId} date={data.date} items={data.nearby} />

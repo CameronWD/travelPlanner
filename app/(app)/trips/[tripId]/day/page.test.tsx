@@ -166,7 +166,6 @@ function fixture(over: Partial<DayViewData> = {}): DayViewData {
     itemDirections: {},
     dayMap: { points: [], routePoints: [], perItemPrev: {} },
     attachmentsByTarget: {},
-    needsConfirmationIds: [],
     stopOptions: [{ id: "s1", name: "Strasbourg", arriveDate: "2026-12-10", departDate: "2026-12-13", timezone: "Europe/Paris", sortOrder: 0 }],
     ideas: {
       rows: [

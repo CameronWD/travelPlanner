@@ -50,12 +50,10 @@ function renderDay(p = {}) {
 vi.mock("@/server/actions/booking-confirmation", () => ({ setNothingToAttach: vi.fn() }));
 
 describe("DaySection booking confirmation marker", () => {
-  it("marks only the rows that need a confirmation", () => {
-    const { unmount } = renderDay();
+  it("never shows the missing-confirmation note on a row", () => {
+    renderDay();
     expect(screen.queryByText("No booking confirmation attached")).toBeNull();
-    unmount();
-    renderDay({ needsConfirmationIds: new Set(["b"]) });
-    expect(screen.getAllByText("No booking confirmation attached")).toHaveLength(1);
+    expect(screen.queryByRole("button", { name: "Nothing to attach" })).toBeNull();
   });
 });
 

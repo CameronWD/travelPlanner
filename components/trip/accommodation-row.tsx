@@ -7,7 +7,6 @@ import { cn } from "@/lib/cn";
 import { formatCheckTimes, formatDateRange } from "@/lib/dates";
 import { costPaidState } from "@/lib/plan/plan-model";
 import { accommodationDateWarnings } from "@/lib/accommodation-dates";
-import { BookingConfirmationMarker } from "@/components/trip/booking-confirmation-marker";
 import {
   AccommodationCard,
   type AccommodationCardAccommodation,
@@ -32,7 +31,6 @@ export interface AccommodationRowProps {
   forkId?: string | null;
   /** Start expanded — the stay panel opens the stay dialog on the block clicked (spec 2026-10-04 §B). */
   defaultOpen?: boolean;
-  needsConfirmation?: boolean;
 }
 
 /**
@@ -43,7 +41,7 @@ export interface AccommodationRowProps {
  * cost/notes affordances still live in the card.
  */
 export function AccommodationRow(props: AccommodationRowProps) {
-  const { accommodation: a, stop, isPending = false, costs, defaultOpen = false, needsConfirmation = false } = props;
+  const { accommodation: a, stop, isPending = false, costs, defaultOpen = false } = props;
   // Paid state at a glance (shared with the stay panel): "paid ✓" once any
   // cost is marked paid, "unpaid" while costs exist but none is.
   const paidState = costPaidState(costs);
@@ -115,11 +113,6 @@ export function AccommodationRow(props: AccommodationRowProps) {
           />
         </span>
       </button>
-      {needsConfirmation && (
-        <div className="px-3 pb-2 pl-9">
-          <BookingConfirmationMarker kind="ACCOMMODATION" id={a.id} />
-        </div>
-      )}
       {open && (
         <div className="border-t border-dotted border-border">
           <AccommodationCard {...props} embedded />

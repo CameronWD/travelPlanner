@@ -19,7 +19,6 @@ import { buildStopDays, ownerMarker, type StopDayItem } from "@/lib/stop-days";
 import type { StopCardStop, ThingToDo } from "@/components/plan/types";
 import { stopSheetMeta } from "./stop-sheet-meta";
 import { SurpriseBadge, SurpriseShell } from "@/components/plan/surprise-badge";
-import { BookingConfirmationMarker } from "@/components/trip/booking-confirmation-marker";
 
 export { stopSheetMeta } from "./stop-sheet-meta";
 
@@ -44,7 +43,6 @@ export interface StopSheetProps {
   isPending?: boolean;
   /** Spec 2026-10-06 §N: the −/+ nights stepper on the meta line. */
   onSetNights?(nights: number): void;
-  needsConfirmationIds?: ReadonlySet<string>;
 }
 
 type Tab = "days" | "stay" | "ideas";
@@ -132,7 +130,6 @@ export function StopSheet({
   onActions,
   isPending,
   onSetNights,
-  needsConfirmationIds,
 }: StopSheetProps) {
   const rough = !stop.arriveDate || !stop.departDate;
   // CONTEXT.md Surprise: the surprised see the outside and who is planning it, and touch nothing.
@@ -309,11 +306,6 @@ export function StopSheet({
                                 )}
                               </span>
                             </button>
-                            {needsConfirmationIds?.has(it.id) && (
-                              <div className="pb-2 pl-[3.75rem]">
-                                <BookingConfirmationMarker kind="ITEM" id={it.id} />
-                              </div>
-                            )}
                             </React.Fragment>
                           );
                         })
@@ -347,8 +339,8 @@ export function StopSheet({
                       <SurpriseBadge view={idea.surprise} size="sm" className="shrink-0" />
                     </div>
                   ) : (
-                    <React.Fragment key={idea.id}>
                     <button
+                      key={idea.id}
                       type="button"
                       aria-label={`Open ${idea.title}`}
                       onClick={() => onOpenIdea(idea)}
@@ -358,12 +350,6 @@ export function StopSheet({
                       <span className="min-w-0 flex-1 truncate text-sm font-semibold">{idea.title}</span>
                       <ChevronRight className="size-4 shrink-0 text-muted-foreground" aria-hidden="true" />
                     </button>
-                    {needsConfirmationIds?.has(idea.id) && (
-                      <div className="pb-2 pl-5">
-                        <BookingConfirmationMarker kind="ITEM" id={idea.id} />
-                      </div>
-                    )}
-                    </React.Fragment>
                   ),
                 )
               ))}

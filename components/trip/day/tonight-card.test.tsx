@@ -74,11 +74,11 @@ describe("TonightCard (spec 2026-09-29 D1)", () => {
     expect(screen.queryByRole("link", { name: "Edit in plan" })).toBeNull();
   });
 
-  it("an Accommodation that needs a booking confirmation says so while the card is collapsed", () => {
-    render(<TonightCard tripId="t1" tonight={bare} needsBookingConfirmation isLastDay={false} stopId="s1" size="desktop" />);
+  it("never shows the missing-confirmation note, even collapsed", () => {
+    render(<TonightCard tripId="t1" tonight={bare} isLastDay={false} stopId="s1" size="desktop" />);
     expect(toggle()).toHaveAttribute("aria-expanded", "false");
-    expect(screen.getByText("No booking confirmation attached")).toBeInTheDocument();
-    expect(toggle()).not.toContainElement(screen.getByText("No booking confirmation attached"));
+    expect(screen.queryByText("No booking confirmation attached")).toBeNull();
+    expect(screen.queryByRole("button", { name: "Nothing to attach" })).toBeNull();
   });
 
   it("says nothing about a confirmation when none is needed, and shows the reference in the expanded body", () => {
