@@ -120,11 +120,14 @@ export function ToPayPanel({
         row.ownerType === "OTHER"
           ? async () => {
               if (!(await confirm({ title: `Delete “${row.label}”?`, description: "This can’t be undone.", confirmLabel: "Delete", destructive: true }))) return;
+              setPendingId(row.id);
               try {
                 const r = await deleteCost(row.id);
                 if (!r.success) toastRefused(r.errors, "Couldn’t delete that cost.");
               } catch {
                 toastRejected("Couldn’t delete that cost.");
+              } finally {
+                setPendingId(null);
               }
             }
           : undefined,

@@ -1079,6 +1079,24 @@ describe("FeedbackLauncher", () => {
     expect(screen.queryByText("Beta")).toBeNull();
   });
 
+  it("a note's Delete says it is working and is disabled while the delete is unresolved, and ignores a second click", async () => {
+    let release!: (v: { success: false; errors: Record<string, string[]> }) => void;
+    deleteMock.mockReturnValue(new Promise((r) => { release = r; }));
+    const user = userEvent.setup();
+    render(<FeedbackLauncher />);
+
+    await user.click(screen.getByRole("button", { name: /feedback/i }));
+    expect(await screen.findByText("Budget totals look wrong")).toBeInTheDocument();
+    const del = screen.getByRole("button", { name: /delete “Budget totals look wrong”/i });
+    await user.click(del);
+    expect(del).toHaveAttribute("aria-busy", "true");
+    expect(del).toBeDisabled();
+    await user.click(del);
+    expect(deleteMock).toHaveBeenCalledTimes(1);
+    release({ success: false, errors: { _: ["no"] } });
+    await waitFor(() => expect(del).not.toHaveAttribute("aria-busy"));
+  });
+
   it("deletes a note you wrote and drops it from the log", async () => {
     // FN-11: the Delete button's rendering was covered; pressing it never was.
     deleteMock.mockResolvedValue({ success: true });

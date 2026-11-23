@@ -57,6 +57,20 @@ describe("SignOutButton", () => {
     expect(postMessageMock).toHaveBeenCalledWith({ type: "CLEAR_CACHE" });
   });
 
+  it("says it is working and is disabled while sign-out is unresolved, and ignores a second click", async () => {
+    let release!: () => void;
+    signOutMock.mockReturnValue(new Promise<void>((r) => { release = r; }));
+    render(<SignOutButton />);
+    const button = screen.getByRole("button", { name: "Sign out" });
+    fireEvent.click(button);
+    await waitFor(() => expect(button).toHaveAttribute("aria-busy", "true"));
+    expect(button).toBeDisabled();
+    fireEvent.click(button);
+    expect(signOutMock).toHaveBeenCalledTimes(1);
+    release();
+    await waitFor(() => expect(assignMock).toHaveBeenCalledWith("/"));
+  });
+
   it("still redirects when no service worker is registered", async () => {
     Object.defineProperty(navigator, "serviceWorker", {
       value: { ready: new Promise(() => {}), getRegistration: async () => undefined },

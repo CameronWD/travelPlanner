@@ -38,6 +38,7 @@ export function RatesRefreshButton({
       type="button"
       aria-label="Refresh all rates"
       disabled={pending}
+      aria-busy={pending || undefined}
       onClick={refresh}
       className="pressable -my-2 -mr-2 grid size-11 shrink-0 place-items-center rounded-full text-on-accent disabled:opacity-70"
     >
