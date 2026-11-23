@@ -316,6 +316,20 @@ describe("DayStrip", () => {
     const rect = (width: number) => ({ left: 0, width, top: 0, right: width, bottom: 62, height: 62, x: 0, y: 0, toJSON() {} }) as DOMRect;
     const FAKE: Parameters<typeof vi.useFakeTimers>[0] = { toFake: ["setTimeout", "clearTimeout", "Date", "performance", "requestAnimationFrame", "cancelAnimationFrame"] };
     const dayOne = dates.map((d, i) => ({ ...d, isCurrent: i === 0 }));
+    // A row one chip wide: each of the five days can reach the centre, so day 3
+    // centres at 192 (3 chips and gaps along). From lg the strip has no end padding.
+    let row = 56;
+    const STRIP = 5 * 64 - 8;
+    const wideScroller = (el: HTMLElement) => el.hasAttribute("data-day-strip-scroller") && el.closest('[data-day-strip][role="group"]') != null;
+    const widths = ["clientWidth", "scrollWidth"].map((k) => [k, Object.getOwnPropertyDescriptor(HTMLElement.prototype, k) ?? Object.getOwnPropertyDescriptor(Element.prototype, k)!] as const);
+    beforeEach(() => {
+      row = 56;
+      Object.defineProperty(HTMLElement.prototype, "clientWidth", { configurable: true, get(this: HTMLElement) { return wideScroller(this) ? row : 0; } });
+      Object.defineProperty(HTMLElement.prototype, "scrollWidth", { configurable: true, get(this: HTMLElement) { return wideScroller(this) ? STRIP : 0; } });
+    });
+    afterEach(() => {
+      for (const [k, d] of widths) Object.defineProperty(HTMLElement.prototype, k, d);
+    });
 
     it("a frame fixed at the centre marks the day shown; it sits outside the scrolled row and never moves", () => {
       render(<DayStrip tripId="t1" dates={dates} line={segments} size="desktop" />);
@@ -328,8 +342,35 @@ describe("DayStrip", () => {
       expect(centre.style.transform).toBe("");
       expect(centre.className.split(/\s+/)).toEqual(expect.arrayContaining(["hidden", "lg:block", "pointer-events-none", "absolute", "left-1/2", "-translate-x-1/2"]));
       expect(centre.className).not.toContain("coral");
-      // The end padding lets the first and last day reach the centre.
-      expect(scroller.className.split(/\s+/)).toContain("lg:px-[calc(50%-1.75rem)]");
+      // No end padding: near the Trip's ends the strip rests against its edge (amended 2026-11-23).
+      expect(scroller.className).not.toMatch(/(^|\s)(lg:)?px-/);
+    });
+    it("near the Trip's start the strip rests against its edge, and the frame fades while the day is off the centre", () => {
+      const spy = vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockImplementation(function (this: HTMLElement) {
+        return rect(this.hasAttribute("data-lit") ? 56 : 0);
+      });
+      try {
+        row = 200;
+        render(<DayStrip tripId="t-ends" dates={dayOne} line={segments} size="desktop" />);
+        const frame = document.querySelector("[data-strip-centre]") as HTMLElement;
+        expect((document.querySelector("[data-day-strip-scroller]") as HTMLElement).scrollLeft).toBe(0);
+        expect(frame).toHaveAttribute("data-off-centre");
+        expect(frame.className.split(/\s+/)).toContain("data-off-centre:opacity-0");
+      } finally {
+        spy.mockRestore();
+      }
+    });
+    it("a day that can reach the centre sits under the frame", () => {
+      const spy = vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockImplementation(function (this: HTMLElement) {
+        return rect(this.hasAttribute("data-lit") ? 56 : 0);
+      });
+      try {
+        render(<DayStrip tripId="t-centre" dates={dates} line={segments} size="desktop" />);
+        expect((document.querySelector("[data-day-strip-scroller]") as HTMLElement).scrollLeft).toBe(192);
+        expect(document.querySelector("[data-strip-centre]")).not.toHaveAttribute("data-off-centre");
+      } finally {
+        spy.mockRestore();
+      }
     });
     it("the strip has no Previous day or Next day buttons: the date's arrows are the only pair", () => {
       render(<DayStrip tripId="t1" dates={dates} line={segments} size="desktop" />);

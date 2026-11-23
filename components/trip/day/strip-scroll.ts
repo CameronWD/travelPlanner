@@ -3,7 +3,10 @@
  *
  * Wide screen (lg+, spec 2026-11-18 D2): the selected day holds the centre,
  * under a fixed frame, and the strip slides beneath it in one glide. A look
- * around by hand glides back to it after a quiet moment.
+ * around by hand glides back to it after a quiet moment. The strip has no
+ * end padding there, so near the Trip's ends it rests against its edge
+ * rather than leave half the row empty (amended 2026-11-23), and the day
+ * sits off the centre.
  *
  * Phone (< lg, ADR 0065): the day in view sits in the centre of the strip's
  * viewport, placed from its index. The scroller's end padding lets the first
@@ -24,12 +27,18 @@ export interface StripScrollInput {
   gap: number;
 }
 
-// Assumes end padding of (viewportWidth - chipWidth) / 2: the strip's `lg:px-[calc(50%-1.75rem)]`
-// from lg, and the phone strip's `px-[calc(50%-1.5rem)]`, which places it from a fractional
-// index as the body moves (ADR 0065, amended 2026-11-22).
+// Assumes end padding of (viewportWidth - chipWidth) / 2: the phone strip's `px-[calc(50%-1.5rem)]`,
+// which places it from a fractional index as the body moves (ADR 0065, amended 2026-11-22).
 export function centredScrollLeft(index: number, chipWidth: number, gap: number, viewportWidth: number): number {
   const chipCentre = (viewportWidth - chipWidth) / 2 + index * (chipWidth + gap) + chipWidth / 2;
   return Math.max(0, chipCentre - viewportWidth / 2);
+}
+
+/** The wide strip, unpadded: the chip centred when the strip can reach it, else the strip at its nearer end. */
+export function wideStripScroll(index: number, chipWidth: number, gap: number, viewportWidth: number, contentWidth: number): { scrollLeft: number; centred: boolean } {
+  const ideal = index * (chipWidth + gap) + chipWidth / 2 - viewportWidth / 2;
+  const scrollLeft = Math.min(Math.max(0, ideal), Math.max(0, contentWidth - viewportWidth));
+  return { scrollLeft, centred: contentWidth > viewportWidth && scrollLeft === ideal };
 }
 
 export function phoneStripScroll(i: StripScrollInput): number {

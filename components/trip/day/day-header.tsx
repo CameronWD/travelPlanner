@@ -115,6 +115,12 @@ export function DayHeader({
             <div data-slot="day-trip-switcher-pill" className="min-w-0 flex-1 lg:flex-none xl:hidden [&>*]:w-full lg:[&>*]:w-auto">
               <TripSwitcherFromContext tripId={tripId} fallbackName={tripName} variant="pill" />
             </div>
+            {/* From xl the rail's card is the switcher, so the pill's place takes
+                the Trip's name, as PageHeader's eyebrow does on the other trip pages:
+                otherwise the row is the cluster alone with nothing on its left. */}
+            <p data-slot="day-trip-name" className="hidden min-w-0 truncate text-[15px] font-medium text-muted-foreground xl:block" title={tripName}>
+              {tripName}
+            </p>
             <div className="flex items-center gap-2.5 lg:hidden">
               <ShareTripButton />
               <NotificationBell tripId={tripId} unreadCount={unreadCount} recent={recent} />

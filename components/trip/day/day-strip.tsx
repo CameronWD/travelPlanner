@@ -13,7 +13,7 @@ import { recordUsageDayChange } from "@/lib/usage/client";
 import { formatDayLabel, parseISODate } from "@/lib/dates";
 import { stopDotClass } from "@/lib/stop-colours";
 import { dotsFor, type StopLine } from "@/lib/day-view-model";
-import { centredScrollLeft, phoneStripScroll, STRIP_CHIP_GAP_PX, STRIP_GLIDE_WIDE_MS, STRIP_RETURN_AFTER_MS, type StripScrollInput } from "@/components/trip/day/strip-scroll";
+import { centredScrollLeft, phoneStripScroll, STRIP_CHIP_GAP_PX, STRIP_GLIDE_WIDE_MS, STRIP_RETURN_AFTER_MS, wideStripScroll, type StripScrollInput } from "@/components/trip/day/strip-scroll";
 import { TRANSPORT_MODE_META } from "@/lib/transport";
 import { useTripHref } from "@/components/trip/use-trip-href";
 
@@ -119,10 +119,10 @@ export function DayStrip({ tripId, dates, line, size }: { tripId: string; dates:
     }
     const wide = !phone && window.matchMedia(LG_UP).matches;
     const remembered = lastScrollLeft.get(memoryKey);
-    const target = wide
-      ? centredScrollLeft(centreIndex, chip.getBoundingClientRect().width, STRIP_CHIP_GAP_PX, nav.clientWidth)
-      : targetFor(nav, chip, remembered ?? nav.scrollLeft);
+    const placed = wide ? wideStripScroll(centreIndex, chip.getBoundingClientRect().width, STRIP_CHIP_GAP_PX, nav.clientWidth, nav.scrollWidth) : null;
+    const target = placed ? placed.scrollLeft : targetFor(nav, chip, remembered ?? nav.scrollLeft);
     home.current = wide ? target : null;
+    centreFrame.current?.toggleAttribute("data-off-centre", placed != null && !placed.centred);
     clearTimeout(returnTimer.current);
     if (remembered == null) {
       nav.scrollLeft = target;
@@ -245,10 +245,11 @@ export function DayStrip({ tripId, dates, line, size }: { tripId: string; dates:
       data-day-strip-scroller
       // One scroll container for the chip nav and the desktop city legend
       // (DV-01: they used to scroll separately, so the legend's cells drifted
-      // out from under their chips). The end padding lets the first and last
-      // day centre too: phone, where chips also snap (ADR 0065), and from lg
-      // under the centre frame (spec 2026-11-18 D2).
-      className={cn("flex flex-col gap-2 overflow-x-auto [scrollbar-width:none]", phone && "snap-x snap-mandatory px-[calc(50%-1.5rem)]", !phone && "lg:px-[calc(50%-1.75rem)]")}
+      // out from under their chips). On a phone the end padding lets the first
+      // and last day centre too, where chips also snap (ADR 0065). From lg there
+      // is none: near an end the strip rests against its edge rather than open
+      // the row with half a strip of nothing (amended 2026-11-23).
+      className={cn("flex flex-col gap-2 overflow-x-auto [scrollbar-width:none]", phone && "snap-x snap-mandatory px-[calc(50%-1.5rem)]")}
       onScroll={(e) => onStripScroll(e.currentTarget)}
     >
       <nav aria-label="Days" className={cn("relative flex w-max gap-2", !phone && "mx-auto")}>
@@ -410,12 +411,13 @@ export function DayStrip({ tripId, dates, line, size }: { tripId: string; dates:
         {strip}
         {/* The day shown holds the centre and the chips slide beneath this frame.
             Ink, not coral: the lit chip is the one coral thing, so nothing
-            coral moves except with the strip. */}
+            coral moves except with the strip. Near the Trip's ends the day
+            cannot reach the centre, and the frame fades while it is off it. */}
         <span
           ref={centreFrame}
           data-strip-centre
           aria-hidden="true"
-          className="pointer-events-none absolute left-1/2 top-0 hidden h-[62px] w-14 -translate-x-1/2 rounded-[14px] border-2 border-border shadow-hard-1 transition-opacity duration-150 motion-reduce:transition-none data-away:opacity-0 lg:block"
+          className="pointer-events-none absolute left-1/2 top-0 hidden h-[62px] w-14 -translate-x-1/2 rounded-[14px] border-2 border-border shadow-hard-1 transition-opacity duration-150 motion-reduce:transition-none data-away:opacity-0 data-off-centre:opacity-0 lg:block"
         />
       </div>
     </div>
