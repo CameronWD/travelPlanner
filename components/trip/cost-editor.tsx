@@ -413,6 +413,7 @@ export function CostEditor({
                   size="icon"
                   className="tap-target size-8 text-destructive hover:bg-destructive/10 hover:text-destructive"
                   onClick={() => handleDelete(cost.id)}
+                  loading={pendingDeleteId === cost.id}
                   aria-label="Delete Cost"
                   title="Delete"
                 >

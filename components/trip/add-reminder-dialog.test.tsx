@@ -1,12 +1,14 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
+import { act } from "react";
 import { render, screen, waitFor, fireEvent } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 
 vi.mock("@/server/actions/reminders", () => ({
   addReminder: vi.fn().mockResolvedValue({ success: true, id: "rem-new" }),
   updateReminder: vi.fn().mockResolvedValue({ success: true }),
+  deleteReminder: vi.fn().mockResolvedValue({ success: true }),
 }));
-import { addReminder, updateReminder } from "@/server/actions/reminders";
+import { addReminder, updateReminder, deleteReminder } from "@/server/actions/reminders";
 
 import { AddReminderDialog } from "./add-reminder-dialog";
 
@@ -121,6 +123,25 @@ describe("AddReminderDialog", () => {
     );
     expect(addReminder).not.toHaveBeenCalled();
     await waitFor(() => expect(onOpenChange).toHaveBeenCalledWith(false));
+  });
+});
+
+describe("AddReminderDialog: delete", () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  it("Delete says it is working while the delete runs, and a second click does nothing", async () => {
+    let resolve!: (v: unknown) => void;
+    vi.mocked(deleteReminder).mockImplementationOnce(() => new Promise((r) => (resolve = r)) as never);
+    const user = userEvent.setup();
+    render(<AddReminderDialog reminder={{ id: "r1", title: "Reconfirm", date: "2026-12-05", notes: null }} open onOpenChange={vi.fn()} />);
+    await user.click(screen.getByRole("button", { name: "Delete" }));
+    await user.click(await screen.findByRole("button", { name: "Delete" }));
+    const del = screen.getByRole("button", { name: "Delete" });
+    expect(del).toHaveAttribute("aria-busy", "true");
+    expect(del).toBeDisabled();
+    await user.click(del);
+    expect(deleteReminder).toHaveBeenCalledTimes(1);
+    await act(async () => resolve({ success: true }));
   });
 });
 

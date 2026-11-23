@@ -1,4 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+import { act } from "react";
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 
@@ -416,6 +417,26 @@ describe("CostEditor", () => {
     // labeledCost's label isn't rendered by CostSummary; its amount is — assert
     // the row survived the rejection instead (drift from the brief's literal text).
     expect(screen.getByText("$35.00")).toBeInTheDocument();
+  });
+});
+
+describe("CostEditor delete in flight", () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  it("Delete Cost says it is working while the delete runs, and a second click does nothing", async () => {
+    let resolve!: (v: unknown) => void;
+    vi.mocked(deleteCost).mockImplementationOnce(() => new Promise((r) => (resolve = r)) as never);
+    const user = userEvent.setup();
+    render(<CostEditor {...baseProps} costs={[labeledCost]} />);
+    await user.click(screen.getByRole("button", { name: /delete cost/i }));
+    await user.click(await screen.findByRole("button", { name: "Delete" }));
+    const del = screen.getByRole("button", { name: /delete cost/i });
+    expect(del).toHaveAttribute("aria-busy", "true");
+    expect(del).toBeDisabled();
+    await user.click(del);
+    expect(deleteCost).toHaveBeenCalledTimes(1);
+    await act(async () => resolve({ success: true }));
+    expect(screen.getByRole("button", { name: /delete cost/i })).not.toHaveAttribute("aria-busy");
   });
 });
 

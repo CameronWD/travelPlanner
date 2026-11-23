@@ -34,6 +34,7 @@ export function MarkFineButton({ tripId, target }: { tripId: string; target: Mar
     <button
       type="button"
       disabled={isPending}
+      aria-busy={isPending || undefined}
       onClick={run}
       aria-label={`This is fine: ${target.between.from} to ${target.between.to}`}
       className={CHIP}
@@ -57,7 +58,7 @@ function MarkedFineRow({ tripId, entry }: { tripId: string; entry: MarkedFineEnt
         <p>{entry.message}</p>
         <p className="text-xs text-muted-foreground">Marked fine by {entry.markedByName}</p>
       </div>
-      <button type="button" disabled={isPending} onClick={run} className={CHIP}>
+      <button type="button" disabled={isPending} aria-busy={isPending || undefined} onClick={run} className={CHIP}>
         Undo
       </button>
     </div>

@@ -5,6 +5,7 @@
  * action IS called on confirm.
  */
 import { describe, it, expect, vi, beforeEach } from "vitest";
+import { act } from "react";
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 
@@ -13,7 +14,7 @@ vi.mock("@/server/actions/notes", () => ({
   deleteNote: vi.fn().mockResolvedValue({ success: true }),
 }));
 
-import { deleteNote } from "@/server/actions/notes";
+import { addNote, deleteNote } from "@/server/actions/notes";
 import { NoteThread } from "./note-thread";
 import type { NoteView } from "./note-thread";
 
@@ -74,6 +75,44 @@ describe("NoteThread — delete confirm flow", () => {
 
     await user.click(screen.getByRole("button", { name: "Delete" }));
     expect(deleteNote).toHaveBeenCalledWith("note-1");
+  });
+});
+
+function hold(fn: unknown) {
+  let resolve!: (v: unknown) => void;
+  vi.mocked(fn as () => Promise<unknown>).mockImplementationOnce(() => new Promise((r) => (resolve = r)));
+  return (v: unknown) => act(async () => resolve(v));
+}
+
+describe("NoteThread — answers while it works", () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  it("Add note says it is working while the note saves, and a second click adds nothing", async () => {
+    const settle = hold(addNote);
+    const user = userEvent.setup();
+    renderInline();
+    await user.type(screen.getByLabelText("Note body"), "Hello");
+    const add = screen.getByRole("button", { name: /add note/i });
+    await user.click(add);
+    expect(add).toHaveAttribute("aria-busy", "true");
+    expect(add).toBeDisabled();
+    await user.click(add);
+    expect(addNote).toHaveBeenCalledTimes(1);
+    await settle({ success: true });
+  });
+
+  it("Delete note says it is working on that note's button after the confirm", async () => {
+    const settle = hold(deleteNote);
+    const user = userEvent.setup();
+    renderInline();
+    await user.click(screen.getByRole("button", { name: /delete note/i }));
+    await user.click(await screen.findByRole("button", { name: "Delete" }));
+    const del = screen.getByRole("button", { name: /delete note/i });
+    expect(del).toHaveAttribute("aria-busy", "true");
+    expect(del).toBeDisabled();
+    await user.click(del);
+    expect(deleteNote).toHaveBeenCalledTimes(1);
+    await settle({ success: true });
   });
 });
 

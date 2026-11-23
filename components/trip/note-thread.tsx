@@ -65,6 +65,7 @@ function ThreadBody({
   const [body, setBody] = React.useState("");
   const [isPending, startTransition] = React.useTransition();
   const [error, setError] = React.useState<string | null>(null);
+  const [deletingId, setDeletingId] = React.useState<string | null>(null);
   const textareaRef = React.useRef<HTMLTextAreaElement>(null);
   const now = new Date();
 
@@ -134,8 +135,12 @@ function ThreadBody({
               <Button
                 variant="ghost"
                 size="icon"
-                disabled={isPending || deleteIsPending}
-                onClick={() => requestDelete(note.id)}
+                disabled={isPending || (deleteIsPending && deletingId !== note.id) || undefined}
+                loading={deleteIsPending && deletingId === note.id}
+                onClick={() => {
+                  setDeletingId(note.id);
+                  requestDelete(note.id);
+                }}
                 aria-label="Delete note"
                 className="size-8 shrink-0 self-start text-destructive hover:bg-destructive/10"
               >
@@ -170,7 +175,8 @@ function ThreadBody({
           type="submit"
           size="sm"
           variant="primary"
-          disabled={isPending || !body.trim()}
+          loading={isPending}
+          disabled={!body.trim() || undefined}
           className="self-end h-7 gap-1.5 px-3 text-xs"
         >
           <Send className="size-3" aria-hidden="true" />
