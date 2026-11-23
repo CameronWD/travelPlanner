@@ -58,6 +58,7 @@ import { deleteChapter, suggestChaptersFromCountries } from "@/server/actions/ch
 import { scheduleItem } from "@/server/actions/items";
 import { useUndoableAction } from "@/components/ui/use-undoable-action";
 import { usePlanEditor } from "@/components/plan/use-plan-editor";
+import { touchedPlacements, type PlanRestore } from "@/components/plan/plan-editor-state";
 import { suggestResultToast } from "@/lib/suggest-toast";
 import { suggestNextStopDates, formatDayLabel, formatLongDate } from "@/lib/dates";
 import { deleteTransport } from "@/server/actions/transport";
@@ -271,11 +272,13 @@ function SortableStop({
   stop,
   chapterId,
   rough,
+  busy,
   children,
 }: {
   stop: ItineraryStop;
   chapterId: string | null;
   rough: boolean;
+  busy: boolean;
   children: (dragHandle: React.ReactNode) => React.ReactNode;
 }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
@@ -307,7 +310,7 @@ function SortableStop({
   );
 
   return (
-    <div ref={setNodeRef} style={style}>
+    <div ref={setNodeRef} style={style} aria-busy={busy || undefined}>
       {children(dragHandle)}
     </div>
   );
@@ -770,11 +773,34 @@ export function ItineraryManager({
     }
   }
 
+  // Optimistic: only a rough Stop offers Move up/down, and moveStop just swaps
+  // its sortOrder with the next Stop's in sortOrder (no dates move), so the
+  // new order is known before the server answers. It runs through the
+  // editor's begin/revert/settle so server props are held while it is in flight.
   const moveStopAction = useUndoableAction({
-    persist: ({ stopId, direction }: { stopId: string; direction: "up" | "down" }) => moveStop(stopId, direction),
+    persist: ({ stopId, direction }: { stopId: string; direction: "up" | "down"; before: PlanRestore }) => moveStop(stopId, direction),
+    revert: ({ before }) => editorDispatch({ type: "revert", restore: before }),
   });
-  function handleMoveStop(stopId: string, direction: "up" | "down") {
-    return busy(stopId, () => moveStopAction.run({ stopId, direction }));
+  async function handleMoveStop(stopId: string, direction: "up" | "down") {
+    const bySortOrder = [...rows.stops].sort((a, b) => a.sortOrder - b.sortOrder);
+    const idx = bySortOrder.findIndex((s) => s.id === stopId);
+    const moved = bySortOrder[idx];
+    const other = bySortOrder[direction === "up" ? idx - 1 : idx + 1];
+    // A shared sortOrder means the server may pick a different neighbour (or
+    // swap equal values and change nothing), so only a clean swap is shown early.
+    const clean = other && !rows.stops.some((s) => s.id !== stopId && s.sortOrder === moved.sortOrder);
+    const next = clean
+      ? bySortOrder
+        .map((s) => (s.id === moved.id ? { ...s, sortOrder: other.sortOrder } : s.id === other.id ? { ...s, sortOrder: moved.sortOrder } : s))
+        .sort((a, b) => a.sortOrder - b.sortOrder)
+      : null;
+    editorDispatch({ type: "begin", rows: next ? { ...rows, stops: next } : undefined });
+    try {
+      const before: PlanRestore = { placements: next ? touchedPlacements(next, rows.stops) : [] };
+      return await busy(stopId, () => moveStopAction.run({ stopId, direction, before }));
+    } finally {
+      editorDispatch({ type: "settle" });
+    }
   }
 
   const togglePinAction = useUndoableAction({ persist: (stopId: string) => toggleStopPin(stopId) });
@@ -1102,7 +1128,11 @@ export function ItineraryManager({
       }),
     failure: "Couldn’t schedule it.",
   });
+  // Neither scheduling write moves anything locally (the day items are server
+  // props), so the Stop says busy until the server answers.
+  const [thingsStopId, setThingsStopId] = React.useState<string | null>(null);
   async function handleScheduleThing(thing: ThingToDo, dateISO: string) {
+    setThingsStopId(thing.stopId ?? null);
     if (!(await scheduleThingAction.run({ thing, dateISO }))) return;
     // MOTION.md P7: the day it landed on opens, comes into view and flashes, as a dropped plan's does (P6).
     if (thing.stopId) revealDay(thing.stopId, dateISO);
@@ -1117,8 +1147,10 @@ export function ItineraryManager({
     failure: "Couldn’t move it.",
   });
   async function handleMoveItem(drop: ItemDrop) {
+    setThingsStopId(drop.stopId);
     if (await moveItemAction.run(drop)) flashSlot(drop.stopId, drop.to);
   }
+  const thingsBusyStopId = moveItemAction.pending || scheduleThingAction.pending ? thingsStopId : null;
 
   useRegisterPlanActions({
     addStop: () => setAddStopOpen(true),
@@ -1488,7 +1520,7 @@ export function ItineraryManager({
     return (
       <React.Fragment key={stop.id}>
         <PlanRiseIn index={entered ? undefined : globalIdx} className={cn(newStopIds.includes(stop.id) && "tp-rise-in")}>
-          <SortableStop stop={stop} chapterId={stop.chapterId} rough={rough}>
+          <SortableStop stop={stop} chapterId={stop.chapterId} rough={rough} busy={thingsBusyStopId === stop.id}>
             {(dragHandle) => (
               <StopRow
                 stop={stop}
@@ -1597,7 +1629,7 @@ export function ItineraryManager({
         variant="outline"
         size="sm"
         className="tap-target"
-        disabled={pendingId === `firm-up-${chapterId}`}
+        loading={pendingId === `firm-up-${chapterId}`}
         onClick={() => handleFirmUp(chapterId)}
       >
         Firm up
@@ -1940,7 +1972,7 @@ export function ItineraryManager({
                             size="sm"
                             className="tap-target size-8 p-0 text-muted-foreground hover:text-destructive"
                             aria-label={`Remove ${chapter.name} chapter`}
-                            disabled={pendingId === `delete-chapter-${chapter.id}`}
+                            loading={pendingId === `delete-chapter-${chapter.id}`}
                             onClick={() => handleDeleteChapter(chapter.id)}
                           >
                             <Trash2 className="size-3.5" aria-hidden="true" />
@@ -2440,7 +2472,7 @@ function AdjustDatesDialog({
                 Cancel
               </Button>
             </DialogClose>
-            <Button type="submit" variant="primary" disabled={!canSave || isPending}>
+            <Button type="submit" variant="primary" disabled={!canSave || isPending} loading={isPending}>
               Save dates
             </Button>
           </DialogFooter>

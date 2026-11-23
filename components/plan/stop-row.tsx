@@ -126,6 +126,7 @@ export function StopRow({
     <article
       id={`stop-${stop.id}`}
       data-stop-id={stop.id}
+      aria-busy={isPending || undefined}
       className={cn(
         "group/row relative flex-none scroll-mt-6 overflow-hidden rounded-[20px] border-2 border-border",
         rough ? "border-dashed bg-background" : "bg-card shadow-hard-4",
