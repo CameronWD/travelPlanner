@@ -13,6 +13,7 @@ import { registerPlanWriteTools } from "./tools/plan-write";
 import { registerBookingsWriteTools } from "./tools/bookings-write";
 import { registerBookingStateTools } from "./tools/booking-state-write";
 import { registerNothingToAttachTool } from "./tools/nothing-to-attach";
+import { registerAttachFileTool } from "./tools/attach-file";
 import { registerMarkedFineTools } from "./tools/marked-fine-write";
 import { registerListWriteTools } from "./tools/lists-write";
 import { registerMakeItFitTools } from "./tools/make-it-fit";
@@ -33,7 +34,7 @@ export const MCP_INSTRUCTIONS = [
   "A Day title names one day of a Stop's stay, for example 'Sintra day trip'. A Note is a free-text comment between the Travellers, left on a thing; it is never edited, only deleted (delete_note) and said again (add_note). It is not a thing to do's own notes, which are part of the Item and edited with update_thing_to_do. Never put a schedule in a Note, schedule real things to do instead.",
   "A Cost belongs on what it pays for: a Transport, Accommodation or thing to do. An Other cost is only for standalone money like insurance, visas or an eSIM. Settlement is when it gets paid, Before you go (the default) or On the trip. A Due date is when committed money leaves the account.",
   "Booking state (bookingState: No booking needed, To book or Booked, plus an optional bookBy date) says whether a thing still needs booking. A reference on it implies Booked unless the Traveller has chosen a state themselves. Change it with set_booking_state.",
-  "A Booked thing with needsBookingConfirmation true has no ticket or confirmation file yet; you cannot upload files, so tell the user, or use set_nothing_to_attach if they say there is nothing to attach.",
+  "A Booked thing with needsBookingConfirmation true has no ticket or confirmation file yet; you cannot upload files, so tell the user to add it in Teepee. If it is already a file on the Trip, file it with attach_file; use set_nothing_to_attach if they say there is nothing to attach.",
   "Checklists: PRETRIP is tasks like visas, insurance and bookings to make, PACKING is things to pack, SHOPPING is things to buy. A Checklist item persists until ticked. A Reminder is a dated note said once, the evening before its date. Use a Reminder for 'remember to print the tickets on the 27th', and a Checklist item for 'get travel insurance'.",
   "Local travel mode is how a Stop's local hops are travelled by default: Drive, Transit or Walk. A thing to do can have an Ends at, an optional second place where it finishes somewhere else, and the next hop is measured from it. A Hop mode is how one hop between two things to do is travelled, chosen by the Traveller; it overrides the Stop's Local travel mode (set_hop_mode).",
   "Marked fine means a Traveller has said a travel-time flag is not a problem. Only travel-time flags qualify, and the mark goes away by itself if the times, the places, the way of travel or the travel time change. Never mark one fine unless the person says so.",
@@ -78,6 +79,7 @@ export function buildMcpServer(caller: McpCaller): McpServer {
   registerBookingsWriteTools(server);
   registerBookingStateTools(server);
   registerNothingToAttachTool(server);
+  registerAttachFileTool(server);
   registerMarkedFineTools(server);
   registerListWriteTools(server);
   registerMakeItFitTools(server);
