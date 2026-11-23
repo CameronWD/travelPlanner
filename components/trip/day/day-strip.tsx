@@ -82,7 +82,6 @@ export function DayStrip({ tripId, dates, line, size }: { tripId: string; dates:
   const litIso = pendingDay ?? shown;
   const isLit = (iso: string) => iso === litIso;
   const isPendingChip = (iso: string) => pendingPathname != null && pendingPathname.endsWith(tripHref(`/day/${iso}`));
-  const litIndex = dates.findIndex((d) => isLit(d.iso));
   // Where the strip is placed: the tapped day or the day in view, not the
   // halfway light, which moves while the body is still on its way.
   const placedIndex = dates.findIndex((d) => d.iso === (pendingDay ?? inView));
@@ -239,12 +238,6 @@ export function DayStrip({ tripId, dates, line, size }: { tripId: string; dates:
     return () => el.removeEventListener("wheel", handleWheel);
   }, [phone]);
 
-  // Below lg, one highlight that moves, rather than each chip painting its own
-  // coral, so the selection glides to the tapped day (spec 2026-09-29 D4).
-  // Chips are fixed-width: phone 3rem (w-12), desktop 3.5rem (w-14), plus the
-  // 0.5rem gap. From lg the highlight is the fixed centre frame instead.
-  const strideRem = phone ? 3.5 : 4;
-
   const n = dates.length;
   const strip = (
     <div
@@ -259,17 +252,6 @@ export function DayStrip({ tripId, dates, line, size }: { tripId: string; dates:
       onScroll={(e) => onStripScroll(e.currentTarget)}
     >
       <nav aria-label="Days" className={cn("relative flex w-max gap-2", !phone && "mx-auto")}>
-        {litIndex >= 0 ? (
-          <span
-            data-strip-highlight
-            aria-hidden="true"
-            className={cn(
-              "island pointer-events-none absolute left-0 top-0 rounded-[14px] border-2 border-border bg-coral shadow-hard-1 transition-transform duration-200 ease-out motion-reduce:transition-none",
-              phone ? "h-[58px] w-12" : "h-[62px] w-14 lg:hidden",
-            )}
-            style={{ transform: `translateX(${litIndex * strideRem}rem)` }}
-          />
-        ) : null}
         {dates.map((d) => {
           const dt = parseISODate(d.iso);
           const dots = dotsFor(d.count);
@@ -291,20 +273,33 @@ export function DayStrip({ tripId, dates, line, size }: { tripId: string; dates:
                 if (carousel?.goTo(href)) e.preventDefault();
               }}
               className={cn(
-                "relative flex shrink-0 flex-col items-center justify-center rounded-[14px] border-2 border-border text-foreground",
-                // Below lg the 200ms colour fade matches the highlight's slide. From
-                // lg the fill lights at once (ADR 0063) and the strip's glide is the
-                // only movement: one coral thing, not a fade beside a slide.
+                "relative isolate flex shrink-0 flex-col items-center justify-center rounded-[14px] border-2 border-border text-foreground",
+                // Below lg the 200ms colour fade matches the highlight layer's fade.
+                // From lg the fill lights at once (ADR 0063) and the strip's glide is
+                // the only movement.
                 phone ? "transition-colors duration-200 ease-out" : "max-lg:transition-colors max-lg:duration-200 max-lg:ease-out",
                 "motion-reduce:transition-none",
                 phone ? "h-[58px] w-12 snap-center" : "h-[62px] w-14 snap-start",
-                // The lit chip paints its own coral under the island ink: the sliding
-                // [data-strip-highlight] behind it is a sibling, invisible to anything
-                // reading the label's ancestor background (the contrast audit read
-                // dark-on-dark).
+                // The lit chip paints its own coral under the island ink: the
+                // [data-strip-highlight] layer behind the label is a sibling of the
+                // label, invisible to anything reading its ancestor background (the
+                // contrast audit read dark-on-dark).
                 isLit(d.iso) ? "island bg-coral" : "bg-card",
               )}
             >
+              {/* Below lg each chip has its own highlight: the selection crossfades
+                  between days in place (replaces the 2026-09-29 D4 glide at the
+                  owner's request). A per-chip layer, not one moving box, so a lit
+                  day changed mid-swipe or mid-scroll still fades the old and new
+                  together. From lg the fixed centre frame is the highlight. */}
+              <span
+                data-strip-highlight
+                aria-hidden="true"
+                className={cn(
+                  "island pointer-events-none absolute -inset-0.5 -z-10 rounded-[14px] border-2 border-border bg-coral shadow-hard-1 transition-opacity duration-200 ease-out motion-reduce:transition-none lg:hidden",
+                  isLit(d.iso) ? "opacity-100" : "opacity-0",
+                )}
+              />
               <span className="text-[11px] font-bold leading-none">{WEEKDAY[dt.getUTCDay()]}</span>
               <span className="mt-0.5 font-display text-[20px] font-extrabold leading-none">{dt.getUTCDate()}</span>
               <span className="mt-1 flex h-1.5 gap-1">

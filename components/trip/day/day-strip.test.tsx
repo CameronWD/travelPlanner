@@ -33,6 +33,8 @@ function fakeCarousel(over: Partial<DayCarouselApi> = {}): DayCarouselApi {
   return { goTo: () => false, step: () => false, current: () => "2026-12-12", subscribeDay: () => () => {}, subscribe: () => () => {}, isMoving: () => false, ...over };
 }
 
+const lit = (chip: Element) => chip.querySelector("[data-strip-highlight]")!.className.split(/\s+/).includes("opacity-100");
+
 describe("DayStrip", () => {
   it("is a nav of day links with aria-current=date on the current chip", () => {
     render(<DayStrip tripId="t1" dates={dates} line={segments} size="desktop" />);
@@ -43,14 +45,12 @@ describe("DayStrip", () => {
     expect(links[3]).toHaveAttribute("aria-current", "date");
     expect(links[3]).toHaveAttribute("data-lit", "true");
     expect(links[2]).not.toHaveAttribute("data-lit");
-    const highlight = nav.querySelector("[data-strip-highlight]") as HTMLElement;
+    const highlight = links[3].querySelector("[data-strip-highlight]") as HTMLElement;
     expect(highlight.className).toContain("bg-coral");
-    // Desktop chips are 3.5rem + a 0.5rem gap: day index 3 → 12rem. Only
-    // the md to lg band shows this one; from lg the centre frame holds still.
-    expect(highlight.style.transform).toBe("translateX(12rem)");
+    // Only the md to lg band shows this one; from lg the centre frame holds still.
     expect(highlight.className.split(/\s+/)).toContain("lg:hidden");
   });
-  it("the lit chip carries the coral fill itself with the accent ink; the highlight only animates the move (W17 contrast)", () => {
+  it("the lit chip carries the coral fill itself with the accent ink; its highlight layer only fades (W17 contrast)", () => {
     render(<DayStrip tripId="t1" dates={dates} line={segments} size="desktop" />);
     const links = within(screen.getByRole("navigation", { name: "Days" })).getAllByRole("link");
     const lit = links[3].className.split(/\s+/);
@@ -70,8 +70,8 @@ describe("DayStrip", () => {
     expect(links[3]).toHaveAttribute("aria-current", "date");
     expect(links[3]).not.toHaveAttribute("data-pending");
     expect(links[3]).not.toHaveAttribute("data-lit");
-    const highlight = screen.getByRole("navigation", { name: "Days" }).querySelector("[data-strip-highlight]") as HTMLElement;
-    expect(highlight.style.transform).toBe("translateX(16rem)");
+    expect(lit(links[4])).toBe(true);
+    expect(lit(links[3])).toBe(false);
   });
   it("shows weekday, date and up to three dots", () => {
     render(<DayStrip tripId="t1" dates={dates} line={segments} size="desktop" />);
@@ -144,14 +144,21 @@ describe("DayStrip", () => {
     expect(gap.querySelector("svg")).toBeNull();
     expect(gap.querySelector("[data-line-dashed]")).not.toBeNull();
   });
-  it("the selected highlight glides (a transform transition) and is instant under reduced motion (spec 2026-09-29 D4)", () => {
+  it("the selected day's highlight fades in place and nothing coral travels (spec 2026-09-29 D4, replaced)", () => {
     render(<DayStrip tripId="t1" dates={dates} line={segments} size="phone" />);
-    const highlight = screen.getByRole("navigation", { name: "Days" }).querySelector("[data-strip-highlight]") as HTMLElement;
-    expect(highlight).toHaveAttribute("aria-hidden", "true");
-    expect(highlight.className).toContain("transition-transform");
-    expect(highlight.className).toContain("motion-reduce:transition-none");
-    // Phone chips are 3rem + 0.5rem: index 3 → 10.5rem.
-    expect(highlight.style.transform).toBe("translateX(10.5rem)");
+    const nav = screen.getByRole("navigation", { name: "Days" });
+    const layers = Array.from(nav.querySelectorAll<HTMLElement>("[data-strip-highlight]"));
+    expect(layers).toHaveLength(5);
+    for (const layer of layers) {
+      expect(layer).toHaveAttribute("aria-hidden", "true");
+      expect(layer.style.transform).toBe("");
+      expect(layer.className).not.toContain("transition-transform");
+      expect(layer.className).toContain("transition-opacity");
+      expect(layer.className).toContain("motion-reduce:transition-none");
+    }
+    expect(nav.querySelector("nav > [data-strip-highlight]")).toBeNull();
+    const links = within(nav).getAllByRole("link");
+    links.forEach((link, i) => expect(lit(link)).toBe(i === 3));
   });
   it("tags chips before the current day as day-back and after it as day-forward", () => {
     render(<DayStrip tripId="t1" dates={dates} line={{ homeStart: null, homeEnd: null, segments: [] }} size="desktop" />);
@@ -529,8 +536,8 @@ describe("DayStrip", () => {
     expect(nineteenth).not.toHaveAttribute("aria-current");
     expect(nineteenth).not.toHaveAttribute("data-lit");
     expect(nineteenth.className.split(/\s+/)).toContain("bg-card");
-    const highlight = screen.getByRole("navigation", { name: "Days" }).querySelector("[data-strip-highlight]") as HTMLElement;
-    expect(highlight.style.transform).toBe(`translateX(${19 * 3.5}rem)`);
+    expect(lit(twentieth)).toBe(true);
+    expect(lit(nineteenth)).toBe(false);
   });
   describe("cold load: the phone strip is on the day shown before React hydrates (image 4)", () => {
     const chipRect = (width: number) => ({ left: 0, width, top: 0, right: width, bottom: 58, height: 58, x: 0, y: 0, toJSON() {} }) as DOMRect;
