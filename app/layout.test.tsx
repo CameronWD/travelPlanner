@@ -26,6 +26,9 @@ describe("root layout PWA metadata", () => {
   it("declares the app as an Apple web app", () => {
     expect(metadata.appleWebApp).toMatchObject({ capable: true, title: "Teepee" });
   });
+  it("also declares the Apple-prefixed capable flag, which iOS needs before it shows launch images", () => {
+    expect(metadata.other).toMatchObject({ "apple-mobile-web-app-capable": "yes" });
+  });
   it("declares a launch image per device", () => {
     const web = metadata.appleWebApp;
     const images = typeof web === "object" && web !== null ? web.startupImage : undefined;

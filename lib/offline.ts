@@ -188,6 +188,7 @@ export function assetUrlsIn(html: string): string[] {
 
 export type CacheStrategy =
   | 'network-only'
+  | 'launch-page'
   | 'network-first'
   | 'stale-while-revalidate'
   | 'cache-first';
@@ -360,9 +361,11 @@ export function cacheStrategyFor({ method, url, sameOrigin, routerRequest }: Str
   }
 
   // Rule 4b: the launch page is public and the same for everyone, precached
-  // per build; it never waits on the network or gets a saved-copy mark.
+  // per build. It is answered from any store, then from the network for at
+  // most NAVIGATION_TIMEOUT_MS, and otherwise hands over to LAUNCH_HANDOVER_PATH
+  // (where the offline launch logic already lives); no saved-copy mark.
   if (isLaunchPage(url)) {
-    return 'cache-first';
+    return 'launch-page';
   }
 
   // Rule 5: network-first for navigations / pages (private per-user data)
@@ -418,6 +421,9 @@ export function isPinnedCacheEntry(url: string): boolean {
 
 /** The static pages precached on install, in public/. Mirrored as PRECACHE_URLS in sw.js. */
 export const PRECACHED_PATHS = ['/offline.html', '/launch.html'];
+
+/** Where the launch page hands over, and where a launch page nothing can answer redirects to. */
+export const LAUNCH_HANDOVER_PATH = '/';
 
 /** The page the installed app opens on (manifest start_url): it animates the loading mark, then hands over to the app. */
 export function isLaunchPage(url: string): boolean {

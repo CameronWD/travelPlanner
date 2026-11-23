@@ -1689,7 +1689,8 @@ describe("public/sw.js — the launch page", () => {
   it("precaches /launch.html beside /offline.html", () => {
     expect(SW_SOURCE).toContain("const PRECACHE_URLS = ['/offline.html', '/launch.html'];");
     expect(SW_SOURCE).toContain("function isLaunchPage(url) {\n  try {\n    return new URL(url).pathname === '/launch.html';");
-    expect(SW_SOURCE).toContain("if (isLaunchPage(url)) return 'cache-first';");
+    expect(SW_SOURCE).toContain("if (isLaunchPage(url)) return 'launch-page';");
+    expect(SW_SOURCE).toContain("const LAUNCH_HANDOVER_PATH = '/';");
   });
 
   it("answers from this build's static store without touching the network, and without a saved-copy mark", async () => {
@@ -1730,6 +1731,57 @@ describe("public/sw.js — the launch page", () => {
 
     expect(response.status).toBe(302);
     expect(response.headers.get("Location")).toBe("https://teepee.example/trips/a");
+  });
+
+  it("offline, with the launch page only in the previous build's store, serves it from there", async () => {
+    const c = matchingCaches();
+    await (await c.api.open("teepee-static-b0")).put(new Request(LAUNCH), new Response("old-launch"));
+    const { dispatch } = loadServiceWorker({ caches: c.api });
+    globalThis.fetch = vi.fn().mockRejectedValue(new TypeError("offline"));
+
+    const { response } = await navigate(dispatch, LAUNCH);
+
+    expect(await response.text()).toBe("old-launch");
+    expect(globalThis.fetch).not.toHaveBeenCalled();
+  });
+
+  it("offline, with no launch page anywhere, redirects to / and / then redirects to the saved Trip", async () => {
+    const c = matchingCaches();
+    await (await c.api.open("teepee-pages-v1")).put(new Request("https://teepee.example/trips/a"), new Response("trip-home"));
+    const { dispatch } = loadServiceWorker({ caches: c.api });
+    globalThis.fetch = vi.fn().mockRejectedValue(new TypeError("offline"));
+    vi.spyOn(console, "warn").mockImplementation(() => {});
+
+    const { response, settled } = await navigate(dispatch, LAUNCH);
+    await settled();
+    expect(response.status).toBe(302);
+    expect(response.headers.get("Location")).toBe("https://teepee.example/");
+
+    const next = await navigate(dispatch, "https://teepee.example/");
+    expect(next.response.status).toBe(302);
+    expect(next.response.headers.get("Location")).toBe("https://teepee.example/trips/a");
+  });
+
+  it("with no launch page anywhere and a hanging network, redirects to / within the navigation timeout", async () => {
+    vi.useFakeTimers();
+    try {
+      const c = matchingCaches();
+      const { dispatch } = loadServiceWorker({ caches: c.api });
+      globalThis.fetch = vi.fn().mockReturnValue(new Promise(() => {}));
+
+      const pending = navigate(dispatch, LAUNCH);
+      await vi.advanceTimersByTimeAsync(3999);
+      let settledEarly = false;
+      pending.then(() => { settledEarly = true; });
+      await vi.advanceTimersByTimeAsync(0);
+      expect(settledEarly).toBe(false);
+      await vi.advanceTimersByTimeAsync(1);
+      const { response } = await pending;
+      expect(response.status).toBe(302);
+      expect(response.headers.get("Location")).toBe("https://teepee.example/");
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it("is never trimmed out of the static store", async () => {

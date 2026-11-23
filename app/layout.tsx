@@ -52,6 +52,7 @@ export const metadata: Metadata = {
     other: { rel: "mask-icon", url: "/safari-pinned-tab.svg", color: "#FF6B4A" },
   },
   appleWebApp: { capable: true, title: "Teepee", statusBarStyle: "default", startupImage: startupImages() },
+  other: { "apple-mobile-web-app-capable": "yes" },
 };
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {

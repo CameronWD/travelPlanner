@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { cacheStrategyFor, isNextStaticAsset, isApiRoute, isAttachmentRoute, isCoverRoute, tripOfflinePaths, MAX_WARM_DAYS, MAX_WARM_ATTACHMENT_BYTES, MAX_WARM_TRIP_BYTES, warmDayDates, isWarmFresh, isConstrainedConnection, WARM_FRESH_MS, isRouterRequest, cacheStoreFor, cacheNames, CACHE_ENTRY_LIMITS, evictionCount, staleCacheNames, isPinnedCacheEntry, nextBuildMeta, META_CACHE_NAME, storableResponse, isServableCacheHit, asksForBytes, OFFLINE_BYTES_PARAM, warmUrlFor, fileCacheKey, pickOfflineStart, isCachedTripHome, lastTripMessagePath, LAST_TRIP_PATH, NAVIGATION_TIMEOUT_MS, SAVED_COPY_HEADER, SAVED_COPY_MESSAGE, isServerFailure, savedCopyResponse, savedCopyMessage, assetUrlsIn, WAS_SAVED_COPY_MESSAGE, SAVED_COPY_RECORD_TTL_MS, SAVED_COPY_RECORD_LIMIT, withSavedCopyRecord, withoutSavedCopyRecord, wasSavedCopy, wasSavedCopyQueryPath, shouldStoreResponse, queryFallbackPath, cacheKeyFor, signOutCacheNames, isLaunchPage, PRECACHED_PATHS } from './offline';
+import { cacheStrategyFor, isNextStaticAsset, isApiRoute, isAttachmentRoute, isCoverRoute, tripOfflinePaths, MAX_WARM_DAYS, MAX_WARM_ATTACHMENT_BYTES, MAX_WARM_TRIP_BYTES, warmDayDates, isWarmFresh, isConstrainedConnection, WARM_FRESH_MS, isRouterRequest, cacheStoreFor, cacheNames, CACHE_ENTRY_LIMITS, evictionCount, staleCacheNames, isPinnedCacheEntry, nextBuildMeta, META_CACHE_NAME, storableResponse, isServableCacheHit, asksForBytes, OFFLINE_BYTES_PARAM, warmUrlFor, fileCacheKey, pickOfflineStart, isCachedTripHome, lastTripMessagePath, LAST_TRIP_PATH, NAVIGATION_TIMEOUT_MS, SAVED_COPY_HEADER, SAVED_COPY_MESSAGE, isServerFailure, savedCopyResponse, savedCopyMessage, assetUrlsIn, WAS_SAVED_COPY_MESSAGE, SAVED_COPY_RECORD_TTL_MS, SAVED_COPY_RECORD_LIMIT, withSavedCopyRecord, withoutSavedCopyRecord, wasSavedCopy, wasSavedCopyQueryPath, shouldStoreResponse, queryFallbackPath, cacheKeyFor, signOutCacheNames, isLaunchPage, PRECACHED_PATHS, LAUNCH_HANDOVER_PATH } from './offline';
 import { RESERVED_TRIP_SLUGS } from './trip-slug';
 
 // ---------------------------------------------------------------------------
@@ -761,8 +761,9 @@ describe('the launch page (manifest start_url)', () => {
     expect(isLaunchPage('not a url')).toBe(false);
   });
 
-  it('is cache-first, never the private network-first navigation', () => {
-    expect(get(`${origin}/launch.html`)).toBe('cache-first');
+  it('has its own strategy, never the private network-first navigation', () => {
+    expect(get(`${origin}/launch.html`)).toBe('launch-page');
+    expect(LAUNCH_HANDOVER_PATH).toBe('/');
     expect(get(`${origin}/offline.html`)).toBe('network-first');
     expect(get(`${origin}/`)).toBe('network-first');
     expect(get(`${origin}/trips`)).toBe('network-first');

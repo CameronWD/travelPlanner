@@ -12,7 +12,8 @@
  *   - Same-origin /api/trips/<id>/cover      → network-first (its ?v= can change)
  *   - Same-origin /api/*                     → network-only  (auth + live data)
  *   - Same-origin /_next/static/*            → cache-first   (immutable hashed assets)
- *   - Same-origin /launch.html               → cache-first   (public, precached per build)
+ *   - Same-origin /launch.html               → launch-page   (any saved copy, else the network for
+ *                                              NAVIGATION_TIMEOUT_MS, else a redirect to /)
  *   - Everything else (navigations, pages)   → network-first (private per-user data)
  *
  * With the network down, slow or answering 5xx (ADR 0077): a navigation to `/`
@@ -274,10 +275,7 @@ function cacheKeyFor(request) {
 /** A cache hit the request may be answered with; a redirected one for a navigation is dropped. */
 async function servableCached(request) {
   const key = cacheKeyFor(request);
-  // caches.match walks the stores oldest first, which would answer with the previous build's launch page.
-  const cached = isLaunchPage(request.url)
-    ? await (await caches.open(CACHE_NAMES.static)).match(key)
-    : await caches.match(key);
+  const cached = await caches.match(key);
   if (!cached) return undefined;
   if (isServableCacheHit(request.mode, cached, asksForBytes(request.url))) return cached;
   const cache = await caches.open(CACHE_NAMES[cacheStoreFor(request.url)]);
@@ -339,8 +337,10 @@ function getCacheStrategy(request) {
   if (isNextStaticAsset(url)) return 'cache-first';
 
   // Rule 4b: the launch page is public and the same for everyone, precached
-  // per build; it never waits on the network or gets a saved-copy mark.
-  if (isLaunchPage(url)) return 'cache-first';
+  // per build. It is answered from any store, then from the network for at
+  // most NAVIGATION_TIMEOUT_MS, and otherwise hands over to LAUNCH_HANDOVER_PATH
+  // (where the offline launch logic already lives); no saved-copy mark.
+  if (isLaunchPage(url)) return 'launch-page';
 
   // Rule 5: network-first for navigations / pages (private per-user data)
   return 'network-first';
@@ -457,6 +457,11 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
+  if (strategy === 'launch-page') {
+    event.respondWith(launchPage(event));
+    return;
+  }
+
   if (strategy === 'cache-first') {
     event.respondWith(cacheFirst(event));
     return;
@@ -527,6 +532,33 @@ async function cacheFirst(event) {
     // shows its default error rather than a confusing blank page.
     throw err;
   }
+}
+
+// Mirrors LAUNCH_HANDOVER_PATH in lib/offline.ts.
+const LAUNCH_HANDOVER_PATH = '/';
+
+/**
+ * The launch page: this build's copy, else any build's (a stale one only hands
+ * over to /), else the network for at most NAVIGATION_TIMEOUT_MS, else a
+ * redirect to /, which the offline launch already answers with the saved Trip.
+ */
+async function launchPage(event) {
+  const { request } = event;
+  const own = await caches.open(CACHE_NAMES.static).then((cache) => cache.match(request.url)).catch(() => undefined);
+  const cached = own || (await caches.match(request.url));
+  if (cached) return cached;
+
+  const network = fetchAndKeep(event);
+  let timer;
+  const timedOut = new Promise((resolve) => {
+    timer = setTimeout(resolve, NAVIGATION_TIMEOUT_MS, null);
+  });
+  const response = await Promise.race([network, timedOut])
+    .catch(() => null)
+    .finally(() => clearTimeout(timer));
+  if (response && response.ok) return response;
+  event.waitUntil(network.catch(() => {}));
+  return Response.redirect(new URL(LAUNCH_HANDOVER_PATH, self.location.origin).href, 302);
 }
 
 /**
