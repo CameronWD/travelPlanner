@@ -60,6 +60,7 @@ export function AccommodationRow(props: AccommodationRowProps) {
   return (
     <div
       data-testid="accommodation-row"
+      aria-busy={isPending || undefined}
       className="rounded-xl border border-border bg-hue-lilac/25"
     >
       <button

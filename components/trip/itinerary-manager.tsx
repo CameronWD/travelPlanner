@@ -1106,11 +1106,13 @@ export function ItineraryManager({
   function handleSuggestChapters() {
     if (suggestingRef.current) return;
     suggestingRef.current = true;
+    planBody.setSuggestingChapters(true);
     startSuggestTransition(async () => {
       try {
         await suggestAction.run(tripId);
       } finally {
         suggestingRef.current = false;
+        planBody.setSuggestingChapters(false);
       }
     });
   }
@@ -1713,9 +1715,9 @@ export function ItineraryManager({
                 number={globalIdx + 1}
                 stay={stop.surprise?.youAreSurprised ? null : stay}
                 plansCount={plansCount}
+                isPending={pendingId === stop.id}
                 onOpen={() => openStopSheet(stop.id)}
                 dragProps={stop.surprise?.youAreSurprised ? undefined : dragProps}
-                isPending={pendingId === stop.id}
               />
             )}
           </SortableMobileStop>
@@ -2310,9 +2312,9 @@ export function ItineraryManager({
           onOpenIdea={(idea) => setOpenIdea({ stopId: sheetStop.id, idea })}
           onEditDates={() => handleAdjustDates(sheetStop)}
           onActions={() => setActionsStopId(sheetStop.id)}
+          isPending={pendingId === sheetStop.id}
           onSetNights={sheetStop.surprise?.youAreSurprised ? undefined : (n) => void handleSetNights(sheetStop.id, n)}
           needsConfirmationIds={needsConfirmation}
-          isPending={pendingId === sheetStop.id}
         />
       )}
 

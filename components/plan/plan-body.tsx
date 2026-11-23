@@ -22,6 +22,9 @@ export interface PlanBodyValue {
   jumpTo(stopId: string): void;
   actions: PlanActions;
   registerActions(a: Partial<PlanActions>): () => void;
+  /** Suggest chapters is running; the Chapters menu closes on select, so its button carries the busy mark. */
+  suggestingChapters: boolean;
+  setSuggestingChapters(on: boolean): void;
 }
 
 const NOOP_ACTIONS: PlanActions = {
@@ -40,6 +43,8 @@ const INERT_VALUE: PlanBodyValue = {
   jumpTo: () => {},
   actions: NOOP_ACTIONS,
   registerActions: () => () => {},
+  suggestingChapters: false,
+  setSuggestingChapters: () => {},
 };
 
 const PlanBodyContext = React.createContext<PlanBodyValue | null>(null);
@@ -63,6 +68,7 @@ export function PlanBody({
 }) {
   const [openIds, setOpenIds] = React.useState<string[]>(initialOpen);
   const [hashDay, setHashDay] = React.useState<string | null>(null);
+  const [suggestingChapters, setSuggestingChapters] = React.useState(false);
   const lastDayRef = React.useRef<string | null>(null);
   const claimedDayRef = React.useRef<string | null>(null);
   const registry = React.useRef<Partial<PlanActions>>({});
@@ -189,9 +195,11 @@ export function PlanBody({
       jumpTo,
       actions,
       registerActions,
+      suggestingChapters,
+      setSuggestingChapters,
     }),
     // eslint-disable-next-line react-hooks/exhaustive-deps -- functions close over openIds/hashDay directly; re-memoised whenever either changes.
-    [today, hashDay, openIds, actions],
+    [today, hashDay, openIds, actions, suggestingChapters],
   );
 
   return <PlanBodyContext.Provider value={value}>{children}</PlanBodyContext.Provider>;

@@ -168,3 +168,22 @@ it("marks a stay that needs a confirmation, and only that one", () => {
   rerender(<AccommodationRow accommodation={accommodation} stop={stop} needsConfirmation />);
   expect(screen.getByText("No booking confirmation yet")).toBeInTheDocument();
 });
+
+describe("a stay that is being deleted", () => {
+  it("is marked busy, and its phone menu's Delete cannot send a second delete", async () => {
+    const user = userEvent.setup();
+    const onDelete = vi.fn();
+    render(<AccommodationRow accommodation={accommodation} stop={stop} defaultOpen isPending onDelete={onDelete} />);
+    expect(screen.getByTestId("accommodation-row")).toHaveAttribute("aria-busy", "true");
+    await user.click(screen.getByRole("button", { name: "More actions for Hotel du Louvre" }));
+    const item = await screen.findByRole("menuitem", { name: "Delete" });
+    expect(item).toHaveAttribute("aria-disabled", "true");
+    await user.click(item);
+    expect(onDelete).not.toHaveBeenCalled();
+  });
+
+  it("is not marked busy otherwise", () => {
+    render(<AccommodationRow accommodation={accommodation} stop={stop} />);
+    expect(screen.getByTestId("accommodation-row")).not.toHaveAttribute("aria-busy");
+  });
+});

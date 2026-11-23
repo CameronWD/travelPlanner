@@ -13,6 +13,9 @@ import userEvent from "@testing-library/user-event";
 // Must be declared before the component import so vi.mock hoisting works.
 
 vi.mock("@/server/actions/booking-confirmation", () => ({ setNothingToAttach: vi.fn() }));
+vi.mock("@/components/booking-import/booking-import-sheet", () => ({ BookingImportButton: () => null }));
+vi.mock("@/components/trip/make-it-fit", () => ({ MakeItFit: () => null }));
+vi.mock("@/server/actions/trips", () => ({ setTripHardEndDate: vi.fn() }));
 vi.mock("@/server/actions/venue-details", () => ({ venueDetailsForPick: vi.fn().mockResolvedValue(null) }));
 vi.mock("@/server/actions/stops", () => ({
   deleteStop: vi.fn().mockResolvedValue({ success: true }),
@@ -198,6 +201,7 @@ import { toastWithUndo } from "@/components/ui/undo-toast";
 import { createTransport, deleteTransport } from "@/server/actions/transport";
 import { createAccommodation, deleteAccommodation } from "@/server/actions/accommodation";
 import { addReminder } from "@/server/actions/reminders";
+import { PlanHeaderActions } from "@/components/plan/plan-header-actions";
 import { createChapter, deleteChapter, assignStopToChapter, suggestChaptersFromCountries } from "@/server/actions/chapters";
 import { toast } from "@/components/ui/use-toast";
 import { setSurprise, revealSurprise } from "@/server/actions/surprise";
@@ -1067,6 +1071,34 @@ describe("Suggest from countries in-flight guard", () => {
     await act(async () => resolve({ success: true, created: 0 }));
     await user.click(screen.getByRole("button", { name: "header suggest" }));
     await waitFor(() => expect(suggestChaptersFromCountries).toHaveBeenCalledTimes(2));
+  });
+});
+
+describe("Suggest from countries says it is working", () => {
+  it("the Chapters menu button is busy and off while the suggestion runs, and back after", async () => {
+    const user = userEvent.setup();
+    let resolve!: (r: { success: true; created: number }) => void;
+    vi.mocked(suggestChaptersFromCountries).mockImplementationOnce(
+      () => new Promise((r) => { resolve = r; }) as ReturnType<typeof suggestChaptersFromCountries>,
+    );
+    render(
+      <PlanBody initialOpen={[]} today="2030-01-01">
+        <PlanHeaderActions tripId={TRIP_ID} chaptersEnabled aiConfigured={false} />
+        <ItineraryManager {...baseProps} initialStops={[makeStop()]} />
+      </PlanBody>,
+    );
+    const chapters = screen.getByRole("button", { name: "Chapters" });
+    expect(chapters).not.toHaveAttribute("aria-busy");
+    await user.click(chapters);
+    await user.click(await screen.findByRole("menuitem", { name: "Suggest from countries" }));
+    await waitFor(() => expect(screen.getByRole("button", { name: "Chapters" })).toHaveAttribute("aria-busy", "true"));
+    expect(screen.getByRole("button", { name: "Chapters" })).toBeDisabled();
+    await waitFor(() => expect(screen.queryByRole("menuitem", { name: "Suggest from countries" })).toBeNull());
+    expect(suggestChaptersFromCountries).toHaveBeenCalledTimes(1);
+
+    await act(async () => resolve({ success: true, created: 0 }));
+    expect(screen.getByRole("button", { name: "Chapters" })).not.toHaveAttribute("aria-busy");
+    expect(screen.getByRole("button", { name: "Chapters" })).toBeEnabled();
   });
 });
 
