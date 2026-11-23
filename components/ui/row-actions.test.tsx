@@ -24,4 +24,20 @@ describe("RowActions", () => {
       expect(btn.className).toContain("pointer-coarse:after:-inset-1.5");
     }
   });
+  it("while loading, shows the delete as busy and blocks both buttons", async () => {
+    const onEdit = vi.fn();
+    const onDelete = vi.fn();
+    render(<RowActions onEdit={onEdit} onDelete={onDelete} loading />);
+    const del = screen.getByLabelText("Delete");
+    expect(del).toHaveAttribute("aria-busy", "true");
+    expect(del).toBeDisabled();
+    expect(screen.getByLabelText("Edit")).toBeDisabled();
+    await userEvent.click(del);
+    expect(onDelete).not.toHaveBeenCalled();
+  });
+  it("is not busy when not loading", () => {
+    render(<RowActions onEdit={() => {}} onDelete={() => {}} disabled={false} />);
+    expect(screen.getByLabelText("Delete")).not.toHaveAttribute("aria-busy");
+    expect(screen.getByLabelText("Delete")).toBeEnabled();
+  });
 });

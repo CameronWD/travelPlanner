@@ -19,11 +19,12 @@ export interface MarkerListProps {
   onSelect: (id: string) => void;
   onEdit: (id: string) => void;
   onDelete: (id: string) => void;
+  deletingId?: string | null;
   globeId?: string;
   attachmentsByMarkerId?: Record<string, AttachmentView[]>;
 }
 
-export function MarkerList({ markers, selectedId, onSelect, onEdit, onDelete, globeId, attachmentsByMarkerId }: MarkerListProps) {
+export function MarkerList({ markers, selectedId, onSelect, onEdit, onDelete, deletingId, globeId, attachmentsByMarkerId }: MarkerListProps) {
   const groups = groupMarkersByCountry(markers);
   if (markers.length === 0) {
     return (
@@ -84,6 +85,7 @@ export function MarkerList({ markers, selectedId, onSelect, onEdit, onDelete, gl
                     onDelete={() => onDelete(mk.id)}
                     editLabel={`Edit ${mk.title}`}
                     deleteLabel={`Delete ${mk.title}`}
+                    loading={deletingId === mk.id}
                   />
                 </li>
               );

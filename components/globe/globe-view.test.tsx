@@ -269,3 +269,21 @@ describe("GlobeView — delete failures (spec 2026-10-06 §E)", () => {
     );
   });
 });
+
+describe("GlobeView — delete in flight", () => {
+  beforeEach(() => vi.clearAllMocks());
+  it("marks that row's delete busy until the action settles, and ignores a second click", async () => {
+    let resolve!: (v: { success: true }) => void;
+    vi.mocked(deleteMarker).mockReturnValueOnce(new Promise((r) => { resolve = r; }) as never);
+    const user = userEvent.setup();
+    render(<GlobeView markers={[mk("1", "Eiffel Tower", "France")]} members={[]} />);
+    const del = screen.getByRole("button", { name: "Delete Eiffel Tower" });
+    await user.click(del);
+    await user.click(await screen.findByRole("button", { name: "Delete" }));
+    await waitFor(() => expect(del).toHaveAttribute("aria-busy", "true"));
+    await user.click(del);
+    expect(deleteMarker).toHaveBeenCalledTimes(1);
+    await act(async () => resolve({ success: true }));
+    await waitFor(() => expect(del).not.toHaveAttribute("aria-busy"));
+  });
+});
