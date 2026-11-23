@@ -1,5 +1,6 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { Button } from "./button";
 
 describe("Button", () => {
@@ -50,6 +51,25 @@ describe("Button", () => {
     expect(btn).toBeDisabled();
     expect(btn).toHaveAttribute("aria-busy", "true");
     expect(screen.getByTestId("button-spinner")).toBeInTheDocument();
+  });
+
+  it("stays disabled and busy while loading even when disabled is explicitly false", async () => {
+    const onClick = vi.fn();
+    render(
+      <Button loading disabled={false} onClick={onClick}>
+        Invite
+      </Button>,
+    );
+    const btn = screen.getByRole("button", { name: "Invite" });
+    expect(btn).toBeDisabled();
+    expect(btn).toHaveAttribute("aria-busy", "true");
+    await userEvent.click(btn);
+    expect(onClick).not.toHaveBeenCalled();
+  });
+
+  it("is enabled when neither loading nor disabled", () => {
+    render(<Button disabled={false}>Go</Button>);
+    expect(screen.getByRole("button", { name: "Go" })).toBeEnabled();
   });
 
   it("does not show a spinner when not loading", () => {
