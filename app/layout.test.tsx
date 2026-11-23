@@ -12,6 +12,7 @@ vi.mock("next/font/google", () => ({
 vi.mock("./globals.css", () => ({}));
 
 const { viewport, metadata } = await import("./layout");
+const { startupImages } = await import("@/lib/startup-images");
 
 describe("root layout PWA metadata", () => {
   it("sets viewport-fit=cover so safe-area insets resolve in standalone", () => {
@@ -24,6 +25,12 @@ describe("root layout PWA metadata", () => {
   });
   it("declares the app as an Apple web app", () => {
     expect(metadata.appleWebApp).toMatchObject({ capable: true, title: "Teepee" });
+  });
+  it("declares a launch image per device and colour scheme", () => {
+    const web = metadata.appleWebApp;
+    const images = typeof web === "object" && web !== null ? web.startupImage : undefined;
+    expect(images).toHaveLength(22);
+    expect(images).toEqual(startupImages());
   });
   // Dark mode is parked (spec 2026-10-04 §F): one light address-bar colour,
   // not one keyed on prefers-color-scheme (= globals.css :root --background).

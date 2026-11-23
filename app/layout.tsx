@@ -7,6 +7,7 @@ import { Toaster } from "@/components/ui/toaster";
 import { PwaRegister } from "@/components/pwa-register";
 import { VercelAnalytics, VercelSpeedInsights } from "@/components/analytics";
 import { siteUrl } from "@/lib/site-url";
+import { startupImages } from "@/lib/startup-images";
 
 // Display: Bricolage Grotesque (OFL, variable wght 200–800 + opsz). Headings use 800, h5 700.
 const bricolage = Bricolage_Grotesque({
@@ -50,7 +51,7 @@ export const metadata: Metadata = {
     // cannot reference a CSS custom property/token. #FF6B4A is Playground coral.
     other: { rel: "mask-icon", url: "/safari-pinned-tab.svg", color: "#FF6B4A" },
   },
-  appleWebApp: { capable: true, title: "Teepee", statusBarStyle: "default" },
+  appleWebApp: { capable: true, title: "Teepee", statusBarStyle: "default", startupImage: startupImages() },
 };
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
