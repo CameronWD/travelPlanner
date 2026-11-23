@@ -40,6 +40,16 @@ describe("MobileStopRow (PLAN.md §7.1)", () => {
     expect(screen.getByText("5n")).toBeInTheDocument();
   });
 
+  it("the number badge is the shared StopBadge at 36px, in the Stop's own colour, dashed and grey when rough", () => {
+    const { unmount } = renderRow();
+    const dated = screen.getByText("1");
+    expect(dated).toHaveClass("grid", "size-9", "shrink-0", "rounded-xl", "border-2", "font-display", "text-base", "font-extrabold", "text-on-accent", "bg-hue-sky");
+    expect(dated).not.toHaveClass("size-10", "text-lg");
+    unmount();
+    renderRow({ stop: ROUGH, number: 2 });
+    expect(screen.getByText("2")).toHaveClass("size-9", "border-dashed", "bg-muted", "text-foreground");
+  });
+
   it("the date column keeps a floor and a cap, so the stay line truncates first and the nights pill never leaves its column", () => {
     renderRow();
     expect(screen.getByText("Paris").parentElement!.className).toContain("flex-1");

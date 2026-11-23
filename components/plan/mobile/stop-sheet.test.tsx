@@ -84,6 +84,13 @@ describe("StopSheet (PLAN.md §7.2)", () => {
     expect(screen.getByRole("button", { name: "Open Musée d'Orsay" })).toBeInTheDocument();
   });
 
+  it("the header badge is the shared StopBadge at 44px, in the Stop's own colour", () => {
+    renderSheet();
+    const badge = within(screen.getByRole("dialog", { name: "Paris" })).getByText("2");
+    expect(badge).toHaveClass("grid", "size-11", "shrink-0", "rounded-xl", "border-2", "font-display", "text-lg", "font-extrabold", "text-on-accent", "bg-hue-sun");
+    expect(badge).not.toHaveClass("size-10");
+  });
+
   it("uses no banned soft classes", () => {
     renderSheet();
     expect(document.body.innerHTML).not.toMatch(/shadow-soft|border-border\/70|bg-card\/40/);
