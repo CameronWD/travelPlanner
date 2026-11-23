@@ -39,15 +39,19 @@
  *      and back up with no reload, checked for breakage at each step.
  *   5. Layout shift (layout-audit/loading.ts): CLS for each main route on a
  *      normal load at the iPhone 17's viewport and at 1440px wide, in
- *      Chromium.
+ *      Chromium; then on section switches (switch.ts) and after an action
+ *      (action.ts: a tick, an add, a vote, a Cost marked paid).
  *   6. Writes the outputs and a summary, and sets the exit code.
  *   One capture failing never aborts the run: it is recorded with its
  *   error and the run carries on.
  *
- * NOTHING HERE SUBMITS. Overlay recipes open forms, dialogs and menus and
- * stop; see overlays.ts (SUBMIT_LABELS, and the note on reading a trigger's
- * component first). Loading a trip page does make the app remember it as
- * the last trip opened; that is the app, not the harness.
+ * NOTHING HERE SUBMITS, except the "action" set. Overlay recipes open forms,
+ * dialogs and menus and stop; see overlays.ts (SUBMIT_LABELS, and the note on
+ * reading a trigger's component first). The "action" set ticks, adds, votes
+ * and marks paid on the demo deep trip only (it refuses any other), and puts
+ * each change back through the UI, checked on a fresh load; see action.ts.
+ * Loading a trip page does make the app remember it as the last trip opened;
+ * that is the app, not the harness.
  *
  * PREREQUISITES
  * -----------------
@@ -74,7 +78,7 @@
  *                             /tmp/auth.json. Created if missing.
  *   LAYOUT_AUDIT_SETS         Comma list of what to run: deep, phase, empty,
  *                             dark, print, overlay, loading, resize, cls,
- *                             switch.
+ *                             switch, action.
  *                             Default: all. A database with no demo cast
  *                             runs without "phase,empty"; the demo database
  *                             then runs just those.
@@ -95,7 +99,8 @@
  *                             ids mirror the shot paths below, minus the
  *                             .png; the crawl's are `resize/<routeLabel>`,
  *                             CLS's `cls/<routeLabel>/<profile>`, a section
- *                             switch's `switch/<from>-<to>/<profile>`).
+ *                             switch's `switch/<from>-<to>/<profile>`, an
+ *                             action's `action/<flow>/<profile>`).
  *
  *   A run that does not do everything (LAYOUT_AUDIT_ONLY, or only some
  *   sets) into an out dir that already holds a manifest MERGES into it —
@@ -125,6 +130,12 @@
  *                              the other by tapping a link, as is and with
  *                              the new page's data held back 1.5s, and the
  *                              elements that moved.
+ *   <out>/action.json          per flow (checklist-tick, item-add, cost-add,
+ *                              vote, mark-paid) and profile: the shifts while
+ *                              the click is still input (`during`) and when
+ *                              the server's answer lands (`late`), the
+ *                              elements that moved, and whether the change
+ *                              was put back (`undone`).
  *   <out>/shots/<set>/<routeLabel>/<trip>/<profile>-<theme>.png
  *                              (pages taller than one viewport, i.e. nearly
  *                              all: -part1.png, -part2.png, …, drawn with
@@ -163,7 +174,8 @@
  * EXIT CODE
  * -----------------
  *   Non-zero when nothing was captured, any capture errored, any capture
- *   measured zero elements, or a resize / CLS route errored. Findings do
+ *   measured zero elements, a resize / CLS / switch / action measurement
+ *   errored, or an action was not put back. Findings do
  *   NOT fail Stage 1, and neither do skipped captures (a route with no
  *   dated days, an overlay whose trigger isn't there) — those are printed
  *   as COVERAGE GAPs instead.
@@ -252,6 +264,7 @@ import { captureLoading, measureCls, mergeCls, type ClsResult } from "./layout-a
 import { focusFirstInput, openOverlay, OVERLAYS, type OverlayRecipe } from "./layout-audit/overlays";
 import { crawlRoute, mergeResize, RESIZE_HEIGHT, type ResizeRouteResult } from "./layout-audit/resize";
 import { measureSwitch, mergeSwitch, SWITCH_PAIRS, type SwitchPair, type SwitchResult } from "./layout-audit/switch";
+import { ACTION_FLOWS, measureAction, mergeAction, type ActionFlow, type ActionShiftResult } from "./layout-audit/action";
 import {
   assertNextDev,
   filterCaptures,
@@ -738,6 +751,7 @@ function deepRoutes(
 }
 
 const switchId = (pair: SwitchPair, profileId: string) => `switch/${pair.from}-${pair.to}/${profileId}`;
+const actionId = (flow: ActionFlow, profileId: string) => `action/${flow.id}/${profileId}`;
 
 /** The deep trip's day after the one the `day` route uses, or undefined when
  * the trip has none. */
@@ -785,7 +799,11 @@ async function audit(
       sets,
     });
     specs = filterCaptures(matrix, only);
-    const needs = { share: wants("resize", "share"), deepDay: wants("resize", "day") || wants("cls", "day") || wantedPairs(only, sets).some((p) => [p.from, p.to].includes("day")) };
+    const wantsDayAction = sets.has("action") && ACTION_FLOWS.some((f) => f.routeLabel === "day" && SHIFT_PROFILE_IDS.some((p) => matchesOnly(actionId(f, p), only)));
+    const needs = {
+      share: wants("resize", "share"),
+      deepDay: wants("resize", "day") || wants("cls", "day") || wantedPairs(only, sets).some((p) => [p.from, p.to].includes("day")) || wantsDayAction,
+    };
     setup = { ...base, ...(await lookups(page, baseUrl, base, specs, needs, options)) };
   } finally {
     await bootCtx.close().catch(() => {});
@@ -980,6 +998,46 @@ async function audit(
     switchResults = thisSwitch;
   }
 
+  // ---- After an action -------------------------------------------------
+  let actionResults: ActionShiftResult[] = [];
+  if (sets.has("action")) {
+    const flows = ACTION_FLOWS.filter((f) => SHIFT_PROFILE_IDS.some((profileId) => matchesOnly(actionId(f, profileId), only)));
+    if (options.deepTripName && options.deepTripName !== TRIP_NAMES.deep) {
+      console.log(`[action] SKIPPED: it writes to the deep trip, so it runs on the demo "${TRIP_NAMES.deep}" only, not "${options.deepTripName}"`);
+    } else {
+      for (const profileId of SHIFT_PROFILE_IDS) {
+        const wanted = flows.filter((f) => matchesOnly(actionId(f, profileId), only));
+        if (wanted.length === 0) continue;
+        const context = await chromium.newContext(contextOptions(profileFor(profileId), "light", authStatePath));
+        try {
+          for (const flow of wanted) {
+            const route = ROUTES.find((r) => r.label === flow.routeLabel)!;
+            const resolved = resolveRoute(route, "deep", setup);
+            if (!("path" in resolved)) {
+              console.log(`[action] ${flow.id} ${profileId} — SKIPPED ${"skip" in resolved ? resolved.skip : resolved.error}`);
+              continue;
+            }
+            let result = await measureAction(context, `${baseUrl}${resolved.path}`, flow, profileId);
+            // A retry only when the failed attempt was put back, so a retry
+            // can never leave a second change behind.
+            if (result.error && result.undone) result = await measureAction(context, `${baseUrl}${resolved.path}`, flow, profileId);
+            actionResults.push(result);
+            console.log(
+              `[action] ${flow.id} ${profileId} — ${result.error ? `ERROR ${result.error}` : `during ${result.during.total} (${result.during.shifts}); late ${result.late.total} (${result.late.shifts})`}${result.undone ? "" : " — NOT UNDONE"}`,
+            );
+          }
+        } finally {
+          await context.close().catch(() => {});
+        }
+      }
+    }
+    const actionPath = path.join(outDir, "action.json");
+    const thisAction = actionResults;
+    if (partial) actionResults = mergeAction(readJson<ActionShiftResult[]>(actionPath) ?? [], actionResults);
+    if (thisAction.length > 0 || !fs.existsSync(actionPath)) fs.writeFileSync(actionPath, JSON.stringify(actionResults, null, 2) + "\n");
+    actionResults = thisAction;
+  }
+
   // This run's own records. A partial run merges them into the out dir's
   // existing manifest below, but the verdict still counts them on their own:
   // a re-run that captured nothing must fail even when the merged manifest
@@ -1013,7 +1071,7 @@ async function audit(
 
   // A run of only the resize crawl and/or CLS has no captures to judge, and
   // must not leave an empty manifest behind in a fresh out dir.
-  const modesOnly = specs.length === 0 && resizeResults.length + clsResults.length + switchResults.length > 0;
+  const modesOnly = specs.length === 0 && resizeResults.length + clsResults.length + switchResults.length + actionResults.length > 0;
   console.log("");
   if (!modesOnly || fs.existsSync(manifestPath)) {
     fs.writeFileSync(manifestPath, JSON.stringify(manifest, null, 2) + "\n");
@@ -1022,7 +1080,7 @@ async function audit(
   if (!modesOnly) console.log(summarise(manifest, allFindings, thisRun));
   else console.log(`out: ${outDir}`);
 
-  const modeErrors = [...resizeResults, ...clsResults, ...switchResults].filter((r) => r.error !== undefined);
+  const modeErrors = [...resizeResults, ...clsResults, ...switchResults, ...actionResults].filter((r) => r.error !== undefined);
   if (resizeResults.length > 0) {
     const hits = resizeResults.reduce((n, r) => n + r.findings.length, 0);
     const stuck = resizeResults.reduce((n, r) => n + r.notRecovered.length, 0);
@@ -1033,6 +1091,9 @@ async function audit(
   }
   if (switchResults.length > 0) {
     console.log(`section switch (as is / held): ${switchResults.map((r) => `${r.from}→${r.to} ${r.profile} ${r.cls} / ${r.held?.cls ?? "–"}`).join(", ")}`);
+  }
+  if (actionResults.length > 0) {
+    console.log(`after an action (during / late): ${actionResults.map((r) => `${r.flow} ${r.profile} ${r.during.total} / ${r.late.total}${r.undone ? "" : " NOT UNDONE"}`).join(", ")}`);
   }
   for (const r of modeErrors) console.log(`ERROR ${r.id}: ${r.error}`);
 

@@ -211,7 +211,7 @@ export type SetName = "deep" | "phase" | "empty" | "dark" | "print" | "overlay" 
 
 /** Everything a run can do: the matrix's sets plus the two modes that are
  * not per-capture (the resize crawl and the layout-shift measurements). */
-export const ALL_SETS = ["deep", "phase", "empty", "dark", "print", "overlay", "loading", "resize", "cls", "switch"] as const;
+export const ALL_SETS = ["deep", "phase", "empty", "dark", "print", "overlay", "loading", "resize", "cls", "switch", "action"] as const;
 export type RunSet = (typeof ALL_SETS)[number];
 
 /** LAYOUT_AUDIT_SETS: a comma list of RunSet names; unset or blank = all.
