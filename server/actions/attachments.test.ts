@@ -25,6 +25,7 @@ const {
   itemFindFirstMock,
   storageSaveMock,
   storageDeleteMock,
+  storageCopyMock,
   scheduleBlobDeletionMock,
   transactionMock,
   recordActivityMock,
@@ -75,6 +76,7 @@ const {
     itemFindFirstMock: vi.fn(),
     storageSaveMock: vi.fn(),
     storageDeleteMock: vi.fn(),
+    storageCopyMock: vi.fn(),
     scheduleBlobDeletionMock: vi.fn().mockResolvedValue(undefined),
     transactionMock,
     recordActivityMock: vi.fn().mockResolvedValue(undefined),
@@ -138,13 +140,14 @@ vi.mock("@/lib/storage", async (importOriginal) => {
     getStorage: vi.fn(() => ({
       save: storageSaveMock,
       delete: storageDeleteMock,
+      copy: storageCopyMock,
       read: vi.fn().mockResolvedValue(null),
     })),
   };
 });
 
 import * as attachmentsActions from "./attachments";
-import { uploadAttachment, deleteAttachment, setAttachmentTitle, moveAttachment } from "./attachments";
+import { uploadAttachment, deleteAttachment, setAttachmentTitle, moveAttachment, fileAttachment } from "./attachments";
 
 const TRIP_ID = "trip-1";
 const ATTACHMENT_ID = "attach-1";
@@ -207,6 +210,7 @@ beforeEach(() => {
   attachmentFindFirstMock.mockResolvedValue(null);
   storageSaveMock.mockResolvedValue(undefined);
   storageDeleteMock.mockResolvedValue(undefined);
+  storageCopyMock.mockResolvedValue(undefined);
   requireOutsideSurpriseMock.mockResolvedValue(null);
   loadJournalWindowMock.mockResolvedValue({
     startDate: "2026-07-01",
@@ -936,6 +940,303 @@ describe("moveAttachment", () => {
     requireRowAccessMock.mockRejectedValueOnce(new Error("NEXT_NOT_FOUND"));
     await expect(moveAttachment(ATTACHMENT_ID, { type: "ITEM", id: "i9" })).rejects.toThrow("NEXT_NOT_FOUND");
     expect(attachmentUpdateMock).not.toHaveBeenCalled();
+  });
+});
+
+describe("fileAttachment", () => {
+  beforeEach(() => {
+    attachmentFindUniqueMock.mockResolvedValue({ ...makeAttachmentRow(), title: null, globeId: null });
+    itemFindFirstMock.mockResolvedValue(null);
+  });
+
+  function copyCreates() {
+    return attachmentCreateMock.mock.calls.map(([arg]) => arg.data);
+  }
+
+  describe("one target behaves as moveAttachment", () => {
+    it("moves the file and makes no copy", async () => {
+      const result = await fileAttachment(ATTACHMENT_ID, [{ type: "TRANSPORT", id: "t1" }]);
+      expect(requireRowAccessMock).toHaveBeenCalledWith("transport", "t1", { realPlanOnly: true });
+      expectAccessCheckedBeforeWrite(requireTripAccessMock, attachmentUpdateMock);
+      expect(attachmentUpdateMock).toHaveBeenCalledWith({ where: { id: ATTACHMENT_ID }, data: { targetType: "TRANSPORT", targetId: "t1" } });
+      expect(storageCopyMock).not.toHaveBeenCalled();
+      expect(attachmentCreateMock).not.toHaveBeenCalled();
+      expect(result).toEqual({ success: true, tripId: TRIP_ID, attachmentIds: [ATTACHMENT_ID] });
+      expect(revalidateTripMock).toHaveBeenCalledTimes(1);
+      expect(revalidateTripMock).toHaveBeenCalledWith(TRIP_ID, "plan", "journal");
+    });
+
+    it("moving to the Trip clears targetId", async () => {
+      await fileAttachment(ATTACHMENT_ID, [{ type: "TRIP" }]);
+      expect(requireRowAccessMock).not.toHaveBeenCalled();
+      expect(attachmentUpdateMock).toHaveBeenCalledWith({ where: { id: ATTACHMENT_ID }, data: { targetType: "TRIP", targetId: null } });
+    });
+
+    it("refuses a Globe file", async () => {
+      attachmentFindUniqueMock.mockResolvedValue({ ...makeAttachmentRow(), title: null, tripId: null, globeId: "g1" });
+      const result = await fileAttachment(ATTACHMENT_ID, [{ type: "TRIP" }]);
+      expect(result).toEqual({ success: false, error: "Only a trip's files can be moved." });
+      expect(attachmentUpdateMock).not.toHaveBeenCalled();
+    });
+
+    it("refuses a Journal photo", async () => {
+      attachmentFindUniqueMock.mockResolvedValue({ ...makeAttachmentRow({ targetType: "JOURNAL", targetId: "2026-07-10" }), title: null, globeId: null });
+      const result = await fileAttachment(ATTACHMENT_ID, [{ type: "TRIP" }]);
+      expect(result).toEqual({ success: false, error: "Journal photos stay with their day." });
+      expect(attachmentUpdateMock).not.toHaveBeenCalled();
+    });
+
+    it("refuses the file that is an Item's current photo", async () => {
+      itemFindFirstMock.mockResolvedValue({ id: "item-1" });
+      const result = await fileAttachment(ATTACHMENT_ID, [{ type: "TRIP" }]);
+      expect(itemFindFirstMock).toHaveBeenCalledWith({ where: { photoAttachmentId: ATTACHMENT_ID } });
+      expect(result).toEqual({ success: false, error: "Remove it as the photo first." });
+      expect(attachmentUpdateMock).not.toHaveBeenCalled();
+    });
+
+    it("refuses a target on another trip", async () => {
+      requireRowAccessMock.mockResolvedValueOnce({ row: { id: "x", tripId: "trip-2" }, user: { id: "user-1" }, membership: { role: "member" }, surpriseOf: null });
+      const result = await fileAttachment(ATTACHMENT_ID, [{ type: "STOP", id: "x" }]);
+      expect(result).toEqual({ success: false, error: "That isn't on this trip." });
+      expect(attachmentUpdateMock).not.toHaveBeenCalled();
+    });
+
+    it("refuses an unknown target type", async () => {
+      const result = await fileAttachment(ATTACHMENT_ID, [{ type: "COST", id: "c1" } as never]);
+      expect(result).toEqual({ success: false, error: "That isn't on this trip." });
+      expect(requireRowAccessMock).not.toHaveBeenCalled();
+      expect(attachmentUpdateMock).not.toHaveBeenCalled();
+    });
+
+    it("does not file onto a Fork's row", async () => {
+      requireRowAccessMock.mockRejectedValueOnce(new Error("NOT_FOUND"));
+      await expect(fileAttachment(ATTACHMENT_ID, [{ type: "STOP", id: "fork-stop" }])).rejects.toThrow("NOT_FOUND");
+      expect(attachmentUpdateMock).not.toHaveBeenCalled();
+    });
+  });
+
+  it("two targets: moves to the first and copies to the second as its own file", async () => {
+    attachmentCreateMock.mockResolvedValueOnce({ id: "copy-1" });
+    const result = await fileAttachment(ATTACHMENT_ID, [
+      { type: "TRANSPORT", id: "t1" },
+      { type: "TRANSPORT", id: "t2" },
+    ]);
+    expect(result).toEqual({ success: true, tripId: TRIP_ID, attachmentIds: [ATTACHMENT_ID, "copy-1"] });
+    expect(attachmentUpdateMock).toHaveBeenCalledWith({ where: { id: ATTACHMENT_ID }, data: { targetType: "TRANSPORT", targetId: "t1" } });
+
+    expect(storageCopyMock).toHaveBeenCalledTimes(1);
+    const [srcKey, destKey] = storageCopyMock.mock.calls[0];
+    expect(srcKey).toBe("trips/trip-1/attach-1-test.pdf");
+    expect(destKey).not.toBe(srcKey);
+    expect(destKey).toMatch(/^trips\/trip-1\//);
+
+    expect(copyCreates()).toEqual([
+      {
+        tripId: TRIP_ID,
+        targetType: "TRANSPORT",
+        targetId: "t2",
+        filename: "test.pdf",
+        title: null,
+        mime: "application/pdf",
+        size: 1024,
+        url: "",
+        storageKey: destKey,
+        uploadedById: "user-1",
+      },
+    ]);
+    expectAccessCheckedBeforeWrite(storageCopyMock, attachmentCreateMock);
+    expect(attachmentUpdateMock).toHaveBeenCalledWith({ where: { id: "copy-1" }, data: { url: "/api/attachments/copy-1" } });
+    expect(revalidateTripMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("the copy's uploader is the acting Traveller, not the original uploader", async () => {
+    attachmentFindUniqueMock.mockResolvedValue({ ...makeAttachmentRow({ uploadedById: "user-2" }), title: null, globeId: null });
+    attachmentCreateMock.mockResolvedValueOnce({ id: "copy-1" });
+    await fileAttachment(ATTACHMENT_ID, [{ type: "TRIP" }, { type: "STOP", id: "s1" }]);
+    expect(copyCreates()[0].uploadedById).toBe("user-1");
+  });
+
+  it("deleting the copy leaves the original's stored object alone", async () => {
+    attachmentCreateMock.mockResolvedValueOnce({ id: "copy-1" });
+    await fileAttachment(ATTACHMENT_ID, [{ type: "TRANSPORT", id: "t1" }, { type: "TRANSPORT", id: "t2" }]);
+    const copyKey = storageCopyMock.mock.calls[0][1];
+
+    attachmentFindUniqueMock.mockResolvedValue({ ...makeAttachmentRow({ id: "copy-1", storageKey: copyKey, targetType: "TRANSPORT", targetId: "t2" }), title: null, globeId: null });
+    await deleteAttachment("copy-1");
+    expect(scheduleBlobDeletionMock).toHaveBeenCalledWith([copyKey]);
+    expect(scheduleBlobDeletionMock).not.toHaveBeenCalledWith(["trips/trip-1/attach-1-test.pdf"]);
+    expect(attachmentDeleteMock).toHaveBeenCalledWith({ where: { id: "copy-1" } });
+    expect(attachmentDeleteMock).not.toHaveBeenCalledWith({ where: { id: ATTACHMENT_ID } });
+  });
+
+  describe("title", () => {
+    it("a given title is normalized onto every resulting file", async () => {
+      attachmentCreateMock.mockResolvedValueOnce({ id: "copy-1" });
+      await fileAttachment(ATTACHMENT_ID, [{ type: "TRIP" }, { type: "STOP", id: "s1" }], "  Ferry ticket ");
+      expect(attachmentUpdateMock).toHaveBeenCalledWith({ where: { id: ATTACHMENT_ID }, data: { targetType: "TRIP", targetId: null, title: "Ferry ticket" } });
+      expect(copyCreates()[0].title).toBe("Ferry ticket");
+    });
+
+    it("a blank title clears it", async () => {
+      attachmentFindUniqueMock.mockResolvedValue({ ...makeAttachmentRow(), title: "Old", globeId: null });
+      attachmentCreateMock.mockResolvedValueOnce({ id: "copy-1" });
+      await fileAttachment(ATTACHMENT_ID, [{ type: "TRIP" }, { type: "STOP", id: "s1" }], "   ");
+      expect(attachmentUpdateMock).toHaveBeenCalledWith({ where: { id: ATTACHMENT_ID }, data: { targetType: "TRIP", targetId: null, title: null } });
+      expect(copyCreates()[0].title).toBeNull();
+    });
+
+    it("no title keeps the file's own title on the copies", async () => {
+      attachmentFindUniqueMock.mockResolvedValue({ ...makeAttachmentRow(), title: "Old", globeId: null });
+      attachmentCreateMock.mockResolvedValueOnce({ id: "copy-1" });
+      await fileAttachment(ATTACHMENT_ID, [{ type: "TRIP" }, { type: "STOP", id: "s1" }]);
+      expect(attachmentUpdateMock).toHaveBeenCalledWith({ where: { id: ATTACHMENT_ID }, data: { targetType: "TRIP", targetId: null } });
+      expect(copyCreates()[0].title).toBe("Old");
+    });
+
+    it("an invalid title fails with the normalizer's error and changes nothing", async () => {
+      const result = await fileAttachment(ATTACHMENT_ID, [{ type: "TRIP" }, { type: "STOP", id: "s1" }], "x".repeat(121));
+      expect(result).toEqual({ success: false, error: "Title must be 120 characters or fewer." });
+      expect(attachmentUpdateMock).not.toHaveBeenCalled();
+      expect(storageCopyMock).not.toHaveBeenCalled();
+      expect(attachmentCreateMock).not.toHaveBeenCalled();
+    });
+  });
+
+  it("no targets fails", async () => {
+    const result = await fileAttachment(ATTACHMENT_ID, []);
+    expect(result).toEqual({ success: false, error: "Say what to attach it to." });
+    expect(attachmentUpdateMock).not.toHaveBeenCalled();
+  });
+
+  it("more than 6 targets fails", async () => {
+    const targets = Array.from({ length: 7 }, (_, i) => ({ type: "STOP" as const, id: `s${i}` }));
+    const result = await fileAttachment(ATTACHMENT_ID, targets);
+    expect(result).toEqual({ success: false, error: "That's too many at once." });
+    expect(requireRowAccessMock).not.toHaveBeenCalled();
+    expect(attachmentUpdateMock).not.toHaveBeenCalled();
+  });
+
+  it("6 targets is allowed", async () => {
+    for (let i = 1; i <= 5; i++) attachmentCreateMock.mockResolvedValueOnce({ id: `copy-${i}` });
+    const targets = Array.from({ length: 6 }, (_, i) => ({ type: "STOP" as const, id: `s${i}` }));
+    const result = await fileAttachment(ATTACHMENT_ID, targets);
+    expect(result).toEqual({ success: true, tripId: TRIP_ID, attachmentIds: [ATTACHMENT_ID, "copy-1", "copy-2", "copy-3", "copy-4", "copy-5"] });
+  });
+
+  it("the same target twice files it there once", async () => {
+    attachmentCreateMock.mockResolvedValueOnce({ id: "copy-1" });
+    const result = await fileAttachment(ATTACHMENT_ID, [
+      { type: "TRANSPORT", id: "t1" },
+      { type: "STOP", id: "s1" },
+      { type: "TRANSPORT", id: "t1" },
+      { type: "STOP", id: "s1" },
+    ]);
+    expect(result).toEqual({ success: true, tripId: TRIP_ID, attachmentIds: [ATTACHMENT_ID, "copy-1"] });
+    expect(storageCopyMock).toHaveBeenCalledTimes(1);
+    expect(copyCreates()).toHaveLength(1);
+    expect(copyCreates()[0]).toMatchObject({ targetType: "STOP", targetId: "s1" });
+  });
+
+  it("an invalid second target fails before the original moves", async () => {
+    requireRowAccessMock
+      .mockResolvedValueOnce({ row: { id: "t1", tripId: TRIP_ID }, user: { id: "user-1" }, membership: { role: "member" }, surpriseOf: null })
+      .mockResolvedValueOnce({ row: { id: "t2", tripId: "trip-2" }, user: { id: "user-1" }, membership: { role: "member" }, surpriseOf: null });
+    const result = await fileAttachment(ATTACHMENT_ID, [
+      { type: "TRANSPORT", id: "t1" },
+      { type: "TRANSPORT", id: "t2" },
+    ]);
+    expect(result).toEqual({ success: false, error: "That isn't on this trip." });
+    expect(attachmentUpdateMock).not.toHaveBeenCalled();
+    expect(storageCopyMock).not.toHaveBeenCalled();
+    expect(attachmentCreateMock).not.toHaveBeenCalled();
+    expect(recordActivityMock).not.toHaveBeenCalled();
+  });
+
+  it("a copy that fails to store leaves what landed and says how many", async () => {
+    attachmentCreateMock.mockResolvedValueOnce({ id: "copy-1" });
+    storageCopyMock.mockResolvedValueOnce(undefined).mockRejectedValueOnce(new Error("S3 down"));
+    const result = await fileAttachment(ATTACHMENT_ID, [
+      { type: "TRANSPORT", id: "t1" },
+      { type: "TRANSPORT", id: "t2" },
+      { type: "TRANSPORT", id: "t3" },
+    ]);
+    expect(result).toEqual({ success: false, error: "Attached to 2 of 3. Try the rest again." });
+    expect(attachmentUpdateMock).toHaveBeenCalledWith({ where: { id: ATTACHMENT_ID }, data: { targetType: "TRANSPORT", targetId: "t1" } });
+    expect(copyCreates()).toHaveLength(1);
+    expect(copyCreates()[0]).toMatchObject({ targetId: "t2" });
+    expect(attachmentDeleteMock).not.toHaveBeenCalled();
+    expect(reportErrorMock).toHaveBeenCalledTimes(1);
+    expect(recordActivityMock).toHaveBeenCalledTimes(2);
+    expect(revalidateTripMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("an over-quota set of copies fails before anything changes", async () => {
+    const quotaError = "This Trip has used its 500 MB of file storage. Delete some files to add more.";
+    checkQuotaMock.mockResolvedValueOnce({ ok: false, error: quotaError });
+    const result = await fileAttachment(ATTACHMENT_ID, [
+      { type: "TRANSPORT", id: "t1" },
+      { type: "TRANSPORT", id: "t2" },
+      { type: "TRANSPORT", id: "t3" },
+    ]);
+    expect(checkQuotaMock).toHaveBeenCalledWith({ tripId: TRIP_ID, size: 2048 });
+    expect(result).toEqual({ success: false, error: quotaError });
+    expect(attachmentUpdateMock).not.toHaveBeenCalled();
+    expect(storageCopyMock).not.toHaveBeenCalled();
+  });
+
+  it("a plain move does not check the quota", async () => {
+    await fileAttachment(ATTACHMENT_ID, [{ type: "TRIP" }]);
+    expect(checkQuotaMock).not.toHaveBeenCalled();
+  });
+
+  describe("Surprise", () => {
+    it("refuses a Traveller surprised by where the file sits now", async () => {
+      requireOutsideSurpriseMock.mockRejectedValueOnce(new Error("NEXT_NOT_FOUND"));
+      await expect(fileAttachment(ATTACHMENT_ID, [{ type: "TRIP" }])).rejects.toThrow("NEXT_NOT_FOUND");
+      expect(attachmentUpdateMock).not.toHaveBeenCalled();
+    });
+
+    it("refuses a Traveller surprised by a target", async () => {
+      requireRowAccessMock
+        .mockResolvedValueOnce({ row: { id: "t1", tripId: TRIP_ID }, user: { id: "user-1" }, membership: { role: "member" }, surpriseOf: null })
+        .mockRejectedValueOnce(new Error("NEXT_NOT_FOUND"));
+      await expect(fileAttachment(ATTACHMENT_ID, [{ type: "TRANSPORT", id: "t1" }, { type: "ITEM", id: "i9" }])).rejects.toThrow("NEXT_NOT_FOUND");
+      expect(attachmentUpdateMock).not.toHaveBeenCalled();
+      expect(storageCopyMock).not.toHaveBeenCalled();
+    });
+  });
+
+  describe("Activity", () => {
+    it("records one line per resulting file", async () => {
+      attachmentFindUniqueMock.mockResolvedValue({ ...makeAttachmentRow(), title: "Ferry", globeId: null });
+      attachmentCreateMock.mockResolvedValueOnce({ id: "copy-1" });
+      await fileAttachment(ATTACHMENT_ID, [{ type: "TRANSPORT", id: "t1" }, { type: "STOP", id: "s1" }]);
+      expect(recordActivityMock.mock.calls.map(([a]) => a)).toEqual([
+        { tripId: TRIP_ID, verb: "UPDATED", entityType: "ATTACHMENT", entityId: ATTACHMENT_ID, entityLabel: "Ferry", changes: { excerpt: "Ferry" }, surpriseOf: null },
+        { tripId: TRIP_ID, verb: "CREATED", entityType: "ATTACHMENT", entityId: "copy-1", entityLabel: "Ferry", changes: { excerpt: "Ferry" }, surpriseOf: null },
+      ]);
+      expect(requireOutsideSurpriseMock).toHaveBeenCalledWith("user-1", { target: { targetType: "TRANSPORT", targetId: "t1" } });
+      expect(requireOutsideSurpriseMock).toHaveBeenCalledWith("user-1", { target: { targetType: "STOP", targetId: "s1" } });
+    });
+
+    it("the label falls back to the filename", async () => {
+      await fileAttachment(ATTACHMENT_ID, [{ type: "TRIP" }]);
+      expect(recordActivityMock).toHaveBeenCalledWith(expect.objectContaining({ entityLabel: "test.pdf", changes: { excerpt: "test.pdf" } }));
+    });
+
+    it("the planner filing into their own Surprise hides each line inside it", async () => {
+      const root = { type: "STOP", id: "s1" };
+      attachmentCreateMock.mockResolvedValueOnce({ id: "copy-1" });
+      requireOutsideSurpriseMock
+        .mockResolvedValueOnce(null)
+        .mockResolvedValueOnce(null)
+        .mockResolvedValueOnce(root);
+      await fileAttachment(ATTACHMENT_ID, [{ type: "TRIP" }, { type: "STOP", id: "s1" }]);
+      expect(recordActivityMock.mock.calls.map(([a]) => [a.entityId, a.surpriseOf])).toEqual([
+        [ATTACHMENT_ID, null],
+        ["copy-1", root],
+      ]);
+    });
   });
 });
 

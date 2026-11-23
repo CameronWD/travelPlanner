@@ -18,6 +18,7 @@ import { type ActionResult, formFail } from "@/lib/action-result";
 import { revalidateTrip, revalidateGlobe } from "@/lib/revalidate";
 import type { MoveTarget } from "@/lib/attachment-move";
 import { attachmentName, normalizeAttachmentTitle } from "@/lib/attachment-name";
+import { copyAttachment } from "@/lib/attachment-copy";
 
 // ---------------------------------------------------------------------------
 // Result types
@@ -85,6 +86,7 @@ function findAttachmentForAccess(id: string) {
       globeId: true,
       storageKey: true,
       filename: true,
+      title: true,
       mime: true,
       size: true,
       url: true,
@@ -426,4 +428,108 @@ export async function moveAttachment(id: string, target: MoveTarget): Promise<Ac
   }
   revalidateTrip(attachment.tripId, "plan", "journal");
   return { success: true };
+}
+
+type FileAttachmentResult =
+  | { success: true; tripId: string; attachmentIds: string[] }
+  | { success: false; error: string };
+
+const MAX_FILE_TARGETS = 6;
+
+export async function fileAttachment(
+  id: string,
+  targets: MoveTarget[],
+  title?: string,
+): Promise<FileAttachmentResult> {
+  const { attachment, userId } = await requireAttachmentAccess(id);
+  const fail = (error: string): FileAttachmentResult => ({ success: false, error });
+  if (!attachment.tripId) return fail("Only a trip's files can be moved.");
+  const tripId = attachment.tripId;
+  if (attachment.targetType === "JOURNAL") return fail("Journal photos stay with their day.");
+  const photoOf = await db.item.findFirst({ where: { photoAttachmentId: id } });
+  if (photoOf) return fail("Remove it as the photo first.");
+
+  if (targets.length === 0) return fail("Say what to attach it to.");
+  if (targets.length > MAX_FILE_TARGETS) return fail("That's too many at once.");
+
+  let finalTitle = attachment.title;
+  if (title !== undefined) {
+    const normalized = normalizeAttachmentTitle(title);
+    if (!normalized.ok) return fail(normalized.error);
+    finalTitle = normalized.title;
+  }
+
+  const seen = new Set<string>();
+  const places: Array<{ targetType: "TRIP" | keyof typeof MOVE_KINDS; targetId: string | null }> = [];
+  for (const target of targets) {
+    const place =
+      target.type === "TRIP"
+        ? { targetType: "TRIP" as const, targetId: null }
+        : { targetType: target.type, targetId: target.id };
+    const key = `${place.targetType}:${place.targetId ?? ""}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    places.push(place);
+  }
+
+  // Every target is checked before the first write, so a bad one leaves the file where it was.
+  for (const place of places) {
+    if (place.targetType === "TRIP") continue;
+    const kind = Object.hasOwn(MOVE_KINDS, place.targetType) ? MOVE_KINDS[place.targetType] : null;
+    if (!kind || typeof place.targetId !== "string") return fail("That isn't on this trip.");
+    const { row } = await requireRowAccess(kind, place.targetId, { realPlanOnly: true });
+    if (row.tripId !== tripId) return fail("That isn't on this trip.");
+  }
+
+  const copies = places.length - 1;
+  if (copies > 0) {
+    const quota = await checkQuota({ tripId, size: attachment.size * copies });
+    if (!quota.ok) return fail(quota.error);
+  }
+
+  const [first, ...rest] = places;
+  await db.attachment.update({
+    where: { id },
+    data: { ...first, ...(title !== undefined ? { title: finalTitle } : {}) },
+  });
+  const filed: Array<{ id: string; verb: "UPDATED" | "CREATED"; place: (typeof places)[number] }> = [
+    { id, verb: "UPDATED", place: first },
+  ];
+
+  let copyFailed = false;
+  for (const place of rest) {
+    try {
+      const copyId = await copyAttachment({
+        tripId,
+        source: attachment,
+        targetType: place.targetType,
+        targetId: place.targetId,
+        title: finalTitle,
+        userId,
+      });
+      filed.push({ id: copyId, verb: "CREATED", place });
+    } catch (err) {
+      await reportError(err, { route: "server/actions/attachments.ts#fileAttachment", source: "server" });
+      copyFailed = true;
+      break;
+    }
+  }
+
+  const label = attachmentName({ filename: attachment.filename, title: finalTitle });
+  for (const f of filed) {
+    const surpriseOf = await requireOutsideSurprise(userId, { target: f.place });
+    await recordActivity({
+      tripId,
+      verb: f.verb,
+      entityType: "ATTACHMENT",
+      entityId: f.id,
+      entityLabel: label,
+      changes: { excerpt: label },
+      surpriseOf,
+    });
+  }
+
+  revalidateTrip(tripId, "plan", "journal");
+  if (copyFailed) return fail(`Attached to ${filed.length} of ${places.length}. Try the rest again.`);
+  return { success: true, tripId, attachmentIds: filed.map((f) => f.id) };
 }
