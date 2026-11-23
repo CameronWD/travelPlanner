@@ -108,15 +108,21 @@ It can change:
 - Reminders: add, edit, delete
 - Checklists: add, edit, tick/untick, reorder, delete; mark Need to buy;
   save as packing template; apply a template
+- Files: attach a file already on the Trip to a Stop, Transport, stay or thing
+  to do, or back to the Trip itself (several at once, each further one gets its
+  own copy), and give it a title
 - Make it fit: preview, then apply
 - Surprises: make a Stop or thing to do a Surprise, reveal one you planned
 - Feedback: leave a note for the operator (see below)
+
+A file you drop into the Claude chat does not reach Teepee. Add it in Teepee
+(or use Booking import), then ask Claude to file it.
 
 Editing something through Claude changes only what you asked for; everything
 else about it stays as it was.
 
 It cannot touch: Trip delete/duplicate/restore, members,
-Invites, Share links, Calendar feeds, uploading, renaming or deleting
+Invites, Share links, Calendar feeds, uploading or deleting
 Attachments, Item photos, covers, Journal, Globe writes, push, or Admin.
 It can leave a Feedback note (see below) but cannot read, list or delete
 one, and it cannot see the Admin review queue.

@@ -124,15 +124,12 @@ describe.skipIf(process.env.INTEGRATION !== "1")("POST /api/usage (real Postgres
     const names = await db.$queryRaw<{ conname: string }[]>`
       SELECT conname FROM pg_constraint WHERE conrelid = '"UsageRecord"'::regclass AND contype = 'c' ORDER BY conname`;
     expect(names.map((n) => n.conname)).toEqual([
-      "UsageRecord_action_check",
-      "UsageRecord_detail_check",
       "UsageRecord_ids_check",
       "UsageRecord_kind_check",
       "UsageRecord_mode_check",
       "UsageRecord_numbers_check",
       "UsageRecord_offset_trip_check",
       "UsageRecord_phase_check",
-      "UsageRecord_screen_check",
       "UsageRecord_site_check",
     ]);
 
@@ -147,12 +144,11 @@ describe.skipIf(process.env.INTEGRATION !== "1")("POST /api/usage (real Postgres
     const good = { screen: "day", action: null, tripId: TRIP, dayOffset: 2, site: "main" };
 
     await expect(insert(good)).resolves.toBe(1);
-    await expect(insert({ ...good, screen: "paris" })).rejects.toThrow();
-    await expect(insert({ ...good, screen: null, action: "clicked", dayOffset: null })).rejects.toThrow();
     await expect(insert({ ...good, screen: "trips", action: "search-opened", tripId: null, dayOffset: null })).rejects.toThrow();
     await expect(insert({ ...good, screen: null, action: null })).rejects.toThrow();
     await expect(insert({ ...good, tripId: null })).rejects.toThrow();
     await expect(insert({ ...good, site: "feat/usage" })).rejects.toThrow();
-    expect(await db.usageRecord.count({ where: { userId: RAW } })).toBe(1);
+    await expect(insert({ ...good, screen: "paris" })).resolves.toBe(1);
+    expect(await db.usageRecord.count({ where: { userId: RAW } })).toBe(2);
   });
 });

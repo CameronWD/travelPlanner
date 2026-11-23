@@ -40,6 +40,8 @@ vi.mock("@/server/actions/notes", () => ({ addNote: ok(), deleteNote: ok() }));
 vi.mock("@/server/actions/accommodation", () => ({ createAccommodation: ok(), updateAccommodation: ok(), deleteAccommodation: ok() }));
 vi.mock("@/server/actions/transport", () => ({ createTransport: ok(), updateTransport: ok(), deleteTransport: ok() }));
 vi.mock("@/server/actions/booking-confirmation", () => ({ setNothingToAttach: ok() }));
+vi.mock("@/server/actions/attachments", () => ({ fileAttachment: vi.fn(async () => ({ success: true, tripId: "trip-1", attachmentIds: ["att-1"] })) }));
+vi.mock("../reads/attachments", () => ({ loadAttachmentIndexForMcp: vi.fn(async () => ({ attachments: [{ id: "att-1" }] })) }));
 vi.mock("@/server/actions/costs", () => ({ createCost: ok(), updateCost: ok(), deleteCost: ok(), markCostPaid: ok(), markCostUnpaid: ok() }));
 vi.mock("@/server/actions/reminders", () => ({ addReminder: ok(), updateReminder: ok(), deleteReminder: ok() }));
 vi.mock("@/server/actions/checklists", () => ({
@@ -157,6 +159,7 @@ const ARGS: Record<string, Record<string, unknown>> = {
   update_transport: { transportId: "tr-1", reference: "ICE 512" },
   set_booking_state: { kind: "TRANSPORT", id: "tr-1", state: "TO_BOOK", bookBy: "2027-05-01" },
   set_nothing_to_attach: { kind: "TRANSPORT", id: "tr-1", nothingToAttach: true },
+  attach_file: { attachmentId: "att-1", targets: [{ kind: "TRIP" }] },
   delete_transport: { transportId: "tr-1" },
   add_cost: { tripId: "trip-1", costMinor: 1000, currency: "AUD", ownerType: "OTHER", label: "Insurance" },
   update_cost: { costId: "cost-1", label: "Travel insurance" },

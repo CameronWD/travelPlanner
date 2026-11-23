@@ -19,6 +19,7 @@ export const BOOKING_IMPORT_MESSAGES = {
     `You've done a lot of imports this hour. Try again in ${minutes} ${minutes === 1 ? "minute" : "minutes"}.`,
   busy: "The reader's busy right now. Try again in a minute.",
   generic: "Something went wrong reading that booking. Try again later.",
+  misconfigured: "Booking import isn't set up correctly. We've been told and will fix it.",
   disabled: "Booking import isn't switched on.",
   blocked: "This belongs to a Stop you can't add to",
   heic: "HEIC photos can't be read here: share it as a screenshot or JPEG instead.",

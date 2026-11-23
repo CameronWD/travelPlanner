@@ -27,6 +27,18 @@ export interface ReleaseNote {
 /** Newest first. Add new notes at the top. */
 export const RELEASE_NOTES: ReleaseNote[] = [
   {
+    publishedAt: "2026-11-23T22:42:00Z",
+    text: "Claude can file a trip's files onto things for you, one file onto several places at once. Thanks Cam.",
+  },
+  {
+    publishedAt: "2026-11-23T22:41:00Z",
+    text: "A thing to do and tonight's stay now show a paperclip when a file is attached.",
+  },
+  {
+    publishedAt: "2026-11-23T22:40:00Z",
+    text: "On a desktop the Day view's top row is gone: Share, the bell, the travellers and Add now sit beside the date.",
+  },
+  {
     publishedAt: "2026-11-20T05:50:00Z",
     text: "Teepee now notes which screens get opened, to see what is worth keeping. Privacy says exactly what it records.",
   },

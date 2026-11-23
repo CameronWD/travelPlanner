@@ -24,7 +24,7 @@ Paths marked A: are under `docs/archive/`.
 - **Day view focus** Focus drops to the page on every Day view day change (header arrows, chips and strip arrows), because the page remounts.
 - **Day map back and offline** The phone back gesture leaves the Day view instead of closing the Day map; offline, Home's Day map link opens the Day view without the map.
 - **Walk directions** At a Walk Stop "Directions from here" always opens walking directions.
-- **Day view header width** The Day view header's container threshold (84rem) is tight with five avatars and the widest heading, between about 1656 and 1700px.
+- **Day view header width** From the xl breakpoint the Day view header keeps its buttons in the date row; with five avatars and the widest heading the date sits left of centre rather than overlapping.
 
 ## Correctness
 

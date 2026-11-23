@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import Link from "next/link";
-import { Check, ChevronDown, ChevronRight, EyeOff, GripVertical, Pencil } from "lucide-react";
+import { Check, ChevronDown, ChevronRight, EyeOff, GripVertical, Paperclip, Pencil } from "lucide-react";
 import { useDraggable, useDroppable } from "@dnd-kit/core";
 import { AnimatePresence } from "motion/react";
 import { cn } from "@/lib/cn";
@@ -181,6 +181,15 @@ function DayTitle({ stopId, dateISO, dayTitle }: DayTitleProps) {
   );
 }
 
+function AttachedClip() {
+  return (
+    <>
+      <Paperclip className="size-3.5 shrink-0 text-foreground/80" aria-hidden="true" />
+      <span className="sr-only">File attached</span>
+    </>
+  );
+}
+
 interface DayRowProps {
   stopId: string;
   dateISO: string;
@@ -188,13 +197,14 @@ interface DayRowProps {
   costs: CostRow[];
   /** ADR 0049 rule 3: the owning Stop's name when it isn't this card's Stop. */
   owner: string | null;
+  attached: boolean;
   isNew: boolean;
   onRiseInEnd(): void;
   onEditItem(item: StopDayItem): void;
 }
 
 /** One scheduled Item row: draggable onto another day section (deviation 1 — no within-day reorder). */
-function DayRow({ stopId, dateISO, item, costs, owner, isNew, onRiseInEnd, onEditItem }: DayRowProps) {
+function DayRow({ stopId, dateISO, item, costs, owner, attached, isNew, onRiseInEnd, onEditItem }: DayRowProps) {
   // CONTEXT.md Surprise: a placeholder shows only that something is planned. Nothing to edit or move.
   const placeholder = item.surprise?.youAreSurprised ?? false;
   const { setNodeRef, listeners, attributes, isDragging } = useDraggable({
@@ -265,6 +275,7 @@ function DayRow({ stopId, dateISO, item, costs, owner, isNew, onRiseInEnd, onEdi
         </button>
       )}
       <div className="flex shrink-0 items-center gap-1.5">
+        {attached && !placeholder && <AttachedClip />}
         {item.surprise && <SurpriseBadge view={item.surprise} size="sm" className="shrink-0 whitespace-nowrap" />}
         {item.bookingState === "BOOKED" && (
           <span className="inline-flex shrink-0 items-center gap-1 whitespace-nowrap rounded-full border-2 border-border bg-teal/15 px-2 text-xs font-bold">
@@ -309,6 +320,7 @@ export interface DaySectionProps {
   dayTitle?: string;
   items: StopDayItem[];
   costsById?: Map<string, CostRow[]>;
+  attachedItemIds?: ReadonlySet<string>;
   homeCurrency?: string;
   /** Every Stop's name by id, for the ADR 0049 owning-Stop marker. */
   stopNames?: ReadonlyMap<string, string>;
@@ -340,6 +352,7 @@ export function DaySection({
   dayTitle,
   items,
   costsById,
+  attachedItemIds,
   homeCurrency,
   stopNames,
   ideas,
@@ -493,6 +506,7 @@ export function DaySection({
                     item={item}
                     costs={costsById?.get(item.id) ?? []}
                     owner={ownerMarker(item, stopId, stopNames)}
+                    attached={attachedItemIds?.has(item.id) ?? false}
                     isNew={seen.fresh.has(item.id)}
                     // Off once played, so a resize showing the hidden desktop list doesn't replay it.
                     onRiseInEnd={() =>

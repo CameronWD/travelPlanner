@@ -141,6 +141,7 @@ export interface DayViewData {
     lat: number | null;
     lng: number | null;
     placeId?: string | null;
+    attached: boolean;
   } | null;
   strip: { dates: Array<{ iso: string; count: number; isCurrent: boolean; isToday: boolean; holiday: "public" | "early" | false }>; line: StopLine };
   /** Public holidays where the Trip is on this day (lib/holidays/trip-days.ts), one line each. */
@@ -186,7 +187,7 @@ async function readWindowExtras(ctx: DayReadContext, dates: readonly string[]) {
         .filter((d) => d !== "out-of-range"),
     ),
   ];
-  const [costs, journalEntries, journalPhotos] = await Promise.all([
+  const [costs, journalEntries, journalPhotos, stayFiles] = await Promise.all([
     db.cost.findMany({
       where: { tripId: ctx.tripId, ...REAL_PLAN, ownerType: { in: ["ITEM", "TRANSPORT", "ACCOMMODATION"] }, ownerId: { not: null }, ...ctx.visibility.where.cost },
       orderBy: { createdAt: "asc" },
@@ -209,8 +210,12 @@ async function readWindowExtras(ctx: DayReadContext, dates: readonly string[]) {
         uploadedBy: { select: TRAVELLER_SELECT },
       },
     }),
+    db.attachment.findMany({
+      where: { tripId: ctx.tripId, targetType: "ACCOMMODATION", targetId: { not: null }, ...ctx.visibility.where.attachment },
+      select: { targetId: true },
+    }),
   ]);
-  return { costs, journalEntries, journalPhotos };
+  return { costs, journalEntries, journalPhotos, stayFilesTargets: new Set(stayFiles.map((a) => a.targetId)) };
 }
 type WindowExtras = NonNullable<Awaited<ReturnType<typeof readWindowExtras>>>;
 
@@ -251,6 +256,7 @@ export async function getDays(tripId: string, dates: readonly string[], viewerId
       journalEntries: alongside.journalEntries.filter((e) => e.date === date),
       journalPhotos: alongside.journalPhotos.filter((p) => p.targetId === date),
       holidayLines,
+      stayFilesTargets: alongside.stayFilesTargets,
     });
   });
 }
@@ -300,7 +306,7 @@ function projectDayView(
   rows: DayRows,
   model: DayModel & { dayPlan: DayPlan },
   shared: SharedDays,
-  day: { viewerId: string; journalEntries: WindowExtras["journalEntries"]; journalPhotos: WindowExtras["journalPhotos"]; holidayLines: Map<string, string[]> },
+  day: { viewerId: string; journalEntries: WindowExtras["journalEntries"]; journalPhotos: WindowExtras["journalPhotos"]; holidayLines: Map<string, string[]>; stayFilesTargets: ReadonlySet<string | null> },
 ): DayViewData {
   const { trip, startDate, endDate, items, transports } = rows;
   const { date, dayPlan, dayStop, freeForm, hasEntries, tonight: bed } = model;
@@ -316,7 +322,7 @@ function projectDayView(
       ? {
           id: bed.id, name: bed.name, nightOf: tonightNight, checkOut: bed.checkOut, address: bed.address,
           confirmation: bed.confirmation, checkInTime: bed.checkInTime, checkOutTime: bed.checkOutTime,
-          notes: bed.notes, lat: bed.lat, lng: bed.lng, placeId: bed.placeId,
+          notes: bed.notes, lat: bed.lat, lng: bed.lng, placeId: bed.placeId, attached: day.stayFilesTargets.has(bed.id),
         }
       : null;
 

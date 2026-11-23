@@ -1207,6 +1207,15 @@ export function ItineraryManager({
   // ADR 0049 rule 3: a Changeover day's plan names its owning Stop on the other card.
   const stopNames = new Map(stops.map((s) => [s.id, s.name] as const));
   const needsConfirmation = React.useMemo(() => new Set(needsConfirmationIds ?? []), [needsConfirmationIds]);
+  const attachedItemIds = React.useMemo(() => {
+    const ids = new Set<string>();
+    for (const items of dayItemsByStopId?.values() ?? []) {
+      for (const it of items) {
+        if (attachmentsByItemId?.get(it.id)?.some((a) => a.url !== it.photoUrl)) ids.add(it.id);
+      }
+    }
+    return ids;
+  }, [dayItemsByStopId, attachmentsByItemId]);
   const stopOptions: StopOption[] = stops.map((s) => ({
     id: s.id,
     name: s.name,
@@ -1574,6 +1583,7 @@ export function ItineraryManager({
                     dayTitles={dayTitles}
                     ideas={ideas}
                     costsById={thingsToDoItemCostsById}
+                    attachedItemIds={attachedItemIds}
                     homeCurrency={homeCurrency}
                     accommodations={stop.accommodations.map((a) => ({
                       ...a,
@@ -2302,6 +2312,7 @@ export function ItineraryManager({
           dayItems={dayItemsByStopId?.get(sheetStop.id) ?? []}
           stopNames={stopNames}
           ideas={thingsToDoByStopId?.get(sheetStop.id) ?? []}
+          attachedItemIds={attachedItemIds}
           stay={stayStatus(sheetStop, sheetStop.accommodations)}
           accommodationRows={renderAccommodationRows(sheetStop)}
           onAddStay={() => handleAddAccommodationClick(sheetStop)}

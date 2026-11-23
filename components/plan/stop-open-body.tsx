@@ -33,6 +33,7 @@ export interface StopOpenBodyProps {
   dayTitles?: Record<string, { title: string }>;
   ideas: ThingToDo[];
   costsById?: Map<string, CostRow[]>;
+  attachedItemIds?: ReadonlySet<string>;
   homeCurrency?: string;
   /** This Stop's Accommodations, each with its Costs and file count, for the stay panel (spec 2026-10-04 §B). */
   accommodations: StayPanelAccommodation[];
@@ -82,6 +83,7 @@ export function StopOpenBody({
   dayTitles,
   ideas,
   costsById,
+  attachedItemIds,
   homeCurrency,
   accommodations,
   counts,
@@ -170,6 +172,7 @@ export function StopOpenBody({
               dayTitle={dayTitles?.[s.dateISO]?.title}
               items={dayItems.filter((i) => i.date === s.dateISO)}
               costsById={costsById}
+              attachedItemIds={attachedItemIds}
               homeCurrency={homeCurrency}
               stopNames={stopNames}
               ideas={ideas}

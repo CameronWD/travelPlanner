@@ -175,6 +175,7 @@ export type BookingImportFailureReason =
   | "rate_limited"
   | "busy"
   | "error"
+  | "misconfigured"
   | "disabled";
 
 /** `code`, on failure, is one of `BookingImportFailureReason`'s values. */

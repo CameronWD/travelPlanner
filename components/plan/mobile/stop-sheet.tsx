@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import * as DialogPrimitive from "@radix-ui/react-dialog";
-import { ArrowLeft, Check, ChevronRight, Ellipsis, Plus } from "lucide-react";
+import { ArrowLeft, Check, ChevronRight, Ellipsis, Paperclip, Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { m } from "motion/react";
 import { LayoutMotion } from "@/components/ui/layout-motion";
@@ -32,6 +32,7 @@ export interface StopSheetProps {
   /** Every Stop's name by id, for the ADR 0049 owning-Stop marker on a Changeover day. */
   stopNames?: ReadonlyMap<string, string>;
   ideas: ThingToDo[];
+  attachedItemIds?: ReadonlySet<string>;
   stay: StayStatus | null;
   accommodationRows: React.ReactNode;
   onAddStay(): void;
@@ -120,6 +121,7 @@ export function StopSheet({
   dayItems,
   stopNames,
   ideas,
+  attachedItemIds,
   stay,
   accommodationRows,
   onAddStay,
@@ -288,11 +290,12 @@ export function StopSheet({
                           return (
                             <React.Fragment key={it.id}>
                             {i > 0 && i === firstUntimed && <AnyTime />}
+                            <div className="flex items-center gap-1.5">
                             <button
                               type="button"
                               aria-label={`${`${it.startTime ?? ""} ${it.title}`.trim()}${owner ? ` (${owner})` : ""}`}
                               onClick={() => onEditItem(it)}
-                              className="flex min-h-11 w-full items-center gap-3 text-left text-sm"
+                              className="flex min-h-11 min-w-0 flex-1 items-center gap-3 text-left text-sm"
                             >
                               <span className="w-12 shrink-0 text-xs font-bold tabular-nums">{it.startTime ?? ""}</span>
                               <DayDot category={it.category} />
@@ -306,6 +309,13 @@ export function StopSheet({
                                 )}
                               </span>
                             </button>
+                            {attachedItemIds?.has(it.id) && (
+                              <>
+                                <Paperclip className="size-3.5 shrink-0 text-foreground/80" aria-hidden="true" />
+                                <span className="sr-only">File attached</span>
+                              </>
+                            )}
+                            </div>
                             </React.Fragment>
                           );
                         })
