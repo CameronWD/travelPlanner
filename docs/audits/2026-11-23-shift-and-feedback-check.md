@@ -1,6 +1,6 @@
 # Shift and feedback check, 2026-11-23
 
-This check measured layout shift (things moving on screen without being touched) across the signed-in app, on a phone and a desktop, before and after today's fixes, and looked at how every control that changes something answers when pressed. Before the fixes 76 of 104 measurements read zero; after them 89 of 104 do: the Summary route map (wherever a route can be drawn), the Globe map, the Money total's cents and the Trips carousel arrows no longer push anything, and the sweep made 55 controls show their result at once or say they are working. The two things you most need to know: the new iPhone launch only appears after Teepee is deleted and re-added, which very likely signs you out and drops the trips saved for offline (read the warning below first), and one shift turned up on trip Settings on a desktop that the before run missed: the cover photo preview kept no space until the photo arrived, so the form below dropped about 200px (older than today, and it only happened when the photo was slow). That one and the "Add coordinates" card on the Summary were fixed afterwards and measured again (see "Measured after the main run"): the 200px drop is gone, the card's 127px drop is gone, and a cover photo whose shape was never stored still moves the form about 40px once. A separate review of the whole branch by another agent found nothing that had to be fixed in the app beyond two tiny follow-ups, which are in.
+This check measured layout shift (things moving on screen without being touched) across the signed-in app, on a phone and a desktop, before and after today's fixes, and looked at how every control that changes something answers when pressed. Before the fixes 76 of 104 measurements read zero; after them 89 of 104 do: the Summary route map (wherever a route can be drawn), the Globe map, the Money total's cents and the Trips carousel arrows no longer push anything, and the sweep made 55 controls show their result at once or say they are working. The two things you most need to know: the new iPhone launch only appears after Teepee is deleted and re-added, which very likely signs you out and drops the trips saved for offline (read the warning below first), and one shift turned up on trip Settings on a desktop that the before run missed: the cover photo preview kept no space until the photo arrived, so the form below dropped about 200px (older than today, and it only happened when the photo was slow). That one and the "Add coordinates" card on the Summary were fixed afterwards and measured again (see "Measured after the main run"): the 200px drop is gone, the card's 127px drop is gone, and a cover photo whose shape was never stored still moves the form about 40px once. A separate review of the whole branch by another agent found nothing that had to be fixed in the app beyond two tiny follow-ups, which are in. Since then three more things were done. The note that says a booking has no confirmation attached was taken off the plan's rows and cards (it wrapped on a phone); it now shows only where one thing is opened. The desktop Day view lost the empty space at its top left and now treats quick presses on the arrows as one run that ends on the day you stopped on. And a real bug turned up on desktop: very fast presses could reload the whole page. It is on the live site today too; the new code mostly stops it (see "Moving quickly through days on desktop" below).
 
 > **Read this before you delete or re-add Teepee on either phone.**
 >
@@ -194,6 +194,17 @@ These were not in the original plan.
 - **One map on the trip home** (0a6af9f3, a454a68c). With no cover photo, the trip home used to show a picture of the route and then the real map below it. Now the real map sits at the top, in the cover's place, and is the only map. A trip that cannot draw a route keeps its plain header, and the Past trip home on a phone keeps its map below the recap.
 - **The Day strip's highlight fades** (49ad65e3). On a phone, the orange highlight on the selected day now fades out and fades in on the new day, instead of sliding across.
 - **iPhone launch pictures and an animated launch page** (49342aa9, db5a71f6, 6218e455, d8c06f15, 23165262). Opening the installed app shows the Teepee mark instead of a blank screen, and then an animated mark until the app arrives. If the launch page cannot be found, it falls back to any saved copy, then to the start page, and never waits longer than the usual time limit; a failed lookup counts as "not saved" rather than stopping the launch. **Existing installs will not see it until the app is deleted and re-added: read the warning at the top before you do that.**
+- **The missing-confirmation note** (79c0d160, 99136ad5, 31b30b18). First the wording changed (79c0d160): the line now reads "No booking confirmation attached", the button "Nothing to attach", and the message "Marked as nothing to attach". Then, because the line wrapped on a phone, it was taken off every row and card (99136ad5): the Transport pill on the plan, thing-to-do rows, the Day view's cards, the stay row, the Tonight card and the rows in the phone's Stop sheet. It stays where one thing is opened: an idea opened in its sheet, and the stay shown when a Stop is opened on the plan. To attach a file, or to say there is nothing to attach, open the thing: its edit dialog has both. A paperclip now shows on the Transport pill and on the stay row when a file is attached (31b30b18). The Day view's cards already list their files.
+- **The desktop Day view's empty space** (24e0950b). Two causes. On a wide screen the header's buttons sat alone in a row, with about 830px of nothing to their left; that row now shows the trip's name on the left. And the date strip was padded so the selected day always sat dead centre, which on day 1 (where Days opens before the trip) left about 570px of empty strip. The padding is gone and the strip starts at the left edge. Near either end of the trip the selected day now rests against the edge while the centre frame fades. The shift numbers for this view are unchanged: 0 on a cold load at both sizes, 0 day to day.
+- **Moving quickly through days on desktop** (c0187250, 0ec9e08d, f02fe8d5; written up in the decision record in f0883547 and 3c02c7bb). Quick presses now go to the day you stopped on, as one run. A quick run cuts between days instead of fading. A tap on a far date holds the current day, with that date lit, until the new day is ready. Back goes straight back to where the run started. Measured on a local development server at 1512 by 860, not on the live site:
+
+| Test | Before | After |
+|---|---|---|
+| Five presses, 150ms apart | Wrong day in 3 of 4 runs; up to about 0.75s of placeholder | Right day in 10 of 10; placeholder mostly under 0.25s |
+| Five presses, 90ms apart | Wrong day in 4 of 4 runs | Right day in 6 of 10; the rest ended one day short |
+| A tap on a far date | About 0.35s of placeholder | None |
+
+  **The page reload.** While testing, very fast presses sometimes reloaded the whole page. The cause was found. For an instant while a slide between days is being prepared, the page does not handle clicks, so a click on a day arrow in that instant was treated by the browser as an ordinary link. On desktop, a safety net now catches that click and moves the day instead. In 32 recorded runs after the fix there was no reload. The same reload exists on the live site today on desktop, by how the code is built; nobody has measured how often. The phone Day view does not start that kind of slide, so it is very unlikely to be affected. That is from reading the code, not checked in a browser.
 
 ## Waiting on Cam
 
@@ -215,6 +226,33 @@ These were not in the original plan.
 - Existing installs keep opening at the old address (the warning at the top). Only a re-added install shows the new launch.
 - Opening the app still takes two steps (the start page, then the Trips list). That is because the offline launch opens the saved trip only from the start page. The animation now covers the wait.
 - Nothing more is planned for after the trip. A simple launch page took the place of the riskier idea of changing how the app's offline helper answers.
+- **Ship the quick-run change carefully too.** Besides the launch page, it is the only change that alters how a central screen behaves. Put the branch on beta first and try it on desktop: twenty or so fast runs of five presses on the arrows. The page must never reload, and each run should end on the day you stopped on. If it misbehaves, the three commits `c0187250`, `0ec9e08d` and `f02fe8d5` can be reverted together and the empty-space fix kept. If there is no time to try it before 30 November, the recommendation is to revert those three and ship the rest: desktop is the second device.
+
+### The desktop Day view
+
+Decisions that are yours:
+
+- **The date strip at the ends of a trip.** On 18 November you chose that the selected day always sits in a fixed centre frame, with padding so the first and last days can centre. Removing the empty space you reported meant dropping that padding. At your MacBook's width, on roughly the first nine and last nine days of a 36-day trip, the strip now stands still and the highlight moves along it. A trip shorter than the row never shows the frame. Look at it on beta. If you prefer the centred strip, that half of `24e0950b` (the strip files only) comes out on its own.
+- **On a window about 1656px or wider**, the top left of the Day view still has a deliberate empty column that keeps the date truly centred (a decision from 29 September). Not changed.
+- **The trip's name at the top left of the desktop Day view** repeats the name on the rail's trip card, as the Plan and other trip pages already do.
+- **Thing-to-do rows and the Tonight card show no "file attached" sign yet.** Transport pills and stay rows have the paperclip. Thing-to-do rows on the plan and in the phone's Stop sheet only need a value passed down, which could be built quickly. The Tonight card would need extra data fetched.
+- **Two other screens describe a missing confirmation in their own words and were left alone:** the Files page heading "Booking confirmations to add", and the Home's next step "Add booking confirmations" with "Booked, but no ticket or confirmation attached."
+
+Known and not fixed:
+
+- At the very fastest pace (presses about 90ms apart), a press that lands while a slide is on screen is dropped by the browser, so a run can end one day short. It ends consistently, with the date, header and body agreeing.
+- A quick run more than three days past the days already loaded still shows placeholders for a moment (about 0.7s when holding the arrow key). Fixing it properly means loading days differently. It is written up as a follow-up, not built.
+- In the same instant in which the page does not handle clicks, a click on something other than a day link (the Plan and Money pills, a link in the page, the rail) can still reload the page, and a button can ignore the click. That is so on the live site today as well. The follow-up is to stop a quick run starting a slide at all.
+- A run that goes forward and then straight back to the day it started on leaves that day in history twice, so one press of Back appears to do nothing.
+- The navigation audit (`npm run audit:nav`) is out of date for the Day view. The carousel changed on 19 and 22 November, and the audit's Day checks have not been updated since 7 October, so ten of them fail for that reason and it proves nothing about the Day view until it is updated. Nothing from today broke it.
+
+### Other late items
+
+- **Settings cover preview:** no photo is stretched. Cover photos uploaded before today have no stored proportions (all the current ones), so each reserves a 4:3 box and the form moves about 40px once when the photo loads slowly (it was 198px). A photo uploaded from now on reads zero. Filling in the stored proportions for existing covers once would finish it.
+- **A cover that fails to load** (offline, or a deleted file) now shows the browser's broken-picture icon in a photo-sized box, where it used to collapse to a few pixels. Remove and Choose photo are still beside it.
+- **Twice on desktop something in the page shell moved 20 to 34px a few seconds after load** (once on Summary, once on another trip's home) and did not repeat in four re-runs. Unexplained and not fixed; the sidebar's counts arriving late is the first suspect.
+- **The route map tile on the desktop trip home** shows a black panel saying the map failed when Google Maps cannot load (you saw this on the live site on 23 November; it cleared by itself). A friendlier fallback, such as the Stop list other maps use, is an idea, not built.
+- **The planning home's "add coordinates" card** (shown when a trip's route cannot be drawn) now appears straight away. This was checked by a unit test only, because no seed trip is in that state.
 
 ### Weak or no signal
 
@@ -271,7 +309,15 @@ Nothing below has been seen on a real iPhone. From today:
 - **Money:** the cents stay still while the total counts up.
 - **Planner:** Move up or Move down on a rough Stop shows the new order at once; a second Stop's move is unavailable until the first finishes; Pin, Make rough and the Surprise actions dim the row while saving.
 - **Shopping list:** tick and untick quickly; "need to buy"; moving a checklist item.
+- **A booked Transport on the plan:** no note under the pill; a paperclip inside the pill when a file is attached; the pill does not wrap or grow.
+- **The Day view on the phone** behaves exactly as before today's desktop change: arrows, swipe, the date strip.
 - **After deploy, on a re-added install only** (read the warning at the top of this page first): the launch picture shows; the animated mark holds until the app arrives, or flashes blank; airplane mode after one online launch opens the saved trip; the still picture lines up with the animated mark.
+
+MacBook checks (nothing here has been seen on a real MacBook either):
+
+- The Day view opens on day 1 with no empty space at the top left. Look at the strip on the first and last days of the trip.
+- Five quick presses on the next arrow: it ends on the right day, the page does not reload, and Back returns to where the run started.
+- A tap on a date far along the strip: the current day stays until the new one is ready.
 
 Still owed from earlier sessions:
 
