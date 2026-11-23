@@ -86,12 +86,11 @@ const ARROW =
   "disabled:border-border-soft disabled:text-muted-foreground disabled:shadow-none " +
   "focus-visible:outline-[3px] focus-visible:outline-offset-2 focus-visible:outline-ring";
 
-/** Two 44×44 arrows; hidden entirely when every card fits. */
+/** Two 44×44 arrows; invisible but still taking their space until the cards overflow, so the header never shifts when they are measured in. */
 export function CarouselArrows() {
   const { overflows, canPrev, canNext, scrollByCard } = useCarousel();
-  if (!overflows) return null;
   return (
-    <div className="flex gap-2.5">
+    <div data-carousel-arrows aria-hidden={overflows ? undefined : true} inert={!overflows} className={cn("flex gap-2.5", !overflows && "invisible")}>
       <button type="button" className={ARROW} aria-label="Previous trips" disabled={!canPrev} onClick={() => scrollByCard(-1)}>
         <ChevronLeft className="size-[18px]" aria-hidden="true" />
       </button>

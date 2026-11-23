@@ -46,6 +46,30 @@ describe("TripCarousel", () => {
     expect(document.querySelector("[data-carousel-dots]")).not.toBeNull();
     expect(document.querySelector("[data-carousel-dot]")).toBeNull();
   });
+  it("keeps the arrows' place when every card fits: present, invisible, inert and not announced", () => {
+    mount(600, 1000);
+    const group = document.querySelector("[data-carousel-arrows]") as HTMLElement;
+    expect(group).not.toBeNull();
+    expect(group.className).toContain("invisible");
+    expect(group.getAttribute("aria-hidden")).toBe("true");
+    expect(group.hasAttribute("inert")).toBe(true);
+    expect(screen.queryByRole("button")).toBeNull();
+    expect(group.querySelectorAll("button")).toHaveLength(2);
+  });
+  it("shows the arrows in the same place once the row overflows", () => {
+    mount(600, 1000);
+    const before = document.querySelector("[data-carousel-arrows]") as HTMLElement;
+    const parent = before.parentElement;
+    const index = Array.from(parent!.children).indexOf(before);
+    act(() => { Object.defineProperty(screen.getByRole("region", { name: "Your trips" }), "scrollWidth", { configurable: true, value: 1236 }); fireEvent.scroll(screen.getByRole("region", { name: "Your trips" })); });
+    const after = document.querySelector("[data-carousel-arrows]") as HTMLElement;
+    expect(after).toBe(before);
+    expect(after.parentElement).toBe(parent);
+    expect(Array.from(parent!.children).indexOf(after)).toBe(index);
+    expect(after.className).not.toContain("invisible");
+    expect(after.hasAttribute("inert")).toBe(false);
+    expect(after.getAttribute("aria-hidden")).toBeNull();
+  });
   it("shows arrows and one dot per page when it overflows", () => {
     mount(1236, 1000);
     expect(screen.getByRole("button", { name: "Previous trips" })).toBeDisabled();
