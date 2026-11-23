@@ -8,6 +8,7 @@ import { bookingConfirmationFiles } from "@/lib/booking-import/confirmation-file
 import { buildProposals } from "@/lib/booking-import/build";
 import { confirmProposalFor } from "@/lib/booking-import/confirm";
 import { extractBooking } from "@/lib/booking-import/extract";
+import { notifyBookingImportKeyRejected } from "@/lib/booking-import/key-notice";
 import { prepareBookingInput } from "@/lib/booking-import/input";
 import { MAX_IMPORTS_PER_HOUR } from "@/lib/booking-import/limits";
 import { loadImportContext } from "@/lib/booking-import/load-context";
@@ -85,6 +86,10 @@ export async function importBooking(formData: FormData): Promise<BookingImportRe
   if (outcome.kind === "api_error") {
     await recordAiUsage({ ...spent, proposalCount: 0, outcome: "api_error" });
     await reportError(new Error(`Booking import: Anthropic API error ${outcome.status ?? "unknown"}`), { route: ROUTE, source: "server", userId: user.id });
+    if (outcome.status === 401 || outcome.status === 403) {
+      await notifyBookingImportKeyRejected();
+      return importFail(M.misconfigured, "misconfigured");
+    }
     return importFail(M.generic, "error");
   }
   if (outcome.kind === "unreadable") {

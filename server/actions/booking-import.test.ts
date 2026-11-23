@@ -16,6 +16,7 @@ const m = vi.hoisted(() => ({
   record: vi.fn(),
   report: vi.fn(),
   confirm: vi.fn(),
+  keyNotice: vi.fn(),
   upload: vi.fn(),
   files: vi.fn(),
 }));
@@ -26,6 +27,7 @@ vi.mock("@/lib/booking-import/extract", () => ({ extractBooking: m.extract }));
 vi.mock("@/lib/booking-import/load-context", () => ({ loadImportContext: m.load }));
 vi.mock("@/lib/ai-usage", () => ({ recordAiUsage: m.record }));
 vi.mock("@/lib/error-sink", () => ({ reportError: m.report }));
+vi.mock("@/lib/booking-import/key-notice", () => ({ notifyBookingImportKeyRejected: m.keyNotice }));
 vi.mock("@/lib/booking-import/confirm", () => ({ confirmProposalFor: m.confirm }));
 vi.mock("@/server/actions/attachments", () => ({ uploadAttachment: m.upload }));
 vi.mock("@/lib/booking-import/confirmation-files", () => ({ bookingConfirmationFiles: m.files }));
@@ -124,10 +126,19 @@ describe("importBooking", () => {
     expect(m.record).toHaveBeenCalledWith(expect.objectContaining({ outcome: "api_error" }));
   });
 
-  it("a bad key or our own 400: generic message plus an error report", async () => {
-    m.extract.mockResolvedValue({ kind: "api_error", model: "claude-haiku-5-5", usage: { inputTokens: 0, outputTokens: 0, cacheReadTokens: 0, cacheWriteTokens: 0 }, status: 401 });
+  it.each([401, 403])("a rejected key (%i): the not-set-up message, an error report, the usage row and one Admin notice", async (status) => {
+    m.extract.mockResolvedValue({ kind: "api_error", model: "claude-haiku-5-5", usage: { inputTokens: 0, outputTokens: 0, cacheReadTokens: 0, cacheWriteTokens: 0 }, status });
+    expect(await importBooking(form({ tripId: "trip-1", text: "x" }))).toEqual({ success: false, code: "misconfigured", errors: { _: ["Booking import isn't set up correctly. We've been told and will fix it."] } });
+    expect(m.report).toHaveBeenCalledWith(expect.objectContaining({ message: `Booking import: Anthropic API error ${status}` }), expect.anything());
+    expect(m.record).toHaveBeenCalledWith(expect.objectContaining({ outcome: "api_error" }));
+    expect(m.keyNotice).toHaveBeenCalledOnce();
+  });
+
+  it("our own 400: generic message plus an error report, and no Admin notice", async () => {
+    m.extract.mockResolvedValue({ kind: "api_error", model: "claude-haiku-5-5", usage: { inputTokens: 0, outputTokens: 0, cacheReadTokens: 0, cacheWriteTokens: 0 }, status: 400 });
     expect(await importBooking(form({ tripId: "trip-1", text: "x" }))).toEqual({ success: false, code: "error", errors: { _: [M.generic] } });
-    expect(m.report).toHaveBeenCalledWith(expect.objectContaining({ message: "Booking import: Anthropic API error 401" }), expect.anything());
+    expect(m.report).toHaveBeenCalledWith(expect.objectContaining({ message: "Booking import: Anthropic API error 400" }), expect.anything());
+    expect(m.keyNotice).not.toHaveBeenCalled();
   });
 
   it("allows 20 imports an hour per Traveller, then says how long to wait", async () => {
