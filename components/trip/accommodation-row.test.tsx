@@ -168,6 +168,16 @@ it("never shows the missing-confirmation note", () => {
   expect(screen.queryByRole("button", { name: "Nothing to attach" })).not.toBeInTheDocument();
 });
 
+it("shows a paperclip, named File attached, when the stay has a file, and none when it has not", () => {
+  const file = { id: "a1", fileName: "booking.pdf", mimeType: "application/pdf", sizeBytes: 10, url: "/api/attachments/a1" } as never;
+  const { rerender } = render(<AccommodationRow accommodation={accommodation} stop={stop} />);
+  expect(screen.getByRole("button", { name: /Hotel du Louvre/ })).not.toHaveTextContent("File attached");
+  expect(screen.queryByTestId("accommodation-row")!.querySelector("svg.lucide-paperclip")).toBeNull();
+  rerender(<AccommodationRow accommodation={accommodation} stop={stop} attachments={[file]} />);
+  expect(screen.getByRole("button", { name: /Hotel du Louvre.*File attached/ })).toBeInTheDocument();
+  expect(screen.getByTestId("accommodation-row").querySelector("svg.lucide-paperclip")).toHaveAttribute("aria-hidden", "true");
+});
+
 describe("a stay that is being deleted", () => {
   it("is marked busy, and its phone menu's Delete cannot send a second delete", async () => {
     const user = userEvent.setup();

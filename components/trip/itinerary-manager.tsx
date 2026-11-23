@@ -1372,6 +1372,7 @@ export function ItineraryManager({
         label={legLabel(t, stops, homeBaseName, homeTimezone)}
         bookingState={t.bookingState}
         bookBy={t.bookBy}
+        attached={(attachmentsByTransportId?.get(t.id)?.length ?? 0) > 0}
         onClick={() => {
           setEditingTransport(enrichTransport(t, stops));
           setEditingTransportCosts(t.costs);
