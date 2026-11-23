@@ -22,6 +22,8 @@ export interface StopActionFlags {
   isFirst: boolean;
   isLast: boolean;
   isPending: boolean;
+  /** A Move up / Move down on any Stop is still in flight. */
+  moveInFlight: boolean;
   isOwner: boolean;
   chaptersEnabled: boolean;
   canRemind: boolean;
@@ -75,7 +77,7 @@ export function buildStopActions(
   h: StopActionHandlers,
 ): CardActionItem[][] {
   const rough = !stop.arriveDate || !stop.departDate;
-  const { isFirst, isLast, isPending, isOwner, chaptersEnabled, canRemind, notesCount, filesCount, surprise, loneOnDatedTrip } = flags;
+  const { isFirst, isLast, isPending, moveInFlight, isOwner, chaptersEnabled, canRemind, notesCount, filesCount, surprise, loneOnDatedTrip } = flags;
   // A surprised Traveller can look at the outside but not touch it: no menu at all.
   if (surprise?.youAreSurprised) return [];
 
@@ -135,8 +137,8 @@ export function buildStopActions(
     }
   } else {
     group1.push(
-      { key: "up", label: "Move up", icon: icon(ChevronUp), onSelect: h.onMoveUp, disabled: isFirst || isPending },
-      { key: "down", label: "Move down", icon: icon(ChevronDown), onSelect: h.onMoveDown, disabled: isLast || isPending },
+      { key: "up", label: "Move up", icon: icon(ChevronUp), onSelect: h.onMoveUp, disabled: isFirst || isPending || moveInFlight },
+      { key: "down", label: "Move down", icon: icon(ChevronDown), onSelect: h.onMoveDown, disabled: isLast || isPending || moveInFlight },
       { key: "give-dates", label: "Give it dates", icon: icon(CalendarPlus), onSelect: h.onGiveDates, disabled: isPending },
       ...surpriseItems,
     );

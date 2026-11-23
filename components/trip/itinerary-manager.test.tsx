@@ -3544,6 +3544,35 @@ describe("planner controls answer at once (Task 9)", () => {
       expect(row("Oslo")).not.toHaveAttribute("aria-busy");
     });
 
+    it("when the neighbour shares its sortOrder with another Stop it does not guess either", async () => {
+      const d = deferred<typeof OK>();
+      vi.mocked(moveStop).mockReturnValueOnce(d.promise);
+      const user = userEvent.setup();
+      const ROMA = makeStop({ id: "s-4", name: "Roma", sortOrder: 2 });
+      renderPlan(<ItineraryManager {...baseProps} initialStops={[LYON, BERLIN, { ...OSLO, sortOrder: 1 }, ROMA]} />);
+      await user.click(await menuItem(user, "Roma", /^Move up$/));
+      expect(order()).toEqual(["Lyon", "Berlin", "Oslo", "Roma"]);
+      expect(row("Roma")).toHaveAttribute("aria-busy", "true");
+      await act(async () => d.resolve(OK));
+    });
+
+    it("one move at a time: while a move is in flight, Move up / Move down on another Stop is off", async () => {
+      const d = deferred<typeof OK>();
+      vi.mocked(moveStop).mockReturnValueOnce(d.promise);
+      const user = userEvent.setup();
+      renderPlan(<ItineraryManager {...baseProps} initialStops={[LYON, BERLIN, OSLO]} />);
+      await user.click(await menuItem(user, "Lyon", /^Move down$/));
+      expect(row("Oslo")).not.toHaveAttribute("aria-busy");
+      const up = await menuItem(user, "Oslo", /^Move up$/);
+      expect(up).toHaveAttribute("aria-disabled", "true");
+      await user.click(up);
+      await user.keyboard("{Escape}");
+      expect(moveStop).toHaveBeenCalledTimes(1);
+      await act(async () => d.resolve(OK));
+      expect(await menuItem(user, "Oslo", /^Move up$/)).not.toHaveAttribute("aria-disabled");
+      await user.keyboard("{Escape}");
+    });
+
     it("a rough stop moves past a dated one by swapping places in the plan, as the server does", async () => {
       const d = deferred<typeof OK>();
       vi.mocked(moveStop).mockReturnValueOnce(d.promise);
@@ -3626,6 +3655,13 @@ describe("planner controls answer at once (Task 9)", () => {
       expect(busyAround("Paris")).not.toBeNull();
       expect(busyAround("Rome")).toBeNull();
       expect(desktop().getByRole("region", { name: "FRI 11 DEC" })).toHaveTextContent("Louvre");
+      await act(async () => {
+        void dndCapture.onDragEnd!({
+          active: { id: "item:it1", data: { current: { type: "item", stopId: "par", date: "2026-12-11", itemId: "it1", title: "Louvre", startTime: null, endTime: null } } },
+          over: { id: "slot:par:2026-12-14", data: { current: { type: "slot", stopId: "par", date: "2026-12-14" } } },
+        });
+      });
+      expect(scheduleItem).toHaveBeenCalledTimes(1);
       await act(async () => d.resolve(OK));
       expect(busyAround("Paris")).toBeNull();
     });
@@ -3641,6 +3677,10 @@ describe("planner controls answer at once (Task 9)", () => {
       await user.click(await screen.findByRole("button", { name: "Pick a day for Opera" }));
       await user.click(await screen.findByRole("menuitem", { name: /Sat 12/ }));
       await waitFor(() => expect(busyAround("Paris")).not.toBeNull());
+      await user.click(desktop().getByRole("button", { name: "Open Opera" }));
+      await user.click(await screen.findByRole("button", { name: "Pick a day for Opera" }));
+      await user.click(await screen.findByRole("menuitem", { name: /Sun 13/ }));
+      expect(scheduleItem).toHaveBeenCalledTimes(1);
       await act(async () => d.resolve(OK));
       expect(busyAround("Paris")).toBeNull();
     });

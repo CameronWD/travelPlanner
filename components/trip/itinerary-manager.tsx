@@ -788,7 +788,9 @@ export function ItineraryManager({
     const other = bySortOrder[direction === "up" ? idx - 1 : idx + 1];
     // A shared sortOrder means the server may pick a different neighbour (or
     // swap equal values and change nothing), so only a clean swap is shown early.
-    const clean = other && !rows.stops.some((s) => s.id !== stopId && s.sortOrder === moved.sortOrder);
+    const clean = other
+      && !rows.stops.some((s) => s.id !== stopId && s.sortOrder === moved.sortOrder)
+      && !rows.stops.some((s) => s.id !== other.id && s.sortOrder === other.sortOrder);
     const next = clean
       ? bySortOrder
         .map((s) => (s.id === moved.id ? { ...s, sortOrder: other.sortOrder } : s.id === other.id ? { ...s, sortOrder: moved.sortOrder } : s))
@@ -1129,9 +1131,23 @@ export function ItineraryManager({
     failure: "Couldn’t schedule it.",
   });
   // Neither scheduling write moves anything locally (the day items are server
-  // props), so the Stop says busy until the server answers.
+  // props), so the Stop says busy until the server answers, and the thing
+  // (still on screen where it was) cannot be sent again meanwhile.
   const [thingsStopId, setThingsStopId] = React.useState<string | null>(null);
-  async function handleScheduleThing(thing: ThingToDo, dateISO: string) {
+  const thingsInFlight = React.useRef(new Set<string>());
+  async function inFlight(thingId: string, work: () => Promise<void>) {
+    if (thingsInFlight.current.has(thingId)) return;
+    thingsInFlight.current.add(thingId);
+    try {
+      await work();
+    } finally {
+      thingsInFlight.current.delete(thingId);
+    }
+  }
+  function handleScheduleThing(thing: ThingToDo, dateISO: string) {
+    return inFlight(thing.id, () => scheduleThing(thing, dateISO));
+  }
+  async function scheduleThing(thing: ThingToDo, dateISO: string) {
     setThingsStopId(thing.stopId ?? null);
     if (!(await scheduleThingAction.run({ thing, dateISO }))) return;
     // MOTION.md P7: the day it landed on opens, comes into view and flashes, as a dropped plan's does (P6).
@@ -1146,9 +1162,11 @@ export function ItineraryManager({
     done: (drop) => ({ title: `Moved to ${formatDayLabel(drop.to).replace(/ [A-Z][a-z]{2}$/, "")}` }),
     failure: "Couldn’t move it.",
   });
-  async function handleMoveItem(drop: ItemDrop) {
-    setThingsStopId(drop.stopId);
-    if (await moveItemAction.run(drop)) flashSlot(drop.stopId, drop.to);
+  function handleMoveItem(drop: ItemDrop) {
+    return inFlight(drop.itemId, async () => {
+      setThingsStopId(drop.stopId);
+      if (await moveItemAction.run(drop)) flashSlot(drop.stopId, drop.to);
+    });
   }
   const thingsBusyStopId = moveItemAction.pending || scheduleThingAction.pending ? thingsStopId : null;
 
@@ -1447,6 +1465,8 @@ export function ItineraryManager({
         isFirst: globalIdx === 0,
         isLast: globalIdx === stops.length - 1,
         isPending: pendingId === stop.id,
+        // One move at a time: overlapping moves that both failed would each restore what they saw.
+        moveInFlight: moveStopAction.pending,
         isOwner,
         chaptersEnabled,
         // A Fork's Stop is not in the real plan, so no Reminder can hang off it.
