@@ -478,8 +478,27 @@ describe("RemindersCard Reminder row on a phone", () => {
     );
     const foot = rowOf(title).querySelector("[data-reminder-foot]") as HTMLElement;
     expect(foot).not.toBeNull();
-    expect(within(foot).getByRole("button", { name: /^Edit reminder/ }).className).toMatch(/\bml-auto\b/);
-    expect(within(foot).getByRole("button", { name: /^Got it/ })).toBeInTheDocument();
+    const actions = foot.querySelector("[data-reminder-actions]") as HTMLElement;
+    expect(actions.className).toMatch(/\bml-auto\b/);
+    expect(within(actions).getByRole("button", { name: /^Edit reminder/ })).toBeInTheDocument();
+    expect(within(actions).getByRole("button", { name: /^Got it/ })).toBeInTheDocument();
+  });
+
+  it("wraps Edit and Got it as one unit on a phone, and lets them join the md grid", () => {
+    render(
+      <RemindersCard
+        tripId="trip-1"
+        today={TODAY}
+        reminders={[reminderItem({ id: "r1", title: "Pack", date: "2026-11-29", stopId: "s1", stopName: "Rovaniemi (Lapland)" })]}
+      />,
+    );
+    const actions = rowOf("Pack").querySelector("[data-reminder-actions]") as HTMLElement;
+    expect(actions.parentElement).toHaveAttribute("data-reminder-foot");
+    expect(actions.className).toMatch(/\bflex\b/);
+    expect(actions.className).not.toMatch(/\bflex-wrap\b/);
+    expect(actions.className).toMatch(/\bmd:contents\b/);
+    expect(within(actions).getByRole("button", { name: /^Edit reminder/ }).className).toMatch(/\bmd:col-start-3\b/);
+    expect(within(actions).getByRole("button", { name: /^Got it/ }).className).toMatch(/\bmd:col-start-4\b/);
   });
 });
 

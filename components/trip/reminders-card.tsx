@@ -264,28 +264,31 @@ function ReminderRow({
           )}
           <span>{absolute}</span>
         </p>
-        <Button
-          variant="ghost"
-          size="icon"
-          className="ml-auto shrink-0 md:col-start-3 md:row-span-3 md:row-start-1 md:ml-0"
-          aria-label={`Edit reminder: ${reminder.title}`}
-          onClick={() => setEditing(true)}
-        >
-          <Pencil className="size-4" aria-hidden="true" />
-        </Button>
-        {editing && <AddReminderDialog reminder={reminder} open onOpenChange={setEditing} />}
-        <Button
-          variant="outline"
-          size="sm"
-          className="min-h-11 shrink-0 px-4 md:col-start-4 md:row-span-3 md:row-start-1"
-          onClick={() => {
-            recordUsageAction("reminder-got-it");
-            onGotIt(reminder);
-          }}
-        >
-          Got it
-          <span className="sr-only">: {reminder.title}</span>
-        </Button>
+        {/* One unit, so a footer too wide for a phone wraps both buttons to the right of the next line, never Got it alone. */}
+        <div data-reminder-actions className="ml-auto flex shrink-0 items-center gap-x-1.5 md:contents">
+          <Button
+            variant="ghost"
+            size="icon"
+            className="shrink-0 md:col-start-3 md:row-span-3 md:row-start-1"
+            aria-label={`Edit reminder: ${reminder.title}`}
+            onClick={() => setEditing(true)}
+          >
+            <Pencil className="size-4" aria-hidden="true" />
+          </Button>
+          {editing && <AddReminderDialog reminder={reminder} open onOpenChange={setEditing} />}
+          <Button
+            variant="outline"
+            size="sm"
+            className="min-h-11 shrink-0 px-4 md:col-start-4 md:row-span-3 md:row-start-1"
+            onClick={() => {
+              recordUsageAction("reminder-got-it");
+              onGotIt(reminder);
+            }}
+          >
+            Got it
+            <span className="sr-only">: {reminder.title}</span>
+          </Button>
+        </div>
       </div>
       {reminder.notes && (
         <div className="md:col-span-2 md:col-start-1 md:row-start-3">
