@@ -10,6 +10,7 @@ import { DESKTOP_QUERY } from "@/lib/viewport";
 import { trackScrollEdges } from "./scroll-edges";
 import { SheetDepthProvider, useSheetDepth } from "./sheet-depth";
 import { useKeyboardViewport } from "./use-keyboard-viewport";
+import { usePageScrollLock } from "./use-page-scroll-lock";
 
 // Gates the spring pop to the sm+ (desktop) centred dialog — the phone
 // bottom sheet keeps its plain CSS slide, unchanged by this task. Reactive
@@ -151,6 +152,8 @@ const DialogSheet = React.forwardRef<
    */
   const kb = useKeyboardViewport(!isDesktop);
   const keyboard = !isDesktop && kb.keyboardOpen;
+  // The phone sheet ends at sm; from there up it is the centred dialog, which never locks.
+  usePageScrollLock(!isDesktop);
   const depth = useSheetDepth();
   const contentStyle: React.CSSProperties | undefined = keyboard
     ? {
@@ -222,57 +225,63 @@ const DialogSheet = React.forwardRef<
   );
 
   return (
-    <DialogPrimitive.Content
-      ref={ref}
-      data-keyboard={keyboard ? "open" : undefined}
-      style={contentStyle}
-      className={cn(
-        // overflow: clip, where supported, clips the rounded frame without
-        // making it a scroll container, so nothing — focus scrolling
-        // included — can ever scroll the frame itself (spec 2026-10-04 §G).
-        // overflow-hidden stays as the fallback for browsers without clip.
-        "fixed z-50 flex flex-col overflow-hidden supports-[overflow:clip]:overflow-clip border-2 border-border bg-background text-foreground",
-        "inset-x-0 bottom-0 max-h-[90dvh] rounded-t-2xl border-b-0",
-        // Opened from inside another sheet, the phone sheet covers it rather
-        // than sitting short over it. Not while the keyboard is up: a
-        // min-height beats the inline max-height that fits it above the keys.
-        !bare && (cover === "always" || (cover && depth > 0)) && !keyboard && "max-sm:min-h-[90dvh]",
-        // The phone bottom sheet's slide stays plain CSS either way.
-        "data-[state=open]:tp-slide-up data-[state=closed]:tp-slide-down",
-        "sm:inset-x-auto sm:bottom-auto sm:left-1/2 sm:top-1/2 sm:w-[calc(100%-2rem)] sm:max-h-[85vh] sm:-translate-x-1/2 sm:-translate-y-1/2 sm:rounded-2xl sm:border-b-2 sm:shadow-hard-5",
-        // After the base geometry so cn()/tailwind-merge lets `full`'s
-        // sm:w / sm:max-h win over sm:w-[calc(100%-2rem)] / sm:max-h-[85vh].
-        SIZE_CLASS[size],
-        // The desktop (sm+) open pop is a Motion spring (SPRING_POP, below)
-        // when motion is allowed. tp-pop-in is kept only as the
-        // reduced-motion fallback, so the dialog still appears — instantly,
-        // since prefers-reduced-motion collapses --dur-slow to ~0 (see
-        // app/globals.css) rather than not animating at all. The close
-        // animation (tp-pop-out) is unchanged in both cases: Radix detects
-        // the exit via this CSS animation ending, so it stays CSS-driven.
-        reduce && "sm:data-[state=open]:tp-pop-in",
-        "sm:data-[state=closed]:tp-pop-out",
-        // Named group for the phone-keyboard compact state (data-keyboard).
-        "group/dialog",
-        className,
-      )}
-      {...props}
-    >
-      <m.div
-        className="flex min-h-0 flex-1 flex-col"
-        initial={spring ? { scale: 0.96, opacity: 0 } : false}
-        animate={{ scale: 1, opacity: 1 }}
-        transition={SPRING_POP}
-      >
-        <SheetDepthProvider>{body}</SheetDepthProvider>
-      </m.div>
-      {!hideClose ? (
-        <DialogPrimitive.Close className="absolute right-4 top-4 z-20 grid size-11 place-items-center rounded-sm border-2 border-border bg-card text-foreground sm:right-5 sm:top-5">
-          <X className="size-5" strokeWidth={2.5} aria-hidden="true" />
-          <span className="sr-only">Close</span>
-        </DialogPrimitive.Close>
+    <>
+      {/* See SheetFrame: the translucent iOS keyboard shows the sheet's colour, not the page. */}
+      {keyboard ? (
+        <div aria-hidden="true" data-slot="keyboard-backing" className="fixed inset-x-0 bottom-0 z-50 bg-background" style={{ height: kb.bottom }} />
       ) : null}
-    </DialogPrimitive.Content>
+      <DialogPrimitive.Content
+        ref={ref}
+        data-keyboard={keyboard ? "open" : undefined}
+        style={contentStyle}
+        className={cn(
+          // overflow: clip, where supported, clips the rounded frame without
+          // making it a scroll container, so nothing — focus scrolling
+          // included — can ever scroll the frame itself (spec 2026-10-04 §G).
+          // overflow-hidden stays as the fallback for browsers without clip.
+          "fixed z-50 flex flex-col overflow-hidden supports-[overflow:clip]:overflow-clip border-2 border-border bg-background text-foreground",
+          "inset-x-0 bottom-0 max-h-[90dvh] rounded-t-2xl border-b-0",
+          // Opened from inside another sheet, the phone sheet covers it rather
+          // than sitting short over it. Not while the keyboard is up: a
+          // min-height beats the inline max-height that fits it above the keys.
+          !bare && (cover === "always" || (cover && depth > 0)) && !keyboard && "max-sm:min-h-[90dvh]",
+          // The phone bottom sheet's slide stays plain CSS either way.
+          "data-[state=open]:tp-slide-up data-[state=closed]:tp-slide-down",
+          "sm:inset-x-auto sm:bottom-auto sm:left-1/2 sm:top-1/2 sm:w-[calc(100%-2rem)] sm:max-h-[85vh] sm:-translate-x-1/2 sm:-translate-y-1/2 sm:rounded-2xl sm:border-b-2 sm:shadow-hard-5",
+          // After the base geometry so cn()/tailwind-merge lets `full`'s
+          // sm:w / sm:max-h win over sm:w-[calc(100%-2rem)] / sm:max-h-[85vh].
+          SIZE_CLASS[size],
+          // The desktop (sm+) open pop is a Motion spring (SPRING_POP, below)
+          // when motion is allowed. tp-pop-in is kept only as the
+          // reduced-motion fallback, so the dialog still appears — instantly,
+          // since prefers-reduced-motion collapses --dur-slow to ~0 (see
+          // app/globals.css) rather than not animating at all. The close
+          // animation (tp-pop-out) is unchanged in both cases: Radix detects
+          // the exit via this CSS animation ending, so it stays CSS-driven.
+          reduce && "sm:data-[state=open]:tp-pop-in",
+          "sm:data-[state=closed]:tp-pop-out",
+          // Named group for the phone-keyboard compact state (data-keyboard).
+          "group/dialog",
+          className,
+        )}
+        {...props}
+      >
+        <m.div
+          className="flex min-h-0 flex-1 flex-col"
+          initial={spring ? { scale: 0.96, opacity: 0 } : false}
+          animate={{ scale: 1, opacity: 1 }}
+          transition={SPRING_POP}
+        >
+          <SheetDepthProvider>{body}</SheetDepthProvider>
+        </m.div>
+        {!hideClose ? (
+          <DialogPrimitive.Close className="absolute right-4 top-4 z-20 grid size-11 place-items-center rounded-sm border-2 border-border bg-card text-foreground sm:right-5 sm:top-5">
+            <X className="size-5" strokeWidth={2.5} aria-hidden="true" />
+            <span className="sr-only">Close</span>
+          </DialogPrimitive.Close>
+        ) : null}
+      </DialogPrimitive.Content>
+    </>
   );
 });
 DialogSheet.displayName = "DialogSheet";

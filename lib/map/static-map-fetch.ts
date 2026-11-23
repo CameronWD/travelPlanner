@@ -4,7 +4,7 @@ import { dailyCap } from "@/lib/google-budget";
 import { takeGoogleQuota } from "@/lib/google-usage";
 import { staticMapUrl, type StaticMapInput } from "./static-map";
 
-export async function fetchStaticMapDataUrl(input: Omit<StaticMapInput, "key">): Promise<string | null> {
+export async function fetchStaticMapBytes(input: Omit<StaticMapInput, "key">): Promise<Buffer | null> {
   const key = serverKey();
   if (!key) return null;
   const url = staticMapUrl({ ...input, key });
@@ -15,8 +15,13 @@ export async function fetchStaticMapDataUrl(input: Omit<StaticMapInput, "key">):
     if (res.status !== 200) return null;
     const type = res.headers.get("content-type") ?? "";
     if (!type.startsWith("image/")) return null;
-    return `data:image/png;base64,${Buffer.from(await res.arrayBuffer()).toString("base64")}`;
+    return Buffer.from(await res.arrayBuffer());
   } catch {
     return null;
   }
+}
+
+export async function fetchStaticMapDataUrl(input: Omit<StaticMapInput, "key">): Promise<string | null> {
+  const bytes = await fetchStaticMapBytes(input);
+  return bytes ? `data:image/png;base64,${bytes.toString("base64")}` : null;
 }

@@ -36,7 +36,7 @@ export function shareOgModel({
   today,
 }: {
   trip: { name: string; startDate: string; endDate: string };
-  stops: { id: string; name: string; lat: number | null; lng: number | null; arriveDate: string; departDate: string }[];
+  stops: { id: string; name: string; lat: number | null; lng: number | null; arriveDate: string; departDate: string; sortOrder: number }[];
   stopCount: number;
   today: string;
 }): ShareOgModel {
@@ -51,7 +51,7 @@ export function shareOgModel({
 
   const located: SketchStop[] = stops.flatMap((st) =>
     st.lat != null && st.lng != null
-      ? [{ id: st.id, name: st.name, lat: st.lat, lng: st.lng, nights: nightsBetween(st.arriveDate, st.departDate) }]
+      ? [{ id: st.id, name: st.name, lat: st.lat, lng: st.lng, nights: nightsBetween(st.arriveDate, st.departDate), sortOrder: st.sortOrder }]
       : [],
   );
   const model = sketchModel(located, BOX);

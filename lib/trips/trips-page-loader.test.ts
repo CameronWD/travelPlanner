@@ -128,7 +128,7 @@ describe("loadTripsPage", () => {
       },
     ]);
     const d = await loadTripsPage("u", TODAY);
-    expect(d.cards[0].cover.stops).toEqual([{ id: "s1", name: "Rough town", lat: 10, lng: 20, nights: 4 }]);
+    expect(d.cards[0].cover.stops).toEqual([{ id: "s1", name: "Rough town", lat: 10, lng: 20, nights: 4, sortOrder: 0 }]);
   });
 
   it("an on-the-road trip with a stop covering today: kind on-the-road, dateLine is 'Now in <stop>'", async () => {

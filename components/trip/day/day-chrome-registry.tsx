@@ -37,7 +37,6 @@ export interface DayChromeFallbackInputs {
   unreadCount: number;
   recent: RecentActivity[];
   members: TravellerLike[];
-  slimOnPhone: boolean;
 }
 
 /**
@@ -83,7 +82,6 @@ export function DayCarouselFrame({
           recent={fallback.recent}
           members={fallback.members}
           addButton={null}
-          slimOnPhone={fallback.slimOnPhone}
         />
       );
     },

@@ -1208,6 +1208,20 @@ describe("FeedbackLauncher", () => {
       await user.type(screen.getByLabelText(/your feedback about teepee/i), "hello");
       expect(screen.getByRole("status")).toBeInTheDocument();
     });
+
+    it("keeps Send on the Pictures row, after the counter, pushed right", async () => {
+      const user = userEvent.setup();
+      render(<FeedbackLauncher />);
+      await user.click(screen.getByRole("button", { name: /feedback/i }));
+
+      const row = screen.getByRole("button", { name: "Add pictures" }).parentElement!;
+      const send = screen.getByRole("button", { name: "Send" });
+      const counter = screen.getByRole("status");
+      expect(row).toContainElement(send);
+      expect(row).toContainElement(counter);
+      expect(counter.compareDocumentPosition(send) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+      expect(send).toHaveClass("ml-auto");
+    });
   });
 
   it("tells the user when a queued note is rejected outright, and sends the one behind it", async () => {

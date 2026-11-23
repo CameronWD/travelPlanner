@@ -13,6 +13,7 @@ export interface SketchStop {
   lat: number;
   lng: number;
   nights: number;
+  sortOrder: number;
 }
 
 export interface MainCluster<T> {
@@ -20,7 +21,7 @@ export interface MainCluster<T> {
   offFrame: T[];
 }
 
-const SAME_CITY_KM = 5;
+export const SAME_CITY_KM = 5;
 const MAX_DOTS = 14;
 
 /**
@@ -99,10 +100,15 @@ export interface SketchModel {
   last: string;
 }
 
-function allWithin(stops: SketchStop[], km: number): boolean {
+export function allWithin(stops: SketchStop[], km: number): boolean {
   for (let i = 0; i < stops.length; i++)
     for (let j = i + 1; j < stops.length; j++) if (haversineKm(stops[i], stops[j]) > km) return false;
   return true;
+}
+
+export function offFrameChip(offFrame: { name: string }[]): string | null {
+  if (offFrame.length === 0) return null;
+  return offFrame.length === 1 ? `+ ${offFrame[0].name}` : `+ ${offFrame[0].name} +${offFrame.length - 1}`;
 }
 
 export function sketchModel(stops: SketchStop[], box: Box): SketchModel | null {
@@ -111,7 +117,7 @@ export function sketchModel(stops: SketchStop[], box: Box): SketchModel | null {
   if (allWithin(picked.main, SAME_CITY_KM)) return null;
   const { main, offFrame } = picked;
   const points = projectToBox(main, box);
-  const chip = offFrame.length === 0 ? null : offFrame.length === 1 ? `+ ${offFrame[0].name}` : `+ ${offFrame[0].name} +${offFrame.length - 1}`;
+  const chip = offFrameChip(offFrame);
   return {
     points,
     dotIndices: sampleDotIndices(points.length),

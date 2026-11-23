@@ -9,6 +9,7 @@ import { HUE_CLASSES } from "@/lib/hues";
 import { planDateRange, type StayStatus } from "@/lib/plan/plan-model";
 import type { StopCardStop } from "@/components/plan/types";
 import { SurpriseBadge } from "@/components/plan/surprise-badge";
+import { StopBadge } from "@/components/plan/stop-badge";
 
 export interface MobileStopRowProps {
   stop: StopCardStop;
@@ -40,14 +41,7 @@ export function MobileStopRow({ stop, number, stay, plansCount, onOpen, dragProp
         rough ? "border-dashed bg-background" : "bg-card shadow-hard-3",
       )}
     >
-      <span
-        className={cn(
-          "grid size-9 shrink-0 place-items-center rounded-xl border-2 border-border font-display text-base font-extrabold text-on-accent",
-          rough ? "border-dashed bg-muted text-foreground" : HUE_CLASSES[stopHue(stop.sortOrder)].fill,
-        )}
-      >
-        {number}
-      </span>
+      <StopBadge number={number} sortOrder={stop.sortOrder} rough={rough} className="size-9 shrink-0 text-base" />
 
       <span className="min-w-0 flex-1">
         <span className="block truncate font-display text-[19px] font-extrabold">{stop.name}</span>

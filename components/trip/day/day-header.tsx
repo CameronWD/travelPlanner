@@ -42,14 +42,13 @@ export interface DayHeaderProps {
   recent: RecentActivity[];
   members: TravellerLike[];
   addButton: React.ReactNode;
-  slimOnPhone?: boolean;
 }
 
 /**
  * The Day view's header (DAY_VIEW §2 "Header row", §3.2): the date is the
  * page's h1, flanked by the prev/next arrows; bell, avatar stack and
- * "+ Add to this day" on the right from lg. Below lg a top bar carries the
- * switcher pill and bell, and the block is centred between the arrows with
+ * "+ Add to this day" on the right from lg. From md to lg a top bar carries
+ * the switcher pill and bell (on a phone the app's top bar holds the bell), and the block is centred between the arrows with
  * no right cluster. From lg the cluster sits right-aligned in the row above
  * the date, and joins the date row's three-column grid only when the header
  * itself is 84rem wide (the date block plus two cluster-wide side columns),
@@ -73,7 +72,6 @@ export function DayHeader({
   recent,
   members,
   addButton,
-  slimOnPhone = false,
 }: DayHeaderProps) {
   const shown = members.slice(0, MAX_AVATARS);
   const extra = members.length - shown.length;
@@ -105,12 +103,13 @@ export function DayHeader({
   return (
     <div className="@container flex flex-col gap-1">
       {/* The trip layout's header is hidden on this route at every width
-          (TripHeaderFrame), so below lg this row is the page's top bar:
-          switcher pill + bell (DAY_VIEW §3.1). From lg the bell moves to the
+          (TripHeaderFrame), so from md to lg this row is the page's top bar:
+          switcher pill + Share + bell (DAY_VIEW §3.1). On a phone the row is
+          gone: the app's top bar carries the bell (TopBarBell). From lg the bell moves to the
           right cluster, which stays in this row until the header is wide
           enough to hold it in the date row; from xl the sidebar's switcher
           card replaces the pill. */}
-      <div data-slot="day-trip-switcher" className={cn("mb-3 flex items-center gap-3 lg:mb-1 @min-[84rem]:hidden", slimOnPhone && "max-md:hidden", !tripName && "max-lg:hidden")}>
+      <div data-slot="day-trip-switcher" className={cn("mb-3 flex items-center gap-3 lg:mb-1 @min-[84rem]:hidden", "max-md:hidden", !tripName && "max-lg:hidden")}>
         {tripName ? (
           <>
             <div data-slot="day-trip-switcher-pill" className="min-w-0 flex-1 lg:flex-none xl:hidden [&>*]:w-full lg:[&>*]:w-auto">

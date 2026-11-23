@@ -63,6 +63,14 @@ describe("staticMapUrl", () => {
     expect(markers[9]).toBe(`color:${hex(10)}|10,10`);
   });
 
+  it("labels a Stop with its own number when given, and not above nine", () => {
+    const stops = [{ ...stop(1), number: 4 }, { ...stop(2), number: 12 }, stop(3)];
+    const markers = params(staticMapUrl({ ...base, stops })!, "markers");
+    expect(markers[0]).toBe(`color:${hex(1)}|label:4|1,1`);
+    expect(markers[1]).toBe(`color:${hex(2)}|2,2`);
+    expect(markers[2]).toBe(`color:${hex(3)}|label:3|3,3`);
+  });
+
   it("drops encoded paths, then keeps every marker, when the URL is too long", () => {
     const stops = Array.from({ length: 12 }, (_, i) => stop(i + 1));
     const legPaths: Record<string, string> = {};

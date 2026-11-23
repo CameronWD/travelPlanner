@@ -1,6 +1,6 @@
 import { stopHex } from "@/lib/stop-colours";
 
-export type StaticMapStop = { id: string; lat: number | null; lng: number | null; sortOrder: number };
+export type StaticMapStop = { id: string; lat: number | null; lng: number | null; sortOrder: number; number?: number };
 export type StaticMapInput = {
   key: string;
   mapId: string;
@@ -18,7 +18,7 @@ const INK = "0x1D1D1B";
 const LINE = `color:${INK}FF|weight:3`;
 
 type Point = { lat: number; lng: number };
-type Located = { id: string; lat: number; lng: number; sortOrder: number };
+type Located = { id: string; lat: number; lng: number; sortOrder: number; number?: number };
 
 const round6 = (n: number) => String(Math.round(n * 1e6) / 1e6);
 const pt = (p: Point) => `${round6(p.lat)},${round6(p.lng)}`;
@@ -57,7 +57,8 @@ export function staticMapUrl(input: StaticMapInput): string | null {
   if (located.length === 0) return null;
 
   const markers = located.map((s, i) => {
-    const label = i < 9 ? `|label:${i + 1}` : "";
+    const n = s.number ?? i + 1;
+    const label = n <= 9 ? `|label:${n}` : "";
     return param("markers", `color:0x${stopHex(s.sortOrder, false).replace("#", "")}${label}|${pt(s)}`);
   });
 

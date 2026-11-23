@@ -14,6 +14,7 @@ import type { StopCardStop } from "@/components/plan/types";
 import { PresenceDiv } from "@/components/plan/presence";
 import { useMotionTiming } from "@/components/plan/use-motion-timing";
 import { Stepper } from "@/components/ui/stepper";
+import { StopBadge } from "@/components/plan/stop-badge";
 import { SurpriseBadge } from "@/components/plan/surprise-badge";
 
 const EASE_POP: [number, number, number, number] = [0.2, 0.8, 0.2, 1];
@@ -138,14 +139,7 @@ export function StopRow({
         className={cn(STOP_ROW_GRID, "@container cursor-pointer", dragHandle && "grid-cols-[auto_40px_minmax(0,1fr)_auto]")}
       >
         {dragHandle}
-        <span
-          className={cn(
-            "grid size-10 place-items-center rounded-xl border-2 border-border font-display text-lg font-extrabold text-on-accent",
-            rough ? "border-dashed bg-muted text-foreground" : HUE_CLASSES[stopHue(stop.sortOrder)].fill,
-          )}
-        >
-          {number}
-        </span>
+        <StopBadge number={number} sortOrder={stop.sortOrder} rough={rough} />
 
         {/* Spec 2026-10-12 W5: below 640px of the row's own width the
             date/stepper cluster stacks under the title so the name never

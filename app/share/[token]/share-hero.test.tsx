@@ -20,8 +20,8 @@ const base: ShareHeroProps = {
   progress: null,
   travellers: [],
   coverStops: [
-    { id: "a", name: "London", lat: 51.5, lng: -0.1, nights: 5 },
-    { id: "b", name: "Paris", lat: 48.9, lng: 2.35, nights: 5 },
+    { id: "a", name: "London", lat: 51.5, lng: -0.1, nights: 5, sortOrder: 0 },
+    { id: "b", name: "Paris", lat: 48.9, lng: 2.35, nights: 5, sortOrder: 0 },
   ],
   refKey: "abc",
 };
@@ -73,21 +73,19 @@ describe("ShareHero (SHARE.md §3)", () => {
     expect(within(hero()).getByText("27 nights to go")).toBeInTheDocument();
   });
 
-  it("after: HOME AGAIN, month span only, no number, polaroid shown on mobile too, sketch solid", () => {
+  it("after: HOME AGAIN, month span only, no number, polaroid shown on mobile too", () => {
     const { container } = render(<ShareHero {...base} stage="after" countdown={null} />);
     expect(within(hero()).getByText("Home again")).toBeInTheDocument();
     expect(within(hero()).getByText("Dec 2026 – Jan 2027")).toBeInTheDocument();
     expect(within(hero()).queryByLabelText("67")).not.toBeInTheDocument();
     const polaroid = container.querySelector("[data-share-polaroid]")!;
     expect(polaroid.className).not.toMatch(/(^|\s)hidden(\s|$)/);
-    expect(polaroid.querySelector("polyline")!.getAttribute("stroke-dasharray")).toBeNull();
   });
 
-  it("before: the polaroid is desktop-only and dashed", () => {
+  it("before: the polaroid is desktop-only", () => {
     const { container } = render(<ShareHero {...base} />);
     const polaroid = container.querySelector("[data-share-polaroid]")!;
     expect(polaroid.className).toMatch(/\bhidden\b.*\blg:block\b|\blg:block\b.*\bhidden\b/);
-    expect(polaroid.querySelector("polyline")!.getAttribute("stroke-dasharray")).toBe("3 2.5");
   });
 
   it("shows each Traveller's numbers, labelled, when given — and nothing when not", () => {

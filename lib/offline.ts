@@ -247,14 +247,16 @@ export function isAttachmentRoute(url: string): boolean {
 
 /**
  * Returns true for the member-gated trip cover serve route
- * (`/api/trips/<id>/cover`, with or without its `?v=` cache-buster). Warmed
+ * (`/api/trips/<id>/cover`, with or without its `?v=` cache-buster), and for
+ * the route snapshot that stands in for it (`/api/trips/<id>/route-snapshot`;
+ * its `shape` and `p` query are part of the cache key). Warmed
  * alongside attachments so the Home tile and Trips list don't show a broken
  * photo offline (ADR 0043, amended 2026-10-01).
  */
 export function isCoverRoute(url: string): boolean {
   try {
     const { pathname } = new URL(url);
-    return /^\/api\/trips\/[^/]+\/cover$/.test(pathname);
+    return /^\/api\/trips\/[^/]+\/(cover|route-snapshot)$/.test(pathname);
   } catch {
     return false;
   }

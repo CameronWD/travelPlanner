@@ -55,7 +55,8 @@ are in DEPLOY.md §4j.
 │  lib/day-map.ts      the day's point model + route order            │
 │  lib/route-map.ts    home-base point extraction                     │
 │  lib/geo-cluster.ts  clustering                                     │
-│  lib/trips/route-sketch.ts lat/lng -> SVG projection (route sketch) │
+│  lib/trips/route-snapshot.ts main-cluster pins (route snapshot)     │
+│  lib/trips/route-sketch.ts   cluster picking (also the share OG)    │
 │  lib/nearby.ts       radius search over located items               │
 └─────────────────────────────────────────────────────────────────────┘
 ┌─ Server (network I/O, "use server") ────────────────────────────────┐
@@ -374,6 +375,15 @@ been looked up, and is shown as "(estimated)".
   Plan mini map), and MCP `get_day` hops.
 - **No key.** Without `GOOGLE_MAPS_SERVER_KEY` the job does nothing and every
   reader shows estimates; nothing errors.
+
+### Route snapshot (the cover without a photo)
+
+A Trip with no cover photo shows a real Google static map of its main cluster
+of Stops. The page picks the pins (`routeSnapshotModel`, from the Stops the
+viewer may see) and the cover asks `/api/trips/<id>/route-snapshot` for the
+PNG, which is member-gated. The public share page has no member, so it builds
+the static map URL itself. If the map cannot load, or there are too few
+located Stops, the passport stamp shows instead.
 
 ## 8. Testing
 

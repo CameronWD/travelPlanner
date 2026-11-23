@@ -277,6 +277,10 @@ screen.
       normal size, not the keyboard size.
 - [ ] The Feedback sheet (phone, below md) behaves the same when its write box
       is focused.
+- [ ] Keyboard up in a sheet: the page behind does not move, and nothing shows
+      between the sheet and the keyboard. (2026-11-23: try the Feedback panel
+      and an Edit Item sheet; drag over the dimmed page, then close the sheet —
+      the page is back where it was scrolled to.)
 - [ ] Android Chrome only: focus an input on a normal page with the tab bar
       visible (e.g. a Reminder field on Home, or the journal editor) — the
       app-wide `interactiveWidget: "resizes-content"` now resizes every page,

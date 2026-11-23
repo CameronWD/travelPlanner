@@ -168,6 +168,7 @@ export default async function TripHomePage({
       lat: s.lat as number,
       lng: s.lng as number,
       nights: s.arriveDate && s.departDate ? nightsBetween(s.arriveDate, s.departDate) : 0,
+      sortOrder: s.sortOrder,
     })),
     startDate: trip.startDate,
     canEdit: false, // the Home has its own "+ Add a photo" / "Change" (countdown tile)

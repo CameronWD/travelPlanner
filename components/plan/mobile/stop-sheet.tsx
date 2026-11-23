@@ -12,8 +12,7 @@ import { CATEGORIES } from "@/lib/categories";
 import { cn } from "@/lib/cn";
 import { formatDayLabel } from "@/lib/dates";
 import { Stepper } from "@/components/ui/stepper";
-import { stopHue } from "@/lib/stop-colours";
-import { HUE_CLASSES } from "@/lib/hues";
+import { StopBadge } from "@/components/plan/stop-badge";
 import { dayTag, type DaySlot } from "@/lib/plan/day-density";
 import { type StayStatus } from "@/lib/plan/plan-model";
 import { buildStopDays, ownerMarker, type StopDayItem } from "@/lib/stop-days";
@@ -169,14 +168,7 @@ export function StopSheet({
               >
                 <ArrowLeft className="size-5" aria-hidden />
               </button>
-              <span
-                className={cn(
-                  "grid size-11 shrink-0 place-items-center rounded-xl border-2 border-border font-display text-lg font-extrabold text-on-accent",
-                  rough ? "border-dashed bg-muted text-foreground" : HUE_CLASSES[stopHue(stop.sortOrder)].fill,
-                )}
-              >
-                {number}
-              </span>
+              <StopBadge number={number} sortOrder={stop.sortOrder} rough={rough} className="size-11 shrink-0" />
               <div className="min-w-0 flex-1">
                 <DialogPrimitive.Title className="truncate font-display text-[28px] font-extrabold leading-none">
                   {stop.name}

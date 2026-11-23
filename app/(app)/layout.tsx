@@ -180,6 +180,8 @@ export default async function AppLayout({
             >
               Globe
             </AppLink>
+            {/* The Day view portals its bell in here (TopBarBell). */}
+            <div id="top-bar-trip-slot" className="flex items-center empty:hidden" />
 
             {/* Traveller avatar dropdown. A real 44px box around the 36px
                 avatar — tap-target's ::before poked 4px past a 360px screen. */}

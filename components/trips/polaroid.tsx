@@ -22,7 +22,7 @@ export interface PolaroidProps {
   size: PolaroidSize;
   /** Standard-card index; small frames alternate -5°, +4°, -3°. */
   index?: number;
-  /** Hero only: the caption strip text (route sketch). */
+  /** Hero only: the caption strip text (route snapshot). */
   caption?: string | null;
   className?: string;
   children: ReactNode;

@@ -585,9 +585,10 @@ describe("SummaryPage — phone cards keep their shadow (U2)", () => {
     const { container } = render(await renderSummary());
 
     expect(container.firstElementChild).toHaveClass("-mr-1.5", "pr-1.5", "overflow-x-clip");
-    const values = screen.getByTestId("summary-stat-grid").querySelectorAll("p.font-mono");
-    expect(values.length).toBeGreaterThan(0);
-    values.forEach((v) => expect(v.className).not.toMatch(/\btruncate\b/));
+    const money = screen.getByTestId("summary-stat-grid").querySelector("[data-stat-money]")!;
+    expect(money).toHaveClass("whitespace-normal", "break-words");
+    expect(money.className).not.toMatch(/\btruncate\b/);
+    expect(screen.getByTestId("summary-stat-grid").querySelector(".font-mono")).toBeNull();
   });
 });
 
@@ -620,5 +621,109 @@ describe("SummaryPage — page header (S3)", () => {
     render(await renderSummary());
     expect(screen.getAllByRole("heading", { level: 1 })).toHaveLength(1);
     expect(screen.getByRole("heading", { level: 1, name: "Summary" })).toBeInTheDocument();
+  });
+});
+
+describe("SummaryPage — shared pieces (feedback)", () => {
+  const stats = () => screen.getByTestId("summary-stat-grid");
+
+  it("builds the four stat tiles from StatTile and the Flags tile uses icons, not emoji", async () => {
+    const { detectFlags } = await import("@/lib/flags");
+    const flags = [
+      ...Array.from({ length: 11 }, (_, i) => ({ id: `w${i}`, severity: "warning" })),
+      ...Array.from({ length: 26 }, (_, i) => ({ id: `n${i}`, severity: "info" })),
+    ];
+    vi.mocked(detectFlags).mockReturnValueOnce(flags as unknown as ReturnType<typeof detectFlags>);
+    readPlanMock.mockResolvedValue(rowsFrom({ trip: trip(BASE_TRIP), stops: [DATED_STOP] }));
+
+    render(await renderSummary());
+
+    expect(stats().querySelectorAll("[data-stat-tile]")).toHaveLength(4);
+    const flagsTile = within(stats()).getByText("Flags").parentElement!;
+    expect(flagsTile.textContent).not.toMatch(/[⚠ℹ]/);
+    expect(within(flagsTile).getByText("11")).toBeInTheDocument();
+    expect(within(flagsTile).getByText("26")).toBeInTheDocument();
+    expect(within(flagsTile).getByText("11 warnings, 26 notes")).toBeInTheDocument();
+    expect(flagsTile.querySelectorAll("svg[aria-hidden='true']")).toHaveLength(2);
+  });
+
+  it("reads None when there are no Flags", async () => {
+    readPlanMock.mockResolvedValue(rowsFrom({ trip: trip(BASE_TRIP), stops: [DATED_STOP] }));
+    render(await renderSummary());
+    expect(within(within(stats()).getByText("Flags").parentElement!).getByText("None")).toBeInTheDocument();
+  });
+
+  it("has no warning sign anywhere, even in the missing-rates line", async () => {
+    readPlanMock.mockResolvedValue(rowsFrom({ trip: trip(BASE_TRIP), stops: [DATED_STOP] }));
+    vi.mocked(buildBudget).mockReturnValueOnce({
+      grandTotal: { costTotalMinor: 0, paidTotalMinor: 0 },
+      byCategory: [],
+      byStop: [],
+      byChapter: [],
+      hasMissingRates: true,
+      missingRates: ["JPY"],
+    } as unknown as ReturnType<typeof buildBudget>);
+    const { container } = render(await renderSummary());
+    expect(screen.getByText(/Some costs in JPY are excluded/)).toBeInTheDocument();
+    expect(container.textContent).not.toContain("⚠");
+  });
+
+  it("gives dated Stop cards a numbered badge and band, and rough ones a band with no number", async () => {
+    readPlanMock.mockResolvedValue(rowsFrom({ trip: trip(BASE_TRIP), stops: [DATED_STOP, ROUGH_STOP] }));
+    render(await renderSummary());
+
+    const bands = document.querySelectorAll("[data-stop-band]");
+    expect(bands).toHaveLength(2);
+    const datedCard = screen.getByRole("heading", { level: 3, name: "Rome" }).closest("[data-stop-card]")!;
+    const roughCard = screen.getByRole("heading", { level: 3, name: "Someday Place" }).closest("[data-stop-card]")!;
+    expect(datedCard.querySelector("[data-stop-band]")).toHaveClass("h-1.5", "bg-hue-sky");
+    expect(roughCard.querySelector("[data-stop-band]")).toHaveClass("h-1.5", "bg-hue-sun");
+    expect(within(datedCard as HTMLElement).getByText("1")).toHaveClass("size-6", "bg-hue-sky");
+    expect(roughCard.querySelector("[data-stop-band]")).not.toBeNull();
+    expect(within(roughCard as HTMLElement).queryByText("2")).toBeNull();
+    expect(roughCard.querySelector(".size-6")).toBeNull();
+  });
+
+  it("draws dated and rough Stop cards as the shared Card", async () => {
+    readPlanMock.mockResolvedValue(rowsFrom({ trip: trip(BASE_TRIP), stops: [DATED_STOP, ROUGH_STOP] }));
+    render(await renderSummary());
+    for (const name of ["Rome", "Someday Place"]) {
+      const card = screen.getByRole("heading", { level: 3, name }).closest("[data-stop-card]")!;
+      expect(card).toHaveClass("rounded-lg", "border-2", "shadow-hard-2", "bg-card", "overflow-hidden");
+      expect(card.className).not.toMatch(/\brounded-2xl\b|\bshadow-soft\b/);
+    }
+  });
+
+  it("draws a date-less Trip's Stop cards as the shared Card", async () => {
+    readPlanMock.mockResolvedValue(rowsFrom({ trip: trip({ ...BASE_TRIP, startDate: null, endDate: null }), stops: [ROUGH_STOP] }));
+    render(await renderSummary());
+    const card = screen.getByRole("heading", { level: 3, name: "Someday Place" }).parentElement!.parentElement!;
+    expect(card).toHaveClass("rounded-lg", "border-2", "shadow-hard-2", "p-5");
+    expect(card.className).not.toMatch(/\brounded-2xl\b|\bshadow-soft\b/);
+  });
+
+  it("keeps a dated Stop's badge beside its name when the name wraps", async () => {
+    readPlanMock.mockResolvedValue(rowsFrom({ trip: trip(BASE_TRIP), stops: [DATED_STOP] }));
+    render(await renderSummary());
+    const heading = screen.getByRole("heading", { level: 3, name: "Rome" });
+    const badge = within(heading.closest("[data-stop-card]") as HTMLElement).getByText("1");
+    expect(badge.parentElement!.className).not.toMatch(/\bflex-wrap\b/);
+    expect(badge.nextElementSibling).toContainElement(heading);
+  });
+
+  it("renders the outgoing Transport with the Day view's mode tile and no pill ground", async () => {
+    readPlanMock.mockResolvedValue(
+      rowsFrom({
+        trip: trip(BASE_TRIP),
+        stops: [DATED_STOP, LONG_STOP],
+        transports: [
+          transport({ id: "t1", mode: "flight", fromStopId: "s1", toStopId: "s2", depPlace: "FCO", arrPlace: "CDG", depAt: null, arrAt: null, sortOrder: 0, depIsHome: false, arrIsHome: false }),
+        ],
+      }),
+    );
+    render(await renderSummary());
+    const row = screen.getByText(/from FCO/).parentElement!;
+    expect(row.querySelector("[data-testid='timeline-tile']")).not.toBeNull();
+    expect(row.className).not.toContain("bg-muted/30");
   });
 });

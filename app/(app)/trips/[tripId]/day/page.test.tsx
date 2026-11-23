@@ -117,6 +117,7 @@ vi.mock("@/components/trip/day/day-map-dialog", async (importActual) => {
   };
 });
 vi.mock("@/components/trip/notification-bell", () => ({ NotificationBell: ({ unreadCount }: { unreadCount: number }) => <button aria-label={`Notifications (${unreadCount})`} /> }));
+vi.mock("@/components/trip/day/top-bar-bell", () => ({ TopBarBell: ({ unreadCount }: { unreadCount: number }) => <div data-testid="top-bar-bell" data-unread={unreadCount} /> }));
 vi.mock("@/components/shell/trip-switcher", () => ({ TripSwitcherFromContext: () => null }));
 
 import { setMatchMedia } from "@/test/setup";
@@ -293,6 +294,9 @@ describe("Day page", () => {
     expect(screen.getByRole("link", { name: "Next day: Sun 13 Dec" })).toHaveAttribute("href", "/trips/t1/day/2026-12-13");
     // Bell: phone/tablet top bar, the lg-to-xl pill row cluster, and the xl date-row cluster.
     expect(screen.getAllByRole("button", { name: "Notifications (4)" })).toHaveLength(3);
+    // One phone top-bar bell for the page, not one per day in the carousel.
+    expect(screen.getAllByTestId("top-bar-bell")).toHaveLength(1);
+    expect(screen.getByTestId("top-bar-bell")).toHaveAttribute("data-unread", "4");
     // Every add-an-item button preselects the date. "Add a title" is a
     // different affordance (DayTitleInline, spec 2026-09-28 D4) and has no
     // default date to preselect.

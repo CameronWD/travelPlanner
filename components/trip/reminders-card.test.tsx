@@ -253,7 +253,7 @@ describe("RemindersCard kit shape", () => {
     const title = screen.getByText(long);
     expect(title.className).not.toMatch(/\btruncate\b/);
     expect(title.className).toMatch(/\bbreak-words\b/);
-    expect(title.parentElement!.className).toMatch(/\bmin-w-0\b/);
+    expect(title.closest("li")!.className).toMatch(/\bmin-w-0\b/);
   });
 
   it("gives Got it a 44px touch target", () => {
@@ -429,7 +429,78 @@ describe("RemindersCard readable widths", () => {
 
   it("keeps a Reminder's text column to a readable width", () => {
     render(<RemindersCard tripId="trip-1" today={TODAY} reminders={[reminderItem({ id: "r1", title: "Pack", date: "2026-11-29" })]} />);
-    expect(screen.getByText("Pack").closest("li")!.firstElementChild!.className).toContain("[&_p]:max-w-prose");
+    expect(screen.getByText("Pack").closest("li")!.className).toContain("[&_p]:max-w-prose");
+  });
+});
+
+describe("RemindersCard Reminder row on a phone", () => {
+  const rowOf = (title: string) => screen.getByText(title).closest("li")!;
+
+  it("has one Got it and one Edit per row, in the order title, footer, notes", () => {
+    render(
+      <RemindersCard
+        tripId="trip-1"
+        today={TODAY}
+        reminders={[reminderItem({ id: "r1", title: "Pack", date: "2026-11-29", stopId: "s1", stopName: "Denpasar", notes: "Door code" })]}
+      />,
+    );
+    const li = rowOf("Pack");
+    expect(within(li).getAllByRole("button", { name: /^Got it/ })).toHaveLength(1);
+    expect(within(li).getAllByRole("button", { name: /^Edit reminder/ })).toHaveLength(1);
+    const [title, foot, notes] = Array.from(li.children);
+    expect(title).toHaveTextContent("Pack");
+    expect(foot).toHaveAttribute("data-reminder-foot");
+    expect(foot).toHaveTextContent("Denpasar");
+    expect(foot).toHaveTextContent("29 Nov");
+    expect(within(foot as HTMLElement).getByRole("button", { name: /^Edit reminder/ })).toBeInTheDocument();
+    expect(within(foot as HTMLElement).getByRole("button", { name: /^Got it/ })).toBeInTheDocument();
+    expect(notes).toHaveTextContent("Notes");
+  });
+
+  it("stacks the title above the footer below md and sits them side by side from md", () => {
+    render(<RemindersCard tripId="trip-1" today={TODAY} reminders={[reminderItem({ id: "r1", title: "Pack", date: "2026-11-29" })]} />);
+    const cls = rowOf("Pack").className;
+    expect(cls).toMatch(/\bflex-col\b/);
+    expect(cls).toMatch(/\bmd:grid\b/);
+    expect(cls).toContain("md:grid-cols-[minmax(0,auto)_1fr_auto_auto]");
+    expect(screen.getByText("Pack").className).toMatch(/\bmd:min-w-0\b/);
+    expect(screen.getByText("Pack").closest("li")!.querySelector("[data-reminder-foot]")!.className).toMatch(/\bmd:contents\b/);
+  });
+
+  it.each([
+    ["no about chip", "Pack", null],
+    ["a 200-character unbroken title", "x".repeat(200), "Denpasar"],
+  ])("right-aligns the buttons in the footer with %s", (_label, title, stopName) => {
+    render(
+      <RemindersCard
+        tripId="trip-1"
+        today={TODAY}
+        reminders={[reminderItem({ id: "r1", title, date: "2026-11-29", stopId: stopName ? "s1" : null, stopName })]}
+      />,
+    );
+    const foot = rowOf(title).querySelector("[data-reminder-foot]") as HTMLElement;
+    expect(foot).not.toBeNull();
+    const actions = foot.querySelector("[data-reminder-actions]") as HTMLElement;
+    expect(actions.className).toMatch(/\bml-auto\b/);
+    expect(within(actions).getByRole("button", { name: /^Edit reminder/ })).toBeInTheDocument();
+    expect(within(actions).getByRole("button", { name: /^Got it/ })).toBeInTheDocument();
+  });
+
+  it("wraps Edit and Got it as one unit on a phone, and lets them join the md grid", () => {
+    render(
+      <RemindersCard
+        tripId="trip-1"
+        today={TODAY}
+        reminders={[reminderItem({ id: "r1", title: "Pack", date: "2026-11-29", stopId: "s1", stopName: "Rovaniemi (Lapland)" })]}
+      />,
+    );
+    const actions = rowOf("Pack").querySelector("[data-reminder-actions]") as HTMLElement;
+    expect(actions.parentElement).toHaveAttribute("data-reminder-foot");
+    expect(actions.className).toMatch(/\bflex\b/);
+    expect(actions.className).not.toMatch(/\bflex-wrap\b/);
+    expect(actions.className).toMatch(/\bmd:contents\b/);
+    expect(within(actions).getByRole("button", { name: /^Edit reminder/ }).className).toMatch(/\bmd:col-start-3\b/);
+    expect(within(actions).getByRole("button", { name: /^Got it/ }).className).toMatch(/\bmd:col-start-4\b/);
   });
 });
 

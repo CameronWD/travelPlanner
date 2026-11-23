@@ -5,7 +5,7 @@ vi.mock("server-only", () => ({}));
 vi.mock("@/lib/google-fetch", () => ({ serverKey: serverKeyMock, GOOGLE_TIMEOUT_MS: 5000 }));
 vi.mock("@/lib/google-usage", () => ({ takeGoogleQuota: quotaMock }));
 
-import { fetchStaticMapDataUrl } from "./static-map-fetch";
+import { fetchStaticMapBytes, fetchStaticMapDataUrl } from "./static-map-fetch";
 
 const input = {
   mapId: "MAP",
@@ -67,5 +67,20 @@ describe("fetchStaticMapDataUrl", () => {
     const url = String(fetchMock.mock.calls[0][0]);
     expect(url).toContain("key=SRV");
     expect(url).toContain("scale=2");
+  });
+});
+
+describe("fetchStaticMapBytes", () => {
+  it("returns the image bytes, with the server key and the quota taken", async () => {
+    const bytes = await fetchStaticMapBytes(input);
+    expect(bytes).toEqual(Buffer.from([1, 2, 3]));
+    expect(String(fetchMock.mock.calls[0][0])).toContain("key=SRV");
+    expect(quotaMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("is null when the quota refuses, and never fetches", async () => {
+    quotaMock.mockResolvedValue(false);
+    expect(await fetchStaticMapBytes(input)).toBeNull();
+    expect(fetchMock).not.toHaveBeenCalled();
   });
 });

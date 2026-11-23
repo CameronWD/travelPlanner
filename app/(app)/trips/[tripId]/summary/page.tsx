@@ -2,10 +2,11 @@ import type { Metadata } from "next";
 import {
   MapPin,
   Calendar,
-  Moon,
   Home,
   DollarSign,
   Flag as FlagIcon,
+  Info,
+  TriangleAlert,
 } from "lucide-react";
 import { readPlan } from "@/lib/plan-reads";
 import { requireTripAccess, isTripOwnerOrAdmin } from "@/lib/guards";
@@ -47,6 +48,12 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { StatTile } from "@/components/trip/home/stat-tile";
+import { StopBadge } from "@/components/plan/stop-badge";
+import { Tile, NEUTRAL_TILE } from "@/components/trip/timeline";
+import { HUE_CLASSES } from "@/lib/hues";
+import { stopHue } from "@/lib/stop-colours";
+import { cn } from "@/lib/cn";
 import { PageHeader } from "@/components/ui/page-header";
 import { TripHeaderTrailing } from "@/components/trip/trip-header-trailing";
 import { EmptyState } from "@/components/ui/empty-state";
@@ -131,10 +138,7 @@ export default async function SummaryPage({
                   ? datelessChapters.find((c) => c.id === stop.chapterId)
                   : undefined;
                 return (
-                  <div
-                    key={stop.id}
-                    className="rounded-2xl border border-border bg-card p-5 shadow-soft"
-                  >
+                  <Card key={stop.id} className="p-5">
                     <div className="flex flex-wrap items-center gap-2">
                       <h3 className="min-w-0 break-words font-display text-base font-semibold text-foreground">
                         {stop.name}
@@ -149,7 +153,7 @@ export default async function SummaryPage({
                         <ChapterChip name={chapter.name} colour={chapter.colour} />
                       )}
                     </div>
-                  </div>
+                  </Card>
                 );
               })}
             </div>
@@ -375,31 +379,38 @@ export default async function SummaryPage({
 
       {/* ── Header stat bar ── */}
       <div className={SUMMARY_STAT_GRID_CLASS} data-testid="summary-stat-grid">
-        <StatCard
-          icon={MapPin}
-          label="Stops"
-          value={String(stops.length)}
-        />
-        <StatCard
-          icon={Moon}
-          label="Nights"
-          value={String(totalNights)}
-        />
-        <StatCard
-          icon={DollarSign}
+        <StatTile label="Stops" value={String(stops.length)} />
+        <StatTile label="Nights" value={String(totalNights)} />
+        <StatTile
           label={hasActual ? "Paid so far" : "Cost budget"}
-          value={formatMoney(
-            hasActual ? grandTotal.paidTotalMinor : grandTotal.costTotalMinor,
-            homeCurrency,
-          )}
+          value={
+            <span data-stat-money className="whitespace-normal break-words">
+              {formatMoney(hasActual ? grandTotal.paidTotalMinor : grandTotal.costTotalMinor, homeCurrency)}
+            </span>
+          }
         />
-        <StatCard
-          icon={FlagIcon}
+        <StatTile
           label="Flags"
           value={
-            flags.length === 0
-              ? "None"
-              : `${warningCount > 0 ? `${warningCount}⚠` : ""}${warningCount > 0 && infoCount > 0 ? " " : ""}${infoCount > 0 ? `${infoCount}ℹ` : ""}`
+            flags.length === 0 ? (
+              "None"
+            ) : (
+              <span className="inline-flex items-center gap-3">
+                {warningCount > 0 && (
+                  <span className="inline-flex items-center gap-1">
+                    {warningCount}
+                    <TriangleAlert className="size-5" aria-hidden="true" />
+                  </span>
+                )}
+                {infoCount > 0 && (
+                  <span className="inline-flex items-center gap-1">
+                    {infoCount}
+                    <Info className="size-5" aria-hidden="true" />
+                  </span>
+                )}
+                <span className="sr-only">{`${warningCount} warnings, ${infoCount} notes`}</span>
+              </span>
+            )
           }
         />
       </div>
@@ -420,11 +431,9 @@ export default async function SummaryPage({
                 ? chapters.find((c) => c.id === stop.chapterId)
                 : undefined;
               return (
-                <div
-                  key={stop.id}
-                  className="rounded-2xl border border-border bg-card p-5 shadow-soft"
-                >
-                  <div className="flex flex-wrap items-center gap-2">
+                <Card key={stop.id} data-stop-card className="overflow-hidden">
+                  <div data-stop-band className={cn("h-1.5", HUE_CLASSES[stopHue(stop.sortOrder)].fill)} />
+                  <div className="flex flex-wrap items-center gap-2 p-5">
                     <h3 className="min-w-0 break-words font-display text-base font-semibold text-foreground">
                       {stop.name}
                     </h3>
@@ -438,7 +447,7 @@ export default async function SummaryPage({
                       <ChapterChip name={chapter.name} colour={chapter.colour} />
                     )}
                   </div>
-                </div>
+                </Card>
               );
             })}
           </div>
@@ -517,27 +526,26 @@ export default async function SummaryPage({
                         const isLast = globalIdx === totalGroupedStops;
 
                         return (
-                          <div
-                            key={stop.id}
-                            className="rounded-2xl border border-border bg-card p-5 shadow-soft"
-                          >
+                          <Card key={stop.id} data-stop-card className="overflow-hidden">
+                            <div data-stop-band className={cn("h-1.5", HUE_CLASSES[stopHue(stop.sortOrder)].fill)} />
+                            <div className="p-5">
                             {/* Stop name + country; the cost block sits under
                                 the name row on phones and to its right from sm,
                                 so the name column is never squeezed (LA-144). */}
                             <div className="mb-3 flex min-w-0 flex-col gap-2 sm:flex-row sm:items-start sm:justify-between sm:gap-3">
                               <div className="min-w-0 flex-1">
-                                <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-0.5">
-                                  <span className="flex size-6 shrink-0 items-center justify-center rounded-full bg-primary/10 font-mono text-xs font-semibold text-primary">
-                                    {stopNum}
-                                  </span>
-                                  <h3 className="min-w-0 break-words font-display text-lg font-semibold text-foreground">
-                                    {stop.name}
-                                  </h3>
-                                  {stop.country && (
-                                    <span className="shrink-0 text-sm text-muted-foreground">
-                                      {stop.country}
-                                    </span>
-                                  )}
+                                <div className="flex min-w-0 items-start gap-2">
+                                  <StopBadge number={stopNum} sortOrder={stop.sortOrder} rough={false} className="mt-0.5 size-6 shrink-0 rounded-full text-xs" />
+                                  <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-0.5">
+                                    <h3 className="min-w-0 break-words font-display text-lg font-semibold text-foreground">
+                                      {stop.name}
+                                    </h3>
+                                    {stop.country && (
+                                      <span className="shrink-0 text-sm text-muted-foreground">
+                                        {stop.country}
+                                      </span>
+                                    )}
+                                  </div>
                                 </div>
                                 <p className="mt-0.5 text-sm text-muted-foreground">
                                   {formatDateRange(stop.arriveDate, stop.departDate)}
@@ -583,8 +591,8 @@ export default async function SummaryPage({
 
                             {/* Outbound transport */}
                             {transport && !isLast && (
-                              <div className="mt-3 flex min-w-0 items-center gap-2 rounded-xl border border-border/60 bg-muted/30 px-3 py-2 text-sm text-muted-foreground">
-                                {ModeIcon ? <ModeIcon className="size-3.5 shrink-0" aria-hidden="true" /> : null}
+                              <div className="mt-3 flex min-w-0 items-center gap-2 text-sm text-muted-foreground">
+                                <Tile icon={ModeIcon ?? undefined} className={NEUTRAL_TILE} />
                                 <span className="min-w-0 break-words">
                                   {modeLabel(transport.mode)}
                                   {transport.depPlace ? ` from ${transport.depPlace}` : ""}
@@ -597,7 +605,8 @@ export default async function SummaryPage({
                                 )}
                               </div>
                             )}
-                          </div>
+                            </div>
+                          </Card>
                         );
                       })}
                     </div>
@@ -653,7 +662,8 @@ export default async function SummaryPage({
                 )}
                 {budget.hasMissingRates && (
                   <p className="w-full text-xs text-sun-text">
-                    ⚠ Some costs in {budget.missingRates.join(", ")} are excluded
+                    <TriangleAlert className="mr-1 inline size-3.5 align-text-bottom" aria-hidden="true" />
+                    Some costs in {budget.missingRates.join(", ")} are excluded
                     (no FX rate available).
                   </p>
                 )}
@@ -707,26 +717,6 @@ function SectionHeading({
       <h2 id={id} className="font-display text-lg font-semibold text-foreground">
         {title}
       </h2>
-    </div>
-  );
-}
-
-function StatCard({
-  icon: Icon,
-  label,
-  value,
-}: {
-  icon: React.ComponentType<{ className?: string }>;
-  label: string;
-  value: string;
-}) {
-  return (
-    <div className="flex flex-col gap-1 rounded-2xl border border-border bg-card p-4 shadow-soft">
-      <div className="flex items-center gap-1.5 text-xs font-medium uppercase tracking-wide text-muted-foreground">
-        <Icon className="size-3.5" aria-hidden="true" />
-        {label}
-      </div>
-      <p className="break-words font-mono text-base font-semibold text-foreground sm:text-xl">{value}</p>
     </div>
   );
 }
