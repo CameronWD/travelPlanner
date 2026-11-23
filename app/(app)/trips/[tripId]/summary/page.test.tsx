@@ -58,7 +58,7 @@ vi.mock("@/lib/money/budget", () => ({
 }));
 vi.mock("@/lib/flags", () => ({ detectFlags: vi.fn(() => []) }));
 vi.mock("@/lib/home-base", () => ({ tripHomeBase: vi.fn(() => null) }));
-vi.mock("@/lib/route-map", () => ({ homeMapPoint: vi.fn(() => null) }));
+vi.mock("@/lib/route-map", async (importOriginal) => ({ ...(await importOriginal<typeof import("@/lib/route-map")>()), homeMapPoint: vi.fn(() => null) }));
 vi.mock("@/server/actions/stops", () => ({}));
 vi.mock("@/lib/trip-projection-reads", () => ({
   getTripProjection: vi.fn(async () => ({ projectedEnd: null, hardEndDate: null, deadline: null })),
@@ -725,5 +725,26 @@ describe("SummaryPage — shared pieces (feedback)", () => {
     const row = screen.getByText(/from FCO/).parentElement!;
     expect(row.querySelector("[data-testid='timeline-tile']")).not.toBeNull();
     expect(row.className).not.toContain("bg-muted/30");
+  });
+});
+
+describe("SummaryPage — route map space", () => {
+  const SECOND_STOP = stop({ id: "s2", name: "Florence", country: "Italy", lat: 43.8, lng: 11.3, timezone: "Europe/Rome", arriveDate: "2026-01-05", departDate: "2026-01-08", sortOrder: 1, pinned: false, nights: 3 });
+
+  it("a route that can draw sits in a box the server draws at the map's height, holding its fallback inside", async () => {
+    readPlanMock.mockResolvedValue(rowsFrom({ trip: trip(BASE_TRIP), stops: [DATED_STOP, SECOND_STOP] }));
+    render(await renderSummary());
+    const box = screen.getByTestId("route-map").parentElement!;
+    expect(box.className).toContain("h-[380px]");
+    expect(box.className).toContain("[&_[data-map-fallback]]:max-h-full");
+    expect(box.className).toContain("[&_[data-map-fallback]]:overflow-y-auto");
+  });
+
+  it("a route that cannot draw (one located Stop) gets no fixed-size box, so the short card is not wrapped in empty space", async () => {
+    readPlanMock.mockResolvedValue(rowsFrom({ trip: trip(BASE_TRIP), stops: [DATED_STOP] }));
+    render(await renderSummary());
+    const box = screen.getByTestId("route-map").parentElement!;
+    expect(box.className).not.toContain("h-[380px]");
+    expect(box.tagName).toBe("SECTION");
   });
 });
