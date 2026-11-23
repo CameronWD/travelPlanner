@@ -262,8 +262,7 @@ const OVERLAY_PROFILES = ["iphone17-browser", "iphone17-pwa", "iphone12-browser"
 const OVERLAY_KEYBOARD_PROFILES = ["iphone17-browser", "iphone12-browser", "iphone17-pwa"];
 const PRINT_PROFILE = "794";
 
-/** The routes whose loading state is captured (set "loading") and whose
- * layout shift is measured (cls.json). */
+/** The routes whose loading state is captured (set "loading"). */
 export const LOADING_ROUTE_LABELS = [
   "trips",
   "home",
@@ -277,6 +276,12 @@ export const LOADING_ROUTE_LABELS = [
   "files",
   "journal",
 ];
+
+/** The routes whose cold-load layout shift is measured (cls.json): the
+ * loading routes plus the rest of the pages a Traveller lands on. */
+export const CLS_ROUTE_LABELS = [...LOADING_ROUTE_LABELS, "globe", "account", "summary", "settings", "activity", "today", "more", "whats-new"];
+
+export const SHIFT_PROFILE_IDS = ["iphone17-pwa", "1440"] as const;
 
 /** Placeholder route for overlay captures: the recipe (overlays.ts) carries
  * the real route; an overlay id leaves this label out (see makeCapture). */

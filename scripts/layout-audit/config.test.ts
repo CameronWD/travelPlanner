@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { PROFILES, profileFor, parseSets, assertLocalBaseUrl, assertOutsideRepo, resolveOutDir, buildCaptureMatrix, ROUTES, LOADING_ROUTE_LABELS } from "./config";
+import { PROFILES, profileFor, parseSets, assertLocalBaseUrl, assertOutsideRepo, resolveOutDir, buildCaptureMatrix, ROUTES, LOADING_ROUTE_LABELS, CLS_ROUTE_LABELS, SHIFT_PROFILE_IDS } from "./config";
 
 describe("device profiles", () => {
   it("phones run in WebKit at DPR 3, mobile and touch, with an iPhone user agent", () => {
@@ -134,4 +134,14 @@ describe("buildCaptureMatrix", () => {
   });
   it("non-trip routes use trip 'none'", () =>
     expect(m.filter((c) => !c.route.tripScoped && c.set !== "overlay").every((c) => c.trip === "none")).toBe(true));
+});
+
+describe("cold-load shift coverage", () => {
+  it("measures every loading route plus eight more, all of them real routes", () => {
+    expect(CLS_ROUTE_LABELS).toEqual(expect.arrayContaining([...LOADING_ROUTE_LABELS, "globe", "account", "summary", "settings", "activity", "today", "more", "whats-new"]));
+    expect(CLS_ROUTE_LABELS).toHaveLength(LOADING_ROUTE_LABELS.length + 8);
+    const labels = new Set(ROUTES.map((r) => r.label));
+    expect(CLS_ROUTE_LABELS.filter((l) => !labels.has(l))).toEqual([]);
+  });
+  it("measures on the installed phone and a desktop", () => expect(SHIFT_PROFILE_IDS).toEqual(["iphone17-pwa", "1440"]));
 });

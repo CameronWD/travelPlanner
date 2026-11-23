@@ -38,7 +38,8 @@
  *      trip, loaded once at 2560px in Chromium and stepped down to 320px
  *      and back up with no reload, checked for breakage at each step.
  *   5. Layout shift (layout-audit/loading.ts): CLS for each main route on a
- *      normal load at the iPhone 17's viewport, in Chromium.
+ *      normal load at the iPhone 17's viewport and at 1440px wide, in
+ *      Chromium.
  *   6. Writes the outputs and a summary, and sets the exit code.
  *   One capture failing never aborts the run: it is recorded with its
  *   error and the run carries on.
@@ -92,7 +93,7 @@
  *                             "cls/" (commas separate alternatives; capture
  *                             ids mirror the shot paths below, minus the
  *                             .png; the crawl's are `resize/<routeLabel>`,
- *                             CLS's `cls/<routeLabel>`).
+ *                             CLS's `cls/<routeLabel>/<profile>`).
  *
  *   A run that does not do everything (LAYOUT_AUDIT_ONLY, or only some
  *   sets) into an out dir that already holds a manifest MERGES into it —
@@ -114,9 +115,9 @@
  *                              (`range`), and `notRecovered` — breakage on
  *                              the way back up that the way down did not
  *                              have at that width.
- *   <out>/cls.json             per route: CLS, the shift count, and the
- *                              five largest shifts with the elements that
- *                              moved.
+ *   <out>/cls.json             per route and profile (iphone17-pwa, 1440):
+ *                              CLS, the shift count, and the five largest
+ *                              shifts with the elements that moved.
  *   <out>/shots/<set>/<routeLabel>/<trip>/<profile>-<theme>.png
  *                              (pages taller than one viewport, i.e. nearly
  *                              all: -part1.png, -part2.png, …, drawn with
@@ -226,11 +227,12 @@ import { COLLECTOR_SCRIPT, type RawCollect } from "./layout-audit/collector";
 import {
   assertLocalBaseUrl,
   buildCaptureMatrix,
-  LOADING_ROUTE_LABELS,
+  CLS_ROUTE_LABELS,
   parseSets,
   profileFor,
   resolveOutDir,
   ROUTES,
+  SHIFT_PROFILE_IDS,
   type CaptureSpec,
   type DeviceProfile,
   type Engine,
@@ -718,7 +720,8 @@ function deepRoutes(
 ): { route: RouteDef; path: string }[] {
   const out: { route: RouteDef; path: string }[] = [];
   for (const route of routes) {
-    if (!matchesOnly(`${kind}/${route.label}`, only)) continue;
+    const ids = kind === "cls" ? SHIFT_PROFILE_IDS.map((p) => `cls/${route.label}/${p}`) : [`resize/${route.label}`];
+    if (!ids.some((id) => matchesOnly(id, only))) continue;
     const resolved = resolveRoute(route, route.tripScoped ? "deep" : "none", setup);
     if ("path" in resolved) out.push({ route, path: resolved.path });
     else console.log(`[${kind}] ${route.label} — SKIPPED ${"skip" in resolved ? resolved.skip : resolved.error}`);
@@ -741,7 +744,8 @@ async function audit(
   let setup: Setup;
   let matrix: CaptureSpec[];
   let specs: CaptureSpec[];
-  const wants = (kind: "resize" | "cls", label: string) => sets.has(kind) && matchesOnly(`${kind}/${label}`, only);
+  const wants = (kind: "resize" | "cls", label: string) =>
+    sets.has(kind) && (kind === "cls" ? SHIFT_PROFILE_IDS.some((p) => matchesOnly(`cls/${label}/${p}`, only)) : matchesOnly(`resize/${label}`, only));
   try {
     const page = await bootCtx.newPage();
     const base = await bootstrap(bootCtx, page, baseUrl, authStatePath, options);
@@ -872,21 +876,23 @@ async function audit(
   let clsResults: ClsResult[] = [];
   if (sets.has("cls")) {
     const targets = deepRoutes(
-      ROUTES.filter((r) => LOADING_ROUTE_LABELS.includes(r.label)),
+      ROUTES.filter((r) => CLS_ROUTE_LABELS.includes(r.label)),
       "cls",
       only,
       setup,
     );
-    if (targets.length > 0) {
-      // layout-shift entries exist only in Chromium, so the phone's viewport
-      // is emulated there rather than measured in WebKit.
-      const context = await chromium.newContext(contextOptions(profileFor("iphone17-pwa"), "light", authStatePath));
+    // layout-shift entries exist only in Chromium, so the phone's viewport
+    // is emulated there rather than measured in WebKit.
+    for (const profileId of SHIFT_PROFILE_IDS) {
+      const wanted = targets.filter(({ route }) => matchesOnly(`cls/${route.label}/${profileId}`, only));
+      if (wanted.length === 0) continue;
+      const context = await chromium.newContext(contextOptions(profileFor(profileId), "light", authStatePath));
       try {
-        for (const { route, path: routePath } of targets) {
-          const result = await measureCls(context, `${baseUrl}${routePath}`, route.label, routePath);
+        for (const { route, path: routePath } of wanted) {
+          const result = await measureCls(context, `${baseUrl}${routePath}`, route.label, routePath, profileId);
           clsResults.push(result);
           console.log(
-            `[cls] ${route.label} — ${result.error ? `ERROR ${result.error}` : `CLS ${result.cls} (${result.shifts} shift(s)); throttled ${result.throttled?.cls}`}`,
+            `[cls] ${route.label} ${profileId} — ${result.error ? `ERROR ${result.error}` : `CLS ${result.cls} (${result.shifts} shift(s)); throttled ${result.throttled?.cls}`}`,
           );
         }
       } finally {
