@@ -100,10 +100,13 @@ export function InvitePanel({
     if (!confirmed) return;
 
     setRemovingUserId(m.userId);
-    const result = await removeTripMember(tripId, m.userId);
-    setRemovingUserId(null);
-    if (!result.success) {
-      toast({ title: firstErrorMessage(result, "Couldn’t do that."), variant: "destructive" });
+    try {
+      const result = await removeTripMember(tripId, m.userId);
+      if (!result.success) {
+        toast({ title: firstErrorMessage(result, "Couldn’t do that."), variant: "destructive" });
+      }
+    } finally {
+      setRemovingUserId(null);
     }
   }
 
