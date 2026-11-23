@@ -25,9 +25,10 @@ describe("device profiles", () => {
 describe("parseSets", () => {
   it("unset or blank means everything", () => {
     expect(parseSets(undefined).has("resize")).toBe(true);
-    expect(parseSets(" ").size).toBe(9);
+    expect(parseSets(" ").size).toBe(10);
   });
   it("keeps the named sets", () => expect([...parseSets("deep, cls")]).toEqual(["deep", "cls"]));
+  it("accepts the section-switch set", () => expect([...parseSets("switch")]).toEqual(["switch"]));
   it("refuses a typo instead of running nothing", () => expect(() => parseSets("deeep")).toThrow(/unknown set/));
 });
 

@@ -45,7 +45,7 @@ const NAV_DELAY_MS = 1500;
 /** Client-side navigation through the App Router's own instance, which Next
  * exposes on `window.next`; false when it isn't there. Plain JS string — see
  * layout-audit.ts trap 1. */
-function pushJs(to: string): string {
+export function pushJs(to: string): string {
   return `(() => { const r = window.next && window.next.router; if (!r || typeof r.push !== "function") return false; r.push(${JSON.stringify(to)}); return true; })()`;
 }
 

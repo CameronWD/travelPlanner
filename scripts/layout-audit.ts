@@ -73,7 +73,8 @@
  *   LAYOUT_AUDIT_AUTH_STATE   Playwright storageState JSON. Default
  *                             /tmp/auth.json. Created if missing.
  *   LAYOUT_AUDIT_SETS         Comma list of what to run: deep, phase, empty,
- *                             dark, print, overlay, loading, resize, cls.
+ *                             dark, print, overlay, loading, resize, cls,
+ *                             switch.
  *                             Default: all. A database with no demo cast
  *                             runs without "phase,empty"; the demo database
  *                             then runs just those.
@@ -93,7 +94,8 @@
  *                             "cls/" (commas separate alternatives; capture
  *                             ids mirror the shot paths below, minus the
  *                             .png; the crawl's are `resize/<routeLabel>`,
- *                             CLS's `cls/<routeLabel>/<profile>`).
+ *                             CLS's `cls/<routeLabel>/<profile>`, a section
+ *                             switch's `switch/<from>-<to>/<profile>`).
  *
  *   A run that does not do everything (LAYOUT_AUDIT_ONLY, or only some
  *   sets) into an out dir that already holds a manifest MERGES into it —
@@ -118,6 +120,11 @@
  *   <out>/cls.json             per route and profile (iphone17-pwa, 1440):
  *                              CLS, the shift count, and the five largest
  *                              shifts with the elements that moved.
+ *   <out>/switch.json          per section switch (home → plan, …) and
+ *                              profile: the CLS of going from one page to
+ *                              the other by tapping a link, as is and with
+ *                              the new page's data held back 1.5s, and the
+ *                              elements that moved.
  *   <out>/shots/<set>/<routeLabel>/<trip>/<profile>-<theme>.png
  *                              (pages taller than one viewport, i.e. nearly
  *                              all: -part1.png, -part2.png, …, drawn with
@@ -244,6 +251,7 @@ import {
 import { captureLoading, measureCls, mergeCls, type ClsResult } from "./layout-audit/loading";
 import { focusFirstInput, openOverlay, OVERLAYS, type OverlayRecipe } from "./layout-audit/overlays";
 import { crawlRoute, mergeResize, RESIZE_HEIGHT, type ResizeRouteResult } from "./layout-audit/resize";
+import { measureSwitch, mergeSwitch, SWITCH_PAIRS, type SwitchPair, type SwitchResult } from "./layout-audit/switch";
 import {
   assertNextDev,
   filterCaptures,
@@ -729,6 +737,24 @@ function deepRoutes(
   return out;
 }
 
+const switchId = (pair: SwitchPair, profileId: string) => `switch/${pair.from}-${pair.to}/${profileId}`;
+
+/** The deep trip's day after the one the `day` route uses, or undefined when
+ * the trip has none. */
+async function nextDayPathOf(chromium: Browser, baseUrl: string, authStatePath: string, setup: Setup): Promise<string | undefined> {
+  const tripId = setup.tripIds.deep;
+  const date = setup.dayDates.deep;
+  if (!tripId || !date) return undefined;
+  const context = await chromium.newContext({ storageState: authStatePath });
+  try {
+    const dates = await deriveDayDates(await context.newPage(), baseUrl, tripId);
+    const at = dates.indexOf(date);
+    return at >= 0 && dates[at + 1] ? `/trips/${tripId}/day/${dates[at + 1]}` : undefined;
+  } finally {
+    await context.close().catch(() => {});
+  }
+}
+
 async function audit(
   launch: (engine: Engine) => Promise<Browser>,
   opts: { baseUrl: string; outDir: string; authStatePath: string; only: string | undefined; startedAt: string; options: RunOptions },
@@ -744,6 +770,8 @@ async function audit(
   let setup: Setup;
   let matrix: CaptureSpec[];
   let specs: CaptureSpec[];
+  const wantedPairs = (filter: string | undefined, runSets: ReadonlySet<string>) =>
+    runSets.has("switch") ? SWITCH_PAIRS.filter((p) => SHIFT_PROFILE_IDS.some((profile) => matchesOnly(`switch/${p.from}-${p.to}/${profile}`, filter))) : [];
   const wants = (kind: "resize" | "cls", label: string) =>
     sets.has(kind) && (kind === "cls" ? SHIFT_PROFILE_IDS.some((p) => matchesOnly(`cls/${label}/${p}`, only)) : matchesOnly(`resize/${label}`, only));
   try {
@@ -757,7 +785,7 @@ async function audit(
       sets,
     });
     specs = filterCaptures(matrix, only);
-    const needs = { share: wants("resize", "share"), deepDay: wants("resize", "day") || wants("cls", "day") };
+    const needs = { share: wants("resize", "share"), deepDay: wants("resize", "day") || wants("cls", "day") || wantedPairs(only, sets).some((p) => [p.from, p.to].includes("day")) };
     setup = { ...base, ...(await lookups(page, baseUrl, base, specs, needs, options)) };
   } finally {
     await bootCtx.close().catch(() => {});
@@ -906,6 +934,52 @@ async function audit(
     clsResults = thisCls;
   }
 
+  // ---- Section switches -------------------------------------------------
+  let switchResults: SwitchResult[] = [];
+  if (sets.has("switch")) {
+    const pairs = SWITCH_PAIRS.filter((p) => SHIFT_PROFILE_IDS.some((profileId) => matchesOnly(switchId(p, profileId), only)));
+    let nextDayPath: string | undefined;
+    if (pairs.some((p) => [p.from, p.to].includes("day-next"))) {
+      nextDayPath = await nextDayPathOf(chromium, baseUrl, authStatePath, setup);
+    }
+    const urlOf = (label: string): { path: string } | { skip: string } => {
+      if (label === "day-next") return nextDayPath ? { path: nextDayPath } : { skip: "no date after the day route's date" };
+      const route = ROUTES.find((r) => r.label === label)!;
+      const resolved = resolveRoute(route, route.tripScoped ? "deep" : "none", setup);
+      return "path" in resolved ? { path: resolved.path } : { skip: "skip" in resolved ? resolved.skip : resolved.error };
+    };
+    const runnable: { pair: SwitchPair; from: string; to: string }[] = [];
+    for (const pair of pairs) {
+      const from = urlOf(pair.from);
+      const to = urlOf(pair.to);
+      if ("path" in from && "path" in to) runnable.push({ pair, from: from.path, to: to.path });
+      else console.log(`[switch] ${pair.from}→${pair.to} — SKIPPED ${"skip" in from ? from.skip : (to as { skip: string }).skip}`);
+    }
+    for (const profileId of SHIFT_PROFILE_IDS) {
+      const wanted = runnable.filter(({ pair }) => matchesOnly(switchId(pair, profileId), only));
+      if (wanted.length === 0) continue;
+      const context = await chromium.newContext(contextOptions(profileFor(profileId), "light", authStatePath));
+      try {
+        for (const { pair, from, to } of wanted) {
+          const meta = { from: pair.from, to: pair.to, profile: profileId };
+          let result = await measureSwitch(context, `${baseUrl}${from}`, to, meta);
+          if (result.error) result = await measureSwitch(context, `${baseUrl}${from}`, to, meta);
+          switchResults.push(result);
+          console.log(
+            `[switch] ${pair.from}→${pair.to} ${profileId} — ${result.error ? `ERROR ${result.error}` : `CLS ${result.cls}; held ${result.held?.cls}`}`,
+          );
+        }
+      } finally {
+        await context.close().catch(() => {});
+      }
+    }
+    const switchPath = path.join(outDir, "switch.json");
+    const thisSwitch = switchResults;
+    if (partial) switchResults = mergeSwitch(readJson<SwitchResult[]>(switchPath) ?? [], switchResults);
+    if (thisSwitch.length > 0 || !fs.existsSync(switchPath)) fs.writeFileSync(switchPath, JSON.stringify(switchResults, null, 2) + "\n");
+    switchResults = thisSwitch;
+  }
+
   // This run's own records. A partial run merges them into the out dir's
   // existing manifest below, but the verdict still counts them on their own:
   // a re-run that captured nothing must fail even when the merged manifest
@@ -939,7 +1013,7 @@ async function audit(
 
   // A run of only the resize crawl and/or CLS has no captures to judge, and
   // must not leave an empty manifest behind in a fresh out dir.
-  const modesOnly = specs.length === 0 && resizeResults.length + clsResults.length > 0;
+  const modesOnly = specs.length === 0 && resizeResults.length + clsResults.length + switchResults.length > 0;
   console.log("");
   if (!modesOnly || fs.existsSync(manifestPath)) {
     fs.writeFileSync(manifestPath, JSON.stringify(manifest, null, 2) + "\n");
@@ -948,7 +1022,7 @@ async function audit(
   if (!modesOnly) console.log(summarise(manifest, allFindings, thisRun));
   else console.log(`out: ${outDir}`);
 
-  const modeErrors = [...resizeResults, ...clsResults].filter((r) => r.error !== undefined);
+  const modeErrors = [...resizeResults, ...clsResults, ...switchResults].filter((r) => r.error !== undefined);
   if (resizeResults.length > 0) {
     const hits = resizeResults.reduce((n, r) => n + r.findings.length, 0);
     const stuck = resizeResults.reduce((n, r) => n + r.notRecovered.length, 0);
@@ -956,6 +1030,9 @@ async function audit(
   }
   if (clsResults.length > 0) {
     console.log(`layout shift (as is / throttled): ${clsResults.map((r) => `${r.label} ${r.cls} / ${r.throttled?.cls ?? "–"}`).join(", ")}`);
+  }
+  if (switchResults.length > 0) {
+    console.log(`section switch (as is / held): ${switchResults.map((r) => `${r.from}→${r.to} ${r.profile} ${r.cls} / ${r.held?.cls ?? "–"}`).join(", ")}`);
   }
   for (const r of modeErrors) console.log(`ERROR ${r.id}: ${r.error}`);
 
