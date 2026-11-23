@@ -127,6 +127,19 @@ describe("GlobeView — Playground kit shape", () => {
     expect(screen.getByText("Tap the map to drop a marker")).toBeInTheDocument();
   });
 
+  it("holds the map's space in a box the server draws, with its fallback contained, with or without markers", () => {
+    for (const list of [markers, []]) {
+      const { unmount } = render(<GlobeView markers={list} members={[]} />);
+      const box = screen.getByText("Tap the map to drop a marker").previousElementSibling!;
+      expect(box.className).toContain("h-[260px]");
+      expect(box.className).toContain("lg:h-[calc(100dvh-4.5rem)]");
+      expect(box.className).toContain("lg:min-h-[460px]");
+      expect(box.className).toContain("[&_[data-map-fallback]]:max-h-full");
+      expect(box.className).toContain("[&_[data-map-fallback]]:overflow-y-auto");
+      unmount();
+    }
+  });
+
   it("keeps the map column sticky under the top chrome on desktop (ruling R3)", () => {
     render(<GlobeView markers={[]} members={[]} />);
     const column = screen.getByText("Tap the map to drop a marker").parentElement!;
