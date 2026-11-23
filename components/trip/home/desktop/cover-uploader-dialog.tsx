@@ -10,6 +10,7 @@ export interface CoverUploaderDialogProps {
   coverVersion?: string | null;
   focalX?: number | null;
   focalY?: number | null;
+  aspect?: number | null;
   /** The button that opens it (rendered as the Radix trigger, asChild). */
   trigger: ReactElement;
 }
@@ -19,7 +20,7 @@ export interface CoverUploaderDialogProps {
  * point) in a dialog, so the desktop Home's countdown tile can open it in
  * place ("Change" on the polaroid, "+ Add a photo" without one).
  */
-export function CoverUploaderDialog({ tripId, hasCover, coverVersion, focalX, focalY, trigger }: CoverUploaderDialogProps) {
+export function CoverUploaderDialog({ tripId, hasCover, coverVersion, focalX, focalY, aspect, trigger }: CoverUploaderDialogProps) {
   return (
     <Dialog>
       <DialogTrigger asChild>{trigger}</DialogTrigger>
@@ -33,6 +34,7 @@ export function CoverUploaderDialog({ tripId, hasCover, coverVersion, focalX, fo
           coverVersion={coverVersion}
           focalX={focalX}
           focalY={focalY}
+          aspect={aspect}
         />
       </DialogContent>
     </Dialog>

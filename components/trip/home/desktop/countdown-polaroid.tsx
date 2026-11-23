@@ -52,6 +52,7 @@ export function CountdownPolaroid({ tripId, url, aspect, version, focalX, focalY
         coverVersion={version}
         focalX={focalX}
         focalY={focalY}
+        aspect={aspect}
         trigger={
           <button
             type="button"

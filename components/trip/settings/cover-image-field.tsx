@@ -23,6 +23,7 @@ export interface CoverImageFieldProps {
   aspect?: number | null;
 }
 
+// Only a placeholder until the photo loads: 4/3 is the one cover ratio the app already uses (the Home polaroid), and uploads are not cropped so no single ratio is exact.
 const COVER_FALLBACK_ASPECT = "4 / 3";
 
 /** The real picker, visually hidden; the Field's label and the Choose photo button both reach it. */
@@ -153,7 +154,7 @@ export function CoverImageField({ tripId, hasCover, coverVersion, focalX, focalY
               src={`/api/trips/${tripId}/cover${coverVersion ? `?v=${encodeURIComponent(coverVersion)}` : ""}`}
               alt=""
               className="block h-auto w-full"
-              style={{ aspectRatio: aspect ?? COVER_FALLBACK_ASPECT }}
+              style={{ aspectRatio: `auto ${aspect != null ? `${aspect} / 1` : COVER_FALLBACK_ASPECT}` }}
             />
             <span
               data-testid="cover-focal-marker"

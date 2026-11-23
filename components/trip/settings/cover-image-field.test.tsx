@@ -252,12 +252,20 @@ describe("CoverImageField", () => {
 
     it("carries the stored aspect from the first render", () => {
       const { container } = render(<CoverImageField tripId="t1" hasCover aspect={0.75} />);
-      expect(previewImg(container).style.aspectRatio).toBe("0.75 / 1");
+      expect(previewImg(container).style.aspectRatio).toBe("auto 0.75 / 1");
     });
 
     it("falls back to 4/3 when the stored aspect is null", () => {
       const { container } = render(<CoverImageField tripId="t1" hasCover aspect={null} />);
-      expect(previewImg(container).style.aspectRatio).toBe("4 / 3");
+      expect(previewImg(container).style.aspectRatio).toBe("auto 4 / 3");
+    });
+
+    it("reserves the ratio only until the photo loads, never as a plain ratio", () => {
+      for (const aspect of [0.75, null]) {
+        const { container, unmount } = render(<CoverImageField tripId="t1" hasCover aspect={aspect} />);
+        expect(previewImg(container).style.aspectRatio.startsWith("auto ")).toBe(true);
+        unmount();
+      }
     });
 
     it("shows no preview without a cover", () => {
