@@ -164,9 +164,9 @@ it("defaultOpen starts expanded (the stay panel opens a block this way)", () => 
 
 it("marks a stay that needs a confirmation, and only that one", () => {
   const { rerender } = render(<AccommodationRow accommodation={accommodation} stop={stop} />);
-  expect(screen.queryByText("No booking confirmation yet")).not.toBeInTheDocument();
+  expect(screen.queryByText("No booking confirmation attached")).not.toBeInTheDocument();
   rerender(<AccommodationRow accommodation={accommodation} stop={stop} needsConfirmation />);
-  expect(screen.getByText("No booking confirmation yet")).toBeInTheDocument();
+  expect(screen.getByText("No booking confirmation attached")).toBeInTheDocument();
 });
 
 describe("a stay that is being deleted", () => {

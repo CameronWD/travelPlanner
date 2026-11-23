@@ -52,10 +52,10 @@ vi.mock("@/server/actions/booking-confirmation", () => ({ setNothingToAttach: vi
 describe("DaySection booking confirmation marker", () => {
   it("marks only the rows that need a confirmation", () => {
     const { unmount } = renderDay();
-    expect(screen.queryByText("No booking confirmation yet")).toBeNull();
+    expect(screen.queryByText("No booking confirmation attached")).toBeNull();
     unmount();
     renderDay({ needsConfirmationIds: new Set(["b"]) });
-    expect(screen.getAllByText("No booking confirmation yet")).toHaveLength(1);
+    expect(screen.getAllByText("No booking confirmation attached")).toHaveLength(1);
   });
 });
 

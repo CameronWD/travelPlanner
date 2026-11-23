@@ -20,10 +20,10 @@ import { BookingConfirmationMarker } from "./booking-confirmation-marker";
 describe("BookingConfirmationMarker", () => {
   beforeEach(() => vi.clearAllMocks());
 
-  it("says there is no confirmation and offers a plain Doesn't need one button", () => {
+  it("says there is no confirmation and offers a plain Nothing to attach button", () => {
     render(<BookingConfirmationMarker kind="TRANSPORT" id="t1" />);
-    expect(screen.getByText("No booking confirmation yet")).toBeInTheDocument();
-    const button = screen.getByRole("button", { name: "Doesn’t need one" });
+    expect(screen.getByText("No booking confirmation attached")).toBeInTheDocument();
+    const button = screen.getByRole("button", { name: "Nothing to attach" });
     expect(button.className).not.toMatch(/underline/);
   });
 
@@ -36,7 +36,7 @@ describe("BookingConfirmationMarker", () => {
   it("says it is working while the save is unresolved and ignores a second click", async () => {
     vi.mocked(setNothingToAttach).mockReturnValueOnce(new Promise(() => {}));
     render(<BookingConfirmationMarker kind="TRANSPORT" id="t1" />);
-    const button = screen.getByRole("button", { name: "Doesn’t need one" });
+    const button = screen.getByRole("button", { name: "Nothing to attach" });
     await userEvent.click(button);
     await waitFor(() => expect(button).toHaveAttribute("aria-busy", "true"));
     expect(button).toBeDisabled();
@@ -46,15 +46,16 @@ describe("BookingConfirmationMarker", () => {
 
   it("saves for the kind and id, refreshes and offers Undo", async () => {
     render(<BookingConfirmationMarker kind="ACCOMMODATION" id="a1" />);
-    await userEvent.click(screen.getByRole("button", { name: "Doesn’t need one" }));
+    await userEvent.click(screen.getByRole("button", { name: "Nothing to attach" }));
     await waitFor(() => expect(refreshMock).toHaveBeenCalledTimes(1));
     expect(setNothingToAttach).toHaveBeenCalledWith("ACCOMMODATION", "a1", true);
     expect(toastWithUndo).toHaveBeenCalledTimes(1);
+    expect(vi.mocked(toastWithUndo).mock.calls[0][0].title).toBe("Marked as nothing to attach");
   });
 
   it("Undo clears the flag and refreshes again", async () => {
     render(<BookingConfirmationMarker kind="ACCOMMODATION" id="a1" />);
-    await userEvent.click(screen.getByRole("button", { name: "Doesn’t need one" }));
+    await userEvent.click(screen.getByRole("button", { name: "Nothing to attach" }));
     await waitFor(() => expect(toastWithUndo).toHaveBeenCalled());
     vi.mocked(toastWithUndo).mock.calls[0][0].onUndo();
     await waitFor(() => expect(setNothingToAttach).toHaveBeenCalledWith("ACCOMMODATION", "a1", false));
@@ -64,7 +65,7 @@ describe("BookingConfirmationMarker", () => {
   it("toasts the server's reason and does not refresh when it refuses", async () => {
     vi.mocked(setNothingToAttach).mockResolvedValueOnce({ success: false, errors: { _: ["Not allowed."] } });
     render(<BookingConfirmationMarker kind="ITEM" id="i1" />);
-    await userEvent.click(screen.getByRole("button", { name: "Doesn’t need one" }));
+    await userEvent.click(screen.getByRole("button", { name: "Nothing to attach" }));
     await waitFor(() => expect(toast).toHaveBeenCalledWith({ variant: "destructive", title: "Not allowed." }));
     expect(refreshMock).not.toHaveBeenCalled();
     expect(toastWithUndo).not.toHaveBeenCalled();
@@ -73,7 +74,7 @@ describe("BookingConfirmationMarker", () => {
   it("falls back to a plain message when the call throws", async () => {
     vi.mocked(setNothingToAttach).mockRejectedValueOnce(new Error("offline"));
     render(<BookingConfirmationMarker kind="ITEM" id="i1" />);
-    await userEvent.click(screen.getByRole("button", { name: "Doesn’t need one" }));
+    await userEvent.click(screen.getByRole("button", { name: "Nothing to attach" }));
     await waitFor(() =>
       expect(toast).toHaveBeenCalledWith({ variant: "destructive", title: SOMETHING_WENT_WRONG }),
     );

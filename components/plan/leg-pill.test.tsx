@@ -197,10 +197,10 @@ describe("LegPill Booking state (spec 2026-10-17 R2)", () => {
 
   it("marks a booked leg with no confirmation, except on a compact pill", () => {
     const { rerender } = render(<LegPill label={FLIGHT} onClick={vi.fn()} />);
-    expect(screen.queryByText("No booking confirmation yet")).toBeNull();
+    expect(screen.queryByText("No booking confirmation attached")).toBeNull();
     rerender(<LegPill label={FLIGHT} onClick={vi.fn()} marker={{ kind: "TRANSPORT", id: "t1" }} />);
-    expect(screen.getByText("No booking confirmation yet")).toBeInTheDocument();
+    expect(screen.getByText("No booking confirmation attached")).toBeInTheDocument();
     rerender(<LegPill label={FLIGHT} onClick={vi.fn()} compact marker={{ kind: "TRANSPORT", id: "t1" }} />);
-    expect(screen.queryByText("No booking confirmation yet")).toBeNull();
+    expect(screen.queryByText("No booking confirmation attached")).toBeNull();
   });
 });

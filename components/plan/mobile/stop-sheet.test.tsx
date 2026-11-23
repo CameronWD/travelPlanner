@@ -245,14 +245,14 @@ describe("StopSheet, a Surprise (CONTEXT.md Surprise)", () => {
 describe("StopSheet booking confirmation marker", () => {
   it("marks a day row and an idea that need a confirmation", async () => {
     renderSheet({ needsConfirmationIds: new Set(["b", "i1"]) });
-    expect(within(screen.getByTestId("sheet-day-2026-12-11")).getByText("No booking confirmation yet")).toBeInTheDocument();
+    expect(within(screen.getByTestId("sheet-day-2026-12-11")).getByText("No booking confirmation attached")).toBeInTheDocument();
     await userEvent.click(screen.getByRole("radio", { name: "Ideas 1" }));
-    expect(screen.getByText("No booking confirmation yet")).toBeInTheDocument();
+    expect(screen.getByText("No booking confirmation attached")).toBeInTheDocument();
   });
 
   it("shows nothing when none needs one", () => {
     renderSheet();
-    expect(screen.queryByText("No booking confirmation yet")).toBeNull();
+    expect(screen.queryByText("No booking confirmation attached")).toBeNull();
   });
 });
 

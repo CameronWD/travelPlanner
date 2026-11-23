@@ -305,7 +305,7 @@ describe("Timeline — check-in and check-out are rows on the Day view", () => {
     expect(screen.queryByText(/^check-in$/i)).toBeNull();
     expect(container.querySelector('[data-slot="stay-band"]')).toBeNull();
     expect(row).not.toHaveTextContent("HX-4471");
-    expect(row).not.toHaveTextContent("No booking confirmation yet");
+    expect(row).not.toHaveTextContent("No booking confirmation attached");
   });
 
   it("check-in without a time still has an (empty) time column", () => {
@@ -1429,7 +1429,7 @@ describe("Try list on the Timeline (CONTEXT.md Try list)", () => {
 });
 
 describe("Timeline: booking confirmation marker", () => {
-  const MARKER = /No booking confirmation yet/;
+  const MARKER = /No booking confirmation attached/;
 
   it("marks a timed item, an untimed item, a transport row and a check-in row listed by id", () => {
     render(<Timeline day={dayPlan} variant="day" needsConfirmationIds={[ITEM_ID, UNTIMED_ITEM_ID]} />);
@@ -1452,7 +1452,7 @@ describe("Timeline: booking confirmation marker", () => {
     render(<Timeline day={dayPlanWithTransport} variant="day" editor={editor} needsConfirmationIds={["tr-1"]} />);
     render(<Timeline day={dayPlanWithCheckin} variant="day" editor={editor} needsConfirmationIds={["acc-1"]} />);
     expect(screen.queryByText(MARKER)).toBeNull();
-    expect(screen.queryByRole("button", { name: "Doesn't need one" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Nothing to attach" })).toBeNull();
   });
 
   it("keeps the marker while planning (readFirst false)", () => {

@@ -63,8 +63,7 @@ describe("OVERLAYS", () => {
       }
   });
   it("the never-click list matches a straight or curly apostrophe, and names the Reviews buttons", () => {
-    expect(isSubmitLabel("Doesn\u2019t need one")).toBe(true);
-    expect(isSubmitLabel("Doesn't need one")).toBe(true);
+    expect(isSubmitLabel("Nothing to attach")).toBe(true);
     for (const l of ["Standard Review", "Deep Review", "Start Deep Review"]) expect(isSubmitLabel(l)).toBe(true);
     expect(normaliseApostrophes("\u2018a\u2019")).toBe("'a'");
   });
