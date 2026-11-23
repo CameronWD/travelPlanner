@@ -302,7 +302,7 @@ export function DayStrip({ tripId, dates, line, size }: { tripId: string; dates:
               />
               <span className="text-[11px] font-bold leading-none">{WEEKDAY[dt.getUTCDay()]}</span>
               <span className="mt-0.5 font-display text-[20px] font-extrabold leading-none">{dt.getUTCDate()}</span>
-              <span className="mt-1 flex h-1.5 gap-1">
+              <span className="mt-1 flex h-1.5 w-[26px] justify-start gap-1">
                 {Array.from({ length: dots }, (_, i) => <span key={i} data-dot className="size-1.5 rounded-full bg-current" />)}
               </span>
               {d.holiday ? <span data-holiday aria-hidden="true" className="absolute right-1.5 top-1.5 size-1.5 rotate-45 border border-current" /> : null}
