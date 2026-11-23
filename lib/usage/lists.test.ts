@@ -44,8 +44,10 @@ const LISTS = {
   site: USAGE_SITES,
 } as const;
 
+const DATABASE_LISTS = { phase: USAGE_PHASES, mode: OPEN_MODES, site: USAGE_SITES } as const;
+
 describe("the Usage lists", () => {
-  it.each(Object.entries(LISTS))("the migration's %s CHECK holds exactly the list", (column, list) => {
+  it.each(Object.entries(DATABASE_LISTS))("the migration's %s CHECK holds exactly the list", (column, list) => {
     const values = checkedValues(column);
     expect(values).toHaveLength(list.length);
     expect(new Set(values)).toEqual(new Set(list));

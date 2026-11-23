@@ -8,7 +8,7 @@ not stop. Say which to change. The spec is `docs/specs/2026-11-24-usage.md`.
 | Id | Built as | The other way |
 |---|---|---|
 | U1 | Two tables in the one migration: `UsageRecord` and a one-row `UsageSwitch` (no row means on). | A key-value settings table, or the `OperatorNotice` ledger. |
-| U2 | The database CHECKs every name against the lists; adding a name needs a migration. | App-side validation only, as other enum-ish columns here. |
+| U2 | The app checks every name against the lists (`lib/usage/validate.ts`); the database does not. Changed 2026-11-24 at Cam's request: adding a name is a code change, not a migration. | App-side validation only, as other enum-ish columns here. |
 | U3 | A record with any unexpected key is dropped whole; bad records drop one by one, never the batch. | Strip unknown keys and keep the rest. |
 | U4 | `fetch` with `keepalive` for every send. | `sendBeacon` on hide. |
 | U5 | At least once: a record leaves the queue only after a 2xx; a page killed between its hide flush landing and its removal sends it twice. | At most once: take before sending and lose a batch that fails while the page is frozen. |

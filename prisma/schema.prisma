@@ -1601,8 +1601,8 @@ model GoogleUsage {
 }
 
 /// CONTEXT.md "Usage" (spec 2026-11-24, ADR 0078): one screen opened or one
-/// named action. Every name column is held to lib/usage/lists.ts by CHECK
-/// constraints in the migration, so no column can hold free text. No
+/// named action. Every name column is held to lib/usage/lists.ts by
+/// lib/usage/validate.ts, so no column can hold free text. No
 /// relations: a row outlives its Trip and its Traveller, like AiUsage.
 model UsageRecord {
   id         String   @id @default(cuid())
