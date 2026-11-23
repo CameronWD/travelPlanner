@@ -10,5 +10,10 @@ const noSlotOnServer = () => null;
 
 export function TopBarBell({ tripId, unreadCount, recent }: { tripId: string; unreadCount: number; recent: RecentActivity[] }) {
   const slot = useSyncExternalStore(noop, findSlot, noSlotOnServer);
-  return slot ? createPortal(<NotificationBell tripId={tripId} unreadCount={unreadCount} recent={recent} />, slot) : null;
+  return (
+    <>
+      <span hidden data-top-bar-bell />
+      {slot ? createPortal(<NotificationBell tripId={tripId} unreadCount={unreadCount} recent={recent} />, slot) : null}
+    </>
+  );
 }
