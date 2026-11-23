@@ -1,7 +1,5 @@
 import { describe, it, expect, vi, afterEach } from "vitest";
 import { render, screen, cleanup } from "@testing-library/react";
-import { renderToString } from "react-dom/server";
-import { readFileSync } from "node:fs";
 
 vi.mock("@/components/trip/notification-bell", () => ({
   NotificationBell: ({ tripId, unreadCount }: { tripId: string; unreadCount: number }) => <button aria-label="Notifications" data-trip={tripId} data-unread={unreadCount} />,
@@ -29,7 +27,7 @@ describe("TopBarBell", () => {
     expect(slot).toContainElement(bell);
     expect(bell).toHaveAttribute("data-unread", "3");
   });
-  it("renders nothing when there is no slot", () => {
+  it("renders no bell when there is no slot", () => {
     render(<TopBarBell tripId="t1" unreadCount={3} recent={[]} />);
     expect(screen.queryByRole("button", { name: "Notifications" })).toBeNull();
   });
@@ -39,15 +37,5 @@ describe("TopBarBell", () => {
     expect(slot.children).toHaveLength(1);
     unmount();
     expect(slot.children).toHaveLength(0);
-  });
-  it("carries a marker in its server markup, before any slot exists", () => {
-    expect(renderToString(<TopBarBell tripId="t1" unreadCount={3} recent={[]} />)).toContain("data-top-bar-bell");
-  });
-  it("makes the layout's slot reserve the bell's 44px only under that marker", () => {
-    const layout = readFileSync("app/(app)/layout.tsx", "utf8");
-    const slot = layout.match(/id="top-bar-trip-slot"\s+className="([^"]+)"/)?.[1] ?? "";
-    expect(slot).toContain("[body:has([data-top-bar-bell])_&]:min-w-11");
-    expect(slot).toContain("[body:not(:has([data-top-bar-bell]))_&]:empty:hidden");
-    expect(slot).not.toMatch(/(^|\s)(min-w-\S+|empty:hidden)/);
   });
 });

@@ -33,6 +33,7 @@ import { SessionKeepalive } from "@/components/account/session-keepalive";
 import { UsageRecorder } from "@/components/usage/usage-recorder";
 import { OnTripPath, OutsideTrip } from "@/components/app-rail";
 import { AppTabBar } from "@/components/shell/app-tab-bar";
+import { TopBarTripSlot } from "@/components/shell/top-bar-trip-slot";
 import { NavigationPendingProvider } from "@/components/navigation/navigation-pending";
 import { NavigationProgress } from "@/components/navigation/navigation-progress";
 import { SectionTransition } from "@/components/navigation/section-transition";
@@ -173,6 +174,8 @@ export default async function AppLayout({
             there is no rail and the phone tab bar has no Globe.
           */}
           <div className="flex items-center gap-1 sm:gap-2">
+            {/* Left end of the group, so the Day view's bell arriving or leaving moves nothing else. */}
+            <TopBarTripSlot />
             <CommandPaletteTrigger />
             <AppLink
               href="/globe"
@@ -180,12 +183,6 @@ export default async function AppLayout({
             >
               Globe
             </AppLink>
-            {/* The Day view portals its bell in here (TopBarBell). Its server markup
-                carries [data-top-bar-bell], so the 44px is held before the bell lands. */}
-            <div
-              id="top-bar-trip-slot"
-              className="flex items-center [body:has([data-top-bar-bell])_&]:min-w-11 [body:not(:has([data-top-bar-bell]))_&]:empty:hidden"
-            />
 
             {/* Traveller avatar dropdown. A real 44px box around the 36px
                 avatar — tap-target's ::before poked 4px past a 360px screen. */}
