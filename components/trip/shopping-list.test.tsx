@@ -154,6 +154,28 @@ describe("ShoppingList", () => {
     expect(toast).toHaveBeenCalled();
   });
 
+  it("a second tap while the first save is in flight sends the opposite value", async () => {
+    const settle = hold(setBuyState);
+    const user = userEvent.setup();
+    render(<ShoppingList tripId="trip-1" entries={entries} />);
+    const box = screen.getByRole("checkbox", { name: /^Jacket/ });
+    await user.click(box);
+    await user.click(box);
+    expect(setBuyState).toHaveBeenNthCalledWith(1, "p1", "BOUGHT");
+    expect(setBuyState).toHaveBeenNthCalledWith(2, "p1", "NEEDED");
+    expect(box).not.toBeChecked();
+    await settle({ success: true });
+  });
+
+  it("the tick is disabled while a Remove is in flight", async () => {
+    const settle = hold(setBuyState);
+    const user = userEvent.setup();
+    render(<ShoppingList tripId="trip-1" entries={entries} />);
+    await user.click(screen.getAllByRole("button", { name: /remove/i })[0]);
+    expect(screen.getByRole("checkbox", { name: /^Jacket/ })).toBeDisabled();
+    await settle({ success: true });
+  });
+
   it("Remove says it is working while the change runs, and a second click does nothing", async () => {
     const settle = hold(setBuyState);
     const user = userEvent.setup();

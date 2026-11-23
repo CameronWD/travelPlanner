@@ -102,13 +102,14 @@ function ShoppingRow({ entry }: { entry: ShoppingEntry }) {
   const [bought, setBought] = React.useOptimistic(entry.bought, (_, next: boolean) => next);
 
   function toggle() {
+    const next = !bought;
     React.startTransition(async () => {
-      setBought(!entry.bought);
+      setBought(next);
       try {
         const r =
           entry.source === "packing"
-            ? await setBuyState(entry.id, entry.bought ? "NEEDED" : "BOUGHT")
-            : await toggleChecklistItem(entry.id, !entry.bought);
+            ? await setBuyState(entry.id, next ? "BOUGHT" : "NEEDED")
+            : await toggleChecklistItem(entry.id, next);
         if (!r.success) toastRefused(r.errors, "Couldn’t update that item.");
       } catch {
         toastRejected("Couldn’t update that item.");
@@ -139,6 +140,7 @@ function ShoppingRow({ entry }: { entry: ShoppingEntry }) {
         <Checkbox
           checked={bought}
           onChange={toggle}
+          disabled={pending}
           className="min-w-0 flex-1 py-1 text-sm font-semibold leading-snug"
           label={
             <span className="flex min-w-0 flex-col gap-0.5">
