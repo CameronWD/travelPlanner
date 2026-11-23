@@ -26,10 +26,10 @@ describe("root layout PWA metadata", () => {
   it("declares the app as an Apple web app", () => {
     expect(metadata.appleWebApp).toMatchObject({ capable: true, title: "Teepee" });
   });
-  it("declares a launch image per device and colour scheme", () => {
+  it("declares a launch image per device", () => {
     const web = metadata.appleWebApp;
     const images = typeof web === "object" && web !== null ? web.startupImage : undefined;
-    expect(images).toHaveLength(22);
+    expect(images).toHaveLength(11);
     expect(images).toEqual(startupImages());
   });
   // Dark mode is parked (spec 2026-10-04 §F): one light address-bar colour,

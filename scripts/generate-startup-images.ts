@@ -15,13 +15,12 @@ import {
   LOADER_CENTRE_OF_VIEWPORT,
   startupImageName,
   type StartupSize,
-  type StartupTheme,
 } from "@/lib/startup-images";
 
 const CORAL = "#FF6B4A";
 
-function svgFor(size: StartupSize, theme: StartupTheme): string {
-  const { background, ink } = STARTUP_THEMES[theme];
+function svgFor(size: StartupSize): string {
+  const { background, ink } = STARTUP_THEMES.light;
   const centreY = size.safeTop + TOP_BAR + LOADER_CENTRE_OF_VIEWPORT * size.height;
   const groupHeight = MARK_SIZE + GAP + WORD_HEIGHT;
   const top = centreY - groupHeight / 2;
@@ -52,8 +51,7 @@ function launchPage(): string {
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="robots" content="noindex">
-<meta name="theme-color" content="${light.background}" media="(prefers-color-scheme: light)">
-<meta name="theme-color" content="${dark.background}" media="(prefers-color-scheme: dark)">
+<meta name="theme-color" content="${light.background}">
 <title>Teepee</title>
 <style>
 html{background:${light.background}!important;color:${light.ink}}
@@ -112,10 +110,8 @@ async function main() {
   const outDir = join(process.cwd(), "public", "splash");
   mkdirSync(outDir, { recursive: true });
   for (const size of STARTUP_SIZES) {
-    for (const theme of ["light", "dark"] as const) {
-      const png = await sharp(Buffer.from(svgFor(size, theme))).png({ compressionLevel: 9, palette: true }).toBuffer();
-      writeFileSync(join(outDir, startupImageName(size, theme)), png);
-    }
+    const png = await sharp(Buffer.from(svgFor(size))).png({ compressionLevel: 9, palette: true }).toBuffer();
+    writeFileSync(join(outDir, startupImageName(size)), png);
   }
 }
 

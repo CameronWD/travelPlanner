@@ -13,28 +13,22 @@ export const STARTUP_SIZES = [
 ] as const;
 
 export type StartupSize = (typeof STARTUP_SIZES)[number];
-export type StartupTheme = "light" | "dark";
 
 export const STARTUP_THEMES = {
   light: { background: "#FFFBF3", ink: "#1D1D1B" },
   dark: { background: "#211F1B", ink: "#EDE6D8" },
 } as const;
 
-export function startupImageName(size: StartupSize, theme: StartupTheme): string {
-  return `iphone-${size.width}x${size.height}@${size.ratio}x-${theme}.png`;
+export function startupImageName(size: StartupSize): string {
+  return `iphone-${size.width}x${size.height}@${size.ratio}x.png`;
 }
 
-export function startupImageMedia(size: StartupSize, theme: StartupTheme): string {
-  return `(device-width: ${size.width}px) and (device-height: ${size.height}px) and (-webkit-device-pixel-ratio: ${size.ratio}) and (orientation: portrait) and (prefers-color-scheme: ${theme})`;
+export function startupImageMedia(size: StartupSize): string {
+  return `(device-width: ${size.width}px) and (device-height: ${size.height}px) and (-webkit-device-pixel-ratio: ${size.ratio}) and (orientation: portrait)`;
 }
 
 export function startupImages(): { url: string; media: string }[] {
-  return STARTUP_SIZES.flatMap((size) =>
-    (["light", "dark"] as const).map((theme) => ({
-      url: `/splash/${startupImageName(size, theme)}`,
-      media: startupImageMedia(size, theme),
-    })),
-  );
+  return STARTUP_SIZES.map((size) => ({ url: `/splash/${startupImageName(size)}`, media: startupImageMedia(size) }));
 }
 
 export const LAUNCH_TARGET = "/";

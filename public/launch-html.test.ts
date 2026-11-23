@@ -39,6 +39,14 @@ describe("public/launch.html", () => {
     expect(HTML).toContain(`html.dark{background:${STARTUP_THEMES.dark.background}!important`);
   });
 
+  it("while the app forces its theme, ignores the phone's colour scheme", () => {
+    expect(FORCED_THEME).toBe("light");
+    expect(HTML).not.toContain("prefers-color-scheme");
+    expect(HTML).not.toContain("matchMedia");
+    expect(HTML.match(/name="theme-color"/g)).toHaveLength(1);
+    expect(HTML).toContain(`<meta name="theme-color" content="${STARTUP_THEMES.light.background}">`);
+  });
+
   it("is a status page that names itself, is not indexed and uses the app's viewport", () => {
     expect(HTML).toContain('role="status"');
     expect(HTML).toContain('<span class="sr-only">Loading</span>');
