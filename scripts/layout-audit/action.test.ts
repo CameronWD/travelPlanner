@@ -1,5 +1,19 @@
+import * as fs from "node:fs";
+import * as os from "node:os";
+import * as path from "node:path";
 import { describe, expect, it } from "vitest";
-import { ACTION_FLOWS, ADD_ITEM_RECIPES, mergeAction, splitShifts, summariseAction, type ActionShiftResult } from "./action";
+import {
+  ACTION_FLOWS,
+  ADD_ITEM_RECIPES,
+  clearInFlight,
+  isAuditName,
+  mergeAction,
+  readInFlight,
+  recordInFlight,
+  splitShifts,
+  summariseAction,
+  type ActionShiftResult,
+} from "./action";
 import { ROUTES } from "./config";
 import type { ShiftEntry } from "./loading";
 import { isSubmitLabel } from "./overlays";
@@ -66,5 +80,32 @@ describe("mergeAction", () => {
       ["action/vote/iphone17-pwa", 0.2],
       ["action/cost-add/1440", 0.3],
     ]);
+  });
+});
+
+describe("isAuditName", () => {
+  it("knows the names the add flows give what they add, and nothing else", () => {
+    expect(isAuditName("Audit item 20261123041940")).toBe(true);
+    expect(isAuditName("Audit cost 20261123041940")).toBe(true);
+    expect(isAuditName("Audit paid 20261123041940")).toBe(true);
+    expect(isAuditName("Audit item manual")).toBe(true);
+    expect(isAuditName("Auditorium tour")).toBe(false);
+    expect(isAuditName("Christmas gifts for each other")).toBe(false);
+  });
+});
+
+describe("the in-flight journal", () => {
+  const file = () => path.join(fs.mkdtempSync(path.join(os.tmpdir(), "action-journal-")), "action-in-flight.json");
+  it("reads as empty when there is no file", () => expect(readInFlight(file())).toEqual({}));
+  it("keeps each change until it is cleared, then removes the file", () => {
+    const f = file();
+    recordInFlight(f, "action/vote/1440", { flow: "vote", profile: "1440", change: { url: "http://localhost:3000/w", testId: "item-card-1", level: "Must" } });
+    recordInFlight(f, "action/checklist-tick/1440", { flow: "checklist-tick", profile: "1440", change: { url: "http://localhost:3000/c", name: "Set up eSIM" } });
+    expect(Object.keys(readInFlight(f))).toEqual(["action/vote/1440", "action/checklist-tick/1440"]);
+    expect(readInFlight(f)["action/vote/1440"].change.level).toBe("Must");
+    clearInFlight(f, "action/vote/1440");
+    expect(Object.keys(readInFlight(f))).toEqual(["action/checklist-tick/1440"]);
+    clearInFlight(f, "action/checklist-tick/1440");
+    expect(fs.existsSync(f)).toBe(false);
   });
 });

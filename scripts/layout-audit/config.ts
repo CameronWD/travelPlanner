@@ -209,19 +209,24 @@ export const ROUTES: RouteDef[] = [
 
 export type SetName = "deep" | "phase" | "empty" | "dark" | "print" | "overlay" | "loading";
 
-/** Everything a run can do: the matrix's sets plus the two modes that are
- * not per-capture (the resize crawl and the layout-shift measurements). */
+/** Everything a run can do: the matrix's sets plus the modes that are not
+ * per-capture (the resize crawl and the layout-shift measurements). */
 export const ALL_SETS = ["deep", "phase", "empty", "dark", "print", "overlay", "loading", "resize", "cls", "switch", "action"] as const;
 export type RunSet = (typeof ALL_SETS)[number];
 
-/** LAYOUT_AUDIT_SETS: a comma list of RunSet names; unset or blank = all.
- * Throws on an unknown name, so a typo can't silently run nothing. */
+/** What an unset LAYOUT_AUDIT_SETS runs: everything but "action", which
+ * writes to the demo trip (and puts it back) and so must be named. */
+export const DEFAULT_SETS: readonly RunSet[] = ALL_SETS.filter((s) => s !== "action");
+
+/** LAYOUT_AUDIT_SETS: a comma list of RunSet names; unset or blank =
+ * DEFAULT_SETS. Throws on an unknown name, so a typo can't silently run
+ * nothing. */
 export function parseSets(raw: string | undefined): Set<RunSet> {
   const names = (raw ?? "")
     .split(",")
     .map((s) => s.trim())
     .filter(Boolean);
-  if (names.length === 0) return new Set(ALL_SETS);
+  if (names.length === 0) return new Set(DEFAULT_SETS);
   for (const n of names) {
     if (!(ALL_SETS as readonly string[]).includes(n)) {
       throw new Error(`LAYOUT_AUDIT_SETS: unknown set "${n}" (expected any of ${ALL_SETS.join(", ")})`);

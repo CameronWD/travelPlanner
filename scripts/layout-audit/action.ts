@@ -19,7 +19,16 @@
  * keeps its paid amount as history (`markCostUnpaid`), which To pay then
  * shows as "Paid · date missing", so marking an existing Cost paid and
  * unpaid again would change the demo trip for good.
+ *
+ * AN INTERRUPTED RUN (killed between `act` and `undo`) is cleared up at the
+ * start of the next one, by `recoverActions`: each change is written to
+ * `<out>/action-in-flight.json` before its committing click and taken off it
+ * once undone, so a re-run into the same out dir puts back the tick or vote
+ * it left; and anything named "Audit item …", "Audit cost …" or "Audit paid
+ * …" on Budget or on the `day` route's day is deleted, whatever the out dir.
  */
+
+import * as fs from "node:fs";
 
 import type { BrowserContext, Locator, Page, Request, Route } from "playwright";
 
@@ -29,11 +38,23 @@ import { openOverlay, OVERLAYS, type OverlayRecipe } from "./overlays";
 
 type Shifts = Pick<ClsResult, "total" | "shifts" | "largest">;
 
+/** What a flow changed and how to find it again: enough to put it back from
+ * a later run. */
+export type InFlight = { url: string } & Record<string, string | null>;
+
 export interface ActionFlow {
   id: "checklist-tick" | "item-add" | "cost-add" | "vote" | "mark-paid";
   routeLabel: string;
   act(page: Page): Promise<void>;
   undo(page: Page): Promise<void>;
+  /** Puts back a change, on a fresh load, and checks it is back. */
+  restore(page: Page, change: InFlight): Promise<void>;
+}
+
+export interface InFlightEntry {
+  flow: ActionFlow["id"];
+  profile: string;
+  change: InFlight;
 }
 
 export interface ActionShiftResult {
@@ -84,6 +105,7 @@ function serverAnswer(page: Page): Promise<void> {
 }
 
 const committed = new WeakMap<Page, Promise<void>>();
+const noting = new WeakMap<Page, (change: InFlight) => void>();
 
 /** The click that commits a flow's action: shifts are counted from here. */
 async function commit(page: Page, target: Locator): Promise<void> {
@@ -139,6 +161,58 @@ function recipe(id: string): OverlayRecipe {
 
 const stamp = () => new Date().toISOString().replace(/\D/g, "").slice(0, 14);
 
+const ITEM_PREFIX = "Audit item ";
+const COST_PREFIXES = ["Audit cost ", "Audit paid "];
+
+export const isAuditName = (name: string) => [ITEM_PREFIX, ...COST_PREFIXES].some((p) => name.startsWith(p));
+
+// --------------------------------------------------------------------------
+// The in-flight journal
+// --------------------------------------------------------------------------
+
+export function readInFlight(file: string): Record<string, InFlightEntry> {
+  return fs.existsSync(file) ? (JSON.parse(fs.readFileSync(file, "utf8")) as Record<string, InFlightEntry>) : {};
+}
+
+export function recordInFlight(file: string, key: string, entry: InFlightEntry): void {
+  fs.writeFileSync(file, JSON.stringify({ ...readInFlight(file), [key]: entry }, null, 2) + "\n");
+}
+
+export function clearInFlight(file: string, key: string): void {
+  const rest = readInFlight(file);
+  delete rest[key];
+  if (Object.keys(rest).length > 0) fs.writeFileSync(file, JSON.stringify(rest, null, 2) + "\n");
+  else fs.rmSync(file, { force: true });
+}
+
+/** Builds a flow from how it acts and how a change is put back. `act` calls
+ * `note` with the change before the click that makes it. */
+function flowOf(
+  id: ActionFlow["id"],
+  routeLabel: string,
+  act: (page: Page, note: (change: InFlight) => void) => Promise<void>,
+  restore: (page: Page, change: InFlight) => Promise<void>,
+): ActionFlow {
+  let pending: InFlight | null = null;
+  return {
+    id,
+    routeLabel,
+    async act(page) {
+      pending = null;
+      await act(page, (change) => {
+        pending = change;
+        noting.get(page)?.(change);
+      });
+    },
+    async undo(page) {
+      if (!pending) return;
+      await restore(page, pending);
+      pending = null;
+    },
+    restore,
+  };
+}
+
 // --------------------------------------------------------------------------
 // The flows
 // --------------------------------------------------------------------------
@@ -159,31 +233,26 @@ export const ADD_ITEM_RECIPES: Record<"phone" | "desktop", OverlayRecipe> = {
 };
 
 function checklistTick(): ActionFlow {
-  let found: { url: string; name: string } | null = null;
   const box = (page: Page, name: string) => page.getByRole("checkbox", { name });
   const row = (page: Page, name: string) => page.locator("label").filter({ has: box(page, name) });
-  return {
-    id: "checklist-tick",
-    routeLabel: "checklists",
-    async act(page) {
-      found = null;
+  return flowOf(
+    "checklist-tick",
+    "checklists",
+    async (page, note) => {
       const first = await firstInView(page, page.getByRole("checkbox", { checked: false }), "unticked checklist item");
       // The label's first line is the item's own text; a due line follows it.
       const name = (await first.evaluate((el) => (el.closest("label")?.innerText ?? "").split("\n")[0].trim())) || "";
       if (!name || (await box(page, name).count()) !== 1) throw new Error(`the first unticked item has no unique name ("${name}")`);
-      found = { url: page.url(), name };
+      note({ url: page.url(), name });
       await commit(page, row(page, name));
     },
-    async undo(page) {
-      if (!found) return;
-      const { url, name } = found;
+    async (page, { url, name }) => {
       await load(page, url);
-      if (await box(page, name).isChecked()) await press(page, row(page, name));
+      if (await box(page, name!).isChecked()) await press(page, row(page, name!));
       await load(page, url);
-      if (await box(page, name).isChecked()) throw new Error(`"${name}" is still ticked`);
-      found = null;
+      if (await box(page, name!).isChecked()) throw new Error(`"${name}" is still ticked`);
     },
-  };
+  );
 }
 
 async function deleteCost(page: Page, url: string, label: string): Promise<void> {
@@ -209,117 +278,99 @@ async function addCost(page: Page, label: string, due?: string): Promise<Locator
 }
 
 function costAdd(): ActionFlow {
-  let added: { url: string; label: string } | null = null;
-  return {
-    id: "cost-add",
-    routeLabel: "budget",
-    async act(page) {
-      added = null;
-      const label = `Audit cost ${stamp()}`;
+  return flowOf(
+    "cost-add",
+    "budget",
+    async (page, note) => {
+      const label = `${COST_PREFIXES[0]}${stamp()}`;
       const save = await addCost(page, label);
-      added = { url: page.url(), label };
+      note({ url: page.url(), label });
       await commit(page, save);
     },
-    async undo(page) {
-      if (!added) return;
-      await deleteCost(page, added.url, added.label);
-      added = null;
-    },
-  };
+    (page, { url, label }) => deleteCost(page, url, label!),
+  );
 }
 
 function markPaid(): ActionFlow {
-  let added: { url: string; label: string } | null = null;
-  return {
-    id: "mark-paid",
-    routeLabel: "budget",
-    async act(page) {
-      added = null;
-      const label = `Audit paid ${stamp()}`;
+  return flowOf(
+    "mark-paid",
+    "budget",
+    async (page, note) => {
+      const label = `${COST_PREFIXES[1]}${stamp()}`;
       const now = new Date();
       const today = [now.getFullYear(), now.getMonth() + 1, now.getDate()].map((n) => String(n).padStart(2, "0")).join("-");
+      const url = page.url();
       const save = await addCost(page, label, today);
-      added = { url: page.url(), label };
+      note({ url, label });
       await press(page, save);
-      await load(page, added.url);
+      await load(page, url);
       const box = await firstInView(page, page.getByRole("checkbox", { name: label, exact: true }), `To pay row "${label}"`);
       if ((await box.getAttribute("aria-checked")) !== "false") throw new Error(`"${label}" was added already paid`);
       await commit(page, box);
     },
-    async undo(page) {
-      if (!added) return;
-      await deleteCost(page, added.url, added.label);
-      added = null;
-    },
-  };
+    (page, { url, label }) => deleteCost(page, url, label!),
+  );
+}
+
+const titled = (page: Page, title: string) => page.getByRole("button", { name: title, exact: true });
+
+async function deleteItem(page: Page, url: string, title: string): Promise<void> {
+  await load(page, url);
+  if ((await titled(page, title).count()) > 0) {
+    await (await firstInView(page, titled(page, title), `"${title}"`)).click();
+    const edit = page.getByRole("dialog", { name: "Edit Item" });
+    await edit.getByRole("button", { name: "Delete", exact: true }).click();
+    await press(page, page.getByRole("dialog", { name: /^Delete/ }).getByRole("button", { name: "Delete", exact: true }));
+    await load(page, url);
+  }
+  if ((await titled(page, title).count()) > 0) throw new Error(`"${title}" is still on the day`);
 }
 
 function itemAdd(): ActionFlow {
-  let added: { url: string; title: string } | null = null;
-  const titled = (page: Page, title: string) => page.getByRole("button", { name: title, exact: true });
-  return {
-    id: "item-add",
-    routeLabel: "day",
-    async act(page) {
-      added = null;
-      const title = `Audit item ${stamp()}`;
+  return flowOf(
+    "item-add",
+    "day",
+    async (page, note) => {
+      const title = `${ITEM_PREFIX}${stamp()}`;
       const dialog = await open(page, ADD_ITEM_RECIPES[isPhone(page) ? "phone" : "desktop"]);
       await dialog.getByRole("textbox", { name: "Title" }).fill(title);
-      added = { url: page.url(), title };
+      note({ url: page.url(), title });
       await commit(page, dialog.getByRole("button", { name: "Add Item", exact: true }));
     },
-    async undo(page) {
-      if (!added) return;
-      const { url, title } = added;
-      await load(page, url);
-      if ((await titled(page, title).count()) > 0) {
-        await (await firstInView(page, titled(page, title), `"${title}"`)).click();
-        const edit = page.getByRole("dialog", { name: "Edit Item" });
-        await edit.getByRole("button", { name: "Delete", exact: true }).click();
-        await press(page, page.getByRole("dialog", { name: /^Delete/ }).getByRole("button", { name: "Delete", exact: true }));
-        await load(page, url);
-      }
-      if ((await titled(page, title).count()) > 0) throw new Error(`"${title}" is still on the day`);
-      added = null;
-    },
-  };
+    (page, { url, title }) => deleteItem(page, url, title!),
+  );
 }
 
 const LEVELS = ["Must", "Keen", "Meh"] as const;
 
 function vote(): ActionFlow {
-  let found: { url: string; testId: string; level: string | null } | null = null;
   const levelOf = async (card: Locator): Promise<string | null> => {
     const on = card.locator('[role="radio"][aria-checked="true"]');
     return (await on.count()) === 0 ? null : (await on.first().innerText()).trim();
   };
   const level = (card: Locator, name: string) => card.getByRole("radio", { name: new RegExp(`^${name}\\b`) });
-  return {
-    id: "vote",
-    routeLabel: "wishlist",
-    async act(page) {
-      found = null;
+  return flowOf(
+    "vote",
+    "wishlist",
+    async (page, note) => {
       const cards = page.locator('[data-testid^="item-card-"]').filter({ has: page.locator('[aria-label="Your vote"]') });
       const card = await firstInView(page, cards, "Wishlist idea with a vote");
       const testId = (await card.getAttribute("data-testid"))!;
       const before = await levelOf(card);
       if (before !== null && !(LEVELS as readonly string[]).includes(before)) throw new Error(`unknown vote level "${before}"`);
-      found = { url: page.url(), testId, level: before };
+      note({ url: page.url(), testId, level: before });
       await commit(page, level(card, before === "Keen" ? "Must" : "Keen"));
     },
-    async undo(page) {
-      if (!found) return;
-      const { url, testId, level: before } = found;
+    async (page, { url, testId, level: before }) => {
       await load(page, url);
-      const card = await firstInView(page, page.getByTestId(testId), `idea ${testId}`);
+      const card = await firstInView(page, page.getByTestId(testId!), `idea ${testId}`);
       const now = await levelOf(card);
       if (now !== before) await press(page, level(card, before ?? now!));
       await load(page, url);
-      const after = await levelOf(await firstInView(page, page.getByTestId(testId), `idea ${testId}`));
+      const after = await levelOf(await firstInView(page, page.getByTestId(testId!), `idea ${testId}`));
       if (after !== before) throw new Error(`the vote on ${testId} is ${after ?? "cleared"}, was ${before ?? "cleared"}`);
-      found = null;
     },
-  };
+  );
 }
 
 export const ACTION_FLOWS: ActionFlow[] = [checklistTick(), itemAdd(), costAdd(), vote(), markPaid()];
@@ -345,14 +396,16 @@ export function summariseAction(entries: ShiftEntry[]): { during: Shifts; late: 
 const errorText = (err: unknown) => (err instanceof Error ? err.message : String(err)).split("\nCall log:")[0].replace(/\s+/g, " ").trim().slice(0, 500);
 
 /** Loads `url` on a fresh page of `context` (Chromium), runs `flow`, returns
- * the layout shifts from its committing click, then puts it back. */
-export async function measureAction(context: BrowserContext, url: string, flow: ActionFlow, profile: string): Promise<ActionShiftResult> {
+ * the layout shifts from its committing click, then puts it back. The change
+ * is kept in `journal` (the in-flight file) until it has been put back. */
+export async function measureAction(context: BrowserContext, url: string, flow: ActionFlow, profile: string, journal?: string): Promise<ActionShiftResult> {
   const id = `action/${flow.id}/${profile}`;
   const empty: Shifts = { total: 0, shifts: 0, largest: [] };
   let measured: { during: Shifts; late: Shifts } | undefined;
   let error: string | undefined;
   let undone = false;
   const page = await context.newPage();
+  if (journal) noting.set(page, (change) => recordInFlight(journal, id, { flow: flow.id, profile, change }));
   try {
     try {
       await page.addInitScript({ content: CLS_INIT_JS });
@@ -377,6 +430,7 @@ export async function measureAction(context: BrowserContext, url: string, flow: 
     try {
       await flow.undo(page);
       undone = true;
+      if (journal) clearInFlight(journal, id);
     } catch (err) {
       error = `${error ? `${error}; ` : ""}undo failed, the demo trip may be changed: ${errorText(err)}`;
     }
@@ -385,6 +439,59 @@ export async function measureAction(context: BrowserContext, url: string, flow: 
   }
   const result: ActionShiftResult = { id, flow: flow.id, profile, during: measured?.during ?? empty, late: measured?.late ?? empty, undone };
   return error ? { ...result, error } : result;
+}
+
+/**
+ * Clears up after an interrupted run, before any flow acts: puts back each
+ * change still in `journal`, then deletes everything named like an add
+ * flow's leftovers on Budget and on the `day` route's day.
+ */
+export async function recoverActions(
+  context: BrowserContext,
+  where: { journal: string; budgetUrl?: string; dayUrl?: string },
+): Promise<{ done: string[]; failed: string[] }> {
+  const done: string[] = [];
+  const failed: string[] = [];
+  const page = await context.newPage();
+  try {
+    for (const [key, entry] of Object.entries(readInFlight(where.journal))) {
+      const flow = ACTION_FLOWS.find((f) => f.id === entry.flow)!;
+      try {
+        await flow.restore(page, entry.change);
+        clearInFlight(where.journal, key);
+        done.push(`put back ${key} from an interrupted run: ${JSON.stringify(entry.change)}`);
+      } catch (err) {
+        failed.push(`could not put back ${key} (${JSON.stringify(entry.change)}): ${errorText(err)}`);
+      }
+    }
+    if (where.budgetUrl) {
+      await load(page, where.budgetUrl);
+      const labels = await page.locator(COST_PREFIXES.map((p) => `li[aria-label^="${p}"]`).join(", ")).evaluateAll((els) => els.map((el) => el.getAttribute("aria-label") ?? ""));
+      for (const label of new Set(labels.filter(isAuditName))) {
+        try {
+          await deleteCost(page, where.budgetUrl, label);
+          done.push(`deleted the leftover Cost "${label}"`);
+        } catch (err) {
+          failed.push(`could not delete the leftover Cost "${label}": ${errorText(err)}`);
+        }
+      }
+    }
+    if (where.dayUrl) {
+      await load(page, where.dayUrl);
+      const titles = await page.getByRole("button", { name: new RegExp(`^${ITEM_PREFIX}`) }).allInnerTexts();
+      for (const title of new Set(titles.map((t) => t.trim()).filter(isAuditName))) {
+        try {
+          await deleteItem(page, where.dayUrl, title);
+          done.push(`deleted the leftover Item "${title}"`);
+        } catch (err) {
+          failed.push(`could not delete the leftover Item "${title}": ${errorText(err)}`);
+        }
+      }
+    }
+  } finally {
+    await page.close().catch(() => {});
+  }
+  return { done, failed };
 }
 
 export function mergeAction(prev: ActionShiftResult[], next: ActionShiftResult[]): ActionShiftResult[] {

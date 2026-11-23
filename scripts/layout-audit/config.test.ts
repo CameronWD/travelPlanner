@@ -23,13 +23,18 @@ describe("device profiles", () => {
 });
 
 describe("parseSets", () => {
-  it("unset or blank means everything", () => {
+  it("unset or blank means every set but action", () => {
     expect(parseSets(undefined).has("resize")).toBe(true);
-    expect(parseSets(" ").size).toBe(11);
+    expect(parseSets(" ").size).toBe(10);
+    expect(parseSets(undefined).has("action")).toBe(false);
+    expect(parseSets(" ").has("action")).toBe(false);
   });
   it("keeps the named sets", () => expect([...parseSets("deep, cls")]).toEqual(["deep", "cls"]));
   it("accepts the section-switch set", () => expect([...parseSets("switch")]).toEqual(["switch"]));
-  it("accepts the after-an-action set", () => expect([...parseSets("action")]).toEqual(["action"]));
+  it("runs the after-an-action set only when it is named", () => {
+    expect([...parseSets("action")]).toEqual(["action"]);
+    expect([...parseSets("cls,switch,action")]).toEqual(["cls", "switch", "action"]);
+  });
   it("refuses a typo instead of running nothing", () => expect(() => parseSets("deeep")).toThrow(/unknown set/));
 });
 

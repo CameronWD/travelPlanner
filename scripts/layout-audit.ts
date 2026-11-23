@@ -47,9 +47,11 @@
  *
  * NOTHING HERE SUBMITS, except the "action" set. Overlay recipes open forms,
  * dialogs and menus and stop; see overlays.ts (SUBMIT_LABELS, and the note on
- * reading a trigger's component first). The "action" set ticks, adds, votes
- * and marks paid on the demo deep trip only (it refuses any other), and puts
- * each change back through the UI, checked on a fresh load; see action.ts.
+ * reading a trigger's component first). The "action" set WRITES TO THE DEMO
+ * TRIP: it ticks, adds, votes and marks paid on the demo deep trip only (it
+ * refuses any other), puts each change back through the UI, checked on a
+ * fresh load, and first clears up what an interrupted earlier run left
+ * (see action.ts). It runs only when LAYOUT_AUDIT_SETS names it.
  * Loading a trip page does make the app remember it as the last trip opened;
  * that is the app, not the harness.
  *
@@ -79,7 +81,9 @@
  *   LAYOUT_AUDIT_SETS         Comma list of what to run: deep, phase, empty,
  *                             dark, print, overlay, loading, resize, cls,
  *                             switch, action.
- *                             Default: all. A database with no demo cast
+ *                             Default: all but action. "action" writes to
+ *                             the demo trip and undoes it, so it runs only
+ *                             when named here. A database with no demo cast
  *                             runs without "phase,empty"; the demo database
  *                             then runs just those.
  *   LAYOUT_AUDIT_DEEP_TRIP    The deep trip's name as /trips shows it.
@@ -136,6 +140,9 @@
  *                              the server's answer lands (`late`), the
  *                              elements that moved, and whether the change
  *                              was put back (`undone`).
+ *   <out>/action-in-flight.json while the action set runs: each change not
+ *                              yet put back; a later run into this out dir
+ *                              puts back whatever an interrupted one left.
  *   <out>/shots/<set>/<routeLabel>/<trip>/<profile>-<theme>.png
  *                              (pages taller than one viewport, i.e. nearly
  *                              all: -part1.png, -part2.png, …, drawn with
@@ -264,7 +271,7 @@ import { captureLoading, measureCls, mergeCls, type ClsResult } from "./layout-a
 import { focusFirstInput, openOverlay, OVERLAYS, type OverlayRecipe } from "./layout-audit/overlays";
 import { crawlRoute, mergeResize, RESIZE_HEIGHT, type ResizeRouteResult } from "./layout-audit/resize";
 import { measureSwitch, mergeSwitch, SWITCH_PAIRS, type SwitchPair, type SwitchResult } from "./layout-audit/switch";
-import { ACTION_FLOWS, measureAction, mergeAction, type ActionFlow, type ActionShiftResult } from "./layout-audit/action";
+import { ACTION_FLOWS, measureAction, mergeAction, recoverActions, type ActionFlow, type ActionShiftResult } from "./layout-audit/action";
 import {
   assertNextDev,
   filterCaptures,
@@ -799,7 +806,8 @@ async function audit(
       sets,
     });
     specs = filterCaptures(matrix, only);
-    const wantsDayAction = sets.has("action") && ACTION_FLOWS.some((f) => f.routeLabel === "day" && SHIFT_PROFILE_IDS.some((p) => matchesOnly(actionId(f, p), only)));
+    // The action set clears up the day's leftovers even when item-add is filtered out.
+    const wantsDayAction = sets.has("action");
     const needs = {
       share: wants("resize", "share"),
       deepDay: wants("resize", "day") || wants("cls", "day") || wantedPairs(only, sets).some((p) => [p.from, p.to].includes("day")) || wantsDayAction,
@@ -1000,11 +1008,30 @@ async function audit(
 
   // ---- After an action -------------------------------------------------
   let actionResults: ActionShiftResult[] = [];
+  let recoveryFailed = false;
   if (sets.has("action")) {
     const flows = ACTION_FLOWS.filter((f) => SHIFT_PROFILE_IDS.some((profileId) => matchesOnly(actionId(f, profileId), only)));
     if (options.deepTripName && options.deepTripName !== TRIP_NAMES.deep) {
       console.log(`[action] SKIPPED: it writes to the deep trip, so it runs on the demo "${TRIP_NAMES.deep}" only, not "${options.deepTripName}"`);
     } else {
+      const journal = path.join(outDir, "action-in-flight.json");
+      const pathOf = (label: string) => {
+        const resolved = resolveRoute(ROUTES.find((r) => r.label === label)!, "deep", setup);
+        return "path" in resolved ? `${baseUrl}${resolved.path}` : undefined;
+      };
+      console.log(
+        `[action] NOTE: a run interrupted into another out dir may have left a ticked checklist item or a changed vote on the demo trip; this run cannot see it. \`npm run db:seed:demo\` restores the demo trip.`,
+      );
+      const recoverContext = await chromium.newContext(contextOptions(profileFor("1440"), "light", authStatePath));
+      try {
+        const recovered = await recoverActions(recoverContext, { journal, budgetUrl: pathOf("budget"), dayUrl: pathOf("day") });
+        for (const line of recovered.done) console.log(`[action] recover: ${line}`);
+        for (const line of recovered.failed) console.log(`[action] recover: ERROR ${line}`);
+        if (recovered.done.length + recovered.failed.length === 0) console.log("[action] recover: nothing left over from an earlier run");
+        recoveryFailed = recovered.failed.length > 0;
+      } finally {
+        await recoverContext.close().catch(() => {});
+      }
       for (const profileId of SHIFT_PROFILE_IDS) {
         const wanted = flows.filter((f) => matchesOnly(actionId(f, profileId), only));
         if (wanted.length === 0) continue;
@@ -1017,10 +1044,10 @@ async function audit(
               console.log(`[action] ${flow.id} ${profileId} — SKIPPED ${"skip" in resolved ? resolved.skip : resolved.error}`);
               continue;
             }
-            let result = await measureAction(context, `${baseUrl}${resolved.path}`, flow, profileId);
+            let result = await measureAction(context, `${baseUrl}${resolved.path}`, flow, profileId, journal);
             // A retry only when the failed attempt was put back, so a retry
             // can never leave a second change behind.
-            if (result.error && result.undone) result = await measureAction(context, `${baseUrl}${resolved.path}`, flow, profileId);
+            if (result.error && result.undone) result = await measureAction(context, `${baseUrl}${resolved.path}`, flow, profileId, journal);
             actionResults.push(result);
             console.log(
               `[action] ${flow.id} ${profileId} — ${result.error ? `ERROR ${result.error}` : `during ${result.during.total} (${result.during.shifts}); late ${result.late.total} (${result.late.shifts})`}${result.undone ? "" : " — NOT UNDONE"}`,
@@ -1097,7 +1124,7 @@ async function audit(
   }
   for (const r of modeErrors) console.log(`ERROR ${r.id}: ${r.error}`);
 
-  process.exitCode = modeErrors.length > 0 ? 1 : modesOnly ? 0 : rerunExitCode(thisRun, manifest);
+  process.exitCode = modeErrors.length > 0 || recoveryFailed ? 1 : modesOnly ? 0 : rerunExitCode(thisRun, manifest);
 }
 
 async function main(): Promise<void> {
