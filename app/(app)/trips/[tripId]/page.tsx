@@ -234,7 +234,16 @@ export default async function TripHomePage({
       case "travelling":
         return <PhaseTravelling tripId={tripId} userId={user.id} reminders={remindersEl} />;
       case "past":
-        return <PhasePast tripId={tripId} userId={user.id} trip={trip} reminders={remindersEl} />;
+        return (
+          <PhasePast
+            tripId={tripId}
+            userId={user.id}
+            trip={trip}
+            reminders={remindersEl}
+            phoneCover={cover}
+            coverIsPhoto={!!coverUrl}
+          />
+        );
       default: // planning | final-prep
         return (
           <PhasePlanning
@@ -246,6 +255,7 @@ export default async function TripHomePage({
             reminders={remindersEl}
             reminderItems={reminders}
             cover={coverTile}
+            coverIsPhoto={!!coverUrl}
             coverClassName={phonePortrait ? "max-sm:hidden" : undefined}
           />
         );
@@ -254,7 +264,7 @@ export default async function TripHomePage({
 
   const phoneTree = (
     <>
-      {phase === "planning" || phase === "final-prep" || phase === "travelling" ? null : cover}
+      {phase === "planning" || phase === "final-prep" || phase === "travelling" || phase === "past" ? null : cover}
       {phaseEl}
     </>
   );

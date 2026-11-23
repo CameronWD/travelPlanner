@@ -37,11 +37,15 @@ describe("RatesRefreshButton", () => {
     expect(refreshRates).toHaveBeenCalledTimes(1);
     expect(refreshRates).toHaveBeenCalledWith("t1", ["EUR", "GBP"], "AUD");
     expect(button).toBeDisabled();
+    expect(button).toHaveAttribute("aria-busy", "true");
+    await user.click(button);
+    expect(refreshRates).toHaveBeenCalledTimes(1);
     expect(button.querySelector("svg")!.getAttribute("class")).toContain("animate-spin motion-reduce:animate-none");
 
     resolve({ results: [{ base: "EUR", rate: 1.6 }] });
     await waitFor(() => expect(onRefreshed).toHaveBeenCalledTimes(1));
     expect(button).not.toBeDisabled();
+    expect(button).not.toHaveAttribute("aria-busy");
     expect(button.querySelector("svg")!.getAttribute("class")).not.toContain("animate-spin");
     expect(toastMock).not.toHaveBeenCalled();
   });

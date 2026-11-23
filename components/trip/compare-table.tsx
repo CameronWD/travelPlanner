@@ -9,6 +9,7 @@ import type { ComparisonPlan } from "@/server/actions/forks";
 import { moveFork } from "@/server/actions/forks";
 import { PromoteForkDialog } from "@/components/trip/promote-fork-dialog";
 import { Button } from "@/components/ui/button";
+import { toastRefused, toastRejected } from "@/components/ui/action-failure";
 import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
 import { cn } from "@/lib/cn";
@@ -306,13 +307,28 @@ const METRIC_ROWS: { id: MetricRowId; label: string; wide?: boolean }[] = [
 
 const VALUE_CLASS = "font-display text-lg font-extrabold leading-tight tracking-[-0.02em] whitespace-nowrap tabular-nums";
 
-export function CompareTable({ trip, plans, isOwner = true }: CompareTableProps) {
+export function CompareTable({ trip, plans: savedPlans, isOwner = true }: CompareTableProps) {
   const [promoteOpenFor, setPromoteOpenFor] = React.useState<string | null>(null);
   const [reorderPending, startReorder] = React.useTransition();
 
+  const [plans, applyMove] = React.useOptimistic(savedPlans, (state, u: { forkId: string; direction: "left" | "right" }) => {
+    const from = state.findIndex((p) => p.forkId === u.forkId);
+    const to = u.direction === "left" ? from - 1 : from + 1;
+    if (from < 1 || to < 1 || to >= state.length) return state;
+    const next = [...state];
+    [next[from], next[to]] = [next[to], next[from]];
+    return next;
+  });
+
   function handleMove(forkId: string, direction: "left" | "right") {
     startReorder(async () => {
-      await moveFork(forkId, direction);
+      applyMove({ forkId, direction });
+      try {
+        const r = await moveFork(forkId, direction);
+        if (!r.success) toastRefused(r.errors, "Couldn’t move that plan.");
+      } catch {
+        toastRejected("Couldn’t move that plan.");
+      }
     });
   }
 

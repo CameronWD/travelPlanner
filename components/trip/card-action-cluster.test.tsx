@@ -26,6 +26,17 @@ const base = {
 };
 
 describe("CardActionCluster", () => {
+  it("while pending, Delete says it is working and a second click does not fire it", async () => {
+    const user = userEvent.setup();
+    const onDelete = vi.fn();
+    render(<CardActionCluster {...base} onEdit={() => {}} onDelete={onDelete} isPending />);
+    const del = screen.getByRole("button", { name: "Delete The Grand Hotel" });
+    expect(del).toHaveAttribute("aria-busy", "true");
+    expect(del).toBeDisabled();
+    await user.click(del);
+    expect(onDelete).not.toHaveBeenCalled();
+  });
+
   it("renders a single Edit button when onEdit is provided", () => {
     render(<CardActionCluster {...base} onEdit={() => {}} onDelete={() => {}} />);
     expect(screen.getByRole("button", { name: "Edit The Grand Hotel" })).toBeInTheDocument();

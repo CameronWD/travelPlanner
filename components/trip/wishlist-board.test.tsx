@@ -662,3 +662,20 @@ describe("WishlistBoard — delete failures (spec 2026-10-06 §E)", () => {
     expect(await screen.findByText("That idea was already removed.")).toBeInTheDocument();
   });
 });
+
+describe("WishlistBoard — delete in flight", () => {
+  it("marks the idea's card busy while its delete runs", async () => {
+    let resolve!: (v: unknown) => void;
+    vi.mocked(deleteItem).mockImplementationOnce(() => new Promise((r) => (resolve = r)) as never);
+    const user = userEvent.setup();
+    const item = makeItem({ id: "item-busy", date: null, startTime: null, endTime: null });
+    renderBoard([item]);
+    const card = await screen.findByTestId("stub-card-item-busy");
+    expect(card.closest("[aria-busy]")).toBeNull();
+    await user.click(await screen.findByRole("button", { name: `Delete ${item.title}` }));
+    await user.click(await screen.findByRole("button", { name: "Delete" }));
+    expect(card.closest("[aria-busy]")).toHaveAttribute("aria-busy", "true");
+    await act(async () => resolve({ success: true }));
+    expect(card.closest("[aria-busy]")).toBeNull();
+  });
+});

@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -38,6 +38,21 @@ describe("HopModeChooser", () => {
     await userEvent.click(screen.getByRole("button", { name: /Walk/ }));
     await userEvent.click(screen.getByRole("menuitem", { name: "Public transport" }));
     expect(setHopMode).toHaveBeenLastCalledWith("a", "b", "TRANSIT");
+  });
+
+  it("the trigger says it is working and is disabled while setHopMode is unresolved", async () => {
+    let release!: (v: { success: true }) => void;
+    setHopMode.mockReturnValue(new Promise((r) => { release = r; }));
+    render(<HopModeChooser {...base} mode="WALK" modeSetByHand />);
+    const trigger = screen.getByRole("button", { name: /Walk/ });
+    await userEvent.click(trigger);
+    await userEvent.click(screen.getByRole("menuitem", { name: "Automatic" }));
+    await waitFor(() => expect(trigger).toHaveAttribute("aria-busy", "true"));
+    expect(trigger).toBeDisabled();
+    await userEvent.click(trigger);
+    expect(setHopMode).toHaveBeenCalledTimes(1);
+    release({ success: true });
+    await waitFor(() => expect(trigger).not.toHaveAttribute("aria-busy"));
   });
 
   it("does not call the action when the current choice is picked again", async () => {

@@ -13,6 +13,9 @@ import userEvent from "@testing-library/user-event";
 // Must be declared before the component import so vi.mock hoisting works.
 
 vi.mock("@/server/actions/booking-confirmation", () => ({ setNothingToAttach: vi.fn() }));
+vi.mock("@/components/booking-import/booking-import-sheet", () => ({ BookingImportButton: () => null }));
+vi.mock("@/components/trip/make-it-fit", () => ({ MakeItFit: () => null }));
+vi.mock("@/server/actions/trips", () => ({ setTripHardEndDate: vi.fn() }));
 vi.mock("@/server/actions/venue-details", () => ({ venueDetailsForPick: vi.fn().mockResolvedValue(null) }));
 vi.mock("@/server/actions/stops", () => ({
   deleteStop: vi.fn().mockResolvedValue({ success: true }),
@@ -198,6 +201,7 @@ import { toastWithUndo } from "@/components/ui/undo-toast";
 import { createTransport, deleteTransport } from "@/server/actions/transport";
 import { createAccommodation, deleteAccommodation } from "@/server/actions/accommodation";
 import { addReminder } from "@/server/actions/reminders";
+import { PlanHeaderActions } from "@/components/plan/plan-header-actions";
 import { createChapter, deleteChapter, assignStopToChapter, suggestChaptersFromCountries } from "@/server/actions/chapters";
 import { toast } from "@/components/ui/use-toast";
 import { setSurprise, revealSurprise } from "@/server/actions/surprise";
@@ -1067,6 +1071,34 @@ describe("Suggest from countries in-flight guard", () => {
     await act(async () => resolve({ success: true, created: 0 }));
     await user.click(screen.getByRole("button", { name: "header suggest" }));
     await waitFor(() => expect(suggestChaptersFromCountries).toHaveBeenCalledTimes(2));
+  });
+});
+
+describe("Suggest from countries says it is working", () => {
+  it("the Chapters menu button is busy and off while the suggestion runs, and back after", async () => {
+    const user = userEvent.setup();
+    let resolve!: (r: { success: true; created: number }) => void;
+    vi.mocked(suggestChaptersFromCountries).mockImplementationOnce(
+      () => new Promise((r) => { resolve = r; }) as ReturnType<typeof suggestChaptersFromCountries>,
+    );
+    render(
+      <PlanBody initialOpen={[]} today="2030-01-01">
+        <PlanHeaderActions tripId={TRIP_ID} chaptersEnabled aiConfigured={false} />
+        <ItineraryManager {...baseProps} initialStops={[makeStop()]} />
+      </PlanBody>,
+    );
+    const chapters = screen.getByRole("button", { name: "Chapters" });
+    expect(chapters).not.toHaveAttribute("aria-busy");
+    await user.click(chapters);
+    await user.click(await screen.findByRole("menuitem", { name: "Suggest from countries" }));
+    await waitFor(() => expect(screen.getByRole("button", { name: "Chapters" })).toHaveAttribute("aria-busy", "true"));
+    expect(screen.getByRole("button", { name: "Chapters" })).toBeDisabled();
+    await waitFor(() => expect(screen.queryByRole("menuitem", { name: "Suggest from countries" })).toBeNull());
+    expect(suggestChaptersFromCountries).toHaveBeenCalledTimes(1);
+
+    await act(async () => resolve({ success: true, created: 0 }));
+    expect(screen.getByRole("button", { name: "Chapters" })).not.toHaveAttribute("aria-busy");
+    expect(screen.getByRole("button", { name: "Chapters" })).toBeEnabled();
   });
 });
 
@@ -3366,3 +3398,378 @@ describe("Surprise Stops", () => {
   });
 });
 
+
+// ---------------------------------------------------------------------------
+// Task 9 (lane a): every planner control that changes data answers at once —
+// optimistic, or busy while the server works, and never sent twice.
+// ---------------------------------------------------------------------------
+
+describe("planner controls answer at once (Task 9)", () => {
+  function deferred<T>() {
+    let resolve!: (v: T) => void;
+    let reject!: (e: unknown) => void;
+    const promise = new Promise<T>((res, rej) => {
+      resolve = res;
+      reject = rej;
+    });
+    return { promise, resolve, reject };
+  }
+  const OK = { success: true } as const;
+  const row = (name: string) => desktop().getByRole("heading", { name }).closest("article")!;
+  const order = () => [...screen.getByTestId("plan-desktop-list").querySelectorAll("article h2")].map((h) => h.textContent);
+  async function menuItem(user: ReturnType<typeof userEvent.setup>, stop: string, item: RegExp) {
+    await user.click(desktop().getByRole("button", { name: `More actions for ${stop}` }));
+    return screen.findByRole("menuitem", { name: item });
+  }
+
+  describe("a stop menu action marks its row busy and cannot be sent twice (F172, F25, F26, F27, F28)", () => {
+    it("Pin dates (F25)", async () => {
+      const d = deferred<typeof OK>();
+      vi.mocked(toggleStopPin).mockReturnValueOnce(d.promise);
+      const user = userEvent.setup();
+      renderPlan(<ItineraryManager {...baseProps} initialStops={[PARIS]} />);
+      expect(row("Paris")).not.toHaveAttribute("aria-busy");
+      await user.click(await menuItem(user, "Paris", /^Pin dates/));
+      await waitFor(() => expect(row("Paris")).toHaveAttribute("aria-busy", "true"));
+      const again = await menuItem(user, "Paris", /^Pin dates/);
+      expect(again).toHaveAttribute("aria-disabled", "true");
+      await user.click(again);
+      await user.keyboard("{Escape}");
+      expect(toggleStopPin).toHaveBeenCalledTimes(1);
+      await act(async () => d.resolve(OK));
+      expect(row("Paris")).not.toHaveAttribute("aria-busy");
+    });
+
+    it("Make rough, after its confirm (F26)", async () => {
+      const d = deferred<typeof OK>();
+      vi.mocked(makeStopRough).mockReturnValueOnce(d.promise);
+      const user = userEvent.setup();
+      renderPlan(<ItineraryManager {...baseProps} initialStops={[PARIS]} />);
+      await user.click(await menuItem(user, "Paris", /make rough/i));
+      await user.click(await screen.findByRole("button", { name: "Make rough" }));
+      await waitFor(() => expect(row("Paris")).toHaveAttribute("aria-busy", "true"));
+      const again = await menuItem(user, "Paris", /make rough/i);
+      expect(again).toHaveAttribute("aria-disabled", "true");
+      await user.click(again);
+      await user.keyboard("{Escape}");
+      expect(makeStopRough).toHaveBeenCalledTimes(1);
+      await act(async () => d.resolve(OK));
+      expect(row("Paris")).not.toHaveAttribute("aria-busy");
+    });
+
+    const MEMBERS = [
+      { id: "cam", name: "Cam Williams", image: null },
+      { id: "sam", name: "Sam Jones", image: null },
+    ];
+    const surpriseProps = { ...baseProps, members: MEMBERS, currentUserId: "cam" };
+
+    it("Make it a surprise, after Surprise for… (F27)", async () => {
+      const d = deferred<typeof OK>();
+      vi.mocked(setSurprise).mockReturnValueOnce(d.promise as never);
+      const user = userEvent.setup();
+      renderPlan(<ItineraryManager {...surpriseProps} initialStops={[PARIS]} />);
+      await user.click(await menuItem(user, "Paris", /Make it a surprise/));
+      const dialog = await screen.findByRole("dialog", { name: "Surprise for…" });
+      await user.click(within(dialog).getByRole("button", { name: "Make it a surprise" }));
+      await waitFor(() => expect(row("Paris")).toHaveAttribute("aria-busy", "true"));
+      const again = await menuItem(user, "Paris", /Make it a surprise/);
+      expect(again).toHaveAttribute("aria-disabled", "true");
+      await user.click(again);
+      await user.keyboard("{Escape}");
+      expect(setSurprise).toHaveBeenCalledTimes(1);
+      await act(async () => d.resolve(OK));
+      expect(row("Paris")).not.toHaveAttribute("aria-busy");
+    });
+
+    it("Reveal the surprise, after its confirm (F28)", async () => {
+      const d = deferred<typeof OK>();
+      vi.mocked(revealSurprise).mockReturnValueOnce(d.promise as never);
+      const user = userEvent.setup();
+      const surprise = { plannerId: "cam", plannerName: "Cam", forIds: ["sam"], forNames: ["Sam"], youAreSurprised: false };
+      renderPlan(<ItineraryManager {...surpriseProps} initialStops={[{ ...PARIS, surprise }]} />);
+      await user.click(await menuItem(user, "Paris", /Reveal the surprise/));
+      await user.click(await screen.findByRole("button", { name: "Reveal the surprise" }));
+      await waitFor(() => expect(row("Paris")).toHaveAttribute("aria-busy", "true"));
+      const again = await menuItem(user, "Paris", /Reveal the surprise/);
+      expect(again).toHaveAttribute("aria-disabled", "true");
+      await user.click(again);
+      await user.keyboard("{Escape}");
+      expect(revealSurprise).toHaveBeenCalledTimes(1);
+      await act(async () => d.resolve(OK));
+      expect(row("Paris")).not.toHaveAttribute("aria-busy");
+    });
+  });
+
+  describe("Move up / Move down shows the new order at once (F24)", () => {
+    const LYON = makeStop({ id: "s-1", name: "Lyon", sortOrder: 0 });
+    const BERLIN = makeStop({ id: "s-2", name: "Berlin", sortOrder: 1 });
+    const OSLO = makeStop({ id: "s-3", name: "Oslo", sortOrder: 2 });
+
+    it("moves before the server answers, is busy meanwhile, and keeps the server's order once it lands", async () => {
+      const d = deferred<typeof OK>();
+      vi.mocked(moveStop).mockReturnValueOnce(d.promise);
+      const user = userEvent.setup();
+      const { rerender } = renderPlan(<ItineraryManager {...baseProps} initialStops={[LYON, BERLIN, OSLO]} />);
+      await user.click(await menuItem(user, "Lyon", /^Move down$/));
+      expect(order()).toEqual(["Berlin", "Lyon", "Oslo"]);
+      expect(row("Lyon")).toHaveAttribute("aria-busy", "true");
+      const again = await menuItem(user, "Lyon", /^Move down$/);
+      expect(again).toHaveAttribute("aria-disabled", "true");
+      await user.click(again);
+      expect(moveStop).toHaveBeenCalledTimes(1);
+      expect(moveStop).toHaveBeenCalledWith("s-1", "down");
+
+      await act(async () => d.resolve(OK));
+      expect(order()).toEqual(["Berlin", "Lyon", "Oslo"]);
+      const plan = (stops: ItineraryStop[]) => (
+        <PlanBody initialOpen={[]} today="2030-01-01"><ItineraryManager {...baseProps} initialStops={stops} /></PlanBody>
+      );
+      rerender(plan([{ ...BERLIN, sortOrder: 0 }, { ...LYON, sortOrder: 1 }, OSLO]));
+      expect(order()).toEqual(["Berlin", "Lyon", "Oslo"]);
+      // The write settled, so later server rows are adopted, not held.
+      rerender(plan([{ ...OSLO, sortOrder: 0 }, { ...BERLIN, sortOrder: 1 }, { ...LYON, sortOrder: 2 }]));
+      expect(order()).toEqual(["Oslo", "Berlin", "Lyon"]);
+    });
+
+    it("a refused move goes back to the old order and says why", async () => {
+      const d = deferred<{ success: false; errors: { _: string[] } }>();
+      vi.mocked(moveStop).mockReturnValueOnce(d.promise);
+      const user = userEvent.setup();
+      renderPlan(<ItineraryManager {...baseProps} initialStops={[LYON, BERLIN, OSLO]} />);
+      await user.click(await menuItem(user, "Oslo", /^Move up$/));
+      expect(order()).toEqual(["Lyon", "Oslo", "Berlin"]);
+      await act(async () => d.resolve({ success: false, errors: { _: ["That stop is already first."] } }));
+      expect(order()).toEqual(["Lyon", "Berlin", "Oslo"]);
+      expect(toast).toHaveBeenCalledWith(expect.objectContaining({ variant: "destructive", title: "That stop is already first." }));
+      expect(row("Oslo")).not.toHaveAttribute("aria-busy");
+    });
+
+    it("offline, it moves, then goes back with the offline message, as the other plan writes do", async () => {
+      const original = Object.getOwnPropertyDescriptor(Navigator.prototype, "onLine");
+      Object.defineProperty(navigator, "onLine", { configurable: true, get: () => false });
+      try {
+        const d = deferred<typeof OK>();
+        vi.mocked(moveStop).mockReturnValueOnce(d.promise);
+        const user = userEvent.setup();
+        renderPlan(<ItineraryManager {...baseProps} initialStops={[LYON, BERLIN, OSLO]} />);
+        await user.click(await menuItem(user, "Lyon", /^Move down$/));
+        expect(order()).toEqual(["Berlin", "Lyon", "Oslo"]);
+        await act(async () => d.reject(new Error("offline")));
+        expect(order()).toEqual(["Lyon", "Berlin", "Oslo"]);
+        expect(toast).toHaveBeenCalledWith(
+          expect.objectContaining({ variant: "destructive", title: "You’re offline. Plan changes need a connection." }),
+        );
+      } finally {
+        if (original) Object.defineProperty(navigator, "onLine", original);
+      }
+    });
+
+    it("with a shared sortOrder it does not guess: the row is busy and the order waits for the server", async () => {
+      const d = deferred<typeof OK>();
+      vi.mocked(moveStop).mockReturnValueOnce(d.promise);
+      const user = userEvent.setup();
+      renderPlan(<ItineraryManager {...baseProps} initialStops={[LYON, BERLIN, { ...OSLO, sortOrder: 1 }]} />);
+      await user.click(await menuItem(user, "Oslo", /^Move up$/));
+      expect(order()).toEqual(["Lyon", "Berlin", "Oslo"]);
+      expect(row("Oslo")).toHaveAttribute("aria-busy", "true");
+      await act(async () => d.resolve(OK));
+      expect(row("Oslo")).not.toHaveAttribute("aria-busy");
+    });
+
+    it("when the neighbour shares its sortOrder with another Stop it does not guess either", async () => {
+      const d = deferred<typeof OK>();
+      vi.mocked(moveStop).mockReturnValueOnce(d.promise);
+      const user = userEvent.setup();
+      const ROMA = makeStop({ id: "s-4", name: "Roma", sortOrder: 2 });
+      renderPlan(<ItineraryManager {...baseProps} initialStops={[LYON, BERLIN, { ...OSLO, sortOrder: 1 }, ROMA]} />);
+      await user.click(await menuItem(user, "Roma", /^Move up$/));
+      expect(order()).toEqual(["Lyon", "Berlin", "Oslo", "Roma"]);
+      expect(row("Roma")).toHaveAttribute("aria-busy", "true");
+      await act(async () => d.resolve(OK));
+    });
+
+    it("one move at a time: while a move is in flight, Move up / Move down on another Stop is off", async () => {
+      const d = deferred<typeof OK>();
+      vi.mocked(moveStop).mockReturnValueOnce(d.promise);
+      const user = userEvent.setup();
+      renderPlan(<ItineraryManager {...baseProps} initialStops={[LYON, BERLIN, OSLO]} />);
+      await user.click(await menuItem(user, "Lyon", /^Move down$/));
+      expect(row("Oslo")).not.toHaveAttribute("aria-busy");
+      const up = await menuItem(user, "Oslo", /^Move up$/);
+      expect(up).toHaveAttribute("aria-disabled", "true");
+      await user.click(up);
+      await user.keyboard("{Escape}");
+      expect(moveStop).toHaveBeenCalledTimes(1);
+      await act(async () => d.resolve(OK));
+      expect(await menuItem(user, "Oslo", /^Move up$/)).not.toHaveAttribute("aria-disabled");
+      await user.keyboard("{Escape}");
+    });
+
+    it("a rough stop moves past a dated one by swapping places in the plan, as the server does", async () => {
+      const d = deferred<typeof OK>();
+      vi.mocked(moveStop).mockReturnValueOnce(d.promise);
+      const user = userEvent.setup();
+      const dated = makeStop({ id: "s-d", name: "Vienna", arriveDate: "2026-12-01", departDate: "2026-12-04", sortOrder: 0 });
+      const rough = makeStop({ id: "s-r", name: "Graz", sortOrder: 1 });
+      renderPlan(<ItineraryManager {...baseProps} initialStops={[dated, rough]} />);
+      await user.click(await menuItem(user, "Graz", /^Move up$/));
+      expect(order()).toEqual(["Graz", "Vienna"]);
+      await act(async () => d.resolve(OK));
+    });
+  });
+
+  it("Adjust dates: Save dates spins and cannot be sent twice (F18)", async () => {
+    const d = deferred<typeof OK>();
+    vi.mocked(setStopDates).mockReturnValueOnce(d.promise);
+    const user = userEvent.setup();
+    renderPlan(<ItineraryManager {...baseProps} initialStops={[PARIS]} />);
+    await user.click(await menuItem(user, "Paris", /^Adjust dates/));
+    const dialog = await screen.findByRole("dialog", { name: /Adjust Dates for Paris/ });
+    const save = within(dialog).getByRole("button", { name: "Save dates" });
+    expect(save).not.toHaveAttribute("aria-busy");
+    await user.click(save);
+    await waitFor(() => expect(within(dialog).getByRole("button", { name: "Save dates" })).toHaveAttribute("aria-busy", "true"));
+    expect(within(dialog).getByRole("button", { name: "Save dates" })).toBeDisabled();
+    await user.click(within(dialog).getByRole("button", { name: "Save dates" }));
+    expect(setStopDates).toHaveBeenCalledTimes(1);
+    await act(async () => d.resolve(OK));
+    expect(screen.queryByRole("dialog", { name: /Adjust Dates for Paris/ })).toBeNull();
+  });
+
+  const ROUGH_CH = { id: "ch-1", name: "France", colour: "rose" as const, startDate: null, endDate: null, sortOrder: 0 };
+
+  it("a chapter's Firm up spins and cannot be sent twice (F19)", async () => {
+    const d = deferred<typeof OK>();
+    vi.mocked(firmUpSegment).mockReturnValueOnce(d.promise as never);
+    const user = userEvent.setup();
+    renderPlan(<ItineraryManager {...baseProps} initialStops={[makeStop({ id: "s-1", name: "Lyon", chapterId: "ch-1" })]} chapters={[ROUGH_CH]} />);
+    await user.click(desktop().getByRole("button", { name: /^firm up$/i }));
+    await user.click(within(await screen.findByRole("dialog")).getByRole("button", { name: /^firm up$/i }));
+    await waitFor(() => expect(desktop().getByRole("button", { name: /^firm up$/i })).toHaveAttribute("aria-busy", "true"));
+    await user.click(desktop().getByRole("button", { name: /^firm up$/i }));
+    expect(screen.queryByRole("dialog")).toBeNull();
+    expect(firmUpSegment).toHaveBeenCalledTimes(1);
+    await act(async () => d.resolve(OK));
+    expect(desktop().getByRole("button", { name: /^firm up$/i })).not.toHaveAttribute("aria-busy");
+  });
+
+  it("removing an empty chapter spins and cannot be sent twice (F21)", async () => {
+    const d = deferred<typeof OK>();
+    vi.mocked(deleteChapter).mockReturnValueOnce(d.promise);
+    const user = userEvent.setup();
+    renderPlan(<ItineraryManager {...baseProps} initialStops={[]} chapters={[{ ...ROUGH_CH, id: "ch-empty", name: "Asia" }]} />);
+    await user.click(desktop().getByRole("button", { name: "Remove Asia chapter" }));
+    await user.click(await screen.findByRole("button", { name: "Remove" }));
+    await waitFor(() => expect(desktop().getByRole("button", { name: "Remove Asia chapter" })).toHaveAttribute("aria-busy", "true"));
+    expect(desktop().getByRole("button", { name: "Remove Asia chapter" })).toBeDisabled();
+    await user.click(desktop().getByRole("button", { name: "Remove Asia chapter" }));
+    expect(screen.queryByRole("button", { name: "Remove" })).toBeNull();
+    expect(deleteChapter).toHaveBeenCalledTimes(1);
+    await act(async () => d.resolve(OK));
+  });
+
+  describe("things to do: the stop says busy while one is moved or scheduled (F15, F30)", () => {
+    const ITEM = { id: "it1", bookingStateSet: false, title: "Louvre", category: "SIGHTSEEING", date: "2026-12-11", startTime: null, endTime: null, stopId: "par" };
+    const busyAround = (name: string) => desktop().getByRole("heading", { name }).closest("[aria-busy='true']");
+
+    it("a dropped plan: the stop is busy until the server answers; the plan stays on its old day meanwhile (F15)", async () => {
+      const { scheduleItem } = await import("@/server/actions/items");
+      const d = deferred<typeof OK>();
+      vi.mocked(scheduleItem).mockReturnValueOnce(d.promise as never);
+      renderPlan(<ItineraryManager {...baseProps} initialStops={[PARIS, ROME]} dayItemsByStopId={new Map([["par", [ITEM]]])} />, ["par"]);
+      expect(busyAround("Paris")).toBeNull();
+      await act(async () => {
+        void dndCapture.onDragEnd!({
+          active: { id: "item:it1", data: { current: { type: "item", stopId: "par", date: "2026-12-11", itemId: "it1", title: "Louvre", startTime: null, endTime: null } } },
+          over: { id: "slot:par:2026-12-13", data: { current: { type: "slot", stopId: "par", date: "2026-12-13" } } },
+        });
+      });
+      expect(busyAround("Paris")).not.toBeNull();
+      expect(busyAround("Rome")).toBeNull();
+      expect(desktop().getByRole("region", { name: "FRI 11 DEC" })).toHaveTextContent("Louvre");
+      await act(async () => {
+        void dndCapture.onDragEnd!({
+          active: { id: "item:it1", data: { current: { type: "item", stopId: "par", date: "2026-12-11", itemId: "it1", title: "Louvre", startTime: null, endTime: null } } },
+          over: { id: "slot:par:2026-12-14", data: { current: { type: "slot", stopId: "par", date: "2026-12-14" } } },
+        });
+      });
+      expect(scheduleItem).toHaveBeenCalledTimes(1);
+      await act(async () => d.resolve(OK));
+      expect(busyAround("Paris")).toBeNull();
+    });
+
+    it("an idea given a day: the stop is busy until the server answers (F30)", async () => {
+      const { scheduleItem } = await import("@/server/actions/items");
+      const d = deferred<typeof OK>();
+      vi.mocked(scheduleItem).mockReturnValueOnce(d.promise as never);
+      const user = userEvent.setup();
+      const idea = { id: "idea-1", bookingStateSet: false, title: "Opera", category: "SIGHTSEEING", date: null, startTime: null, endTime: null, stopId: "par" };
+      renderPlan(<ItineraryManager {...baseProps} initialStops={[PARIS, ROME]} thingsToDoByStopId={new Map([["par", [idea]]])} />, ["par"]);
+      await user.click(desktop().getByRole("button", { name: "Open Opera" }));
+      await user.click(await screen.findByRole("button", { name: "Pick a day for Opera" }));
+      await user.click(await screen.findByRole("menuitem", { name: /Sat 12/ }));
+      await waitFor(() => expect(busyAround("Paris")).not.toBeNull());
+      await user.click(desktop().getByRole("button", { name: "Open Opera" }));
+      await user.click(await screen.findByRole("button", { name: "Pick a day for Opera" }));
+      await user.click(await screen.findByRole("menuitem", { name: /Sun 13/ }));
+      expect(scheduleItem).toHaveBeenCalledTimes(1);
+      await act(async () => d.resolve(OK));
+      expect(busyAround("Paris")).toBeNull();
+    });
+  });
+});
+
+describe("the phone Stop row and Stop sheet say when they are busy", () => {
+  beforeEach(() => setMatchMedia((q) => q === "(min-width: 640px)"));
+  const mobileRow = (id: string) => screen.getByTestId("plan-mobile-list").querySelector(`[data-mobile-stop-id="${id}"]`)!;
+  const LYON = makeStop({ id: "s-1", name: "Lyon", sortOrder: 0 });
+  const BERLIN = makeStop({ id: "s-2", name: "Berlin", sortOrder: 1 });
+  const OSLO = makeStop({ id: "s-3", name: "Oslo", sortOrder: 2 });
+
+  function deferredOk() {
+    let resolve!: () => void;
+    const promise = new Promise<{ success: true }>((res) => {
+      resolve = () => res({ success: true });
+    });
+    return { promise, resolve };
+  }
+
+  it("Pin dates: the Stop's row is busy, the sheet's actions and dates buttons are off, and another Stop's row is untouched", async () => {
+    const d = deferredOk();
+    vi.mocked(toggleStopPin).mockReturnValueOnce(d.promise);
+    navState.search = "stop=par";
+    const user = userEvent.setup();
+    renderPlan(<ItineraryManager {...baseProps} initialStops={[PARIS, ROME]} />);
+    expect(mobileRow("par")).not.toHaveAttribute("aria-busy");
+    await user.click(screen.getByRole("button", { name: "Actions for Paris" }));
+    await user.click(await screen.findByRole("button", { name: /^Pin dates/ }));
+    await waitFor(() => expect(mobileRow("par")).toHaveAttribute("aria-busy", "true"));
+    expect(mobileRow("rom")).not.toHaveAttribute("aria-busy");
+    expect(screen.getByRole("dialog", { name: "Paris" })).toHaveAttribute("aria-busy", "true");
+    expect(screen.getByRole("button", { name: "Actions for Paris" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Edit dates" })).toBeDisabled();
+    await user.click(screen.getByRole("button", { name: "Actions for Paris" }));
+    expect(screen.queryByRole("group", { name: "Actions 1" })).toBeNull();
+    expect(toggleStopPin).toHaveBeenCalledTimes(1);
+    await act(async () => d.resolve());
+    expect(mobileRow("par")).not.toHaveAttribute("aria-busy");
+    expect(screen.getByRole("button", { name: "Actions for Paris" })).toBeEnabled();
+  });
+
+  it("Move down: the moved Stop's row is busy, the others are not, and the move is sent once", async () => {
+    const d = deferredOk();
+    vi.mocked(moveStop).mockReturnValueOnce(d.promise);
+    navState.search = "stop=s-1";
+    const user = userEvent.setup();
+    renderPlan(<ItineraryManager {...baseProps} initialStops={[LYON, BERLIN, OSLO]} />);
+    await user.click(screen.getByRole("button", { name: "Actions for Lyon" }));
+    await user.click(await screen.findByRole("button", { name: /^Move down$/ }));
+    await waitFor(() => expect(mobileRow("s-1")).toHaveAttribute("aria-busy", "true"));
+    expect(mobileRow("s-2")).not.toHaveAttribute("aria-busy");
+    expect(mobileRow("s-3")).not.toHaveAttribute("aria-busy");
+    expect(screen.getByRole("button", { name: "Actions for Lyon" })).toBeDisabled();
+    expect(moveStop).toHaveBeenCalledTimes(1);
+    await act(async () => d.resolve());
+    expect(mobileRow("s-1")).not.toHaveAttribute("aria-busy");
+  });
+});

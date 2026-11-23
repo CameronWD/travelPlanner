@@ -38,15 +38,22 @@
  *      trip, loaded once at 2560px in Chromium and stepped down to 320px
  *      and back up with no reload, checked for breakage at each step.
  *   5. Layout shift (layout-audit/loading.ts): CLS for each main route on a
- *      normal load at the iPhone 17's viewport, in Chromium.
+ *      normal load at the iPhone 17's viewport and at 1440px wide, in
+ *      Chromium; then on section switches (switch.ts) and after an action
+ *      (action.ts: a tick, an add, a vote, a Cost marked paid).
  *   6. Writes the outputs and a summary, and sets the exit code.
  *   One capture failing never aborts the run: it is recorded with its
  *   error and the run carries on.
  *
- * NOTHING HERE SUBMITS. Overlay recipes open forms, dialogs and menus and
- * stop; see overlays.ts (SUBMIT_LABELS, and the note on reading a trigger's
- * component first). Loading a trip page does make the app remember it as
- * the last trip opened; that is the app, not the harness.
+ * NOTHING HERE SUBMITS, except the "action" set. Overlay recipes open forms,
+ * dialogs and menus and stop; see overlays.ts (SUBMIT_LABELS, and the note on
+ * reading a trigger's component first). The "action" set WRITES TO THE DEMO
+ * TRIP: it ticks, adds, votes and marks paid on the demo deep trip only (it
+ * refuses any other), puts each change back through the UI, checked on a
+ * fresh load, and first clears up what an interrupted earlier run left
+ * (see action.ts). It runs only when LAYOUT_AUDIT_SETS names it.
+ * Loading a trip page does make the app remember it as the last trip opened;
+ * that is the app, not the harness.
  *
  * PREREQUISITES
  * -----------------
@@ -72,8 +79,11 @@
  *   LAYOUT_AUDIT_AUTH_STATE   Playwright storageState JSON. Default
  *                             /tmp/auth.json. Created if missing.
  *   LAYOUT_AUDIT_SETS         Comma list of what to run: deep, phase, empty,
- *                             dark, print, overlay, loading, resize, cls.
- *                             Default: all. A database with no demo cast
+ *                             dark, print, overlay, loading, resize, cls,
+ *                             switch, action.
+ *                             Default: all but action. "action" writes to
+ *                             the demo trip and undoes it, so it runs only
+ *                             when named here. A database with no demo cast
  *                             runs without "phase,empty"; the demo database
  *                             then runs just those.
  *   LAYOUT_AUDIT_DEEP_TRIP    The deep trip's name as /trips shows it.
@@ -92,7 +102,9 @@
  *                             "cls/" (commas separate alternatives; capture
  *                             ids mirror the shot paths below, minus the
  *                             .png; the crawl's are `resize/<routeLabel>`,
- *                             CLS's `cls/<routeLabel>`).
+ *                             CLS's `cls/<routeLabel>/<profile>`, a section
+ *                             switch's `switch/<from>-<to>/<profile>`, an
+ *                             action's `action/<flow>/<profile>`).
  *
  *   A run that does not do everything (LAYOUT_AUDIT_ONLY, or only some
  *   sets) into an out dir that already holds a manifest MERGES into it —
@@ -114,9 +126,23 @@
  *                              (`range`), and `notRecovered` — breakage on
  *                              the way back up that the way down did not
  *                              have at that width.
- *   <out>/cls.json             per route: CLS, the shift count, and the
- *                              five largest shifts with the elements that
- *                              moved.
+ *   <out>/cls.json             per route and profile (iphone17-pwa, 1440):
+ *                              CLS, the shift count, and the five largest
+ *                              shifts with the elements that moved.
+ *   <out>/switch.json          per section switch (home → plan, …) and
+ *                              profile: the CLS of going from one page to
+ *                              the other by tapping a link, as is and with
+ *                              the new page's data held back 1.5s, and the
+ *                              elements that moved.
+ *   <out>/action.json          per flow (checklist-tick, item-add, cost-add,
+ *                              vote, mark-paid) and profile: the shifts while
+ *                              the click is still input (`during`) and when
+ *                              the server's answer lands (`late`), the
+ *                              elements that moved, and whether the change
+ *                              was put back (`undone`).
+ *   <out>/action-in-flight.json while the action set runs: each change not
+ *                              yet put back; a later run into this out dir
+ *                              puts back whatever an interrupted one left.
  *   <out>/shots/<set>/<routeLabel>/<trip>/<profile>-<theme>.png
  *                              (pages taller than one viewport, i.e. nearly
  *                              all: -part1.png, -part2.png, …, drawn with
@@ -155,7 +181,8 @@
  * EXIT CODE
  * -----------------
  *   Non-zero when nothing was captured, any capture errored, any capture
- *   measured zero elements, or a resize / CLS route errored. Findings do
+ *   measured zero elements, a resize / CLS / switch / action measurement
+ *   errored, or an action was not put back. Findings do
  *   NOT fail Stage 1, and neither do skipped captures (a route with no
  *   dated days, an overlay whose trigger isn't there) — those are printed
  *   as COVERAGE GAPs instead.
@@ -226,11 +253,12 @@ import { COLLECTOR_SCRIPT, type RawCollect } from "./layout-audit/collector";
 import {
   assertLocalBaseUrl,
   buildCaptureMatrix,
-  LOADING_ROUTE_LABELS,
+  CLS_ROUTE_LABELS,
   parseSets,
   profileFor,
   resolveOutDir,
   ROUTES,
+  SHIFT_PROFILE_IDS,
   type CaptureSpec,
   type DeviceProfile,
   type Engine,
@@ -242,6 +270,8 @@ import {
 import { captureLoading, measureCls, mergeCls, type ClsResult } from "./layout-audit/loading";
 import { focusFirstInput, openOverlay, OVERLAYS, type OverlayRecipe } from "./layout-audit/overlays";
 import { crawlRoute, mergeResize, RESIZE_HEIGHT, type ResizeRouteResult } from "./layout-audit/resize";
+import { measureSwitch, mergeSwitch, SWITCH_PAIRS, type SwitchPair, type SwitchResult } from "./layout-audit/switch";
+import { ACTION_FLOWS, measureAction, mergeAction, recoverActions, type ActionFlow, type ActionShiftResult } from "./layout-audit/action";
 import {
   assertNextDev,
   filterCaptures,
@@ -718,12 +748,32 @@ function deepRoutes(
 ): { route: RouteDef; path: string }[] {
   const out: { route: RouteDef; path: string }[] = [];
   for (const route of routes) {
-    if (!matchesOnly(`${kind}/${route.label}`, only)) continue;
+    const ids = kind === "cls" ? SHIFT_PROFILE_IDS.map((p) => `cls/${route.label}/${p}`) : [`resize/${route.label}`];
+    if (!ids.some((id) => matchesOnly(id, only))) continue;
     const resolved = resolveRoute(route, route.tripScoped ? "deep" : "none", setup);
     if ("path" in resolved) out.push({ route, path: resolved.path });
     else console.log(`[${kind}] ${route.label} — SKIPPED ${"skip" in resolved ? resolved.skip : resolved.error}`);
   }
   return out;
+}
+
+const switchId = (pair: SwitchPair, profileId: string) => `switch/${pair.from}-${pair.to}/${profileId}`;
+const actionId = (flow: ActionFlow, profileId: string) => `action/${flow.id}/${profileId}`;
+
+/** The deep trip's day after the one the `day` route uses, or undefined when
+ * the trip has none. */
+async function nextDayPathOf(chromium: Browser, baseUrl: string, authStatePath: string, setup: Setup): Promise<string | undefined> {
+  const tripId = setup.tripIds.deep;
+  const date = setup.dayDates.deep;
+  if (!tripId || !date) return undefined;
+  const context = await chromium.newContext({ storageState: authStatePath });
+  try {
+    const dates = await deriveDayDates(await context.newPage(), baseUrl, tripId);
+    const at = dates.indexOf(date);
+    return at >= 0 && dates[at + 1] ? `/trips/${tripId}/day/${dates[at + 1]}` : undefined;
+  } finally {
+    await context.close().catch(() => {});
+  }
 }
 
 async function audit(
@@ -741,7 +791,10 @@ async function audit(
   let setup: Setup;
   let matrix: CaptureSpec[];
   let specs: CaptureSpec[];
-  const wants = (kind: "resize" | "cls", label: string) => sets.has(kind) && matchesOnly(`${kind}/${label}`, only);
+  const wantedPairs = (filter: string | undefined, runSets: ReadonlySet<string>) =>
+    runSets.has("switch") ? SWITCH_PAIRS.filter((p) => SHIFT_PROFILE_IDS.some((profile) => matchesOnly(`switch/${p.from}-${p.to}/${profile}`, filter))) : [];
+  const wants = (kind: "resize" | "cls", label: string) =>
+    sets.has(kind) && (kind === "cls" ? SHIFT_PROFILE_IDS.some((p) => matchesOnly(`cls/${label}/${p}`, only)) : matchesOnly(`resize/${label}`, only));
   try {
     const page = await bootCtx.newPage();
     const base = await bootstrap(bootCtx, page, baseUrl, authStatePath, options);
@@ -753,7 +806,12 @@ async function audit(
       sets,
     });
     specs = filterCaptures(matrix, only);
-    const needs = { share: wants("resize", "share"), deepDay: wants("resize", "day") || wants("cls", "day") };
+    // The action set clears up the day's leftovers even when item-add is filtered out.
+    const wantsDayAction = sets.has("action");
+    const needs = {
+      share: wants("resize", "share"),
+      deepDay: wants("resize", "day") || wants("cls", "day") || wantedPairs(only, sets).some((p) => [p.from, p.to].includes("day")) || wantsDayAction,
+    };
     setup = { ...base, ...(await lookups(page, baseUrl, base, specs, needs, options)) };
   } finally {
     await bootCtx.close().catch(() => {});
@@ -872,21 +930,23 @@ async function audit(
   let clsResults: ClsResult[] = [];
   if (sets.has("cls")) {
     const targets = deepRoutes(
-      ROUTES.filter((r) => LOADING_ROUTE_LABELS.includes(r.label)),
+      ROUTES.filter((r) => CLS_ROUTE_LABELS.includes(r.label)),
       "cls",
       only,
       setup,
     );
-    if (targets.length > 0) {
-      // layout-shift entries exist only in Chromium, so the phone's viewport
-      // is emulated there rather than measured in WebKit.
-      const context = await chromium.newContext(contextOptions(profileFor("iphone17-pwa"), "light", authStatePath));
+    // layout-shift entries exist only in Chromium, so the phone's viewport
+    // is emulated there rather than measured in WebKit.
+    for (const profileId of SHIFT_PROFILE_IDS) {
+      const wanted = targets.filter(({ route }) => matchesOnly(`cls/${route.label}/${profileId}`, only));
+      if (wanted.length === 0) continue;
+      const context = await chromium.newContext(contextOptions(profileFor(profileId), "light", authStatePath));
       try {
-        for (const { route, path: routePath } of targets) {
-          const result = await measureCls(context, `${baseUrl}${routePath}`, route.label, routePath);
+        for (const { route, path: routePath } of wanted) {
+          const result = await measureCls(context, `${baseUrl}${routePath}`, route.label, routePath, profileId);
           clsResults.push(result);
           console.log(
-            `[cls] ${route.label} — ${result.error ? `ERROR ${result.error}` : `CLS ${result.cls} (${result.shifts} shift(s)); throttled ${result.throttled?.cls}`}`,
+            `[cls] ${route.label} ${profileId} — ${result.error ? `ERROR ${result.error}` : `CLS ${result.cls} (${result.shifts} shift(s)); throttled ${result.throttled?.cls}`}`,
           );
         }
       } finally {
@@ -898,6 +958,111 @@ async function audit(
     if (partial) clsResults = mergeCls(readJson<ClsResult[]>(clsPath) ?? [], clsResults);
     if (thisCls.length > 0 || !fs.existsSync(clsPath)) fs.writeFileSync(clsPath, JSON.stringify(clsResults, null, 2) + "\n");
     clsResults = thisCls;
+  }
+
+  // ---- Section switches -------------------------------------------------
+  let switchResults: SwitchResult[] = [];
+  if (sets.has("switch")) {
+    const pairs = SWITCH_PAIRS.filter((p) => SHIFT_PROFILE_IDS.some((profileId) => matchesOnly(switchId(p, profileId), only)));
+    let nextDayPath: string | undefined;
+    if (pairs.some((p) => [p.from, p.to].includes("day-next"))) {
+      nextDayPath = await nextDayPathOf(chromium, baseUrl, authStatePath, setup);
+    }
+    const urlOf = (label: string): { path: string } | { skip: string } => {
+      if (label === "day-next") return nextDayPath ? { path: nextDayPath } : { skip: "no date after the day route's date" };
+      const route = ROUTES.find((r) => r.label === label)!;
+      const resolved = resolveRoute(route, route.tripScoped ? "deep" : "none", setup);
+      return "path" in resolved ? { path: resolved.path } : { skip: "skip" in resolved ? resolved.skip : resolved.error };
+    };
+    const runnable: { pair: SwitchPair; from: string; to: string }[] = [];
+    for (const pair of pairs) {
+      const from = urlOf(pair.from);
+      const to = urlOf(pair.to);
+      if ("path" in from && "path" in to) runnable.push({ pair, from: from.path, to: to.path });
+      else console.log(`[switch] ${pair.from}→${pair.to} — SKIPPED ${"skip" in from ? from.skip : (to as { skip: string }).skip}`);
+    }
+    for (const profileId of SHIFT_PROFILE_IDS) {
+      const wanted = runnable.filter(({ pair }) => matchesOnly(switchId(pair, profileId), only));
+      if (wanted.length === 0) continue;
+      const context = await chromium.newContext(contextOptions(profileFor(profileId), "light", authStatePath));
+      try {
+        for (const { pair, from, to } of wanted) {
+          const meta = { from: pair.from, to: pair.to, profile: profileId };
+          let result = await measureSwitch(context, `${baseUrl}${from}`, to, meta);
+          if (result.error) result = await measureSwitch(context, `${baseUrl}${from}`, to, meta);
+          switchResults.push(result);
+          console.log(
+            `[switch] ${pair.from}→${pair.to} ${profileId} — ${result.error ? `ERROR ${result.error}` : `CLS ${result.cls}; held ${result.held?.cls}`}`,
+          );
+        }
+      } finally {
+        await context.close().catch(() => {});
+      }
+    }
+    const switchPath = path.join(outDir, "switch.json");
+    const thisSwitch = switchResults;
+    if (partial) switchResults = mergeSwitch(readJson<SwitchResult[]>(switchPath) ?? [], switchResults);
+    if (thisSwitch.length > 0 || !fs.existsSync(switchPath)) fs.writeFileSync(switchPath, JSON.stringify(switchResults, null, 2) + "\n");
+    switchResults = thisSwitch;
+  }
+
+  // ---- After an action -------------------------------------------------
+  let actionResults: ActionShiftResult[] = [];
+  let recoveryFailed = false;
+  if (sets.has("action")) {
+    const flows = ACTION_FLOWS.filter((f) => SHIFT_PROFILE_IDS.some((profileId) => matchesOnly(actionId(f, profileId), only)));
+    if (options.deepTripName && options.deepTripName !== TRIP_NAMES.deep) {
+      console.log(`[action] SKIPPED: it writes to the deep trip, so it runs on the demo "${TRIP_NAMES.deep}" only, not "${options.deepTripName}"`);
+    } else {
+      const journal = path.join(outDir, "action-in-flight.json");
+      const pathOf = (label: string) => {
+        const resolved = resolveRoute(ROUTES.find((r) => r.label === label)!, "deep", setup);
+        return "path" in resolved ? `${baseUrl}${resolved.path}` : undefined;
+      };
+      console.log(
+        `[action] NOTE: a run interrupted into another out dir may have left a ticked checklist item or a changed vote on the demo trip; this run cannot see it. \`npm run db:seed:demo\` restores the demo trip.`,
+      );
+      const recoverContext = await chromium.newContext(contextOptions(profileFor("1440"), "light", authStatePath));
+      try {
+        const recovered = await recoverActions(recoverContext, { journal, budgetUrl: pathOf("budget"), dayUrl: pathOf("day") });
+        for (const line of recovered.done) console.log(`[action] recover: ${line}`);
+        for (const line of recovered.failed) console.log(`[action] recover: ERROR ${line}`);
+        if (recovered.done.length + recovered.failed.length === 0) console.log("[action] recover: nothing left over from an earlier run");
+        recoveryFailed = recovered.failed.length > 0;
+      } finally {
+        await recoverContext.close().catch(() => {});
+      }
+      for (const profileId of SHIFT_PROFILE_IDS) {
+        const wanted = flows.filter((f) => matchesOnly(actionId(f, profileId), only));
+        if (wanted.length === 0) continue;
+        const context = await chromium.newContext(contextOptions(profileFor(profileId), "light", authStatePath));
+        try {
+          for (const flow of wanted) {
+            const route = ROUTES.find((r) => r.label === flow.routeLabel)!;
+            const resolved = resolveRoute(route, "deep", setup);
+            if (!("path" in resolved)) {
+              console.log(`[action] ${flow.id} ${profileId} — SKIPPED ${"skip" in resolved ? resolved.skip : resolved.error}`);
+              continue;
+            }
+            let result = await measureAction(context, `${baseUrl}${resolved.path}`, flow, profileId, journal);
+            // A retry only when the failed attempt was put back, so a retry
+            // can never leave a second change behind.
+            if (result.error && result.undone) result = await measureAction(context, `${baseUrl}${resolved.path}`, flow, profileId, journal);
+            actionResults.push(result);
+            console.log(
+              `[action] ${flow.id} ${profileId} — ${result.error ? `ERROR ${result.error}` : `during ${result.during.total} (${result.during.shifts}); late ${result.late.total} (${result.late.shifts})`}${result.undone ? "" : " — NOT UNDONE"}`,
+            );
+          }
+        } finally {
+          await context.close().catch(() => {});
+        }
+      }
+    }
+    const actionPath = path.join(outDir, "action.json");
+    const thisAction = actionResults;
+    if (partial) actionResults = mergeAction(readJson<ActionShiftResult[]>(actionPath) ?? [], actionResults);
+    if (thisAction.length > 0 || !fs.existsSync(actionPath)) fs.writeFileSync(actionPath, JSON.stringify(actionResults, null, 2) + "\n");
+    actionResults = thisAction;
   }
 
   // This run's own records. A partial run merges them into the out dir's
@@ -933,7 +1098,7 @@ async function audit(
 
   // A run of only the resize crawl and/or CLS has no captures to judge, and
   // must not leave an empty manifest behind in a fresh out dir.
-  const modesOnly = specs.length === 0 && resizeResults.length + clsResults.length > 0;
+  const modesOnly = specs.length === 0 && resizeResults.length + clsResults.length + switchResults.length + actionResults.length > 0;
   console.log("");
   if (!modesOnly || fs.existsSync(manifestPath)) {
     fs.writeFileSync(manifestPath, JSON.stringify(manifest, null, 2) + "\n");
@@ -942,7 +1107,7 @@ async function audit(
   if (!modesOnly) console.log(summarise(manifest, allFindings, thisRun));
   else console.log(`out: ${outDir}`);
 
-  const modeErrors = [...resizeResults, ...clsResults].filter((r) => r.error !== undefined);
+  const modeErrors = [...resizeResults, ...clsResults, ...switchResults, ...actionResults].filter((r) => r.error !== undefined);
   if (resizeResults.length > 0) {
     const hits = resizeResults.reduce((n, r) => n + r.findings.length, 0);
     const stuck = resizeResults.reduce((n, r) => n + r.notRecovered.length, 0);
@@ -951,9 +1116,15 @@ async function audit(
   if (clsResults.length > 0) {
     console.log(`layout shift (as is / throttled): ${clsResults.map((r) => `${r.label} ${r.cls} / ${r.throttled?.cls ?? "–"}`).join(", ")}`);
   }
+  if (switchResults.length > 0) {
+    console.log(`section switch (as is / held): ${switchResults.map((r) => `${r.from}→${r.to} ${r.profile} ${r.cls} / ${r.held?.cls ?? "–"}`).join(", ")}`);
+  }
+  if (actionResults.length > 0) {
+    console.log(`after an action (during / late): ${actionResults.map((r) => `${r.flow} ${r.profile} ${r.during.total} / ${r.late.total}${r.undone ? "" : " NOT UNDONE"}`).join(", ")}`);
+  }
   for (const r of modeErrors) console.log(`ERROR ${r.id}: ${r.error}`);
 
-  process.exitCode = modeErrors.length > 0 ? 1 : modesOnly ? 0 : rerunExitCode(thisRun, manifest);
+  process.exitCode = modeErrors.length > 0 || recoveryFailed ? 1 : modesOnly ? 0 : rerunExitCode(thisRun, manifest);
 }
 
 async function main(): Promise<void> {

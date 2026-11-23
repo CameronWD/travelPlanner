@@ -70,6 +70,7 @@ export function ReviewPermissionsPanel({ initial }: { initial: ReviewPermissionV
             aria-label={`Reviews for ${row.email}`}
             value={row.permission}
             disabled={pendingIds.has(row.userId)}
+            aria-busy={pendingIds.has(row.userId) || undefined}
             onValueChange={(v) => void change(row, v)}
             className="shrink-0 self-end sm:self-auto"
           >

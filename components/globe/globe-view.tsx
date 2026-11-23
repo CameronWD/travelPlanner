@@ -38,6 +38,7 @@ export function GlobeView({ markers, members, globeId, attachmentsByMarkerId, ar
   // Marker place search with; null for every other way of opening the form.
   const [addQuery, setAddQuery] = useState<string | null>(null);
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
   // Bumped on every open so the form's `key` changes and MarkerForm remounts
   // fresh — otherwise reopening "Add" (a constant key) reuses the prior
   // instance's state and carries the last marker's fields over.
@@ -77,6 +78,7 @@ export function GlobeView({ markers, members, globeId, attachmentsByMarkerId, ar
       destructive: true,
     });
     if (!confirmed) return;
+    setDeletingId(id);
     try {
       const r = await deleteMarker(id);
       if (!r.success) {
@@ -86,6 +88,8 @@ export function GlobeView({ markers, members, globeId, attachmentsByMarkerId, ar
     } catch {
       toastRejected("Couldn’t delete that marker.");
       return;
+    } finally {
+      setDeletingId(null);
     }
   };
 
@@ -119,16 +123,18 @@ export function GlobeView({ markers, members, globeId, attachmentsByMarkerId, ar
 
       <div className="grid grid-cols-1 items-start gap-3 lg:grid-cols-[minmax(0,1.7fr)_minmax(0,1fr)] lg:gap-[18px]">
         <div className="flex min-w-0 flex-col gap-2 lg:sticky lg:top-6 lg:self-start">
-          <GlobeMapLoader
-            markers={filtered}
-            selectedId={selectedId}
-            onSelect={setSelectedId}
-            onEdit={openEdit}
-            onDelete={handleDelete}
-            onMapClick={openDrop}
-            attachmentsByMarkerId={attachmentsByMarkerId}
-            arrivalPins={arrival?.pins}
-          />
+          <div className="h-[260px] w-full lg:h-[calc(100dvh-4.5rem)] lg:min-h-[460px] [&_[data-map-fallback]]:max-h-full [&_[data-map-fallback]]:overflow-y-auto">
+            <GlobeMapLoader
+              markers={filtered}
+              selectedId={selectedId}
+              onSelect={setSelectedId}
+              onEdit={openEdit}
+              onDelete={handleDelete}
+              onMapClick={openDrop}
+              attachmentsByMarkerId={attachmentsByMarkerId}
+              arrivalPins={arrival?.pins}
+            />
+          </div>
           <p className="text-right text-xs font-medium text-muted-foreground">Tap the map to drop a marker</p>
         </div>
 
@@ -177,6 +183,7 @@ export function GlobeView({ markers, members, globeId, attachmentsByMarkerId, ar
                   onSelect={setSelectedId}
                   onEdit={openEdit}
                   onDelete={handleDelete}
+                  deletingId={deletingId}
                   globeId={globeId}
                   attachmentsByMarkerId={attachmentsByMarkerId}
                 />

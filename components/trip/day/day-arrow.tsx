@@ -5,6 +5,7 @@ import { AppLink } from "@/components/navigation/app-link";
 import { DAY_BACK, DAY_FORWARD } from "@/components/trip/day/day-transition";
 import { useDayCarousel } from "@/components/trip/day/day-carousel";
 import { dayFromPathname } from "@/lib/day-path";
+import { addDays } from "@/lib/dates";
 import { recordUsageDayChange } from "@/lib/usage/client";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 
@@ -34,13 +35,17 @@ export function DayArrow({ href, label, dir }: { href: Route | null; label: stri
       href={href}
       scroll={false}
       aria-label={label ?? undefined}
+      data-day-step={dir === "prev" ? -1 : 1}
       transitionTypes={[dir === "prev" ? DAY_BACK : DAY_FORWARD]}
       className={ARROW}
       // Lit the moment it is tapped: the page holds until the next day is ready (ADR 0063).
       pendingClassName="translate-y-px bg-coral shadow-none"
       onNavigate={(e) => {
-        if (!carousel?.isMoving()) recordUsageDayChange("arrow", dayFromPathname(href));
-        if (carousel?.goTo(href)) e.preventDefault();
+        const by = dir === "prev" ? -1 : 1;
+        if (!carousel?.isMoving()) recordUsageDayChange("arrow", carousel ? addDays(carousel.current(), by) : dayFromPathname(href));
+        // From the day in view, not this header's: from lg the header redraws
+        // after a press commits, and a tap before that would repeat the last move.
+        if (carousel && (carousel.step(by) || carousel.goTo(href))) e.preventDefault();
       }}
     >
       {icon}

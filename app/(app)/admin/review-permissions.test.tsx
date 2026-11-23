@@ -61,6 +61,20 @@ describe("ReviewPermissionsPanel (R12)", () => {
 
   // Fix round 1: pending is a Set of ids, not one id, so finishing row A's
   // save doesn't re-enable row B's control while row B's own save is still in flight.
+  it("marks the row's group busy and its radios disabled while the save is unresolved, and ignores a second click", async () => {
+    let release: (r: { success: true; permission: "UNLIMITED" }) => void = () => {};
+    setReviewPermission.mockReturnValue(new Promise((r) => { release = r; }));
+    render(<ReviewPermissionsPanel initial={rows} />);
+    await userEvent.click(within(group("pat@example.com")).getByRole("radio", { name: "Unlimited" }));
+    expect(group("pat@example.com")).toHaveAttribute("aria-busy", "true");
+    expect(within(group("pat@example.com")).getByRole("radio", { name: "Limited" })).toBeDisabled();
+    expect(group("cam@example.com")).not.toHaveAttribute("aria-busy");
+    await userEvent.click(within(group("pat@example.com")).getByRole("radio", { name: "Limited" }));
+    expect(setReviewPermission).toHaveBeenCalledTimes(1);
+    release({ success: true, permission: "UNLIMITED" });
+    await waitFor(() => expect(group("pat@example.com")).not.toHaveAttribute("aria-busy"));
+  });
+
   it("keeps row B disabled while its own save is in flight, even after row A's finishes first", async () => {
     let resolveB: (r: { success: true; permission: "UNLIMITED" }) => void = () => {};
     setReviewPermission.mockImplementation((userId: string) => {

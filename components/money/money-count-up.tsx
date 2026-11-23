@@ -40,6 +40,7 @@ export function MoneyCountUp({
   const mv = useTween(minor, { from: 0, duration, skip, restartOn: entrance === "play", ease: [0.2, 0.8, 0.2, 1] });
   const whole = useTransform(mv, (v) => formatMoneyParts(Math.round(v), currency).whole);
   const fraction = useTransform(mv, (v) => formatMoneyParts(Math.round(v), currency).fraction ?? "");
+  const finalWhole = formatMoneyParts(minor, currency).whole;
   const hasFraction = formatMoneyParts(minor, currency).fraction !== null;
 
   React.useEffect(() => {
@@ -52,9 +53,10 @@ export function MoneyCountUp({
   return (
     <>
       <span className="sr-only">{formatMoney(minor, currency)}</span>
-      <m.span aria-hidden="true" className="text-[56px] lg:text-[72px] xl:text-[88px]">
-        {whole}
-      </m.span>
+      <span className="inline-grid text-[56px] lg:text-[72px] xl:text-[88px]">
+        <m.span aria-hidden="true" data-count-whole className="col-start-1 row-start-1">{whole}</m.span>
+        <span aria-hidden="true" data-count-sizer={finalWhole} className="invisible col-start-1 row-start-1 after:content-[attr(data-count-sizer)]" />
+      </span>
       {hasFraction ? (
         <m.span aria-hidden="true" data-testid="cost-tile-fraction" className="text-[20px] tracking-[-0.02em] lg:text-[28px]">
           {fraction}

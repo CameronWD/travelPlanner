@@ -136,7 +136,7 @@ export const SUBMIT_LABELS = [
   "Mark all read",
   "Save Reminder",
   "Read booking",
-  "Doesn't need one",
+  "Nothing to attach",
   "Sign out",
   "Revoke",
 ] as const;

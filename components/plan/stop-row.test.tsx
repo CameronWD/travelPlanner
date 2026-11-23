@@ -92,6 +92,13 @@ describe("StopRow (PLAN.md §3)", () => {
     expect(fold.className).toContain("border-sun");
   });
 
+  it("says busy while its stop menu action runs, and only then (Task 9, F172)", () => {
+    const { container, rerender, props } = renderRow({ isPending: true });
+    expect(container.querySelector("#stop-r")).toHaveAttribute("aria-busy", "true");
+    rerender(<StopRow {...props} isPending={false} />);
+    expect(container.querySelector("#stop-r")).not.toHaveAttribute("aria-busy");
+  });
+
   it("the ⋯ menu is the grouped MoreActionsMenu", () => {
     renderRow();
     expect(screen.getByRole("button", { name: "More actions for Rome" })).toBeInTheDocument();

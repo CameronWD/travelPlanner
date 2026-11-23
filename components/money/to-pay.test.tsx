@@ -207,6 +207,22 @@ describe("To pay (MONEY.md §4)", () => {
     expect(screen.queryByRole("menuitem", { name: "Delete cost" })).toBeNull();
   });
 
+  it("marks the row busy and its tick box disabled while deleteCost is unresolved", async () => {
+    let release!: (v: { success: true }) => void;
+    actions.deleteCost.mockReturnValueOnce(new Promise((r) => { release = r; }));
+    const user = userEvent.setup();
+    renderCard();
+    await user.click(screen.getByRole("button", { name: "More for Travel insurance" }));
+    await user.click(await screen.findByRole("menuitem", { name: "Delete cost" }));
+    await user.click(await screen.findByRole("button", { name: "Delete" }));
+    const row = screen.getAllByRole("listitem", { name: "Travel insurance" })[0];
+    await waitFor(() => expect(row).toHaveAttribute("aria-busy", "true"));
+    expect(within(row).getByRole("checkbox", { name: "Travel insurance" })).toBeDisabled();
+    expect(actions.deleteCost).toHaveBeenCalledTimes(1);
+    release({ success: true });
+    await waitFor(() => expect(row).not.toHaveAttribute("aria-busy"));
+  });
+
   it("toasts the server's reason when deleting an Other cost is refused (spec 2026-10-06 §E)", async () => {
     actions.deleteCost.mockResolvedValueOnce({ success: false, errors: { _: ["That cost was already deleted."] } } as never);
     const user = userEvent.setup();

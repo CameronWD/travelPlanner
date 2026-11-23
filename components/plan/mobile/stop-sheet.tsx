@@ -19,7 +19,6 @@ import { buildStopDays, ownerMarker, type StopDayItem } from "@/lib/stop-days";
 import type { StopCardStop, ThingToDo } from "@/components/plan/types";
 import { stopSheetMeta } from "./stop-sheet-meta";
 import { SurpriseBadge, SurpriseShell } from "@/components/plan/surprise-badge";
-import { BookingConfirmationMarker } from "@/components/trip/booking-confirmation-marker";
 
 export { stopSheetMeta } from "./stop-sheet-meta";
 
@@ -41,9 +40,9 @@ export interface StopSheetProps {
   onOpenIdea(idea: ThingToDo): void;
   onEditDates(): void;
   onActions(): void;
+  isPending?: boolean;
   /** Spec 2026-10-06 §N: the −/+ nights stepper on the meta line. */
   onSetNights?(nights: number): void;
-  needsConfirmationIds?: ReadonlySet<string>;
 }
 
 type Tab = "days" | "stay" | "ideas";
@@ -129,8 +128,8 @@ export function StopSheet({
   onOpenIdea,
   onEditDates,
   onActions,
+  isPending,
   onSetNights,
-  needsConfirmationIds,
 }: StopSheetProps) {
   const rough = !stop.arriveDate || !stop.departDate;
   // CONTEXT.md Surprise: the surprised see the outside and who is planning it, and touch nothing.
@@ -156,6 +155,7 @@ export function StopSheet({
       <DialogPrimitive.Portal>
         <DialogPrimitive.Content
           aria-describedby={undefined}
+          aria-busy={isPending || undefined}
           className="fixed inset-0 z-50 flex flex-col bg-background data-[state=open]:tp-slide-up data-[state=closed]:tp-slide-down"
         >
           <div className="border-b-2 border-muted px-4 pb-3 pt-[calc(0.75rem+env(safe-area-inset-top))]">
@@ -179,7 +179,8 @@ export function StopSheet({
                   type="button"
                   aria-label={`Actions for ${stop.name}`}
                   onClick={onActions}
-                  className="pressable grid size-11 shrink-0 place-items-center rounded-full border-2 border-border bg-card"
+                  disabled={isPending}
+                  className="pressable grid size-11 shrink-0 place-items-center rounded-full border-2 border-border bg-card disabled:pointer-events-none disabled:opacity-60"
                 >
                   <Ellipsis className="size-5" aria-hidden />
                 </button>
@@ -237,7 +238,7 @@ export function StopSheet({
               (rough ? (
                 <div className="flex flex-col items-center gap-3 py-6">
                   <p className="text-[13px] font-semibold text-muted-foreground">Needs dates first</p>
-                  <Button variant="primary" size="md" onClick={onEditDates}>
+                  <Button variant="primary" size="md" onClick={onEditDates} disabled={isPending}>
                     Give it dates
                   </Button>
                 </div>
@@ -305,11 +306,6 @@ export function StopSheet({
                                 )}
                               </span>
                             </button>
-                            {needsConfirmationIds?.has(it.id) && (
-                              <div className="pb-2 pl-[3.75rem]">
-                                <BookingConfirmationMarker kind="ITEM" id={it.id} />
-                              </div>
-                            )}
                             </React.Fragment>
                           );
                         })
@@ -343,8 +339,8 @@ export function StopSheet({
                       <SurpriseBadge view={idea.surprise} size="sm" className="shrink-0" />
                     </div>
                   ) : (
-                    <React.Fragment key={idea.id}>
                     <button
+                      key={idea.id}
                       type="button"
                       aria-label={`Open ${idea.title}`}
                       onClick={() => onOpenIdea(idea)}
@@ -354,12 +350,6 @@ export function StopSheet({
                       <span className="min-w-0 flex-1 truncate text-sm font-semibold">{idea.title}</span>
                       <ChevronRight className="size-4 shrink-0 text-muted-foreground" aria-hidden="true" />
                     </button>
-                    {needsConfirmationIds?.has(idea.id) && (
-                      <div className="pb-2 pl-5">
-                        <BookingConfirmationMarker kind="ITEM" id={idea.id} />
-                      </div>
-                    )}
-                    </React.Fragment>
                   ),
                 )
               ))}
@@ -367,7 +357,7 @@ export function StopSheet({
 
           {!surprised && (
             <div className="flex gap-2.5 border-t-2 border-border bg-background px-4 pb-[calc(0.75rem+env(safe-area-inset-bottom))] pt-3">
-              <Button variant="outline" size="lg" onClick={onEditDates}>
+              <Button variant="outline" size="lg" onClick={onEditDates} disabled={isPending}>
                 Edit dates
               </Button>
               <Button variant="primary" size="lg" className="flex-1" onClick={() => onAddPlan(topDay())}>

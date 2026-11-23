@@ -19,7 +19,12 @@ export interface CoverImageFieldProps {
   /** Trip.coverFocalX / coverFocalY — 0–1; null = centre. */
   focalX?: number | null;
   focalY?: number | null;
+  /** Trip.coverAspect — width/height; the preview reserves its shape before the photo arrives. */
+  aspect?: number | null;
 }
+
+// Only a placeholder until the photo loads: 4/3 is the one cover ratio the app already uses (the Home polaroid), and uploads are not cropped so no single ratio is exact.
+const COVER_FALLBACK_ASPECT = "4 / 3";
 
 /** The real picker, visually hidden; the Field's label and the Choose photo button both reach it. */
 function HiddenCoverInput({
@@ -46,8 +51,9 @@ function HiddenCoverInput({
   );
 }
 
-export function CoverImageField({ tripId, hasCover, coverVersion, focalX, focalY }: CoverImageFieldProps) {
+export function CoverImageField({ tripId, hasCover, coverVersion, focalX, focalY, aspect }: CoverImageFieldProps) {
   const [isPending, startTransition] = useTransition();
+  const [working, setWorking] = React.useState<"upload" | "remove" | "focal" | null>(null);
   // Optimistic marker: moves on click, before the action's revalidation brings the saved point back.
   const [focal, setFocal] = React.useState({ x: focalX ?? 0.5, y: focalY ?? 0.5 });
   const inputRef = React.useRef<HTMLInputElement>(null);
@@ -64,6 +70,7 @@ export function CoverImageField({ tripId, hasCover, coverVersion, focalX, focalY
     const x = clamp((e.clientX - rect.left) / rect.width);
     const y = clamp((e.clientY - rect.top) / rect.height);
     setFocal({ x, y });
+    setWorking("focal");
     startTransition(async () => {
       const r = await setCoverFocal(tripId, x, y);
       if (!r.success) toast({ variant: "destructive", title: firstErrorMessage(r, "Couldn’t update the focal point.") });
@@ -74,6 +81,7 @@ export function CoverImageField({ tripId, hasCover, coverVersion, focalX, focalY
     const file = e.target.files?.[0];
     if (!file) return;
     setFileName(file.name);
+    setWorking("upload");
     startTransition(async () => {
       const [compressed, small] = await Promise.all([compressImage(file), compressCoverSmall(file)]);
       const oversize = oversizeUploadMessage(compressed);
@@ -97,6 +105,7 @@ export function CoverImageField({ tripId, hasCover, coverVersion, focalX, focalY
   }
 
   function onRemove() {
+    setWorking("remove");
     startTransition(async () => {
       const r = await removeTripCover(tripId);
       if (!r.success) toast({ variant: "destructive", title: firstErrorMessage(r, "Couldn’t remove the cover.") });
@@ -113,12 +122,12 @@ export function CoverImageField({ tripId, hasCover, coverVersion, focalX, focalY
           the chosen name shows beneath — the New trip cover step's pattern. */}
       <div className="flex flex-wrap items-center gap-3">
         <HiddenCoverInput inputRef={inputRef} onChange={onFile} disabled={isPending} />
-        <Button type="button" variant="secondary" size="sm" className={SM_HIT} onClick={() => inputRef.current?.click()} disabled={isPending}>
+        <Button type="button" variant="secondary" size="sm" className={SM_HIT} onClick={() => inputRef.current?.click()} disabled={isPending} loading={isPending && working === "upload"}>
           <ImagePlus className="size-4" aria-hidden="true" />
           Choose photo
         </Button>
         {hasCover && (
-          <Button type="button" variant="ghost" size="sm" className={SM_HIT} onClick={onRemove} disabled={isPending}>
+          <Button type="button" variant="ghost" size="sm" className={SM_HIT} onClick={onRemove} disabled={isPending} loading={isPending && working === "remove"}>
             Remove
           </Button>
         )}
@@ -145,6 +154,7 @@ export function CoverImageField({ tripId, hasCover, coverVersion, focalX, focalY
               src={`/api/trips/${tripId}/cover${coverVersion ? `?v=${encodeURIComponent(coverVersion)}` : ""}`}
               alt=""
               className="block h-auto w-full"
+              style={{ aspectRatio: `auto ${aspect != null ? `${aspect} / 1` : COVER_FALLBACK_ASPECT}` }}
             />
             <span
               data-testid="cover-focal-marker"

@@ -12,6 +12,8 @@
  *   - Same-origin /api/trips/<id>/cover      → network-first (its ?v= can change)
  *   - Same-origin /api/*                     → network-only  (auth + live data)
  *   - Same-origin /_next/static/*            → cache-first   (immutable hashed assets)
+ *   - Same-origin /launch.html               → launch-page   (any saved copy, else the network for
+ *                                              NAVIGATION_TIMEOUT_MS, else a redirect to /)
  *   - Everything else (navigations, pages)   → network-first (private per-user data)
  *
  * With the network down, slow or answering 5xx (ADR 0077): a navigation to `/`
@@ -19,7 +21,7 @@
  * page redirects to the plain path, which is then answered from its saved copy.
  *
  * Stores (spec 2026-10-06 §T), oldest entries trimmed past each cap:
- *   - static  teepee-static-<build>  /_next/static/*, /offline.html   cap 300
+ *   - static  teepee-static-<build>  /_next/static/*, /offline.html, /launch.html   cap 300
  *   - pages   teepee-pages-v1        navigations / pages              cap 400
  *   - files   teepee-files-v1        attachments, trip covers         no entry cap
  *                                    (ADR 0043's per-Trip byte cap bounds the warm)
@@ -33,7 +35,7 @@
  * when the network fails or, for a navigation, is slow or answers 5xx, ADR
  * 0077) and the runtime cache is cleared on sign-out via a CLEAR_CACHE
  * message — never serve one user's cached pages to another on a shared device.
- * Sign-out keeps only /offline.html and the build record.
+ * Sign-out keeps only /offline.html, /launch.html and the build record.
  */
 
 // Spec 2026-10-06 §T (mirrors lib/offline.ts cacheNames / CACHE_ENTRY_LIMITS).
@@ -58,12 +60,21 @@ const BUILD_META_PATH = '/__teepee/build-meta';
 const LAST_TRIP_PATH = '/__teepee/last-trip';
 
 // App shell resources to precache on install. Only truly public assets —
-// NEVER '/', which redirects to the authenticated app.
-const PRECACHE_URLS = ['/offline.html'];
+// NEVER '/', which redirects to the authenticated app. Mirrors PRECACHED_PATHS in lib/offline.ts.
+const PRECACHE_URLS = ['/offline.html', '/launch.html'];
 
 // ---------------------------------------------------------------------------
 // URL classification helpers (mirrors lib/offline.ts)
 // ---------------------------------------------------------------------------
+
+/** Mirrors isLaunchPage() in lib/offline.ts. */
+function isLaunchPage(url) {
+  try {
+    return new URL(url).pathname === '/launch.html';
+  } catch {
+    return false;
+  }
+}
 
 function isNextStaticAsset(url) {
   try {
@@ -130,18 +141,14 @@ function isRouterRequest(request) {
 function cacheStoreFor(url) {
   if (isAttachmentRoute(url) || isCoverRoute(url)) return 'files';
   if (isNextStaticAsset(url)) return 'static';
-  try {
-    if (new URL(url).pathname === '/offline.html') return 'static';
-  } catch {
-    // fall through
-  }
+  if (isPinnedCacheEntry(url)) return 'static';
   return 'pages';
 }
 
-/** Mirrors isPinnedCacheEntry() in lib/offline.ts: the offline page is never evicted. */
+/** Mirrors isPinnedCacheEntry() in lib/offline.ts: the offline and launch pages are never evicted. */
 function isPinnedCacheEntry(url) {
   try {
-    return new URL(url).pathname === '/offline.html';
+    return PRECACHE_URLS.includes(new URL(url).pathname);
   } catch {
     return false;
   }
@@ -329,6 +336,12 @@ function getCacheStrategy(request) {
   // Rule 4: cache-first for immutable static assets
   if (isNextStaticAsset(url)) return 'cache-first';
 
+  // Rule 4b: the launch page is public and the same for everyone, precached
+  // per build. It is answered from any store, then from the network for at
+  // most NAVIGATION_TIMEOUT_MS, and otherwise hands over to LAUNCH_HANDOVER_PATH
+  // (where the offline launch logic already lives); no saved-copy mark.
+  if (isLaunchPage(url)) return 'launch-page';
+
   // Rule 5: network-first for navigations / pages (private per-user data)
   return 'network-first';
 }
@@ -375,7 +388,7 @@ function signOutCacheNames(existing, buildId) {
   return existing.filter((name) => !keep.has(name));
 }
 
-// No deploy means no new install to precache /offline.html again, so sign-out
+// No deploy means no new install to precache /offline.html and /launch.html again, so sign-out
 // empties this build's static store around it rather than deleting the store.
 async function clearPrivateCaches() {
   const names = await caches.keys();
@@ -385,7 +398,8 @@ async function clearPrivateCaches() {
   const statics = await caches.open(CACHE_NAMES.static);
   const keys = await statics.keys();
   await Promise.all(keys.filter((key) => !isPinnedCacheEntry(key.url)).map((key) => statics.delete(key)));
-  if (!keys.some((key) => isPinnedCacheEntry(key.url))) await statics.addAll(PRECACHE_URLS);
+  const missing = PRECACHE_URLS.filter((path) => !keys.some((key) => new URL(key.url).pathname === path));
+  if (missing.length) await statics.addAll(missing);
 }
 
 /** Read the stored build record, then overwrite it with this build's. */
@@ -440,6 +454,11 @@ self.addEventListener('fetch', (event) => {
 
   if (strategy === 'network-only') {
     // Pass through — no caching at all
+    return;
+  }
+
+  if (strategy === 'launch-page') {
+    event.respondWith(launchPage(event));
     return;
   }
 
@@ -513,6 +532,33 @@ async function cacheFirst(event) {
     // shows its default error rather than a confusing blank page.
     throw err;
   }
+}
+
+// Mirrors LAUNCH_HANDOVER_PATH in lib/offline.ts.
+const LAUNCH_HANDOVER_PATH = '/';
+
+/**
+ * The launch page: this build's copy, else any build's (a stale one only hands
+ * over to /), else the network for at most NAVIGATION_TIMEOUT_MS, else a
+ * redirect to /, which the offline launch already answers with the saved Trip.
+ */
+async function launchPage(event) {
+  const { request } = event;
+  const own = await caches.open(CACHE_NAMES.static).then((cache) => cache.match(request.url)).catch(() => undefined);
+  const cached = own || (await caches.match(request.url).catch(() => undefined));
+  if (cached) return cached;
+
+  const network = fetchAndKeep(event);
+  let timer;
+  const timedOut = new Promise((resolve) => {
+    timer = setTimeout(resolve, NAVIGATION_TIMEOUT_MS, null);
+  });
+  const response = await Promise.race([network, timedOut])
+    .catch(() => null)
+    .finally(() => clearTimeout(timer));
+  if (response && response.ok) return response;
+  event.waitUntil(network.catch(() => {}));
+  return Response.redirect(new URL(LAUNCH_HANDOVER_PATH, self.location.origin).href, 302);
 }
 
 /**

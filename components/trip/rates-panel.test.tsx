@@ -9,7 +9,7 @@ vi.mock("@/server/actions/rates", () => ({
   refreshRates: vi.fn(),
 }));
 
-import { setManualRate } from "@/server/actions/rates";
+import { setManualRate, clearManualRate, refreshRates } from "@/server/actions/rates";
 import { SourceBadge, formatRate, displayRate, RatesPanel } from "./rates-panel";
 
 // ---------------------------------------------------------------------------
@@ -145,5 +145,33 @@ describe("RatesPanel editor for an inverted rate", () => {
     const user = await open();
     await user.click(screen.getByRole("button", { name: "Lock rate" }));
     expect(setManualRate).toHaveBeenCalledWith("t1", "VND", "AUD", 0.0000612);
+  });
+});
+
+describe("RatesPanel busy controls", () => {
+  it("Clear manual rate says it is working while the call is unresolved and ignores a second click", async () => {
+    vi.mocked(clearManualRate).mockClear();
+    vi.mocked(clearManualRate).mockReturnValueOnce(new Promise(() => {}) as never);
+    const user = userEvent.setup();
+    render(<RatesPanel tripId="t1" homeCurrency="AUD" rates={[{ currency: "EUR", rate: 0.6, source: "manual" as const, stale: false }]} />);
+    const clear = screen.getByRole("button", { name: "Clear manual rate for EUR" });
+    await user.click(clear);
+    expect(clear).toHaveAttribute("aria-busy", "true");
+    expect(clear).toBeDisabled();
+    await user.click(clear);
+    expect(clearManualRate).toHaveBeenCalledTimes(1);
+  });
+
+  it("Refresh all rates is aria-busy and disabled while the call is unresolved", async () => {
+    vi.mocked(refreshRates).mockClear();
+    vi.mocked(refreshRates).mockReturnValueOnce(new Promise(() => {}) as never);
+    const user = userEvent.setup();
+    render(<RatesPanel tripId="t1" homeCurrency="AUD" rates={[{ currency: "EUR", rate: 0.6, source: "fetched" as const, stale: false }]} />);
+    const refresh = screen.getByRole("button", { name: "Refresh all rates" });
+    await user.click(refresh);
+    expect(refresh).toHaveAttribute("aria-busy", "true");
+    expect(refresh).toBeDisabled();
+    await user.click(refresh);
+    expect(refreshRates).toHaveBeenCalledTimes(1);
   });
 });

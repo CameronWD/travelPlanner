@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import { PENDING_NAVIGATION_TIMEOUT_MS, useBeginNavigation, useSettleNavigation } from "@/components/navigation/navigation-pending";
 import { ViewTransition } from "@/components/ui/view-transition";
 import { DAY_BODY_TRANSITION_WIDE, dayTransitionType } from "@/components/trip/day/day-transition";
+import { afterPush, isQuickPress, keepFilled } from "@/components/trip/day/day-moves";
 import { isFar, lerpHeight, nearestIndex, neighbourIndex, panelProgress, panelWidth, settledPanel } from "@/components/trip/day/carousel-maths";
 import { prefersReducedMotion, tweenScrollLeft } from "@/components/trip/day/scroll-tween";
 import { LG_UP, useMediaQuery } from "@/components/ui/use-media-query";
@@ -16,10 +17,12 @@ export interface DayPanel {
   iso: string;
   href: Route;
   content: React.ReactNode;
+  /** False when the page sent only a skeleton for this day: from lg the day on screen keeps what an earlier payload sent, and any other waits for its navigation. */
+  filled?: boolean;
 }
 
 export interface DayCarouselApi {
-  /** Brings that Trip day into view (a glide below lg, a crossfade from lg) and navigates there. False only when the href is not a Trip day. */
+  /** Brings that Trip day into view (a glide below lg; from lg a crossfade, a cut within a quick run, or a hold while a day not in hand loads) and navigates there. False only when the href is not a Trip day. */
   goTo: (href: Route) => boolean;
   /** goTo the day before (-1) or after (1) the day in view; false past the Trip's ends. */
   step: (by: -1 | 1) => boolean;
@@ -62,6 +65,9 @@ export const DayPanelContext = React.createContext<string | null>(null);
 
 const noSubscription = () => () => {};
 
+/** When a press happened; only ever called from a press handler. */
+const pressTime = () => performance.now();
+
 /** Whether the panel this sits in is the day in view; null outside the carousel. */
 export function useIsDayInView(): boolean | null {
   const carousel = useDayCarousel();
@@ -82,7 +88,12 @@ export function useIsDayInView(): boolean | null {
  * remounting anything, and the slots around it fill.
  *
  * From lg only the day in view renders, in a plain block that scrolls with
- * the page, and a day change crossfades it before the same push. The server
+ * the page, and a day change crossfades it before the same push; a quick run
+ * of presses cuts instead, and navigates once per navigation in flight (a push,
+ * then replaces), the latest day last (day-moves.ts). A press on its own to a
+ * day the page sent no content for holds the day in view, with the chip lit,
+ * until it lands; in a quick run the day shows at once, and a day on screen
+ * that a landing sends as a placeholder keeps its earlier content. The server
  * markup is the phone tree with lg: classes hiding the others, so the first
  * paint is already one day before the viewport is known.
  */
@@ -97,7 +108,8 @@ export function DayCarousel({
   chrome: React.ReactNode;
   chromeFallback: (iso: string) => React.ReactNode;
 }) {
-  // Not useAppRouter: the day is already on screen, so a push here raises no progress bar.
+  // Not useAppRouter: the day is already on screen, so a push here raises no
+  // progress bar. The one exception, a held day from lg, calls begin() itself.
   const router = useRouter();
   const begin = useBeginNavigation();
   const settleBegun = useSettleNavigation();
@@ -122,6 +134,15 @@ export function DayCarousel({
   // A day shown that arrived mid-gesture, for the settle to apply.
   const deferred = React.useRef<string | null>(null);
   const crossfadeTo = React.useRef<string | null>(null);
+  // From lg: a day not in hand, pressed on its own with no push in flight (a
+  // far chip). The day in view stays (ADR 0063) and the chip is lit through
+  // the pending state until it lands; any other press drops the hold.
+  const heldFor = React.useRef<string | null>(null);
+  const lastPressAt = React.useRef<number | null>(null);
+  // From lg: the day the URL was on when a run of presses sent its first push.
+  // Later pushes in the run replace that entry, so a run is one step in history.
+  const runFrom = React.useRef<string | null>(null);
+  const committedView = React.useRef(shownDate);
   const shownRef = React.useRef(shownDate);
   const backstop = React.useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   const headerBox = React.useRef<HTMLDivElement>(null);
@@ -133,10 +154,19 @@ export function DayCarousel({
   const desktop = useMediaQuery(LG_UP) === true;
   const hydrating = React.useSyncExternalStore(noSubscription, () => false, () => true);
   const { chromeFor } = React.useContext(DayChromeRegistryContext);
+  const [kept, setKept] = React.useState(() => new Map<string, React.ReactNode>());
+  const [keptFrom, setKeptFrom] = React.useState<DayPanel[] | null>(null);
+  if (desktop && keptFrom !== panels) {
+    setKeptFrom(panels);
+    setKept((prev) => keepFilled(prev, panels));
+  }
 
   React.useLayoutEffect(() => {
     panelsRef.current = panels;
   }, [panels]);
+  React.useLayoutEffect(() => {
+    committedView.current = view;
+  }, [view]);
 
   const viewIndex = panels.findIndex((p) => p.iso === view);
 
@@ -158,13 +188,16 @@ export function DayCarousel({
       if (target.current === p.iso && !gaveUp.current) return;
       target.current = p.iso;
       gaveUp.current = false;
-      startNavigation(() => router.push(p.href, { scroll: false }));
+      const trailing = desktop && runFrom.current != null && shownRef.current !== runFrom.current;
+      if (desktop && runFrom.current == null) runFrom.current = shownRef.current;
+      startNavigation(() => (trailing ? router.replace(p.href, { scroll: false }) : router.push(p.href, { scroll: false })));
       // The provider's own backstop, timed from the latest push. Giving up
       // re-arms the next settle; a day in view that has filled stays, since
       // the Traveller is already reading it. Only one that never will parks back.
       clearTimeout(backstop.current);
       backstop.current = setTimeout(() => {
         gaveUp.current = true;
+        dropHold();
         if (shownRef.current !== viewRef.current && unfilledInView()) reconcile(shownRef.current);
       }, PENDING_NAVIGATION_TIMEOUT_MS);
     };
@@ -172,6 +205,9 @@ export function DayCarousel({
       const el = scroller.current;
       cancelGlide.current();
       glideTo.current = null;
+      crossfadeTo.current = null;
+      heldFor.current = null;
+      runFrom.current = null;
       showDay(iso);
       if (!el || desktop) return;
       el.style.scrollSnapType = "";
@@ -201,21 +237,47 @@ export function DayCarousel({
         navigate(p);
       } else if (held != null && held !== p.iso) place(held);
     };
+    const dropHold = () => {
+      const h = heldFor.current == null ? null : panelsRef.current[indexOf(heldFor.current)];
+      heldFor.current = null;
+      if (h) settleBegun(h.href);
+    };
     const goTo = (href: Route) => {
       const idx = panelsRef.current.findIndex((p) => p.href === href);
       if (idx < 0) return false;
       const p = panelsRef.current[idx];
       if (desktop) {
+        if (p.iso === heldFor.current) return true;
+        dropHold();
         if (p.iso === viewRef.current) return true;
+        const now = pressTime();
+        const quick = isQuickPress(lastPressAt.current, now);
+        lastPressAt.current = now;
+        // Only a press on its own: within a quick run the day in view keeps up with the presses.
+        const inHand = p.filled !== false;
+        if (!inHand && !quick && (target.current == null || gaveUp.current) && crossfadeTo.current == null) {
+          heldFor.current = p.iso;
+          begin(p.href);
+          navigate(p);
+          return true;
+        }
         const type = dayTransitionType(viewRef.current, p.iso);
         viewRef.current = p.iso;
         for (const cb of dayListeners.current) cb(p.iso);
         tellNearest(p.iso);
         crossfadeTo.current = p.iso;
+        // Untyped maps to "none": a quick run and reduced motion cut.
+        const crossfade = !quick && !prefersReducedMotion();
         React.startTransition(() => {
-          React.addTransitionType(type);
+          if (crossfade) React.addTransitionType(type);
           setView(p.iso);
         });
+        // Back to the day already committed (a press and its reverse behind one
+        // view transition): React bails out, so the commit effect never runs.
+        if (p.iso === committedView.current) {
+          crossfadeTo.current = null;
+          follow();
+        }
         return true;
       }
       const el = scroller.current;
@@ -281,7 +343,31 @@ export function DayCarousel({
       },
       isMoving: () => moving.current,
     };
-    return { api, indexOf, land, navigate, reconcile, tellNearest, settled: () => clearTimeout(backstop.current) };
+    // From lg, one push at a time: a press while one is in flight only moves
+    // the day in view, and the push's end sends the latest (pushEnded).
+    const follow = () => {
+      if (target.current != null && !gaveUp.current) return;
+      if (viewRef.current === shownRef.current) {
+        runFrom.current = null;
+        return;
+      }
+      const p = panelsRef.current[indexOf(viewRef.current)];
+      if (p) navigate(p);
+    };
+    const landHeld = (iso: string) => {
+      if (heldFor.current !== iso) return false;
+      dropHold();
+      place(iso);
+      return true;
+    };
+    const pushEnded = (pushed: string, shown: string) => {
+      dropHold();
+      const next = afterPush({ wide: desktop, pushed, shown, view: viewRef.current, committing: crossfadeTo.current != null });
+      if (next === "push") follow();
+      else if (next === "reconcile") reconcile(shown);
+      else if (shown === viewRef.current) runFrom.current = null;
+    };
+    return { api, indexOf, land, follow, landHeld, pushEnded, reconcile, tellNearest, settled: () => clearTimeout(backstop.current) };
   }, [router, begin, settleBegun, desktop]);
 
   // On the day in view before first paint, and again when the phone tree comes back.
@@ -296,30 +382,36 @@ export function DayCarousel({
       deferred.current = null;
       return;
     }
+    // A held day landing is shown before this commit paints: the day it
+    // replaces may have just become a skeleton, outside the new window.
+    if (machine.landHeld(shownDate)) return;
     // Our own push landing: its end decides. Any other day arriving while it
     // is in flight (Back) is followed at once, and the push is given up.
     if (target.current === shownDate) return;
     target.current = null;
     gaveUp.current = false;
+    runFrom.current = null;
     machine.settled();
     machine.reconcile(shownDate);
   }, [shownDate, machine]);
 
   React.useEffect(() => {
     if (navigating || target.current == null) return;
+    const pushed = target.current;
     target.current = null;
     gaveUp.current = false;
     machine.settled();
-    if (shownDate !== viewRef.current) machine.reconcile(shownDate);
+    machine.pushEnded(pushed, shownDate);
   }, [navigating, shownDate, machine]);
 
   // From lg the crossfade commits first and the push follows: one transition
   // carrying both would hold the new day back until the server answered.
+  // Presses made during a view transition commit together after it, so only
+  // the commit of the latest press pushes.
   React.useEffect(() => {
     if (crossfadeTo.current !== view) return;
     crossfadeTo.current = null;
-    const p = panelsRef.current[machine.indexOf(view)];
-    if (p) machine.navigate(p);
+    machine.follow();
   }, [view, machine]);
 
   // These rely on the order each commit runs them in: the insertion effect
@@ -424,6 +516,30 @@ export function DayCarousel({
     };
   }, [view, desktop]);
 
+  // While React prepares a view transition it stops dispatching events for the
+  // whole document until the transition's update runs, and dropped events are
+  // not replayed: a click on a day link then falls through to the browser,
+  // which loads the page. For a day link, do what the control would have done;
+  // any other link in the header is left to the browser. On window in the
+  // bubble phase because that runs after React's own listener, so this only
+  // acts when nothing handled the click.
+  React.useEffect(() => {
+    if (!desktop) return;
+    const onClick = (e: MouseEvent) => {
+      if (e.defaultPrevented || e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
+      const link = e.target instanceof Element ? e.target.closest<HTMLAnchorElement>("[data-day-heading-area] a[href], [data-day-strip] a[href]") : null;
+      if (!link) return;
+      const to = link.getAttribute("href") as Route;
+      const by = link.dataset.dayStep;
+      if (by === "-1" || by === "1") {
+        e.preventDefault();
+        if (!machine.api.step(by === "1" ? 1 : -1)) machine.api.goTo(to);
+      } else if (machine.api.goTo(to)) e.preventDefault();
+    };
+    window.addEventListener("click", onClick);
+    return () => window.removeEventListener("click", onClick);
+  }, [desktop, machine]);
+
   // Subscribed once per tree: a navigation landing re-renders this component,
   // and must not drop a settle that is still waiting for its quiet time.
   React.useEffect(() => {
@@ -479,7 +595,8 @@ export function DayCarousel({
       </div>
       <div className="[overflow-anchor:none]">{chrome}</div>
       {/* Only the body runs a view transition; header and strip stay put. From
-          lg every day change crossfades: nothing remounts on a day change, so
+          lg a typed day change crossfades (an untyped one, in a quick run or
+          under reduced motion, cuts): nothing remounts on a day change, so
           the body is keyed by the day to exit and enter. The phone keeps one
           key (the first day, so the switch to lg after hydration remounts nothing). */}
       {/* Out of scroll anchoring: WebKit anchored on the body and moved the
@@ -510,7 +627,7 @@ export function DayCarousel({
                     aria-hidden={inView ? undefined : "true"}
                     className={desktop ? "relative" : cn("relative w-full shrink-0 snap-start snap-always px-4 sm:px-6 md:px-0", !inView && "h-0 overflow-hidden lg:hidden")}
                   >
-                    <DayPanelContext.Provider value={p.iso}>{p.content}</DayPanelContext.Provider>
+                    <DayPanelContext.Provider value={p.iso}>{desktop && p.filled === false ? (kept.get(p.iso) ?? p.content) : p.content}</DayPanelContext.Provider>
                   </div>
                 );
               })}

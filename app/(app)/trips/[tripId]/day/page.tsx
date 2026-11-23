@@ -99,6 +99,7 @@ export default async function DayPage({ params, searchParams }: { params: Promis
   const panels: DayPanel[] = dates.map((iso) => ({
     iso,
     href: tripPath(slug, `/day/${iso}`),
+    filled: filled.has(iso) || ringDates.includes(iso),
     content: filled.has(iso) ? (
       <Suspense fallback={<DaySlotSkeleton />}>
         <DaySlot iso={iso} read={near} shared={shared} chrome={seed[iso]} />

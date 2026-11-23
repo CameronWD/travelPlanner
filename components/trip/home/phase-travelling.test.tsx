@@ -47,14 +47,10 @@ const {
 
 // Surprise (ADR 0051): the loader reads through the visibility loader first;
 // nothing is hidden unless a test says so.
-const { loadSurpriseVisibilityMock, loadBookingConfirmationsToAddMock } = vi.hoisted(() => ({
-  loadSurpriseVisibilityMock: vi.fn(),
-  loadBookingConfirmationsToAddMock: vi.fn(async () => [] as { kind: string; id: string }[]),
-}));
-vi.mock("@/lib/booking-confirmations-loader", () => ({ loadBookingConfirmationsToAdd: loadBookingConfirmationsToAddMock }));
+const { loadSurpriseVisibilityMock } = vi.hoisted(() => ({ loadSurpriseVisibilityMock: vi.fn() }));
 
 // Records the Timeline's props (it renders nothing here).
-type TimelineProps = { todayISO?: string; needsConfirmationIds?: readonly string[]; day: { dateISO: string }; editor?: { readFirst: boolean; transports: Record<string, { fromStopName?: string | null; toStopName?: string | null }>; items: Record<string, unknown>; costsByOwner: Record<string, unknown> } };
+type TimelineProps = { todayISO?: string; day: { dateISO: string }; editor?: { readFirst: boolean; transports: Record<string, { fromStopName?: string | null; toStopName?: string | null }>; items: Record<string, unknown>; costsByOwner: Record<string, unknown> } };
 const { timelineMock } = vi.hoisted(() => ({ timelineMock: vi.fn<(props: TimelineProps) => null>(() => null) }));
 vi.mock("@/lib/surprise-visibility", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@/lib/surprise-visibility")>();
@@ -841,30 +837,6 @@ describe("PhaseTravelling passes the real today to the Timeline", () => {
   });
 });
 
-describe("PhaseTravelling hides the confirmation line on Today's plan (spec D3)", () => {
-  it("while a booking needs a confirmation, the desktop Today tile is not told to mark it", async () => {
-    const layout = "desktop" as const;
-    vi.clearAllMocks();
-    tripFindUniqueMock.mockResolvedValue({ startDate: "2999-01-01", endDate: "2999-01-10", homeCurrency: "GBP", chaptersEnabled: false });
-    stopFindManyMock.mockResolvedValue([]);
-    itemFindManyMock.mockResolvedValue([]);
-    transportFindManyMock.mockResolvedValue([]);
-    accommodationFindManyMock.mockResolvedValue([]);
-    costFindManyMock.mockResolvedValue([]);
-    chapterFindManyMock.mockResolvedValue([]);
-    attachmentFindManyMock.mockResolvedValue([]);
-    buildItineraryMock.mockReturnValue([]);
-    vi.mocked(itineraryMod.effectiveTodayISO).mockReturnValue("2999-01-01");
-    vi.mocked(spendMod.buildSpendSoFar).mockReturnValue({ costTotalMinor: 0, paidSoFarMinor: 0, paidCostMinor: 0, varianceMinor: 0, costRemainingMinor: 0, tripElapsedPct: 0 });
-    const item = { id: "i1", title: "Museum", category: "SIGHTSEEING", startTime: "10:00" };
-    pickDayPlanMock.mockReturnValue({ ...EMPTY_DAY, dateISO: "2999-01-01", timedItems: [{ kind: "item", item }], stop: { id: "s", name: "Porto", country: "Portugal" } });
-    loadBookingConfirmationsToAddMock.mockResolvedValue([{ kind: "ITEM", id: "i1" }]);
-    toDom(await PhaseTravelling({ tripId: "trip-1", layout }));
-    expect(timelineMock).toHaveBeenCalled();
-    for (const [props] of timelineMock.mock.calls) expect(props.needsConfirmationIds).toBeUndefined();
-  });
-});
-
 describe("PhaseTravelling gives Today's plan an editor (spec D1)", () => {
   async function fixture(startDate: string, endDate: string, today: string) {
     const { hiddenVisibility } = await import("@/test/helpers/surprise-visibility");
@@ -1245,22 +1217,6 @@ describe("PhaseTravelling next transport depZone (Task 8 fix round 1)", () => {
     const model = await loadTravellingHome("trip-1", "next-transport-id");
 
     expect(model.kind === "dated" && model.nextTransport?.id).toBe("tr-1");
-  });
-
-  it("carries the ids of bookings with no confirmation for the Timeline", async () => {
-    const { loadTravellingHome } = await import("@/lib/travelling-home-loader");
-    tripFindUniqueMock.mockResolvedValue({ startDate: "2026-01-01", endDate: "2026-01-10", homeCurrency: "GBP", chaptersEnabled: true });
-    buildItineraryMock.mockReturnValue(
-      dayPlanWithDeparture({
-        id: "tr-1", mode: "FLIGHT", fromStopId: null, toStopId: null, depPlace: null, arrPlace: null,
-        depAt: new Date("2030-01-01T00:00:00Z"), arrAt: null, reference: null, notes: null, depIsHome: false, arrIsHome: false,
-      }),
-    );
-    loadBookingConfirmationsToAddMock.mockResolvedValueOnce([{ kind: "TRANSPORT", id: "tr-1" }]);
-
-    const model = await loadTravellingHome("trip-1", "needs-confirmation-user");
-
-    expect(model.kind === "dated" && model.needsConfirmationIds).toEqual(["tr-1"]);
   });
 
   it("Now / next keeps the next departure's files beside it on a phone", async () => {

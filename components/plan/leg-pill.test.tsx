@@ -195,12 +195,33 @@ describe("LegPill Booking state (spec 2026-10-17 R2)", () => {
     expect(screen.getByRole("button", { name: FLIGHT.accessibleName })).toBeInTheDocument();
   });
 
-  it("marks a booked leg with no confirmation, except on a compact pill", () => {
-    const { rerender } = render(<LegPill label={FLIGHT} onClick={vi.fn()} />);
-    expect(screen.queryByText("No booking confirmation yet")).toBeNull();
-    rerender(<LegPill label={FLIGHT} onClick={vi.fn()} marker={{ kind: "TRANSPORT", id: "t1" }} />);
-    expect(screen.getByText("No booking confirmation yet")).toBeInTheDocument();
-    rerender(<LegPill label={FLIGHT} onClick={vi.fn()} compact marker={{ kind: "TRANSPORT", id: "t1" }} />);
-    expect(screen.queryByText("No booking confirmation yet")).toBeNull();
+  it("never shows the missing-confirmation note, booked or not", () => {
+    render(<LegPill label={FLIGHT} onClick={vi.fn()} bookingState="BOOKED" />);
+    expect(screen.queryByText("No booking confirmation attached")).toBeNull();
+    expect(screen.queryByRole("button", { name: "Nothing to attach" })).toBeNull();
+  });
+
+  it("renders the pill alone, with no wrapper stacked around it", () => {
+    const { container } = render(<LegPill label={FLIGHT} onClick={vi.fn()} />);
+    expect(container.firstElementChild).toBe(screen.getByRole("button"));
+  });
+
+  describe("a file attached", () => {
+    it("shows a paperclip after the label and says File attached in the accessible name", () => {
+      render(<LegPill label={FLIGHT} onClick={vi.fn()} attached />);
+      const pill = screen.getByRole("button", { name: `${FLIGHT.accessibleName} File attached.` });
+      const clip = pill.querySelector("svg.lucide-paperclip")!;
+      expect(clip).toHaveAttribute("aria-hidden", "true");
+      expect(clip).toHaveClass("size-3.5", "shrink-0", "text-muted-foreground");
+      expect(screen.getByText("Flight CDG → FCO").compareDocumentPosition(clip) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    });
+    it("shows no paperclip and keeps the name when none is attached", () => {
+      render(<LegPill label={FLIGHT} onClick={vi.fn()} />);
+      expect(screen.getByRole("button", { name: FLIGHT.accessibleName }).querySelector("svg.lucide-paperclip")).toBeNull();
+    });
+    it("joins the To book wording in the name, and shows on a compact pill too", () => {
+      render(<LegPill label={FLIGHT} onClick={vi.fn()} compact attached bookingState="TO_BOOK" />);
+      expect(screen.getByRole("button", { name: `${FLIGHT.accessibleName} To book. File attached.` }).querySelector("svg.lucide-paperclip")).not.toBeNull();
+    });
   });
 });

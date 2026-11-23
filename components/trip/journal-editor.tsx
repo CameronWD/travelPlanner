@@ -145,6 +145,7 @@ function PhotoSlot({
             type="button"
             aria-label={`Remove photo ${photo.filename}`}
             disabled={isDeleting}
+            aria-busy={isDeleting || undefined}
             onClick={handleRemove}
             className={cn(
               "absolute right-1 top-1 flex size-7 items-center justify-center rounded-full border-2 border-border bg-card text-foreground opacity-0 transition-opacity group-hover:opacity-100 focus-visible:opacity-100 pointer-coarse:opacity-100 pointer-coarse:after:absolute pointer-coarse:after:-inset-2 pointer-coarse:after:content-['']",
@@ -167,6 +168,7 @@ function PhotoSlot({
           className="sr-only"
           onChange={handleFileChange}
           disabled={isPending}
+          aria-busy={isPending || undefined}
         />
         <label
           htmlFor={`journal-photo-${tripId}-${date}`}
@@ -435,6 +437,7 @@ export function JournalEditor({
               size="sm"
               onClick={handleDelete}
               disabled={isSaving || isDeleting}
+              aria-busy={isDeleting || undefined}
               className="text-destructive hover:bg-destructive/10 hover:text-destructive"
             >
               {isDeleting ? (

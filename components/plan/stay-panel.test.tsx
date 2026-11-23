@@ -176,9 +176,9 @@ describe("StayPanel (spec 2026-10-04 §B)", () => {
 describe("StayPanel booking confirmation marker", () => {
   it("marks a stay that needs a confirmation, and only that one", () => {
     const { rerender } = render(<StayPanel {...props()} />);
-    expect(screen.queryByText("No booking confirmation yet")).toBeNull();
+    expect(screen.queryByText("No booking confirmation attached")).toBeNull();
     rerender(<StayPanel {...props({ accommodations: [{ ...HOTEL, needsConfirmation: true }] })} />);
-    expect(within(screen.getByTestId("stay-phone")).getByText("No booking confirmation yet")).toBeInTheDocument();
+    expect(within(screen.getByTestId("stay-phone")).getByText("No booking confirmation attached")).toBeInTheDocument();
   });
 });
 
@@ -223,7 +223,7 @@ describe("StayPanel desktop card (spec P2)", () => {
     const more = within(screen.getByTestId("stay-card")).getByTestId("stay-card-more");
     expect(more).toHaveTextContent("Ring the night bell");
     expect(more).toHaveTextContent("2 files");
-    expect(more).toHaveTextContent("No booking confirmation yet");
+    expect(more).toHaveTextContent("No booking confirmation attached");
     const booking = within(screen.getByTestId("stay-card")).getByRole("heading", { name: "Booking" }).parentElement!;
     expect(booking.compareDocumentPosition(more) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
   });

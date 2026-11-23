@@ -1,13 +1,12 @@
 "use client";
 
 import * as React from "react";
-import { ChevronDown, Home, AlertTriangle, Hash } from "lucide-react";
+import { ChevronDown, Home, AlertTriangle, Hash, Paperclip } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/cn";
 import { formatCheckTimes, formatDateRange } from "@/lib/dates";
 import { costPaidState } from "@/lib/plan/plan-model";
 import { accommodationDateWarnings } from "@/lib/accommodation-dates";
-import { BookingConfirmationMarker } from "@/components/trip/booking-confirmation-marker";
 import {
   AccommodationCard,
   type AccommodationCardAccommodation,
@@ -32,7 +31,6 @@ export interface AccommodationRowProps {
   forkId?: string | null;
   /** Start expanded — the stay panel opens the stay dialog on the block clicked (spec 2026-10-04 §B). */
   defaultOpen?: boolean;
-  needsConfirmation?: boolean;
 }
 
 /**
@@ -43,7 +41,7 @@ export interface AccommodationRowProps {
  * cost/notes affordances still live in the card.
  */
 export function AccommodationRow(props: AccommodationRowProps) {
-  const { accommodation: a, stop, isPending = false, costs, defaultOpen = false, needsConfirmation = false } = props;
+  const { accommodation: a, stop, isPending = false, costs, defaultOpen = false, attachments } = props;
   // Paid state at a glance (shared with the stay panel): "paid ✓" once any
   // cost is marked paid, "unpaid" while costs exist but none is.
   const paidState = costPaidState(costs);
@@ -60,6 +58,7 @@ export function AccommodationRow(props: AccommodationRowProps) {
   return (
     <div
       data-testid="accommodation-row"
+      aria-busy={isPending || undefined}
       className="rounded-xl border border-border bg-hue-lilac/25"
     >
       <button
@@ -78,6 +77,12 @@ export function AccommodationRow(props: AccommodationRowProps) {
         <span data-slot="accommodation-row-line-1" className="flex min-w-0 items-center gap-2 sm:contents">
           <Home className="size-4 shrink-0 text-foreground" aria-hidden="true" />
           <span className="min-w-0 flex-1 truncate font-medium text-foreground">{a.name}</span>
+          {attachments && attachments.length > 0 ? (
+            <>
+              <Paperclip className="size-3.5 shrink-0 text-foreground/80" aria-hidden="true" />
+              <span className="sr-only">File attached</span>
+            </>
+          ) : null}
           <ChevronDown
             className={cn("size-3.5 shrink-0 text-foreground/80 transition-transform sm:hidden", open && "rotate-180")}
             aria-hidden="true"
@@ -114,11 +119,6 @@ export function AccommodationRow(props: AccommodationRowProps) {
           />
         </span>
       </button>
-      {needsConfirmation && (
-        <div className="px-3 pb-2 pl-9">
-          <BookingConfirmationMarker kind="ACCOMMODATION" id={a.id} />
-        </div>
-      )}
       {open && (
         <div className="border-t border-dotted border-border">
           <AccommodationCard {...props} embedded />

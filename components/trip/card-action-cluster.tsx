@@ -137,6 +137,7 @@ export function CardActionCluster({
           size="icon"
           className="hidden sm:inline-flex relative size-8 text-destructive hover:bg-destructive/10 hover:text-destructive pointer-coarse:after:absolute pointer-coarse:after:-inset-1.5 pointer-coarse:after:content-['']"
           disabled={isPending}
+          loading={isPending}
           onClick={onDelete}
           aria-label={deleteLabel}
           title={deleteLabel}

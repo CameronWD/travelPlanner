@@ -1,5 +1,6 @@
 "use client";
 
+import * as React from "react";
 import { createRoot } from "react-dom/client";
 import { authClient } from "@/lib/auth/client";
 import { LogOut } from "lucide-react";
@@ -85,12 +86,20 @@ export function SignOutMenuItem() {
 }
 
 export function SignOutButton({ className }: { className?: string }) {
+  const [signingOut, setSigningOut] = React.useState(false);
   return (
     <button
       type="button"
       className={className}
+      disabled={signingOut}
+      aria-busy={signingOut || undefined}
       onClick={async () => {
-        await signOutNow();
+        setSigningOut(true);
+        try {
+          await signOutNow();
+        } finally {
+          setSigningOut(false);
+        }
       }}
     >
       Sign out

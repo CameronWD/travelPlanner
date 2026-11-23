@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi, beforeEach } from "vitest";
 
@@ -99,6 +99,60 @@ describe("InvitePanel", () => {
     const cancelBtn = screen.getByRole("button", { name: `Cancel invite for bob@example.com` });
     await userEvent.click(cancelBtn);
     expect(cancelInvite).toHaveBeenCalledWith("inv1");
+  });
+
+  it("cancel-X says it is working and is disabled while cancelInvite is unresolved", async () => {
+    let release!: (v: { success: true }) => void;
+    cancelInvite.mockReturnValueOnce(new Promise((r) => { release = r; }));
+    render(
+      <InvitePanel tripId="trip1" members={members} pendingInvites={pendingInvites} canInvite currentUserId="u1" viewerIsOwner />,
+    );
+    const cancelBtn = screen.getByRole("button", { name: "Cancel invite for bob@example.com" });
+    await userEvent.click(cancelBtn);
+    await waitFor(() => expect(cancelBtn).toHaveAttribute("aria-busy", "true"));
+    expect(cancelBtn).toBeDisabled();
+    await userEvent.click(cancelBtn);
+    expect(cancelInvite).toHaveBeenCalledTimes(1);
+    release({ success: true });
+    await waitFor(() => expect(cancelBtn).not.toHaveAttribute("aria-busy"));
+  });
+
+  it("Remove member says it is working and is disabled while removeTripMember is unresolved", async () => {
+    let release!: (v: { success: true }) => void;
+    removeTripMember.mockReturnValueOnce(new Promise((r) => { release = r; }));
+    render(
+      <InvitePanel tripId="trip1" members={members} pendingInvites={[]} canInvite currentUserId="u1" viewerIsOwner />,
+    );
+    const removeBtn = screen.getByRole("button", { name: "Remove Bob Jones from this trip" });
+    await userEvent.click(removeBtn);
+    await userEvent.click(await screen.findByRole("button", { name: "Remove" }));
+    await waitFor(() => expect(removeBtn).toHaveAttribute("aria-busy", "true"));
+    expect(removeBtn).toBeDisabled();
+    expect(removeTripMember).toHaveBeenCalledTimes(1);
+    release({ success: true });
+    await waitFor(() => expect(removeBtn).not.toHaveAttribute("aria-busy"));
+  });
+
+  it("Remove member is enabled again when removeTripMember rejects", async () => {
+    const unhandled: unknown[] = [];
+    const listeners = process.listeners("unhandledRejection");
+    process.removeAllListeners("unhandledRejection");
+    process.on("unhandledRejection", (e) => unhandled.push(e));
+    try {
+      removeTripMember.mockRejectedValueOnce(new Error("network down"));
+      render(
+        <InvitePanel tripId="trip1" members={members} pendingInvites={[]} canInvite currentUserId="u1" viewerIsOwner />,
+      );
+      const removeBtn = screen.getByRole("button", { name: "Remove Bob Jones from this trip" });
+      await userEvent.click(removeBtn);
+      await userEvent.click(await screen.findByRole("button", { name: "Remove" }));
+      await waitFor(() => expect(removeTripMember).toHaveBeenCalledTimes(1));
+      await waitFor(() => expect(removeBtn).toBeEnabled());
+      expect(removeBtn).not.toHaveAttribute("aria-busy");
+    } finally {
+      process.removeAllListeners("unhandledRejection");
+      listeners.forEach((l) => process.on("unhandledRejection", l));
+    }
   });
 
   // LA-037/LA-050: the Remove and Cancel-invite icon buttons get an

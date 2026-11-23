@@ -847,6 +847,16 @@ function SentEntry({
   const { label: statusLabel, variant: badgeVariant } = badgeFor(note.status);
   const closed = statusLabel !== null;
   const resolved = resolutionLine(note);
+  const [deleting, setDeleting] = React.useState(false);
+
+  async function handleDeleteClick() {
+    setDeleting(true);
+    try {
+      await onDelete(note.id);
+    } finally {
+      setDeleting(false);
+    }
+  }
 
   return (
     <li className="flex flex-col gap-1">
@@ -867,7 +877,8 @@ function SentEntry({
             size="sm"
             variant="ghost"
             aria-label={`Delete “${note.body.slice(0, 30)}”`}
-            onClick={() => void onDelete(note.id)}
+            loading={deleting}
+            onClick={() => void handleDeleteClick()}
           >
             <Trash2 aria-hidden />
           </Button>

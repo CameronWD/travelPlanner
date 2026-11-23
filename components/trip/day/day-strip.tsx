@@ -13,7 +13,7 @@ import { recordUsageDayChange } from "@/lib/usage/client";
 import { formatDayLabel, parseISODate } from "@/lib/dates";
 import { stopDotClass } from "@/lib/stop-colours";
 import { dotsFor, type StopLine } from "@/lib/day-view-model";
-import { centredScrollLeft, phoneStripScroll, STRIP_CHIP_GAP_PX, STRIP_GLIDE_WIDE_MS, STRIP_RETURN_AFTER_MS, type StripScrollInput } from "@/components/trip/day/strip-scroll";
+import { centredScrollLeft, phoneStripScroll, STRIP_CHIP_GAP_PX, STRIP_GLIDE_WIDE_MS, STRIP_RETURN_AFTER_MS, wideStripScroll, type StripScrollInput } from "@/components/trip/day/strip-scroll";
 import { TRANSPORT_MODE_META } from "@/lib/transport";
 import { useTripHref } from "@/components/trip/use-trip-href";
 
@@ -82,7 +82,6 @@ export function DayStrip({ tripId, dates, line, size }: { tripId: string; dates:
   const litIso = pendingDay ?? shown;
   const isLit = (iso: string) => iso === litIso;
   const isPendingChip = (iso: string) => pendingPathname != null && pendingPathname.endsWith(tripHref(`/day/${iso}`));
-  const litIndex = dates.findIndex((d) => isLit(d.iso));
   // Where the strip is placed: the tapped day or the day in view, not the
   // halfway light, which moves while the body is still on its way.
   const placedIndex = dates.findIndex((d) => d.iso === (pendingDay ?? inView));
@@ -102,7 +101,9 @@ export function DayStrip({ tripId, dates, line, size }: { tripId: string; dates:
   // Every other strip centres the lit chip. Below lg (the md–lg band shows
   // the desktop strip) it is measured against the strip's viewport; from lg
   // it goes under the fixed centre frame, the strip's one movement (spec
-  // 2026-11-18 D2). A first render after a full load is positioned cold;
+  // 2026-11-18 D2), except near the Trip's ends, where the unpadded strip
+  // rests against its edge and the frame fades (amended 2026-11-23). A first
+  // render after a full load is positioned cold;
   // every later mount or lit change glides from where the strip was, except
   // mid-gesture.
   React.useLayoutEffect(() => {
@@ -120,10 +121,10 @@ export function DayStrip({ tripId, dates, line, size }: { tripId: string; dates:
     }
     const wide = !phone && window.matchMedia(LG_UP).matches;
     const remembered = lastScrollLeft.get(memoryKey);
-    const target = wide
-      ? centredScrollLeft(centreIndex, chip.getBoundingClientRect().width, STRIP_CHIP_GAP_PX, nav.clientWidth)
-      : targetFor(nav, chip, remembered ?? nav.scrollLeft);
+    const placed = wide ? wideStripScroll(centreIndex, chip.getBoundingClientRect().width, STRIP_CHIP_GAP_PX, nav.clientWidth, nav.scrollWidth) : null;
+    const target = placed ? placed.scrollLeft : targetFor(nav, chip, remembered ?? nav.scrollLeft);
     home.current = wide ? target : null;
+    centreFrame.current?.toggleAttribute("data-off-centre", placed != null && !placed.centred);
     clearTimeout(returnTimer.current);
     if (remembered == null) {
       nav.scrollLeft = target;
@@ -239,12 +240,6 @@ export function DayStrip({ tripId, dates, line, size }: { tripId: string; dates:
     return () => el.removeEventListener("wheel", handleWheel);
   }, [phone]);
 
-  // Below lg, one highlight that moves, rather than each chip painting its own
-  // coral, so the selection glides to the tapped day (spec 2026-09-29 D4).
-  // Chips are fixed-width: phone 3rem (w-12), desktop 3.5rem (w-14), plus the
-  // 0.5rem gap. From lg the highlight is the fixed centre frame instead.
-  const strideRem = phone ? 3.5 : 4;
-
   const n = dates.length;
   const strip = (
     <div
@@ -252,24 +247,14 @@ export function DayStrip({ tripId, dates, line, size }: { tripId: string; dates:
       data-day-strip-scroller
       // One scroll container for the chip nav and the desktop city legend
       // (DV-01: they used to scroll separately, so the legend's cells drifted
-      // out from under their chips). The end padding lets the first and last
-      // day centre too: phone, where chips also snap (ADR 0065), and from lg
-      // under the centre frame (spec 2026-11-18 D2).
-      className={cn("flex flex-col gap-2 overflow-x-auto [scrollbar-width:none]", phone && "snap-x snap-mandatory px-[calc(50%-1.5rem)]", !phone && "lg:px-[calc(50%-1.75rem)]")}
+      // out from under their chips). On a phone the end padding lets the first
+      // and last day centre too, where chips also snap (ADR 0065). From lg there
+      // is none: near an end the strip rests against its edge rather than open
+      // the row with half a strip of nothing (amended 2026-11-23).
+      className={cn("flex flex-col gap-2 overflow-x-auto [scrollbar-width:none]", phone && "snap-x snap-mandatory px-[calc(50%-1.5rem)]")}
       onScroll={(e) => onStripScroll(e.currentTarget)}
     >
       <nav aria-label="Days" className={cn("relative flex w-max gap-2", !phone && "mx-auto")}>
-        {litIndex >= 0 ? (
-          <span
-            data-strip-highlight
-            aria-hidden="true"
-            className={cn(
-              "island pointer-events-none absolute left-0 top-0 rounded-[14px] border-2 border-border bg-coral shadow-hard-1 transition-transform duration-200 ease-out motion-reduce:transition-none",
-              phone ? "h-[58px] w-12" : "h-[62px] w-14 lg:hidden",
-            )}
-            style={{ transform: `translateX(${litIndex * strideRem}rem)` }}
-          />
-        ) : null}
         {dates.map((d) => {
           const dt = parseISODate(d.iso);
           const dots = dotsFor(d.count);
@@ -291,20 +276,33 @@ export function DayStrip({ tripId, dates, line, size }: { tripId: string; dates:
                 if (carousel?.goTo(href)) e.preventDefault();
               }}
               className={cn(
-                "relative flex shrink-0 flex-col items-center justify-center rounded-[14px] border-2 border-border text-foreground",
-                // Below lg the 200ms colour fade matches the highlight's slide. From
-                // lg the fill lights at once (ADR 0063) and the strip's glide is the
-                // only movement: one coral thing, not a fade beside a slide.
+                "relative isolate flex shrink-0 flex-col items-center justify-center rounded-[14px] border-2 border-border text-foreground",
+                // Below lg the 200ms colour fade matches the highlight layer's fade.
+                // From lg the fill lights at once (ADR 0063) and the strip's glide is
+                // the only movement.
                 phone ? "transition-colors duration-200 ease-out" : "max-lg:transition-colors max-lg:duration-200 max-lg:ease-out",
                 "motion-reduce:transition-none",
                 phone ? "h-[58px] w-12 snap-center" : "h-[62px] w-14 snap-start",
-                // The lit chip paints its own coral under the island ink: the sliding
-                // [data-strip-highlight] behind it is a sibling, invisible to anything
-                // reading the label's ancestor background (the contrast audit read
-                // dark-on-dark).
+                // The lit chip paints its own coral under the island ink: the
+                // [data-strip-highlight] layer behind the label is a sibling of the
+                // label, invisible to anything reading its ancestor background (the
+                // contrast audit read dark-on-dark).
                 isLit(d.iso) ? "island bg-coral" : "bg-card",
               )}
             >
+              {/* Below lg each chip has its own highlight: the selection crossfades
+                  between days in place (replaces the 2026-09-29 D4 glide at the
+                  owner's request). A per-chip layer, not one moving box, so a lit
+                  day changed mid-swipe or mid-scroll still fades the old and new
+                  together. From lg the fixed centre frame is the highlight. */}
+              <span
+                data-strip-highlight
+                aria-hidden="true"
+                className={cn(
+                  "island pointer-events-none absolute -inset-0.5 -z-10 rounded-[14px] border-2 border-border bg-coral shadow-hard-1 transition-opacity duration-200 ease-out motion-reduce:transition-none lg:hidden",
+                  isLit(d.iso) ? "opacity-100" : "opacity-0",
+                )}
+              />
               <span className="text-[11px] font-bold leading-none">{WEEKDAY[dt.getUTCDay()]}</span>
               <span className="mt-0.5 font-display text-[20px] font-extrabold leading-none">{dt.getUTCDate()}</span>
               <span className="mt-1 flex h-1.5 gap-1">
@@ -415,12 +413,13 @@ export function DayStrip({ tripId, dates, line, size }: { tripId: string; dates:
         {strip}
         {/* The day shown holds the centre and the chips slide beneath this frame.
             Ink, not coral: the lit chip is the one coral thing, so nothing
-            coral moves except with the strip. */}
+            coral moves except with the strip. Near the Trip's ends the day
+            cannot reach the centre, and the frame fades while it is off it. */}
         <span
           ref={centreFrame}
           data-strip-centre
           aria-hidden="true"
-          className="pointer-events-none absolute left-1/2 top-0 hidden h-[62px] w-14 -translate-x-1/2 rounded-[14px] border-2 border-border shadow-hard-1 transition-opacity duration-150 motion-reduce:transition-none data-away:opacity-0 lg:block"
+          className="pointer-events-none absolute left-1/2 top-0 hidden h-[62px] w-14 -translate-x-1/2 rounded-[14px] border-2 border-border shadow-hard-1 transition-opacity duration-150 motion-reduce:transition-none data-away:opacity-0 data-off-centre:opacity-0 lg:block"
         />
       </div>
     </div>

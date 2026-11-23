@@ -79,6 +79,15 @@ describe("DayHeader", () => {
     expect(bell.parentElement).toContainElement(screen.getAllByRole("button", { name: "Share" })[0]);
     expect(screen.getAllByRole("button", { name: "Notifications" })).toHaveLength(3);
   });
+  it("from xl, where the rail's card replaces the switcher pill, the row's left carries the Trip's name as the other trip pages' eyebrow does", () => {
+    render(<DayHeader tripId="t1" tripSlug="t1" tripName="Christmas in Europe" eyebrow="E" heading="Sat 12 Dec" subLine="" subLineCompact="" dayTitle={null} prevHref={null} nextHref={null} prevLabel={null} nextLabel={null} unreadCount={0} recent={[]} members={[]} addButton={<button>+</button>} />);
+    const bar = document.querySelector('[data-slot="day-trip-switcher"]') as HTMLElement;
+    const name = bar.querySelector('[data-slot="day-trip-name"]') as HTMLElement;
+    expect(name).toHaveTextContent("Christmas in Europe");
+    expect(name.tagName).toBe("P");
+    expect(name.className.split(/\s+/)).toEqual(expect.arrayContaining(["hidden", "xl:block", "truncate", "text-muted-foreground"]));
+    expect(name.compareDocumentPosition(bar.querySelector('[data-slot="day-pill-row-cluster"]')!) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  });
   it("the switcher, Share and bell row starts at md: hidden on a phone, whatever the day", () => {
     render(<DayHeader tripId="t1" tripSlug="t1" tripName="Christmas in Europe" eyebrow="E" heading="Sat 12 Dec" subLine="" subLineCompact="" dayTitle={null} prevHref={null} nextHref={null} prevLabel={null} nextLabel={null} unreadCount={0} recent={[]} members={[]} addButton={<button>+</button>} />);
     const bar = document.querySelector('[data-slot="day-trip-switcher"]') as HTMLElement;

@@ -138,6 +138,7 @@ function MakeItFitDialog({
     },
   );
   const [pending, setPending] = React.useState(false);
+  const [droppingId, setDroppingId] = React.useState<string | null>(null);
   // ARCH-DAT-4: the Stop dropped here is pending its loss-preview confirm
   // (DropConfirmDialog below) — replaces the old plain useConfirm() prompt,
   // which said only "This stop will be permanently removed" with no idea
@@ -185,6 +186,7 @@ function MakeItFitDialog({
   // only what happens BEFORE the delete call changed, not this part).
   async function performDrop(id: string) {
     setPending(true);
+    setDroppingId(id);
     try {
       const r = await deleteStop(id);
       if (!r.success) {
@@ -194,6 +196,7 @@ function MakeItFitDialog({
       onClose();
     } finally {
       setPending(false);
+      setDroppingId(null);
     }
   }
 
@@ -283,6 +286,7 @@ function MakeItFitDialog({
               variant="primary"
               size="sm"
               disabled={pending || liveTrims.length === 0}
+              loading={pending && droppingId === null}
               onClick={applyTrim}
             >
               Apply trim
@@ -319,6 +323,7 @@ function MakeItFitDialog({
                     variant="ghost"
                     size="sm"
                     disabled={pending}
+                    loading={droppingId === c.id}
                     onClick={() => setDropTarget({ id: c.id, name: c.name })}
                   >
                     Drop {c.name}

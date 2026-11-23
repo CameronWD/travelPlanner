@@ -139,6 +139,20 @@ describe("AttachmentList", () => {
     expect(deleteAttachment).toHaveBeenCalledWith("att-1");
   });
 
+  it("the delete button is aria-busy and disabled while deleteAttachment is unresolved", async () => {
+    let release!: (v: { success: true }) => void;
+    vi.mocked(deleteAttachment).mockReturnValueOnce(new Promise((r) => { release = r; }) as never);
+    const user = userEvent.setup();
+    render(<AttachmentList tripId="trip-1" targetType="TRIP" attachments={sampleAttachments} />);
+    const del = screen.getByRole("button", { name: /delete boarding-pass\.pdf/i });
+    await user.click(del);
+    await user.click(await screen.findByRole("button", { name: "Delete" }));
+    await waitFor(() => expect(del).toHaveAttribute("aria-busy", "true"));
+    expect(del).toBeDisabled();
+    release({ success: true });
+    await waitFor(() => expect(del).not.toHaveAttribute("aria-busy"));
+  });
+
   it("shows a full dropzone in non-compact mode", () => {
     const { container } = render(
       <AttachmentList tripId="t" targetType="TRIP" attachments={[{ id: "a", filename: "x.pdf", mime: "application/pdf", size: 1000, url: "/x", uploadedById: "u1", createdAt: new Date() }]} />,

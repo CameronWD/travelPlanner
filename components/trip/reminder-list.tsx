@@ -20,6 +20,7 @@ import type { ReminderItem } from "@/lib/reminder-about";
  */
 export function ReminderList({ reminders, onAdd }: { reminders: ReminderItem[]; onAdd?: () => void }) {
   const [editing, setEditing] = useState<ReminderItem | null>(null);
+  const [bringingBackId, setBringingBackId] = useState<string | null>(null);
   const dismissal = useServerAction(
     (...[id, dismissed]: [string, boolean]) => updateReminder(id, { dismissed }),
     { onError: (errors) => toastRefused(errors, "Couldn’t bring that reminder back.") },
@@ -42,9 +43,13 @@ export function ReminderList({ reminders, onAdd }: { reminders: ReminderItem[]; 
               variant="ghost"
               size="sm"
               className="h-7 shrink-0 px-2"
-              disabled={dismissal.isPending}
+              disabled={(dismissal.isPending && bringingBackId !== r.id) || undefined}
+              loading={dismissal.isPending && bringingBackId === r.id}
               aria-label={`Bring back reminder: ${r.title}`}
-              onClick={() => dismissal.run(r.id, false)}
+              onClick={() => {
+                setBringingBackId(r.id);
+                dismissal.run(r.id, false);
+              }}
             >
               Bring back
             </Button>

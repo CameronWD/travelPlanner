@@ -11,7 +11,7 @@ import { Field } from "@/components/ui/field";
 import { Card, cardVariants } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
 import { RowActions } from "@/components/ui/row-actions";
-import { toastRejected } from "@/components/ui/action-failure";
+import { toastRefused, toastRejected } from "@/components/ui/action-failure";
 import { failureMessage } from "@/components/ui/failure-message";
 import { TravellerAvatar } from "@/components/ui/traveller-avatar";
 import {
@@ -99,14 +99,18 @@ function ShoppingRow({ entry }: { entry: ShoppingEntry }) {
     }),
   });
 
+  const [bought, setBought] = React.useOptimistic(entry.bought, (_, next: boolean) => next);
+
   function toggle() {
-    startTransition(async () => {
+    const next = !bought;
+    React.startTransition(async () => {
+      setBought(next);
       try {
-        if (entry.source === "packing") {
-          await setBuyState(entry.id, entry.bought ? "NEEDED" : "BOUGHT");
-        } else {
-          await toggleChecklistItem(entry.id, !entry.bought);
-        }
+        const r =
+          entry.source === "packing"
+            ? await setBuyState(entry.id, next ? "BOUGHT" : "NEEDED")
+            : await toggleChecklistItem(entry.id, next);
+        if (!r.success) toastRefused(r.errors, "Couldn’t update that item.");
       } catch {
         toastRejected("Couldn’t update that item.");
       }
@@ -134,7 +138,7 @@ function ShoppingRow({ entry }: { entry: ShoppingEntry }) {
         )}
       >
         <Checkbox
-          checked={entry.bought}
+          checked={bought}
           onChange={toggle}
           disabled={pending}
           className="min-w-0 flex-1 py-1 text-sm font-semibold leading-snug"
@@ -168,7 +172,7 @@ function ShoppingRow({ entry }: { entry: ShoppingEntry }) {
                 size="icon"
                 className="relative size-8 pointer-coarse:after:absolute pointer-coarse:after:-inset-1.5 pointer-coarse:after:content-['']"
                 onClick={remove}
-                disabled={pending}
+                loading={pending}
                 aria-label="Remove"
                 title="Remove"
               >
@@ -179,7 +183,7 @@ function ShoppingRow({ entry }: { entry: ShoppingEntry }) {
             <RowActions
               onDelete={() => requestDelete(entry.id)}
               deleteLabel="Delete"
-              disabled={pending || deleteIsPending}
+              loading={deleteIsPending}
             />
           )}
         </div>

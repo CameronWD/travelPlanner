@@ -15,23 +15,24 @@ export function BookingConfirmationMarker({ kind, id }: { kind: ConfirmationKind
       if (result.success) router.refresh();
       return result;
     },
-    done: () => ({ title: "Marked as not needing a confirmation" }),
+    done: () => ({ title: "Marked as nothing to attach" }),
   });
 
-  async function doesntNeedOne() {
+  async function markNothingToAttach() {
     if (await run()) router.refresh();
   }
 
   return (
     <p className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted-foreground">
-      <span>No booking confirmation yet</span>
+      <span>No booking confirmation attached</span>
       <button
         type="button"
         disabled={pending}
-        onClick={doesntNeedOne}
+        aria-busy={pending || undefined}
+        onClick={markNothingToAttach}
         className="rounded-full border border-border px-2 py-0.5 font-semibold hover:bg-muted hover:text-foreground disabled:opacity-60"
       >
-        Doesn’t need one
+        Nothing to attach
       </button>
     </p>
   );

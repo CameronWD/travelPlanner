@@ -257,6 +257,47 @@ describe("PhasePast route map order (ADR 0038)", () => {
     expect(routeMapEl!.props.mountWhen).toBe("phone");
   });
 
+  it("with no cover photo and a drawable Stop the phone cover band steps aside; with a photo, or nothing to draw, it stays", async () => {
+    const stop = { id: "rome", name: "Rome", lat: 41.9, lng: 12.5, timezone: "Europe/Rome", arriveDate: "2026-01-08", departDate: "2026-01-10", sortOrder: 0 };
+    const phoneCover = <div data-testid="phone-cover" />;
+    const has = async (coverIsPhoto: boolean) => {
+      const tree = await PhasePast({ tripId: "trip-1", userId: "u-viewer", trip: baseTrip, phoneCover, coverIsPhoto });
+      return findByTestIdIn(tree, "phone-cover") !== null;
+    };
+    stopFindManyMock.mockResolvedValue([stop, { ...stop, id: "fl", lat: 43.8, lng: 11.3, arriveDate: "2026-01-01", departDate: "2026-01-03", sortOrder: 1 }]);
+    expect(await has(false)).toBe(false);
+    expect(await has(true)).toBe(true);
+    stopFindManyMock.mockResolvedValue([]);
+    expect(await has(false)).toBe(true);
+  });
+
+  it("keeps the phone cover when the map cannot draw: one located Stop, or Stops with no coordinates", async () => {
+    const stop = (id: string, lat: number | null, lng: number | null, n: number) =>
+      ({ id, name: id, lat, lng, timezone: "Europe/Rome", arriveDate: `2026-01-0${n}`, departDate: `2026-01-0${n + 1}`, sortOrder: n });
+    for (const stops of [
+      [stop("a", 41.9, 12.5, 1)],
+      [stop("a", null, null, 1), stop("b", null, null, 3)],
+    ]) {
+      stopFindManyMock.mockResolvedValue(stops);
+      const tree = await PhasePast({ tripId: "trip-1", userId: "u-viewer", trip: baseTrip, phoneCover: <div data-testid="phone-cover" />, coverIsPhoto: false });
+      expect(findByTestIdIn(tree, "phone-cover")).not.toBeNull();
+    }
+  });
+
+  it("reserves the phone map's 200px box in the server HTML, holding any fallback list", async () => {
+    stopFindManyMock.mockResolvedValue([
+      { id: "rome", name: "Rome", lat: 41.9, lng: 12.5, timezone: "Europe/Rome", arriveDate: "2026-01-08", departDate: "2026-01-10", sortOrder: 0 },
+      { id: "fl", name: "Florence", lat: 43.8, lng: 11.3, timezone: "Europe/Rome", arriveDate: "2026-01-01", departDate: "2026-01-03", sortOrder: 1 },
+    ]);
+    const tree = await renderPast();
+    const map = findElementByType(tree, RouteMapLoader)!;
+    expect(map.props.mountWhen).toBe("phone");
+    expect(map.props.frameClassName).toMatch(/\bh-full\b/);
+    const box = findParent(tree, RouteMapLoader) as unknown as { props: { className: string; style: { height: number } } };
+    expect(box.props.style.height).toBe(200);
+    expect(box.props.className).toContain("[&_[data-map-fallback]]:overflow-y-auto");
+  });
+
   it("the desktop grid's route map mounts only at lg+ (spec 2026-10-06 §D)", async () => {
     stopFindManyMock.mockResolvedValue([
       { id: "rome", name: "Rome", lat: 41.9, lng: 12.5, timezone: "Europe/Rome", arriveDate: "2026-01-08", departDate: "2026-01-10", sortOrder: 0 },
@@ -672,3 +713,17 @@ describe("PhasePast — Surprise (CONTEXT.md Surprise, ADR 0051)", () => {
     expect(buildSpendSoFarMock.mock.calls[0][0].costs.map((c: { id: string }) => c.id)).toEqual(["c-hidden", "c-seen"]);
   });
 });
+
+function findByTestIdIn(node: unknown, id: string): unknown {
+  if (node == null || typeof node !== "object") return null;
+  if (Array.isArray(node)) {
+    for (const n of node) {
+      const f = findByTestIdIn(n, id);
+      if (f) return f;
+    }
+    return null;
+  }
+  const el = node as { props?: { children?: unknown; [k: string]: unknown } };
+  if (el.props?.["data-testid"] === id) return node;
+  return findByTestIdIn(el.props?.children, id);
+}

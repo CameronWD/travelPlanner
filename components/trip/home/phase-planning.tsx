@@ -15,7 +15,8 @@ import { STILL_TO_BOOK_LIMIT_PHONE } from "@/lib/still-to-book";
 import { BudgetGlance } from "@/components/trip/home/budget-glance";
 import { QuickActions } from "@/components/trip/home/quick-actions";
 import { RouteMapLoader as RouteMap } from "@/components/trip/route-map-loader";
-import type { RouteMapStop } from "@/components/trip/route-map";
+import { MapFallback } from "@/components/trip/route-map-fallback";
+import { routeMapCanDraw, type RouteMapStop } from "@/lib/route-map";
 import { UpcomingPaymentsCard } from "@/components/trip/upcoming-payments-card";
 import { StatTile } from "@/components/trip/home/stat-tile";
 import { formatMoneyAuto } from "@/lib/money/money";
@@ -58,6 +59,9 @@ interface PhasePlanningProps {
   /** The cover as a grid tile (spec E2), rendered by the page — it sits beside
    * the countdown hero here instead of full width above the Phase. */
   cover?: ReactNode;
+  /** Whether `cover` is the Trip's photo. Without one, a Trip with a drawable
+   * Stop shows the route map in the cover's place instead — never two maps. */
+  coverIsPhoto?: boolean;
   /** Extra classes on the cover's grid item — the page passes "max-sm:hidden"
    * when the phone header shows a portrait cover frame instead (spec
    * 2026-10-05 §I). On the grid item, not the tile: a hidden tile inside a
@@ -72,6 +76,9 @@ export const PLANNING_DESKTOP_GRID_CLASS =
 /** The second row of tiles (map, next steps, quick actions) at tile widths. */
 const PLANNING_TILE_ROW_CLASS = `grid grid-cols-1 ${HOME_GRID_GAP} lg:grid-cols-3 lg:items-start`;
 
+const MAP_HEADER_BOX_CLASS =
+  "h-56 w-full sm:h-48 [&_[data-map-fallback]]:max-h-full [&_[data-map-fallback]]:overflow-y-auto";
+
 export async function PhasePlanning({
   tripId,
   userId,
@@ -81,6 +88,7 @@ export async function PhasePlanning({
   reminders,
   reminderItems = [],
   cover,
+  coverIsPhoto = false,
   coverClassName,
 }: PhasePlanningProps) {
   // This phase only renders for dated trips; bail safely if called otherwise.
@@ -161,10 +169,24 @@ export async function PhasePlanning({
     <UpcomingPaymentsCard key="upcoming-payments" payments={upcomingPayments} tripId={tripId} tripSlug={slug} />
   );
 
+  const mapIsHeader = !coverIsPhoto && routeMapCanDraw(mapStops);
+
   const route =
     mapStops.length > 0 ? (
       // The map draws its own kit frame (2px outline, hard shadow) — no Card around it.
-      <RouteMap key="route" stops={mapStops} aspect="4/3" mountWhen="phone" />
+      mapIsHeader ? (
+        // The box is in the server HTML at the cover tile's size; the map only fills it.
+        <div key="route" className={MAP_HEADER_BOX_CLASS}>
+          <RouteMap stops={mapStops} frameClassName="h-full rounded-lg shadow-hard-2" mountWhen="phone" />
+        </div>
+      ) : routeMapCanDraw(mapStops) ? (
+        <RouteMap key="route" stops={mapStops} aspect="4/3" mountWhen="phone" />
+      ) : (
+        // The map is phone-only, so the card it would show is drawn here and hidden from lg up.
+        <div key="route" className="lg:hidden">
+          <MapFallback stops={mapStops} />
+        </div>
+      )
     ) : (
       // Kit shared/states.jsx "Plan" empty: the route has nothing to draw yet.
       <EmptyState
@@ -240,7 +262,11 @@ export async function PhasePlanning({
         {/* Phones keep the single-column Home unchanged: the cover band
             sits ABOVE the hero (-order-1), and returns to grid order beside
             the hero at lg. */}
-        {cover ? (
+        {mapIsHeader ? (
+          <AnimatedItem key="route" index={1} className="-order-1 lg:hidden">
+            {route}
+          </AnimatedItem>
+        ) : cover ? (
           <AnimatedItem key="cover" index={1} className={cn("-order-1 lg:order-none", coverClassName)}>
             {cover}
           </AnimatedItem>
@@ -248,7 +274,7 @@ export async function PhasePlanning({
         {statTiles.map((tile, i) => (
           <AnimatedItem
             key={typeof tile.key === "string" ? tile.key : `stat-${i}`}
-            index={(cover ? 2 : 1) + i}
+            index={(mapIsHeader || cover ? 2 : 1) + i}
             className="hidden lg:flex"
           >
             {tile}
@@ -261,7 +287,7 @@ export async function PhasePlanning({
         data-testid="planning-tile-row"
         staggerOnMount
       >
-        <AnimatedItem key="route" index={0}>{route}</AnimatedItem>
+        {mapIsHeader ? null : <AnimatedItem key="route" index={0}>{route}</AnimatedItem>}
         <AnimatedItem key="next-steps" index={1}>{nextSteps}</AnimatedItem>
         {/* Spec 2026-10-17 R2: what is still To book; no tile when nothing is. */}
         {stillToBook.length > 0 ? (

@@ -22,11 +22,11 @@ interface PlanExtrasProps {
 
 /** Chapters on/off lives in Settings (Task 21a), so this menu only exists while they're on. */
 function ChaptersMenu() {
-  const { actions } = usePlanBody();
+  const { actions, suggestingChapters } = usePlanBody();
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <Button variant="outline" size="md">
+        <Button variant="outline" size="md" loading={suggestingChapters}>
           <BookOpen aria-hidden="true" />
           Chapters
         </Button>

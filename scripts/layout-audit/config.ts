@@ -209,19 +209,24 @@ export const ROUTES: RouteDef[] = [
 
 export type SetName = "deep" | "phase" | "empty" | "dark" | "print" | "overlay" | "loading";
 
-/** Everything a run can do: the matrix's sets plus the two modes that are
- * not per-capture (the resize crawl and the layout-shift measurement). */
-export const ALL_SETS = ["deep", "phase", "empty", "dark", "print", "overlay", "loading", "resize", "cls"] as const;
+/** Everything a run can do: the matrix's sets plus the modes that are not
+ * per-capture (the resize crawl and the layout-shift measurements). */
+export const ALL_SETS = ["deep", "phase", "empty", "dark", "print", "overlay", "loading", "resize", "cls", "switch", "action"] as const;
 export type RunSet = (typeof ALL_SETS)[number];
 
-/** LAYOUT_AUDIT_SETS: a comma list of RunSet names; unset or blank = all.
- * Throws on an unknown name, so a typo can't silently run nothing. */
+/** What an unset LAYOUT_AUDIT_SETS runs: everything but "action", which
+ * writes to the demo trip (and puts it back) and so must be named. */
+export const DEFAULT_SETS: readonly RunSet[] = ALL_SETS.filter((s) => s !== "action");
+
+/** LAYOUT_AUDIT_SETS: a comma list of RunSet names; unset or blank =
+ * DEFAULT_SETS. Throws on an unknown name, so a typo can't silently run
+ * nothing. */
 export function parseSets(raw: string | undefined): Set<RunSet> {
   const names = (raw ?? "")
     .split(",")
     .map((s) => s.trim())
     .filter(Boolean);
-  if (names.length === 0) return new Set(ALL_SETS);
+  if (names.length === 0) return new Set(DEFAULT_SETS);
   for (const n of names) {
     if (!(ALL_SETS as readonly string[]).includes(n)) {
       throw new Error(`LAYOUT_AUDIT_SETS: unknown set "${n}" (expected any of ${ALL_SETS.join(", ")})`);
@@ -262,8 +267,7 @@ const OVERLAY_PROFILES = ["iphone17-browser", "iphone17-pwa", "iphone12-browser"
 const OVERLAY_KEYBOARD_PROFILES = ["iphone17-browser", "iphone12-browser", "iphone17-pwa"];
 const PRINT_PROFILE = "794";
 
-/** The routes whose loading state is captured (set "loading") and whose
- * layout shift is measured (cls.json). */
+/** The routes whose loading state is captured (set "loading"). */
 export const LOADING_ROUTE_LABELS = [
   "trips",
   "home",
@@ -277,6 +281,12 @@ export const LOADING_ROUTE_LABELS = [
   "files",
   "journal",
 ];
+
+/** The routes whose cold-load layout shift is measured (cls.json): the
+ * loading routes plus the rest of the pages a Traveller lands on. */
+export const CLS_ROUTE_LABELS = [...LOADING_ROUTE_LABELS, "globe", "account", "summary", "settings", "activity", "today", "more", "whats-new"];
+
+export const SHIFT_PROFILE_IDS = ["iphone17-pwa", "1440"] as const;
 
 /** Placeholder route for overlay captures: the recipe (overlays.ts) carries
  * the real route; an overlay id leaves this label out (see makeCapture). */

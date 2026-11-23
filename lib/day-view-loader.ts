@@ -34,7 +34,6 @@ import { zoneLabel } from "@/lib/time-display";
 import { computeTripPhase, type TripPhase } from "@/lib/trip-phase";
 import { canWriteJournal } from "@/lib/journal-window";
 import { groupJournalDayByAuthor } from "@/lib/journal-authors";
-import { loadBookingConfirmationsToAdd } from "@/lib/booking-confirmations-loader";
 import { readDayRows, type DayReadContext } from "@/lib/day-reads";
 import {
   buildDayModel,
@@ -123,7 +122,6 @@ export interface DayViewData {
   /** The Day map's model (CONTEXT.md "Day map"); the panel stays collapsed until opened. */
   dayMap: DayMapModel;
   attachmentsByTarget: Record<string, AttachmentView[]>;
-  needsConfirmationIds: string[];
   stopOptions: Array<{ id: string; name: string; arriveDate: string | null; departDate: string | null; timezone: string | null; sortOrder: number; lat?: number | null; lng?: number | null }>;
   /** Day ideas — every phase (ADR 0044 amendment). */
   ideas: ReturnType<typeof dayIdeasRows>;
@@ -226,11 +224,7 @@ export async function getDays(tripId: string, dates: readonly string[], viewerId
   const wellFormed = (d: string) => ISO_DATE.test(d);
   if (!dates.some(wellFormed)) return dates.map(() => "invalid" as const);
 
-  const [read, toAdd] = await Promise.all([
-    readDayRows(tripId, viewerId, (ctx) => readWindowExtras(ctx, dates)),
-    loadBookingConfirmationsToAdd(tripId, viewerId),
-  ]);
-  const needsConfirmationIds = toAdd.map((c) => c.id);
+  const read = await readDayRows(tripId, viewerId, (ctx) => readWindowExtras(ctx, dates));
   if (read === "missing") return dates.map(() => "invalid" as const);
   if (read === "dateless" || read.alongside === null) return dates.map((d) => (wellFormed(d) ? ("dateless" as const) : ("invalid" as const)));
 
@@ -257,7 +251,6 @@ export async function getDays(tripId: string, dates: readonly string[], viewerId
       journalEntries: alongside.journalEntries.filter((e) => e.date === date),
       journalPhotos: alongside.journalPhotos.filter((p) => p.targetId === date),
       holidayLines,
-      needsConfirmationIds,
     });
   });
 }
@@ -307,7 +300,7 @@ function projectDayView(
   rows: DayRows,
   model: DayModel & { dayPlan: DayPlan },
   shared: SharedDays,
-  day: { viewerId: string; journalEntries: WindowExtras["journalEntries"]; journalPhotos: WindowExtras["journalPhotos"]; holidayLines: Map<string, string[]>; needsConfirmationIds: string[] },
+  day: { viewerId: string; journalEntries: WindowExtras["journalEntries"]; journalPhotos: WindowExtras["journalPhotos"]; holidayLines: Map<string, string[]> },
 ): DayViewData {
   const { trip, startDate, endDate, items, transports } = rows;
   const { date, dayPlan, dayStop, freeForm, hasEntries, tonight: bed } = model;
@@ -506,7 +499,6 @@ function projectDayView(
     itemDirections: model.itemDirections,
     dayMap: withDayMapHops(model.dayMap, rows, date, shared.travel, shared.hopModes),
     attachmentsByTarget: model.attachmentsByTarget,
-    needsConfirmationIds: day.needsConfirmationIds,
     stopOptions: shared.stopOptions,
     ideas,
     nearby: model.nearby,

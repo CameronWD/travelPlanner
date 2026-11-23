@@ -2,10 +2,11 @@ import type { MetadataRoute } from "next";
 
 export default function manifest(): MetadataRoute.Manifest {
   return {
+    id: "/",
     name: "Teepee",
     short_name: "Teepee",
     description: "Your whole trip, in one place.",
-    start_url: "/",
+    start_url: "/launch.html",
     display: "standalone",
     orientation: "portrait",
     background_color: "#FFD166",

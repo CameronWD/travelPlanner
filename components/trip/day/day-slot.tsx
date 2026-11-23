@@ -77,7 +77,7 @@ function weather(day: DayViewData, size: "regular" | "compact") {
 // no visible bed would read "No bed yet" about a stay it cannot see.
 function tonight(day: DayViewData, s: DaySlotShared, size: "desktop" | "phone") {
   return !day.isLast && (day.tonight != null || (day.stop != null && !day.surprise?.dayStopHidden)) ? (
-    <TonightCard tripId={s.tripId} tonight={day.tonight} isLastDay={day.isLast} stopId={day.stop?.id ?? null} size={size} needsBookingConfirmation={day.tonight != null && !day.editor.readFirst && day.needsConfirmationIds.includes(day.tonight.id)} />
+    <TonightCard tripId={s.tripId} tonight={day.tonight} isLastDay={day.isLast} stopId={day.stop?.id ?? null} size={size} />
   ) : null;
 }
 

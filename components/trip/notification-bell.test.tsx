@@ -140,6 +140,22 @@ describe("NotificationBell", () => {
     expect(markAllRead).toHaveBeenCalledWith("t1");
   });
 
+  it("Mark all read says it is working while the call is unresolved and ignores a second click", async () => {
+    vi.mocked(markAllRead).mockClear();
+    vi.mocked(markAllRead).mockReturnValueOnce(new Promise(() => {}));
+    const user = userEvent.setup();
+    render(
+      <NotificationBell tripId="t1" unreadCount={2} recent={[baseActivity]} />,
+    );
+    await user.click(screen.getByRole("button", { name: /Notifications/ }));
+    const markBtn = await screen.findByRole("button", { name: "Mark all read" });
+    await user.click(markBtn);
+    expect(markBtn).toHaveAttribute("aria-busy", "true");
+    expect(markBtn).toBeDisabled();
+    await user.click(markBtn);
+    expect(markAllRead).toHaveBeenCalledTimes(1);
+  });
+
   it("LA-010: last notification clears the sticky footer", async () => {
     const user = userEvent.setup();
     render(

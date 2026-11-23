@@ -82,7 +82,7 @@ const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
           inertWhenAsChild && "pointer-events-none opacity-45",
           className,
         )}
-        disabled={asChild ? undefined : (disabled ?? loading)}
+        disabled={asChild ? undefined : (loading || disabled)}
         aria-disabled={inertWhenAsChild || undefined}
         aria-busy={loading || undefined}
         data-loading={loading || undefined}

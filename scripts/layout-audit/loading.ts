@@ -24,7 +24,7 @@
  *
  * LAYOUT SHIFT (measureCls). The `layout-shift` performance entry exists
  * only in Chromium, so this is measured there, emulating the phone's
- * viewport, on an ordinary hard load. It is a `next dev` number against a
+ * viewport and, separately, a 1440 desktop, on an ordinary hard load. It is a `next dev` number against a
  * local database: good for finding WHAT moves, not a field metric. How much
  * a page shifts depends on how late its data lands, and locally it lands
  * fast, so each route is loaded three times: twice as is (the worse is
@@ -45,8 +45,18 @@ const NAV_DELAY_MS = 1500;
 /** Client-side navigation through the App Router's own instance, which Next
  * exposes on `window.next`; false when it isn't there. Plain JS string — see
  * layout-audit.ts trap 1. */
-function pushJs(to: string): string {
+export function pushJs(to: string): string {
   return `(() => { const r = window.next && window.next.router; if (!r || typeof r.push !== "function") return false; r.push(${JSON.stringify(to)}); return true; })()`;
+}
+
+export function holdBackRsc(delayMs: number): (route: Route) => Promise<void> {
+  return async (route) => {
+    const request = route.request();
+    if (request.headers()["rsc"] === "1" || request.url().includes("_rsc=")) {
+      await new Promise((resolve) => setTimeout(resolve, delayMs));
+    }
+    await route.continue().catch(() => {});
+  };
 }
 
 async function shootAt(page: Page, t0: number, dir: string, baseName: string, kind: "hard" | "nav"): Promise<string[]> {
@@ -86,13 +96,7 @@ export async function captureLoading(
   await page.goto(fromUrl, { waitUntil: "load" });
   await settle(page);
   await opts.prepare(page);
-  const holdBack = async (route: Route) => {
-    const request = route.request();
-    if (request.headers()["rsc"] === "1" || request.url().includes("_rsc=")) {
-      await new Promise((resolve) => setTimeout(resolve, NAV_DELAY_MS));
-    }
-    await route.continue().catch(() => {});
-  };
+  const holdBack = holdBackRsc(NAV_DELAY_MS);
   await page.route("**/*", holdBack);
   let navSkipped: string | undefined;
   try {
@@ -167,9 +171,10 @@ export const CLS_INIT_JS = `(() => {
 })()`;
 
 export interface ClsResult {
-  /** `cls/<routeLabel>` — what LAYOUT_AUDIT_ONLY matches. */
+  /** `cls/<routeLabel>/<profile>` — what LAYOUT_AUDIT_ONLY matches. */
   id: string;
   label: string;
+  profile: string;
   route: string;
   /** The score as web-vitals defines it: the worst burst of shifts (gaps
    * under 1s, at most 5s long), shifts just after input left out. */
@@ -237,7 +242,7 @@ async function loadAndCollect(context: BrowserContext, url: string, throttle: bo
     await page.goto(url, { waitUntil: "load", timeout: 60_000 });
     await settle(page, throttle ? 30_000 : undefined);
     await page.waitForTimeout(AFTER_SETTLE_MS);
-    return await page.evaluate<ShiftEntry[]>("window.__auditCls || []");
+    return await readShifts(page);
   } finally {
     await page.close().catch(() => {});
   }
@@ -245,22 +250,30 @@ async function loadAndCollect(context: BrowserContext, url: string, throttle: bo
 
 /** Loads `url` on fresh pages of `context` (Chromium) and returns its
  * layout shifts. */
-export async function measureCls(context: BrowserContext, url: string, label: string, route: string): Promise<ClsResult> {
-  const id = `cls/${label}`;
+export async function measureCls(context: BrowserContext, url: string, label: string, route: string, profile: string): Promise<ClsResult> {
+  const id = `cls/${label}/${profile}`;
   try {
     const plain = [];
     for (let i = 0; i < PLAIN_RUNS; i++) plain.push(summariseShifts(await loadAndCollect(context, url, false)));
     const worst = plain.reduce((a, b) => (b.cls > a.cls ? b : a));
     const throttled = summariseShifts(await loadAndCollect(context, url, true));
-    return { id, label, route, ...worst, runs: plain.map((r) => r.cls), throttled };
+    return { id, label, profile, route, ...worst, runs: plain.map((r) => r.cls), throttled };
   } catch (err) {
     const error = (err instanceof Error ? err.message : String(err)).split("\nCall log:")[0].replace(/\s+/g, " ").trim().slice(0, 500);
-    return { id, label, route, cls: 0, total: 0, shifts: 0, largest: [], runs: [], error };
+    return { id, label, profile, route, cls: 0, total: 0, shifts: 0, largest: [], runs: [], error };
   }
 }
 
+export function resetShifts(page: Page): Promise<void> {
+  return page.evaluate("window.__auditCls = []").then(() => {});
+}
+
+export function readShifts(page: Page): Promise<ShiftEntry[]> {
+  return page.evaluate<ShiftEntry[]>("window.__auditCls || []");
+}
+
 export function mergeCls(prev: ClsResult[], next: ClsResult[]): ClsResult[] {
-  const rerun = new Map(next.map((r) => [r.label, r]));
-  const seen = new Set(prev.map((r) => r.label));
-  return [...prev.map((r) => rerun.get(r.label) ?? r), ...next.filter((r) => !seen.has(r.label))];
+  const rerun = new Map(next.map((r) => [r.id, r]));
+  const seen = new Set(prev.map((r) => r.id));
+  return [...prev.map((r) => rerun.get(r.id) ?? r), ...next.filter((r) => !seen.has(r.id))];
 }

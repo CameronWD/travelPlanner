@@ -236,7 +236,8 @@ function AddReminderForm({
             variant="outline"
             type="button"
             className={DIALOG_DESTRUCTIVE_CLASS}
-            disabled={isPending || isDeleting}
+            disabled={isPending || undefined}
+            loading={isDeleting}
             onClick={() => requestDelete(reminder.id, reminder.title)}
           >
             <Trash2 aria-hidden="true" />

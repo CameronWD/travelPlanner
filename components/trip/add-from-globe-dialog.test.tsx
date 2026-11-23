@@ -55,6 +55,21 @@ const baseProps = {
 describe("AddFromGlobeDialog", () => {
   beforeEach(() => vi.clearAllMocks());
 
+  it("the pressed Add says it is working while the call is unresolved, the others are only disabled", async () => {
+    vi.mocked(addMarkerToWishlist).mockReturnValueOnce(new Promise(() => {}));
+    const user = userEvent.setup();
+    render(<AddFromGlobeDialog {...baseProps} />);
+    const add = screen.getByRole("button", { name: "Add Eiffel Tower" });
+    await user.click(add);
+    expect(add).toHaveAttribute("aria-busy", "true");
+    expect(add).toBeDisabled();
+    const other = screen.getByRole("button", { name: "Add Ramen bar" });
+    expect(other).toBeDisabled();
+    expect(other).not.toHaveAttribute("aria-busy");
+    await user.click(add);
+    expect(addMarkerToWishlist).toHaveBeenCalledTimes(1);
+  });
+
   // -------------------------------------------------------------------------
   // Test 1: lists markers and Add button calls addMarkerToWishlist
   // -------------------------------------------------------------------------

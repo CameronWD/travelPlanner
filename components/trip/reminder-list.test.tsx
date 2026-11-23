@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { act } from "react";
 import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { reminderItem } from "@/test/helpers/reminder-item";
@@ -74,6 +75,20 @@ describe("ReminderList", () => {
     expect(screen.getByRole("listitem")).toHaveClass("opacity-60");
     await user.click(screen.getByRole("button", { name: "Bring back reminder: Print docs" }));
     await waitFor(() => expect(updateReminder).toHaveBeenCalledWith("r1", { dismissed: false }));
+  });
+
+  it("Bring back says it is working while it runs, and a second click does nothing", async () => {
+    let resolve!: (v: unknown) => void;
+    updateReminder.mockImplementationOnce(() => new Promise((r) => (resolve = r)));
+    const user = userEvent.setup();
+    render(<ReminderList reminders={[reminderItem({ id: "r1", title: "Print docs", date: "2026-11-20", dismissed: true })]} />);
+    const back = screen.getByRole("button", { name: "Bring back reminder: Print docs" });
+    await user.click(back);
+    expect(back).toHaveAttribute("aria-busy", "true");
+    expect(back).toBeDisabled();
+    await user.click(back);
+    expect(updateReminder).toHaveBeenCalledTimes(1);
+    await act(async () => resolve({ success: true }));
   });
 
   it("offers no Bring back on a live Reminder", () => {

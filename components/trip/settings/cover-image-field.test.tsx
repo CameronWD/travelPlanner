@@ -111,6 +111,37 @@ describe("CoverImageField", () => {
     expect(screen.queryByRole("button", { name: /remove/i })).not.toBeInTheDocument();
   });
 
+  it("Remove says it is working and is disabled while removeTripCover is unresolved; Choose photo is only disabled", async () => {
+    let release!: (v: { success: true }) => void;
+    vi.mocked(removeTripCover).mockReturnValueOnce(new Promise((r) => { release = r; }));
+    const user = userEvent.setup();
+    render(<CoverImageField tripId="t1" hasCover={true} />);
+    const removeBtn = screen.getByRole("button", { name: /remove/i });
+    await user.click(removeBtn);
+    await waitFor(() => expect(removeBtn).toHaveAttribute("aria-busy", "true"));
+    expect(removeBtn).toBeDisabled();
+    const choose = screen.getByRole("button", { name: "Choose photo" });
+    expect(choose).toBeDisabled();
+    expect(choose).not.toHaveAttribute("aria-busy");
+    await user.click(removeBtn);
+    expect(removeTripCover).toHaveBeenCalledTimes(1);
+    release({ success: true });
+    await waitFor(() => expect(removeBtn).not.toHaveAttribute("aria-busy"));
+  });
+
+  it("Choose photo says it is working and is disabled while the upload is unresolved", async () => {
+    let release!: (v: { success: true }) => void;
+    vi.mocked(setTripCover).mockReturnValueOnce(new Promise((r) => { release = r; }));
+    const user = userEvent.setup();
+    const { container } = render(<CoverImageField tripId="t1" hasCover={false} />);
+    await user.upload(fileInput(container), new File(["img"], "photo.png", { type: "image/png" }));
+    const choose = screen.getByRole("button", { name: "Choose photo" });
+    await waitFor(() => expect(choose).toHaveAttribute("aria-busy", "true"));
+    expect(choose).toBeDisabled();
+    release({ success: true });
+    await waitFor(() => expect(choose).not.toHaveAttribute("aria-busy"));
+  });
+
   it("compresses the selected file before calling setTripCover", async () => {
     const user = userEvent.setup();
     const compressedFile = new File([new Uint8Array(10)], "photo.webp", { type: "image/webp" });
@@ -213,6 +244,33 @@ describe("CoverImageField", () => {
       const marker = screen.getByTestId("cover-focal-marker");
       expect(marker.style.left).toBe("30%");
       expect(marker.style.top).toBe("60%");
+    });
+  });
+
+  describe("preview box", () => {
+    const previewImg = (c: HTMLElement) => c.querySelector("img") as HTMLImageElement;
+
+    it("carries the stored aspect from the first render", () => {
+      const { container } = render(<CoverImageField tripId="t1" hasCover aspect={0.75} />);
+      expect(previewImg(container).style.aspectRatio).toBe("auto 0.75 / 1");
+    });
+
+    it("falls back to 4/3 when the stored aspect is null", () => {
+      const { container } = render(<CoverImageField tripId="t1" hasCover aspect={null} />);
+      expect(previewImg(container).style.aspectRatio).toBe("auto 4 / 3");
+    });
+
+    it("reserves the ratio only until the photo loads, never as a plain ratio", () => {
+      for (const aspect of [0.75, null]) {
+        const { container, unmount } = render(<CoverImageField tripId="t1" hasCover aspect={aspect} />);
+        expect(previewImg(container).style.aspectRatio.startsWith("auto ")).toBe(true);
+        unmount();
+      }
+    });
+
+    it("shows no preview without a cover", () => {
+      const { container } = render(<CoverImageField tripId="t1" hasCover={false} aspect={1.5} />);
+      expect(container.querySelector("img")).toBeNull();
     });
   });
 });

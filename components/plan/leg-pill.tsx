@@ -1,13 +1,12 @@
 "use client";
 
 import * as React from "react";
-import { Plus } from "lucide-react";
+import { Paperclip, Plus } from "lucide-react";
 import { cn } from "@/lib/cn";
 import type { LegLabel } from "@/lib/plan/leg-label";
 import { BookingStateBadge } from "@/components/trip/booking-state-badge";
 import { BOOKING_STATE_LABELS, bookByLabel } from "@/lib/booking-state-copy";
 import type { BookingState } from "@/lib/enum-values";
-import { BookingConfirmationMarker } from "@/components/trip/booking-confirmation-marker";
 
 export interface LegRowProps {
   kind: "legs" | "missing" | "line";
@@ -82,18 +81,18 @@ export interface LegPillProps {
   compact?: boolean;
   bookingState?: BookingState | null;
   bookBy?: string | null;
-  marker?: { kind: "TRANSPORT"; id: string } | null;
+  attached?: boolean;
 }
 
 /** A single leg on the strip: a real transport, or the dashed "missing" prompt (PLAN.md §2). */
-export function LegPill({ label, onClick, compact, bookingState, bookBy, marker }: LegPillProps) {
+export function LegPill({ label, onClick, compact, bookingState, bookBy, attached }: LegPillProps) {
   const Icon = label.icon;
   // An explicit aria-label overrides name-from-content, so the visual
   // BookingStateBadge below would otherwise go unheard. Speak the same copy
   // here instead, and hide the badge from the accessibility tree.
   const bookingText = bookingState === "TO_BOOK" ? (bookBy ? bookByLabel(bookBy) : BOOKING_STATE_LABELS.TO_BOOK) : null;
-  const accessibleName = bookingText ? `${label.accessibleName} ${bookingText}.` : label.accessibleName;
-  const pill = (
+  const accessibleName = [label.accessibleName, bookingText && `${bookingText}.`, attached && "File attached."].filter(Boolean).join(" ");
+  return (
     <button
       type="button"
       aria-label={accessibleName}
@@ -122,16 +121,10 @@ export function LegPill({ label, onClick, compact, bookingState, bookBy, marker 
           {Icon ? <Icon className="size-4 shrink-0" aria-hidden /> : null}
           <span className="min-w-0 shrink truncate">{label.label}</span>
           {label.sub ? <span className="min-w-0 shrink-[100] truncate text-xs font-semibold text-muted-foreground tabular-nums">{label.sub}</span> : null}
+          {attached ? <Paperclip className="size-3.5 shrink-0 text-muted-foreground" aria-hidden /> : null}
           <BookingStateBadge state={bookingState} bookBy={bookBy} compact hidden className="text-xs" />
         </>
       )}
     </button>
-  );
-  if (!marker || compact) return pill;
-  return (
-    <div className="flex min-w-0 max-w-full flex-col items-start gap-0.5 max-md:w-full">
-      {pill}
-      <BookingConfirmationMarker kind={marker.kind} id={marker.id} />
-    </div>
   );
 }

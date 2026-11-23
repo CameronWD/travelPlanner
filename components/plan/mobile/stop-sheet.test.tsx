@@ -243,15 +243,38 @@ describe("StopSheet, a Surprise (CONTEXT.md Surprise)", () => {
 });
 
 describe("StopSheet booking confirmation marker", () => {
-  it("marks a day row and an idea that need a confirmation", async () => {
-    renderSheet({ needsConfirmationIds: new Set(["b", "i1"]) });
-    expect(within(screen.getByTestId("sheet-day-2026-12-11")).getByText("No booking confirmation yet")).toBeInTheDocument();
+  it("never shows the missing-confirmation note on a day row or an idea", async () => {
+    renderSheet();
+    expect(screen.queryByText("No booking confirmation attached")).toBeNull();
     await userEvent.click(screen.getByRole("radio", { name: "Ideas 1" }));
-    expect(screen.getByText("No booking confirmation yet")).toBeInTheDocument();
+    expect(screen.queryByText("No booking confirmation attached")).toBeNull();
+    expect(screen.queryByRole("button", { name: "Nothing to attach" })).toBeNull();
+  });
+});
+
+describe("StopSheet, busy", () => {
+  it("while its Stop's action is in flight it is busy and its actions and dates buttons are off", async () => {
+    const { props } = renderSheet({ isPending: true });
+    expect(screen.getByRole("dialog", { name: "Paris" })).toHaveAttribute("aria-busy", "true");
+    const actions = screen.getByRole("button", { name: "Actions for Paris" });
+    expect(actions).toBeDisabled();
+    await userEvent.click(actions);
+    await userEvent.click(screen.getByRole("button", { name: "Edit dates" }));
+    expect(props.onActions).not.toHaveBeenCalled();
+    expect(props.onEditDates).not.toHaveBeenCalled();
   });
 
-  it("shows nothing when none needs one", () => {
+  it("a rough Stop's Give it dates is off while busy", async () => {
+    const { props } = renderSheet({ isPending: true, stop: { ...PARIS, arriveDate: null, departDate: null, nights: 3 }, slots: [] });
+    const give = screen.getByRole("button", { name: "Give it dates" });
+    expect(give).toBeDisabled();
+    await userEvent.click(give);
+    expect(props.onEditDates).not.toHaveBeenCalled();
+  });
+
+  it("is not busy otherwise", () => {
     renderSheet();
-    expect(screen.queryByText("No booking confirmation yet")).toBeNull();
+    expect(screen.getByRole("dialog", { name: "Paris" })).not.toHaveAttribute("aria-busy");
+    expect(screen.getByRole("button", { name: "Actions for Paris" })).toBeEnabled();
   });
 });

@@ -37,7 +37,6 @@ import { DayEntryLink, type DayEntryEditor, type DayEntryTarget } from "@/compon
 import { ItemPhotoThumb } from "@/components/trip/item-photo-thumb";
 import { SurpriseBadge } from "@/components/plan/surprise-badge";
 import { BookingStateBadge } from "@/components/trip/booking-state-badge";
-import { BookingConfirmationMarker } from "@/components/trip/booking-confirmation-marker";
 import { SlotFacts } from "@/components/trip/slot-facts";
 import { OpeningHoursLine } from "@/components/trip/opening-hours-line";
 import { TryListTicks } from "@/components/trip/try-list-ticks";
@@ -95,8 +94,6 @@ export interface TimelineProps {
   editor?: DayEntryEditor;
   /** The trip's today (Stop-local). A row on that date says "Open … today". */
   todayISO?: string;
-  /** Ids of booked entries with no confirmation attached; their rows carry the marker. */
-  needsConfirmationIds?: readonly string[];
 }
 
 // ---------------------------------------------------------------------------
@@ -115,12 +112,10 @@ export function Timeline({
   showUnschedule,
   editor,
   todayISO,
-  needsConfirmationIds,
 }: TimelineProps) {
   const isDay = variant === "day";
   const large = size === "large";
   const today = todayISO !== undefined && todayISO === day.dateISO;
-  const needsConfirmation = (id: string) => needsConfirmationIds?.includes(id) ?? false;
 
   if (!dayHasEntries(day)) {
     // Day variant: the kit empty treatment. Agenda (one card per day on the
@@ -164,7 +159,6 @@ export function Timeline({
                 large={large}
                 key={`ci-${entry.accommodation.id}`}
                 entry={entry}
-                needsConfirmation={needsConfirmation(entry.accommodation.id)}
                 attachments={attachmentsByTarget?.[entry.accommodation.id] ?? []}
                 editor={editor}
               />
@@ -176,7 +170,6 @@ export function Timeline({
                 large={large}
                 key={`tr-${entry.transport.id}-${entry.kind}`}
                 entry={entry}
-                needsConfirmation={needsConfirmation(entry.transport.id)}
                 attachments={attachmentsByTarget?.[entry.transport.id] ?? []}
                 editor={editor}
               />
@@ -187,7 +180,6 @@ export function Timeline({
                 large={large}
                 key={`ti-${entry.item.id}`}
                 entry={entry}
-                needsConfirmation={needsConfirmation(entry.item.id)}
                 directions={itemDirections?.[entry.item.id]}
                 attachments={attachmentsByTarget?.[entry.item.id] ?? []}
                 showUnschedule={unschedule}
@@ -215,7 +207,6 @@ export function Timeline({
                   large={large}
                   key={`ui-${it.id}`}
                   entry={{ kind: "item", item: it }}
-                  needsConfirmation={needsConfirmation(it.id)}
                   directions={itemDirections?.[it.id]}
                   attachments={attachmentsByTarget?.[it.id] ?? []}
                   showUnschedule={unschedule}
@@ -387,10 +378,8 @@ function TransportRow({
   large,
   attachments,
   editor,
-  needsConfirmation,
 }: {
   entry: TransportDepartureEntry | TransportArrivalEntry;
-  needsConfirmation?: boolean;
   large?: boolean;
   attachments: AttachmentView[];
   editor?: DayEntryEditor;
@@ -457,14 +446,12 @@ function TransportRow({
         <p className="mt-0.5 text-xs font-medium text-sun-text">Arrives {formatDayLabel(depEntry.arrivalDateISO)}</p>
       )}
       <AttachmentLinks attachments={attachments} />
-      {needsConfirmation && !editor?.readFirst && <div className="mt-0.5"><BookingConfirmationMarker kind="TRANSPORT" id={t.id} /></div>}
     </DayRow>
   );
 }
 
 function TimedItemRow({
   entry,
-  needsConfirmation,
   large,
   directions,
   attachments,
@@ -474,7 +461,6 @@ function TimedItemRow({
   tickable,
 }: {
   entry: ItemEntry;
-  needsConfirmation?: boolean;
   large?: boolean;
   directions?: ItemDirections;
   attachments: AttachmentView[];
@@ -499,7 +485,6 @@ function TimedItemRow({
         editor={editor}
         today={today}
         tickable={tickable}
-        needsConfirmation={needsConfirmation}
       />
     </DayRow>
   );
@@ -507,7 +492,6 @@ function TimedItemRow({
 
 function UntimedItemRow({
   entry,
-  needsConfirmation,
   large,
   directions,
   attachments,
@@ -517,7 +501,6 @@ function UntimedItemRow({
   tickable,
 }: {
   entry: ItemEntry;
-  needsConfirmation?: boolean;
   large?: boolean;
   directions?: ItemDirections;
   attachments: AttachmentView[];
@@ -539,7 +522,6 @@ function UntimedItemRow({
         editor={editor}
         today={today}
         tickable={tickable}
-        needsConfirmation={needsConfirmation}
       />
     </DayRow>
   );
@@ -550,10 +532,8 @@ function AccomCheckinRow({
   large,
   attachments,
   editor,
-  needsConfirmation,
 }: {
   entry: AccommodationCheckinEntry;
-  needsConfirmation?: boolean;
   large?: boolean;
   attachments: AttachmentView[];
   editor?: DayEntryEditor;
@@ -574,7 +554,7 @@ function AccomCheckinRow({
       )}
     </EntryTitle>
   );
-  // On the Day view the booking reference and its confirmation marker live on Tonight's card, not here.
+  // On the Day view the booking reference lives on Tonight's card, not here.
   const details = (
     <>
       {!large && a.confirmation && (
@@ -587,7 +567,6 @@ function AccomCheckinRow({
         <p className="mt-1 flex"><BookingStateBadge state={a.bookingState} bookBy={a.bookBy} compact /></p>
       )}
       <AttachmentLinks attachments={attachments} />
-      {!large && needsConfirmation && !editor?.readFirst && <div className="mt-0.5"><BookingConfirmationMarker kind="ACCOMMODATION" id={a.id} /></div>}
     </>
   );
   return (
@@ -640,10 +619,8 @@ function DayItemBody({
   editor,
   today,
   tickable,
-  needsConfirmation,
 }: {
   item: ItemEntry["item"];
-  needsConfirmation?: boolean;
   timeLabel: string | null | undefined;
   directions?: ItemDirections;
   attachments: AttachmentView[];
@@ -705,7 +682,6 @@ function DayItemBody({
       )}
       {tryCount && tickable && tryList && <TryListTicks itemId={item.id} itemTitle={item.title} list={tryList} />}
       <AttachmentLinks attachments={attachments} />
-      {needsConfirmation && !placeholder && !editor?.readFirst && <div className="mt-0.5"><BookingConfirmationMarker kind="ITEM" id={item.id} /></div>}
     </>
   );
 }

@@ -1,4 +1,4 @@
-import { render, screen, within } from "@testing-library/react";
+import { cleanup, render, screen, within } from "@testing-library/react";
 import { describe, expect, it, vi, beforeEach } from "vitest";
 import { formatDateRange } from "@/lib/dates";
 // React import needed for JSX in the mocks below (vi.mock calls are hoisted
@@ -110,8 +110,8 @@ vi.mock("@/components/trip/home/phase-sketching", () => ({
   ),
 }));
 vi.mock("@/components/trip/home/phase-planning", () => ({
-  PhasePlanning: (props: { reminders?: React.ReactNode; cover?: React.ReactNode; coverClassName?: string; userId?: string }) => (
-    <div data-testid="phase-marker" data-user-id={props.userId}>
+  PhasePlanning: (props: { reminders?: React.ReactNode; cover?: React.ReactNode; coverIsPhoto?: boolean; coverClassName?: string; userId?: string }) => (
+    <div data-testid="phase-marker" data-user-id={props.userId} data-cover-is-photo={String(!!props.coverIsPhoto)}>
       <div data-testid="cover-slot" data-cover-class={props.coverClassName ?? ""}>{props.cover}</div>
       {props.reminders}
     </div>
@@ -139,13 +139,16 @@ vi.mock("@/components/trip/home/phase-travelling", () => ({
     ),
 }));
 vi.mock("@/components/trip/home/phase-past", () => ({
-  PhasePast: (props: { reminders?: React.ReactNode; layout?: string; cover?: { url: string } | null; userId?: string }) =>
+  PhasePast: (props: { reminders?: React.ReactNode; layout?: string; cover?: { url: string } | null; phoneCover?: React.ReactNode; coverIsPhoto?: boolean; userId?: string }) =>
     props.layout === "desktop" ? (
       <div data-testid="phase-desktop" data-user-id={props.userId} data-cover={props.cover?.url ?? ""}>
         {props.reminders}
       </div>
     ) : (
-      <div data-testid="phase-marker" data-user-id={props.userId}>{props.reminders}</div>
+      <div data-testid="phase-marker" data-user-id={props.userId} data-cover-is-photo={String(!!props.coverIsPhoto)}>
+        {props.phoneCover}
+        {props.reminders}
+      </div>
     ),
 }));
 
@@ -387,6 +390,24 @@ describe("Trip Home, composed with its layout", () => {
       expect(covers[0].closest('[data-testid="cover-slot"]')).not.toBeNull();
     });
 
+    it("tells the planning grid whether the cover is the Trip's photo, so it can put the route map there instead", async () => {
+      mockDb.trip.findUnique.mockResolvedValue({ ...BASE_TRIP, ...FUTURE });
+      await renderTripHome();
+      expect(screen.getByTestId("phase-marker")).toHaveAttribute("data-cover-is-photo", "false");
+      cleanup();
+      mockDb.trip.findUnique.mockResolvedValue({ ...BASE_TRIP, ...FUTURE, coverImageKey: "k1" });
+      await renderTripHome();
+      expect(screen.getByTestId("phase-marker")).toHaveAttribute("data-cover-is-photo", "true");
+    });
+
+    it("hands a past trip's phone cover to the Phase, which drops it when the route map is the only map", async () => {
+      mockDb.trip.findUnique.mockResolvedValue({ ...BASE_TRIP, startDate: "2020-01-01", endDate: "2020-01-10", coverImageKey: "k1" });
+      await renderTripHome();
+      const marker = screen.getByTestId("phase-marker");
+      expect(marker).toHaveAttribute("data-cover-is-photo", "true");
+      expect(within(marker).getByTestId("cover-art")).toBeInTheDocument();
+    });
+
     it("passes the Trip's photo, focal point and edit-lock through to CoverArt", async () => {
       mockDb.trip.findUnique.mockResolvedValue({
         ...BASE_TRIP,
@@ -420,10 +441,10 @@ describe("Trip Home, composed with its layout", () => {
       expect(screen.getByTestId("whats-new")).not.toHaveClass("max-lg:hidden");
     });
 
-    it("keeps the full-width cover for a Past trip", async () => {
+    it("keeps the full-width cover for a Past trip, first in the Phase", async () => {
       await renderTripHome(); // BASE_TRIP is January 2026 → past
-      const cover = screen.getByTestId("cover-art");
-      expect(cover.closest('[data-testid="phase-marker"]')).toBeNull();
+      const marker = screen.getByTestId("phase-marker");
+      expect(marker.firstElementChild).toBe(screen.getByTestId("cover-card"));
     });
   });
 

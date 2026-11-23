@@ -24,7 +24,7 @@ import { homePointOf, routeLegPaths } from "@/lib/travel-times/hops";
 import { loadHopModes } from "@/lib/hop-modes";
 import { loadTravelLookupFor } from "@/lib/travel-times/read";
 import { tripTodayISO } from "@/lib/trip-today";
-import { homeMapPoint } from "@/lib/route-map";
+import { homeMapPoint, routeMapCanDraw } from "@/lib/route-map";
 import { computeProjection } from "@/lib/trip-projection";
 import { groupStopsByChapter, chapterForStop } from "@/lib/chapters";
 import { orderPlanStops } from "@/lib/plan-order";
@@ -61,6 +61,7 @@ import { FlagList } from "@/components/trip/flag-list";
 import { MakeItFit } from "@/components/trip/make-it-fit";
 import { RouteMapLoader as RouteMap } from "@/components/trip/route-map-loader";
 import type { RouteMapStop } from "@/components/trip/route-map";
+import { MapFallback } from "@/components/trip/route-map-fallback";
 import type { FitStop } from "@/lib/make-it-fit";
 
 export const metadata: Metadata = { title: "Summary" };
@@ -457,8 +458,14 @@ export default async function SummaryPage({
       {/* ── Route Map ── */}
       <section aria-labelledby="map-heading">
         <SectionHeading id="map-heading" icon={MapPin} title="Route" />
-        {/* RouteMap is client-only via dynamic import */}
-        <RouteMap stops={mapStops} height={380} home={homeMapPoint(trip)} showReturn={trip.roundTrip ?? false} legPaths={routeLegPaths(datedStops, transports, travel, homePointOf(trip))} />
+        {/* RouteMap is client-only via dynamic import; the box is in the server HTML so nothing below moves when it arrives. A route that cannot draw never needs it: its card is drawn here. */}
+        {routeMapCanDraw(mapStops) ? (
+          <div className="h-[380px] w-full [&_[data-map-fallback]]:max-h-full [&_[data-map-fallback]]:overflow-y-auto">
+            <RouteMap stops={mapStops} frameClassName="h-full rounded-lg shadow-hard-2" home={homeMapPoint(trip)} showReturn={trip.roundTrip ?? false} legPaths={routeLegPaths(datedStops, transports, travel, homePointOf(trip))} />
+          </div>
+        ) : (
+          <MapFallback stops={mapStops} />
+        )}
       </section>
 
       {/* ── Stops overview ── */}

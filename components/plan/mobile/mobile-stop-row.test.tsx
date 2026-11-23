@@ -118,3 +118,17 @@ describe("MobileStopRow, a Surprise (CONTEXT.md Surprise)", () => {
     expect(screen.getByTitle("Surprise, planned by Cam")).toHaveTextContent("Surprise, planned by Cam");
   });
 });
+
+describe("MobileStopRow, busy", () => {
+  it("is marked busy and dimmed while its Stop's action is in flight", () => {
+    renderRow({ isPending: true });
+    const row = screen.getByRole("button", { name: "Open Paris" });
+    expect(row).toHaveAttribute("aria-busy", "true");
+    expect(row).toHaveClass("pointer-events-none", "opacity-60");
+  });
+
+  it("is not marked busy otherwise", () => {
+    renderRow();
+    expect(screen.getByRole("button", { name: "Open Paris" })).not.toHaveAttribute("aria-busy");
+  });
+});

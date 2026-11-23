@@ -42,10 +42,10 @@ function renderSheet(over: Partial<React.ComponentProps<typeof IdeaSheet>> = {})
 describe("IdeaSheet booking confirmation marker", () => {
   it("shows the marker in the opened idea only when it needs a confirmation", () => {
     const { unmount } = render(<IdeaSheet tripId="t1" idea={IDEA} days={DAYS} onClose={vi.fn()} onPickDay={vi.fn()} onEdit={vi.fn()} />);
-    expect(screen.queryByText("No booking confirmation yet")).toBeNull();
+    expect(screen.queryByText("No booking confirmation attached")).toBeNull();
     unmount();
     render(<IdeaSheet tripId="t1" idea={IDEA} days={DAYS} needsConfirmation onClose={vi.fn()} onPickDay={vi.fn()} onEdit={vi.fn()} />);
-    expect(screen.getByText("No booking confirmation yet")).toBeInTheDocument();
+    expect(screen.getByText("No booking confirmation attached")).toBeInTheDocument();
   });
 });
 

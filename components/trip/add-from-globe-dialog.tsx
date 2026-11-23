@@ -88,6 +88,7 @@ export function AddFromGlobeDialog({
     markersRef.current = markers;
   }, [markers]);
 
+  const [addingId, setAddingId] = React.useState<string | null>(null);
   const { run: addMarker, isPending } = useServerAction(addMarkerToWishlist, {
     onSuccess: (_result, markerId) => {
       setLocallyAdded((prev) => new Set([...prev, markerId]));
@@ -156,8 +157,12 @@ export function AddFromGlobeDialog({
                           variant="secondary"
                           size="md"
                           aria-label={`Add ${marker.title}`}
-                          onClick={() => addMarker(marker.id, tripId)}
+                          onClick={() => {
+                            setAddingId(marker.id);
+                            addMarker(marker.id, tripId);
+                          }}
                           disabled={isPending}
+                          loading={isPending && addingId === marker.id}
                           className="shrink-0"
                         >
                           Add

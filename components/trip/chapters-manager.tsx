@@ -106,7 +106,7 @@ export function ChaptersManager({ tripId, chapters }: ChaptersManagerProps) {
                   onDelete={() => handleDelete(chapter)}
                   editLabel={`Edit ${chapter.name}`}
                   deleteLabel={`Delete ${chapter.name}`}
-                  disabled={isPending}
+                  loading={isPending}
                 />
               </div>
             );

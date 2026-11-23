@@ -11,6 +11,7 @@ export interface RowActionsProps {
   editLabel?: string;
   deleteLabel?: string;
   disabled?: boolean;
+  loading?: boolean;
   className?: string;
 }
 
@@ -21,6 +22,7 @@ export function RowActions({
   editLabel = "Edit",
   deleteLabel = "Delete",
   disabled,
+  loading,
   className,
 }: RowActionsProps) {
   return (
@@ -31,7 +33,7 @@ export function RowActions({
           size="icon"
           className="relative size-8 pointer-coarse:after:absolute pointer-coarse:after:-inset-1.5 pointer-coarse:after:content-['']"
           onClick={onEdit}
-          disabled={disabled}
+          disabled={disabled || loading}
           aria-label={editLabel}
           title={editLabel}
         >
@@ -44,7 +46,8 @@ export function RowActions({
           size="icon"
           className="relative size-8 text-destructive hover:bg-destructive/10 pointer-coarse:after:absolute pointer-coarse:after:-inset-1.5 pointer-coarse:after:content-['']"
           onClick={onDelete}
-          disabled={disabled}
+          disabled={disabled || loading || undefined}
+          loading={loading}
           aria-label={deleteLabel}
           title={deleteLabel}
         >

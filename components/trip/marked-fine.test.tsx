@@ -1,3 +1,4 @@
+import { act } from "react";
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -36,6 +37,36 @@ describe("MarkFineButton", () => {
     render(<MarkFineButton tripId="t1" target={target} />);
     await userEvent.click(screen.getByRole("button", { name: /^This is fine/ }));
     expect(toastRefused).toHaveBeenCalledWith(refusal, expect.any(String));
+  });
+});
+
+describe("answering while the change runs", () => {
+  it("This is fine is disabled and busy until the action settles, and a second click does nothing", async () => {
+    let resolve!: (v: unknown) => void;
+    markFlagFine.mockImplementation(() => new Promise((r) => (resolve = r)));
+    render(<MarkFineButton tripId="t1" target={{ flagId: "f", fingerprint: "fp", between: { from: "A", to: "B" } }} />);
+    const button = screen.getByRole("button", { name: /^This is fine/ });
+    await userEvent.click(button);
+    expect(button).toBeDisabled();
+    expect(button).toHaveAttribute("aria-busy", "true");
+    await userEvent.click(button);
+    expect(markFlagFine).toHaveBeenCalledTimes(1);
+    await act(async () => resolve({ success: true }));
+    expect(button).not.toHaveAttribute("aria-busy");
+  });
+
+  it("Undo is disabled and busy until the action settles, and a second click does nothing", async () => {
+    let resolve!: (v: unknown) => void;
+    unmarkFlagFine.mockImplementation(() => new Promise((r) => (resolve = r)));
+    render(<MarkedFineList tripId="t1" entries={[{ flagId: "f1", message: "Tight.", markedByName: "Xanthia" }]} />);
+    await userEvent.click(screen.getByRole("button", { name: "1 marked fine" }));
+    const undo = screen.getByRole("button", { name: "Undo" });
+    await userEvent.click(undo);
+    expect(undo).toBeDisabled();
+    expect(undo).toHaveAttribute("aria-busy", "true");
+    await userEvent.click(undo);
+    expect(unmarkFlagFine).toHaveBeenCalledTimes(1);
+    await act(async () => resolve({ success: true }));
   });
 });
 

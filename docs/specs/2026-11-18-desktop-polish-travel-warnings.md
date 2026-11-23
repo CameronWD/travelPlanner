@@ -147,8 +147,18 @@ Note: `cmwkhuwmq000208jq3r8l7znl`.
 - Day content changes with a short crossfade (about 150 ms), not the
   page-turn view transition. Reduced motion: no animation.
 - ADR 0063 still holds: the tapped chip lights at once and the page holds
-  until the next is ready.
+  until the next is ready (a single press, or a chip for a far day; a quick run
+  of presses cuts through the days instead).
 - Phone: the strip keeps its current behaviour.
+
+*Amended 2026-11-23.* The owner reported empty space on the left at the top
+when the Day view opens on desktop: before the trip it opens on day 1, and the
+end padding left the left half of the strip empty. From `lg` the padding is
+gone: near the first and last days the strip rests against its edge, the day
+sits off the centre, and the centre frame fades until a day can reach it again.
+The row above the date, which from `xl` held only the right cluster, now
+carries the Trip's name on its left. From a header 84rem and wider the
+deliberate spacer column of spec 2026-09-29 D2 remains.
 
 ### D3. Header overlap, 1024 to 1279px
 

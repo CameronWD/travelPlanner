@@ -21,3 +21,14 @@ export function homeMapPoint(trip: {
   if (!trip.homeName || trip.homeLat == null || trip.homeLng == null) return null;
   return { name: trip.homeName, lat: trip.homeLat, lng: trip.homeLng };
 }
+
+export function stopsWithCoords(stops: RouteMapStop[]): (RouteMapStop & { lat: number; lng: number })[] {
+  return stops.filter(
+    (s): s is RouteMapStop & { lat: number; lng: number } =>
+      typeof s.lat === "number" && typeof s.lng === "number" && !isNaN(s.lat) && !isNaN(s.lng),
+  );
+}
+
+export function routeMapCanDraw(stops: RouteMapStop[]): boolean {
+  return stopsWithCoords(stops).length >= 2;
+}

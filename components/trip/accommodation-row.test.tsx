@@ -162,9 +162,37 @@ it("defaultOpen starts expanded (the stay panel opens a block this way)", () => 
   expect(screen.getByTestId("accommodation-card")).toBeInTheDocument();
 });
 
-it("marks a stay that needs a confirmation, and only that one", () => {
+it("never shows the missing-confirmation note", () => {
+  render(<AccommodationRow accommodation={accommodation} stop={stop} />);
+  expect(screen.queryByText("No booking confirmation attached")).not.toBeInTheDocument();
+  expect(screen.queryByRole("button", { name: "Nothing to attach" })).not.toBeInTheDocument();
+});
+
+it("shows a paperclip, named File attached, when the stay has a file, and none when it has not", () => {
+  const file = { id: "a1", fileName: "booking.pdf", mimeType: "application/pdf", sizeBytes: 10, url: "/api/attachments/a1" } as never;
   const { rerender } = render(<AccommodationRow accommodation={accommodation} stop={stop} />);
-  expect(screen.queryByText("No booking confirmation yet")).not.toBeInTheDocument();
-  rerender(<AccommodationRow accommodation={accommodation} stop={stop} needsConfirmation />);
-  expect(screen.getByText("No booking confirmation yet")).toBeInTheDocument();
+  expect(screen.getByRole("button", { name: /Hotel du Louvre/ })).not.toHaveTextContent("File attached");
+  expect(screen.queryByTestId("accommodation-row")!.querySelector("svg.lucide-paperclip")).toBeNull();
+  rerender(<AccommodationRow accommodation={accommodation} stop={stop} attachments={[file]} />);
+  expect(screen.getByRole("button", { name: /Hotel du Louvre.*File attached/ })).toBeInTheDocument();
+  expect(screen.getByTestId("accommodation-row").querySelector("svg.lucide-paperclip")).toHaveAttribute("aria-hidden", "true");
+});
+
+describe("a stay that is being deleted", () => {
+  it("is marked busy, and its phone menu's Delete cannot send a second delete", async () => {
+    const user = userEvent.setup();
+    const onDelete = vi.fn();
+    render(<AccommodationRow accommodation={accommodation} stop={stop} defaultOpen isPending onDelete={onDelete} />);
+    expect(screen.getByTestId("accommodation-row")).toHaveAttribute("aria-busy", "true");
+    await user.click(screen.getByRole("button", { name: "More actions for Hotel du Louvre" }));
+    const item = await screen.findByRole("menuitem", { name: "Delete" });
+    expect(item).toHaveAttribute("aria-disabled", "true");
+    await user.click(item);
+    expect(onDelete).not.toHaveBeenCalled();
+  });
+
+  it("is not marked busy otherwise", () => {
+    render(<AccommodationRow accommodation={accommodation} stop={stop} />);
+    expect(screen.getByTestId("accommodation-row")).not.toHaveAttribute("aria-busy");
+  });
 });

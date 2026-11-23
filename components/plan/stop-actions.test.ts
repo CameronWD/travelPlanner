@@ -10,7 +10,7 @@ const handlers = (): StopActionHandlers => ({
 const DATED = { name: "Rome", arriveDate: "2026-12-15", departDate: "2026-12-22", pinned: false };
 const ROUGH = { name: "Munich", arriveDate: null, departDate: null, pinned: false };
 const FLAGS: StopActionFlags = {
-  isFirst: false, isLast: false, isPending: false, isOwner: true,
+  isFirst: false, isLast: false, isPending: false, moveInFlight: false, isOwner: true,
   chaptersEnabled: true, canRemind: true, notesCount: 2, filesCount: 1,
   surprise: null, currentUserId: "cam", loneOnDatedTrip: false,
 };

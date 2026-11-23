@@ -188,6 +188,7 @@ export function assetUrlsIn(html: string): string[] {
 
 export type CacheStrategy =
   | 'network-only'
+  | 'launch-page'
   | 'network-first'
   | 'stale-while-revalidate'
   | 'cache-first';
@@ -359,6 +360,14 @@ export function cacheStrategyFor({ method, url, sameOrigin, routerRequest }: Str
     return 'cache-first';
   }
 
+  // Rule 4b: the launch page is public and the same for everyone, precached
+  // per build. It is answered from any store, then from the network for at
+  // most NAVIGATION_TIMEOUT_MS, and otherwise hands over to LAUNCH_HANDOVER_PATH
+  // (where the offline launch logic already lives); no saved-copy mark.
+  if (isLaunchPage(url)) {
+    return 'launch-page';
+  }
+
   // Rule 5: network-first for navigations / pages (private per-user data)
   return 'network-first';
 }
@@ -385,11 +394,7 @@ export function cacheNames(buildId: string): Record<CacheStore, string> {
 export function cacheStoreFor(url: string): CacheStore {
   if (isAttachmentRoute(url) || isCoverRoute(url)) return 'files';
   if (isNextStaticAsset(url)) return 'static';
-  try {
-    if (new URL(url).pathname === '/offline.html') return 'static';
-  } catch {
-    // fall through
-  }
+  if (isPinnedCacheEntry(url)) return 'static';
   return 'pages';
 }
 
@@ -403,12 +408,27 @@ export function isRouterRequest(headers: HeaderReader): boolean {
 }
 
 /**
- * Entries a store's cap never evicts: the precached offline page, the
+ * Entries a store's cap never evicts: the precached offline and launch pages, the
  * navigation fallback when nothing else is cached. Mirrored in sw.js trimCache.
  */
 export function isPinnedCacheEntry(url: string): boolean {
   try {
-    return new URL(url).pathname === '/offline.html';
+    return PRECACHED_PATHS.includes(new URL(url).pathname);
+  } catch {
+    return false;
+  }
+}
+
+/** The static pages precached on install, in public/. Mirrored as PRECACHE_URLS in sw.js. */
+export const PRECACHED_PATHS = ['/offline.html', '/launch.html'];
+
+/** Where the launch page hands over, and where a launch page nothing can answer redirects to. */
+export const LAUNCH_HANDOVER_PATH = '/';
+
+/** The page the installed app opens on (manifest start_url): it animates the loading mark, then hands over to the app. */
+export function isLaunchPage(url: string): boolean {
+  try {
+    return new URL(url).pathname === '/launch.html';
   } catch {
     return false;
   }

@@ -268,6 +268,7 @@ export function AttachmentList({
                     className="size-8 text-destructive hover:bg-destructive/10"
                     aria-label={`Delete ${attachmentName(att)}`}
                     disabled={isPending && deletingId === att.id}
+                    aria-busy={(isPending && deletingId === att.id) || undefined}
                     onClick={() => handleDelete(att.id, attachmentName(att))}
                   >
                     {isPending && deletingId === att.id ? (
@@ -445,6 +446,7 @@ export function AttachmentList({
                   className={cn(CARD_ACTION, "text-destructive hover:bg-destructive/10")}
                   aria-label={`Delete ${attachmentName(att)}`}
                   disabled={isPending && deletingId === att.id}
+                  aria-busy={(isPending && deletingId === att.id) || undefined}
                   onClick={() => handleDelete(att.id, attachmentName(att))}
                 >
                   {isPending && deletingId === att.id ? (

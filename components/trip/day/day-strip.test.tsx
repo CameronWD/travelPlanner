@@ -33,6 +33,8 @@ function fakeCarousel(over: Partial<DayCarouselApi> = {}): DayCarouselApi {
   return { goTo: () => false, step: () => false, current: () => "2026-12-12", subscribeDay: () => () => {}, subscribe: () => () => {}, isMoving: () => false, ...over };
 }
 
+const lit = (chip: Element) => chip.querySelector("[data-strip-highlight]")!.className.split(/\s+/).includes("opacity-100");
+
 describe("DayStrip", () => {
   it("is a nav of day links with aria-current=date on the current chip", () => {
     render(<DayStrip tripId="t1" dates={dates} line={segments} size="desktop" />);
@@ -43,14 +45,12 @@ describe("DayStrip", () => {
     expect(links[3]).toHaveAttribute("aria-current", "date");
     expect(links[3]).toHaveAttribute("data-lit", "true");
     expect(links[2]).not.toHaveAttribute("data-lit");
-    const highlight = nav.querySelector("[data-strip-highlight]") as HTMLElement;
+    const highlight = links[3].querySelector("[data-strip-highlight]") as HTMLElement;
     expect(highlight.className).toContain("bg-coral");
-    // Desktop chips are 3.5rem + a 0.5rem gap: day index 3 → 12rem. Only
-    // the md to lg band shows this one; from lg the centre frame holds still.
-    expect(highlight.style.transform).toBe("translateX(12rem)");
+    // Only the md to lg band shows this one; from lg the centre frame holds still.
     expect(highlight.className.split(/\s+/)).toContain("lg:hidden");
   });
-  it("the lit chip carries the coral fill itself with the accent ink; the highlight only animates the move (W17 contrast)", () => {
+  it("the lit chip carries the coral fill itself with the accent ink; its highlight layer only fades (W17 contrast)", () => {
     render(<DayStrip tripId="t1" dates={dates} line={segments} size="desktop" />);
     const links = within(screen.getByRole("navigation", { name: "Days" })).getAllByRole("link");
     const lit = links[3].className.split(/\s+/);
@@ -70,8 +70,8 @@ describe("DayStrip", () => {
     expect(links[3]).toHaveAttribute("aria-current", "date");
     expect(links[3]).not.toHaveAttribute("data-pending");
     expect(links[3]).not.toHaveAttribute("data-lit");
-    const highlight = screen.getByRole("navigation", { name: "Days" }).querySelector("[data-strip-highlight]") as HTMLElement;
-    expect(highlight.style.transform).toBe("translateX(16rem)");
+    expect(lit(links[4])).toBe(true);
+    expect(lit(links[3])).toBe(false);
   });
   it("shows weekday, date and up to three dots", () => {
     render(<DayStrip tripId="t1" dates={dates} line={segments} size="desktop" />);
@@ -80,6 +80,14 @@ describe("DayStrip", () => {
     expect(within(fri).getByText("11")).toBeInTheDocument();
     expect(fri.querySelectorAll("[data-dot]")).toHaveLength(3);
     expect(screen.getByRole("link", { name: /Sat 12 Dec, nothing planned/ }).querySelectorAll("[data-dot]")).toHaveLength(0);
+  });
+  it("draws the dots above the chip's highlight layer", () => {
+    render(<DayStrip tripId="t1" dates={dates} line={segments} size="phone" />);
+    const chip = screen.getByRole("link", { name: /Fri 11 Dec/ });
+    expect(chip.className).toContain("isolate");
+    expect(chip.querySelector("[data-strip-highlight]")!.className).toContain("-z-10");
+    const dotsRow = chip.querySelector("[data-dot]")!.parentElement!;
+    expect(dotsRow.className).not.toMatch(/-z-/);
   });
   it("underlines the real today", () => {
     render(<DayStrip tripId="t1" dates={dates} line={segments} size="desktop" />);
@@ -144,14 +152,21 @@ describe("DayStrip", () => {
     expect(gap.querySelector("svg")).toBeNull();
     expect(gap.querySelector("[data-line-dashed]")).not.toBeNull();
   });
-  it("the selected highlight glides (a transform transition) and is instant under reduced motion (spec 2026-09-29 D4)", () => {
+  it("the selected day's highlight fades in place and nothing coral travels (spec 2026-09-29 D4, replaced)", () => {
     render(<DayStrip tripId="t1" dates={dates} line={segments} size="phone" />);
-    const highlight = screen.getByRole("navigation", { name: "Days" }).querySelector("[data-strip-highlight]") as HTMLElement;
-    expect(highlight).toHaveAttribute("aria-hidden", "true");
-    expect(highlight.className).toContain("transition-transform");
-    expect(highlight.className).toContain("motion-reduce:transition-none");
-    // Phone chips are 3rem + 0.5rem: index 3 → 10.5rem.
-    expect(highlight.style.transform).toBe("translateX(10.5rem)");
+    const nav = screen.getByRole("navigation", { name: "Days" });
+    const layers = Array.from(nav.querySelectorAll<HTMLElement>("[data-strip-highlight]"));
+    expect(layers).toHaveLength(5);
+    for (const layer of layers) {
+      expect(layer).toHaveAttribute("aria-hidden", "true");
+      expect(layer.style.transform).toBe("");
+      expect(layer.className).not.toContain("transition-transform");
+      expect(layer.className).toContain("transition-opacity");
+      expect(layer.className).toContain("motion-reduce:transition-none");
+    }
+    expect(nav.querySelector("nav > [data-strip-highlight]")).toBeNull();
+    const links = within(nav).getAllByRole("link");
+    links.forEach((link, i) => expect(lit(link)).toBe(i === 3));
   });
   it("tags chips before the current day as day-back and after it as day-forward", () => {
     render(<DayStrip tripId="t1" dates={dates} line={{ homeStart: null, homeEnd: null, segments: [] }} size="desktop" />);
@@ -301,6 +316,20 @@ describe("DayStrip", () => {
     const rect = (width: number) => ({ left: 0, width, top: 0, right: width, bottom: 62, height: 62, x: 0, y: 0, toJSON() {} }) as DOMRect;
     const FAKE: Parameters<typeof vi.useFakeTimers>[0] = { toFake: ["setTimeout", "clearTimeout", "Date", "performance", "requestAnimationFrame", "cancelAnimationFrame"] };
     const dayOne = dates.map((d, i) => ({ ...d, isCurrent: i === 0 }));
+    // A row one chip wide: each of the five days can reach the centre, so day 3
+    // centres at 192 (3 chips and gaps along). From lg the strip has no end padding.
+    let row = 56;
+    const STRIP = 5 * 64 - 8;
+    const wideScroller = (el: HTMLElement) => el.hasAttribute("data-day-strip-scroller") && el.closest('[data-day-strip][role="group"]') != null;
+    const widths = ["clientWidth", "scrollWidth"].map((k) => [k, Object.getOwnPropertyDescriptor(HTMLElement.prototype, k) ?? Object.getOwnPropertyDescriptor(Element.prototype, k)!] as const);
+    beforeEach(() => {
+      row = 56;
+      Object.defineProperty(HTMLElement.prototype, "clientWidth", { configurable: true, get(this: HTMLElement) { return wideScroller(this) ? row : 0; } });
+      Object.defineProperty(HTMLElement.prototype, "scrollWidth", { configurable: true, get(this: HTMLElement) { return wideScroller(this) ? STRIP : 0; } });
+    });
+    afterEach(() => {
+      for (const [k, d] of widths) Object.defineProperty(HTMLElement.prototype, k, d);
+    });
 
     it("a frame fixed at the centre marks the day shown; it sits outside the scrolled row and never moves", () => {
       render(<DayStrip tripId="t1" dates={dates} line={segments} size="desktop" />);
@@ -313,8 +342,35 @@ describe("DayStrip", () => {
       expect(centre.style.transform).toBe("");
       expect(centre.className.split(/\s+/)).toEqual(expect.arrayContaining(["hidden", "lg:block", "pointer-events-none", "absolute", "left-1/2", "-translate-x-1/2"]));
       expect(centre.className).not.toContain("coral");
-      // The end padding lets the first and last day reach the centre.
-      expect(scroller.className.split(/\s+/)).toContain("lg:px-[calc(50%-1.75rem)]");
+      // No end padding: near the Trip's ends the strip rests against its edge (amended 2026-11-23).
+      expect(scroller.className).not.toMatch(/(^|\s)(lg:)?px-/);
+    });
+    it("near the Trip's start the strip rests against its edge, and the frame fades while the day is off the centre", () => {
+      const spy = vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockImplementation(function (this: HTMLElement) {
+        return rect(this.hasAttribute("data-lit") ? 56 : 0);
+      });
+      try {
+        row = 200;
+        render(<DayStrip tripId="t-ends" dates={dayOne} line={segments} size="desktop" />);
+        const frame = document.querySelector("[data-strip-centre]") as HTMLElement;
+        expect((document.querySelector("[data-day-strip-scroller]") as HTMLElement).scrollLeft).toBe(0);
+        expect(frame).toHaveAttribute("data-off-centre");
+        expect(frame.className.split(/\s+/)).toContain("data-off-centre:opacity-0");
+      } finally {
+        spy.mockRestore();
+      }
+    });
+    it("a day that can reach the centre sits under the frame", () => {
+      const spy = vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockImplementation(function (this: HTMLElement) {
+        return rect(this.hasAttribute("data-lit") ? 56 : 0);
+      });
+      try {
+        render(<DayStrip tripId="t-centre" dates={dates} line={segments} size="desktop" />);
+        expect((document.querySelector("[data-day-strip-scroller]") as HTMLElement).scrollLeft).toBe(192);
+        expect(document.querySelector("[data-strip-centre]")).not.toHaveAttribute("data-off-centre");
+      } finally {
+        spy.mockRestore();
+      }
     });
     it("the strip has no Previous day or Next day buttons: the date's arrows are the only pair", () => {
       render(<DayStrip tripId="t1" dates={dates} line={segments} size="desktop" />);
@@ -529,8 +585,8 @@ describe("DayStrip", () => {
     expect(nineteenth).not.toHaveAttribute("aria-current");
     expect(nineteenth).not.toHaveAttribute("data-lit");
     expect(nineteenth.className.split(/\s+/)).toContain("bg-card");
-    const highlight = screen.getByRole("navigation", { name: "Days" }).querySelector("[data-strip-highlight]") as HTMLElement;
-    expect(highlight.style.transform).toBe(`translateX(${19 * 3.5}rem)`);
+    expect(lit(twentieth)).toBe(true);
+    expect(lit(nineteenth)).toBe(false);
   });
   describe("cold load: the phone strip is on the day shown before React hydrates (image 4)", () => {
     const chipRect = (width: number) => ({ left: 0, width, top: 0, right: width, bottom: 58, height: 58, x: 0, y: 0, toJSON() {} }) as DOMRect;

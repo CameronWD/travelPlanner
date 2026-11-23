@@ -258,24 +258,26 @@ export function WishlistBoard({
       >
         {groupItems.map((item, i) => (
           <AnimatedItem key={item.id} as="li" className="min-w-0">
-            <ItemCard
-              item={item}
-              mode="wishlist"
-              // Kit rhythm (DWishlist.jsx): every second card of three is sun.
-              tone={i % 3 === 1 ? "sun" : "white"}
-              placed={placedSet.has(item.id)}
-              isPending={pendingId === item.id}
-              onEdit={setEditingItem}
-              onDelete={handleDelete}
-              onSchedule={setSchedulingItem}
-              costs={costsByItemId?.get(item.id)}
-              tripId={tripId}
-              homeCurrency={homeCurrency}
-              notes={notesByItemId?.get(item.id) ?? []}
-              votes={votesByItemId?.get(item.id) ?? []}
-              currentUserId={currentUserId}
-              forkId={activeForkId ?? null}
-            />
+            <div aria-busy={pendingId === item.id || undefined} className="h-full">
+              <ItemCard
+                item={item}
+                mode="wishlist"
+                // Kit rhythm (DWishlist.jsx): every second card of three is sun.
+                tone={i % 3 === 1 ? "sun" : "white"}
+                placed={placedSet.has(item.id)}
+                isPending={pendingId === item.id}
+                onEdit={setEditingItem}
+                onDelete={handleDelete}
+                onSchedule={setSchedulingItem}
+                costs={costsByItemId?.get(item.id)}
+                tripId={tripId}
+                homeCurrency={homeCurrency}
+                notes={notesByItemId?.get(item.id) ?? []}
+                votes={votesByItemId?.get(item.id) ?? []}
+                currentUserId={currentUserId}
+                forkId={activeForkId ?? null}
+              />
+            </div>
           </AnimatedItem>
         ))}
         {withAddTile && (

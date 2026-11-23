@@ -27,7 +27,7 @@ describe("TopBarBell", () => {
     expect(slot).toContainElement(bell);
     expect(bell).toHaveAttribute("data-unread", "3");
   });
-  it("renders nothing when there is no slot", () => {
+  it("renders no bell when there is no slot", () => {
     render(<TopBarBell tripId="t1" unreadCount={3} recent={[]} />);
     expect(screen.queryByRole("button", { name: "Notifications" })).toBeNull();
   });

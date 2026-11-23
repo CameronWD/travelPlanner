@@ -45,6 +45,19 @@ describe("GlobeSuggestionsStrip", () => {
     await waitFor(() => expect(addMarkerToWishlist).toHaveBeenCalledWith("m0", "t1"));
   });
 
+  it("says it is working while the add is unresolved and ignores a second click", async () => {
+    vi.mocked(addMarkerToWishlist).mockReturnValueOnce(new Promise(() => {}));
+    render(
+      <GlobeSuggestionsStrip tripId="t1" suggestions={[marker("m0")]} addedMarkerIds={[]} onSeeMore={() => {}} />,
+    );
+    const chip = screen.getByRole("button", { name: /add m0/i });
+    fireEvent.click(chip);
+    await waitFor(() => expect(chip).toHaveAttribute("aria-busy", "true"));
+    expect(chip).toBeDisabled();
+    fireEvent.click(chip);
+    expect(addMarkerToWishlist).toHaveBeenCalledTimes(1);
+  });
+
   it("renders a leading teal dot on the 'FROM YOUR GLOBE' eyebrow", () => {
     const { container } = render(
       <GlobeSuggestionsStrip tripId="t1" suggestions={[marker("m0")]} addedMarkerIds={[]} onSeeMore={() => {}} />,

@@ -31,6 +31,22 @@ describe("HardEndDateControl", () => {
     await waitFor(() => expect(setMock).toHaveBeenCalledWith("t1", null));
   });
 
+  it("Clear says it is working while the call is unresolved, Save does not, and a second click does nothing", async () => {
+    let release!: (v: { success: true }) => void;
+    setMock.mockReturnValue(new Promise((r) => { release = r; }));
+    render(<HardEndDateControl tripId="t1" hardEndDate="2026-07-15" startDate="2026-07-01" />);
+    fireEvent.click(screen.getByRole("button", { name: /edit hard end date/i }));
+    const clear = screen.getByRole("button", { name: /clear/i });
+    fireEvent.click(clear);
+    await waitFor(() => expect(clear).toHaveAttribute("aria-busy", "true"));
+    expect(clear).toBeDisabled();
+    expect(screen.getByRole("button", { name: /^save$/i })).not.toHaveAttribute("aria-busy");
+    fireEvent.click(clear);
+    expect(setMock).toHaveBeenCalledTimes(1);
+    release({ success: true });
+    await waitFor(() => expect(screen.queryByRole("group")).not.toBeInTheDocument());
+  });
+
   it("label replaces the ISO trigger text", () => {
     render(<HardEndDateControl tripId="t" hardEndDate="2027-01-08" startDate={null} label="Home by Fri 8 Jan" />);
     expect(screen.getByRole("button", { name: "Edit home-by date (Fri 8 Jan 2027)" })).toHaveTextContent("Home by Fri 8 Jan");

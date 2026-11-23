@@ -127,6 +127,19 @@ describe("GlobeView — Playground kit shape", () => {
     expect(screen.getByText("Tap the map to drop a marker")).toBeInTheDocument();
   });
 
+  it("holds the map's space in a box the server draws, with its fallback contained, with or without markers", () => {
+    for (const list of [markers, []]) {
+      const { unmount } = render(<GlobeView markers={list} members={[]} />);
+      const box = screen.getByText("Tap the map to drop a marker").previousElementSibling!;
+      expect(box.className).toContain("h-[260px]");
+      expect(box.className).toContain("lg:h-[calc(100dvh-4.5rem)]");
+      expect(box.className).toContain("lg:min-h-[460px]");
+      expect(box.className).toContain("[&_[data-map-fallback]]:max-h-full");
+      expect(box.className).toContain("[&_[data-map-fallback]]:overflow-y-auto");
+      unmount();
+    }
+  });
+
   it("keeps the map column sticky under the top chrome on desktop (ruling R3)", () => {
     render(<GlobeView markers={[]} members={[]} />);
     const column = screen.getByText("Tap the map to drop a marker").parentElement!;
@@ -267,5 +280,23 @@ describe("GlobeView — delete failures (spec 2026-10-06 §E)", () => {
     await waitFor(() =>
       expect(toast).toHaveBeenCalledWith(expect.objectContaining({ variant: "destructive", title: "Marker not found." })),
     );
+  });
+});
+
+describe("GlobeView — delete in flight", () => {
+  beforeEach(() => vi.clearAllMocks());
+  it("marks that row's delete busy until the action settles, and ignores a second click", async () => {
+    let resolve!: (v: { success: true }) => void;
+    vi.mocked(deleteMarker).mockReturnValueOnce(new Promise((r) => { resolve = r; }) as never);
+    const user = userEvent.setup();
+    render(<GlobeView markers={[mk("1", "Eiffel Tower", "France")]} members={[]} />);
+    const del = screen.getByRole("button", { name: "Delete Eiffel Tower" });
+    await user.click(del);
+    await user.click(await screen.findByRole("button", { name: "Delete" }));
+    await waitFor(() => expect(del).toHaveAttribute("aria-busy", "true"));
+    await user.click(del);
+    expect(deleteMarker).toHaveBeenCalledTimes(1);
+    await act(async () => resolve({ success: true }));
+    await waitFor(() => expect(del).not.toHaveAttribute("aria-busy"));
   });
 });
