@@ -58,6 +58,9 @@ interface PhasePlanningProps {
   /** The cover as a grid tile (spec E2), rendered by the page — it sits beside
    * the countdown hero here instead of full width above the Phase. */
   cover?: ReactNode;
+  /** Whether `cover` is the Trip's photo. Without one, a Trip with a drawable
+   * Stop shows the route map in the cover's place instead — never two maps. */
+  coverIsPhoto?: boolean;
   /** Extra classes on the cover's grid item — the page passes "max-sm:hidden"
    * when the phone header shows a portrait cover frame instead (spec
    * 2026-10-05 §I). On the grid item, not the tile: a hidden tile inside a
@@ -81,6 +84,7 @@ export async function PhasePlanning({
   reminders,
   reminderItems = [],
   cover,
+  coverIsPhoto = false,
   coverClassName,
 }: PhasePlanningProps) {
   // This phase only renders for dated trips; bail safely if called otherwise.
@@ -161,10 +165,19 @@ export async function PhasePlanning({
     <UpcomingPaymentsCard key="upcoming-payments" payments={upcomingPayments} tripId={tripId} tripSlug={slug} />
   );
 
+  const mapIsHeader = !coverIsPhoto && mapStops.length > 0;
+
   const route =
     mapStops.length > 0 ? (
       // The map draws its own kit frame (2px outline, hard shadow) — no Card around it.
-      <RouteMap key="route" stops={mapStops} aspect="4/3" mountWhen="phone" />
+      mapIsHeader ? (
+        // The box is in the server HTML at the cover tile's size; the map only fills it.
+        <div key="route" className="h-56 w-full sm:h-48">
+          <RouteMap stops={mapStops} frameClassName="h-full rounded-lg shadow-hard-2" mountWhen="phone" />
+        </div>
+      ) : (
+        <RouteMap key="route" stops={mapStops} aspect="4/3" mountWhen="phone" />
+      )
     ) : (
       // Kit shared/states.jsx "Plan" empty: the route has nothing to draw yet.
       <EmptyState
@@ -240,7 +253,11 @@ export async function PhasePlanning({
         {/* Phones keep the single-column Home unchanged: the cover band
             sits ABOVE the hero (-order-1), and returns to grid order beside
             the hero at lg. */}
-        {cover ? (
+        {mapIsHeader ? (
+          <AnimatedItem key="route" index={1} className="-order-1 lg:hidden">
+            {route}
+          </AnimatedItem>
+        ) : cover ? (
           <AnimatedItem key="cover" index={1} className={cn("-order-1 lg:order-none", coverClassName)}>
             {cover}
           </AnimatedItem>
@@ -248,7 +265,7 @@ export async function PhasePlanning({
         {statTiles.map((tile, i) => (
           <AnimatedItem
             key={typeof tile.key === "string" ? tile.key : `stat-${i}`}
-            index={(cover ? 2 : 1) + i}
+            index={(mapIsHeader || cover ? 2 : 1) + i}
             className="hidden lg:flex"
           >
             {tile}
@@ -261,7 +278,7 @@ export async function PhasePlanning({
         data-testid="planning-tile-row"
         staggerOnMount
       >
-        <AnimatedItem key="route" index={0}>{route}</AnimatedItem>
+        {mapIsHeader ? null : <AnimatedItem key="route" index={0}>{route}</AnimatedItem>}
         <AnimatedItem key="next-steps" index={1}>{nextSteps}</AnimatedItem>
         {/* Spec 2026-10-17 R2: what is still To book; no tile when nothing is. */}
         {stillToBook.length > 0 ? (

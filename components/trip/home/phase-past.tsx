@@ -43,6 +43,10 @@ interface PhasePastProps {
   layout?: "phone" | "desktop";
   /** Desktop only: the Trip's cover for the countdown tile's polaroid. */
   cover?: CountdownTileProps["cover"];
+  /** Phone only: the full-width generated or photo cover band above the recap. */
+  phoneCover?: ReactNode;
+  /** Phone only: whether the Trip has a cover photo. Without one the route map is the only map, so the band steps aside. */
+  coverIsPhoto?: boolean;
 }
 
 // ---------------------------------------------------------------------------
@@ -71,7 +75,7 @@ export const PAST_CTAS_ROW_CLASS = "flex flex-col gap-3 sm:flex-row lg:flex-col"
 // Component
 // ---------------------------------------------------------------------------
 
-export async function PhasePast({ tripId, userId, trip, reminders, layout = "phone", cover = null }: PhasePastProps) {
+export async function PhasePast({ tripId, userId, trip, reminders, layout = "phone", cover = null, phoneCover, coverIsPhoto = false }: PhasePastProps) {
   const ref = await tripSlugFor(tripId);
   // Reminders still need a home even in this defensive branch, since the
   // page passes them in regardless of phase.
@@ -222,6 +226,7 @@ export async function PhasePast({ tripId, userId, trip, reminders, layout = "pho
   // ---------------------------------------------------------------------------
   return (
     <div className={HOME_STACK}>
+      {coverIsPhoto || mapStops.length === 0 ? phoneCover : null}
       {recap}
       <div className={PAST_DESKTOP_GRID_CLASS} data-testid="past-grid">
         {/* Main: route map */}

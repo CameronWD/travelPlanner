@@ -521,6 +521,60 @@ describe("PhasePlanning Playground kit restyle (Task 10b)", () => {
     );
   });
 
+  describe("the route map and the cover (no second map on one screen)", () => {
+    const coverNode = <div data-testid="cover-tile" />;
+    const renderWith = (coverIsPhoto: boolean) =>
+      PhasePlanning({
+        tripId: "trip-1", userId: "u-viewer", trip: baseTrip, today: "2025-12-01", phase: "planning",
+        cover: coverNode, coverIsPhoto,
+      });
+    const typesInOrder = (node: unknown, out: unknown[] = []): unknown[] => {
+      if (node == null || typeof node !== "object") return out;
+      if (Array.isArray(node)) {
+        node.forEach((n) => typesInOrder(n, out));
+        return out;
+      }
+      const el = node as { type?: unknown; props?: { children?: unknown; [k: string]: unknown } };
+      out.push(el.type === "div" && el.props?.["data-testid"] ? el.props["data-testid"] : el.type);
+      typesInOrder(el.props?.children, out);
+      return out;
+    };
+
+    it("with no cover photo and a drawable Stop, the map is the header: no cover tile, one map, before the stat tiles", async () => {
+      const { StatTile } = await import("@/components/trip/home/stat-tile");
+      stopFindManyMock.mockResolvedValue(DATED);
+      const tree = await renderWith(false);
+      const order = typesInOrder(tree);
+      expect(order).not.toContain("cover-tile");
+      expect(order.filter((t) => t === RouteMapLoader)).toHaveLength(1);
+      expect(order.indexOf(RouteMapLoader)).toBeLessThan(order.indexOf(StatTile));
+      const map = findElementByType(tree, RouteMapLoader)!;
+      expect(map.props.mountWhen).toBe("phone");
+      expect(map.props.aspect).toBeUndefined();
+      expect(map.props.frameClassName).toMatch(/\bh-full\b/);
+      const box = findParentOf(tree, RouteMapLoader) as unknown as { props: { className: string } };
+      expect(box.props.className).toMatch(/\bh-56\b.*\bw-full\b.*\bsm:h-48\b/);
+    });
+
+    it("with a cover photo, the cover stays on top and the map stays in the tile row", async () => {
+      stopFindManyMock.mockResolvedValue(DATED);
+      const tree = await renderWith(true);
+      const order = typesInOrder(tree);
+      expect(order).toContain("cover-tile");
+      expect(order.filter((t) => t === RouteMapLoader)).toHaveLength(1);
+      expect(order.indexOf("cover-tile")).toBeLessThan(order.indexOf(RouteMapLoader));
+      const row = findByTestId(tree, "planning-tile-row")!;
+      expect(findElementByType(row, RouteMapLoader)!.props.aspect).toBe("4/3");
+    });
+
+    it("with no cover photo and nothing to draw, the generated cover shows and there is no map", async () => {
+      const tree = await renderWith(false);
+      const order = typesInOrder(tree);
+      expect(order).toContain("cover-tile");
+      expect(order).not.toContain(RouteMapLoader);
+    });
+  });
+
   it("wraps the desktop tile grid and the tile row in AnimatedList with staggerOnMount (spec H4)", async () => {
     const { AnimatedList } = await import("@/components/ui/animated-list");
     const tree = await render();
@@ -616,7 +670,10 @@ describe("PhasePlanning Playground kit restyle (Task 10b)", () => {
     stopFindManyMock.mockImplementation((args: { select?: { lat?: boolean } }) =>
       Promise.resolve(args.select?.lat ? DATED : [{ id: "a", name: "Rome", sortOrder: 0 }]),
     );
-    const map = findElementByType(await render(), RouteMapLoader);
+    const tree = await PhasePlanning({
+      tripId: "trip-1", userId: "u-viewer", trip: baseTrip, today: "2025-12-01", phase: "planning", coverIsPhoto: true,
+    });
+    const map = findElementByType(tree, RouteMapLoader);
     expect(map).not.toBeNull();
     expect(map!.props.aspect).toBe("4/3");
     expect(map!.props.height).toBeUndefined();
@@ -665,6 +722,7 @@ describe("PhasePlanning Playground kit restyle (Task 10b)", () => {
       today: "2025-12-01",
       phase: "planning",
       cover: <div data-testid="cover-tile" />,
+      coverIsPhoto: true,
       reminders: <div data-testid="reminders" />,
     });
     // Visible-on-phone order = DOM order minus the lg-only stat tiles.
