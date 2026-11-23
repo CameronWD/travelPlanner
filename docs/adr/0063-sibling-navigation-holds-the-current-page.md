@@ -94,3 +94,26 @@ page that is not the Trips list (Feedback `cmwmyhjrb000308ifdcft01i7`). Checked 
 client navigation into a trip the hook reports the destination path, and moving between pages
 inside a trip never reaches this file (the progress bar handles that). Do not add a second
 `loading.tsx` to give a trip page its own shape; extend the branch here instead.
+
+## Amendment 2026-11-23: quick runs through days on a wide screen
+
+From `lg` the Day view shows the next day at once from the page's own payload,
+so a day change does not wait for the server. When days are changed quickly
+(arrows, keys, chips):
+
+- One navigation is in flight at a time. Presses meanwhile only change the day
+  on screen; when the navigation ends, the latest day follows. The first
+  navigation of a run is a push and the rest replace it, so a run leaves one
+  step in history.
+- A press within 200ms of the one before cuts instead of crossfading, so slides
+  never queue. Reduced motion always cuts.
+- A navigation that lands after the Traveller has moved on does not take the
+  content away from the day on screen: it keeps what an earlier payload sent.
+- A chip for a day the page sent no content for, pressed on its own, holds the
+  current day with the chip lit (and the progress bar after about 300ms) until
+  that day is ready.
+
+Not solved: a quick run more than three days past the loaded window still shows
+placeholders until the server answers. `npm run audit:nav` is stale for the Day
+view (its checks predate the carousel, ADR 0065) and proves nothing there until
+it is updated.
