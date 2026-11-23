@@ -3773,3 +3773,33 @@ describe("the phone Stop row and Stop sheet say when they are busy", () => {
     expect(mobileRow("s-1")).not.toHaveAttribute("aria-busy");
   });
 });
+
+describe("a thing to do with a file attached", () => {
+  const item = (id: string, title: string, photoUrl: string | null = null) => ({
+    id, title, bookingStateSet: false, category: "SIGHTSEEING", date: "2026-12-11", startTime: "10:00", stopId: "par", photoUrl,
+  });
+  const file = (id: string) => ({ id, filename: `${id}.pdf`, title: null, mime: "application/pdf", size: 10, url: `/api/attachments/${id}`, uploadedById: "u1", createdAt: new Date() });
+
+  it("shows the paperclip for a real file, not for an Item's photo alone", () => {
+    const withFile = item("i-file", "Louvre");
+    const photoOnly = item("i-photo", "Orsay", "/api/attachments/ph1");
+    const photoAndFile = item("i-both", "Rodin", "/api/attachments/ph2");
+    renderPlan(
+      <ItineraryManager
+        {...baseProps}
+        initialStops={[PARIS]}
+        dayItemsByStopId={new Map([["par", [withFile, photoOnly, photoAndFile]]])}
+        attachmentsByItemId={new Map([
+          ["i-file", [file("f1")]],
+          ["i-photo", [file("ph1")]],
+          ["i-both", [file("ph2"), file("f2")]],
+        ])}
+      />,
+      ["par"],
+    );
+    const rowOf = (title: string) => desktop().getByRole("button", { name: `Edit ${title}` }).closest("[data-row]") as HTMLElement;
+    expect(within(rowOf("Louvre")).getByText("File attached")).toBeInTheDocument();
+    expect(within(rowOf("Orsay")).queryByText("File attached")).toBeNull();
+    expect(within(rowOf("Rodin")).getByText("File attached")).toBeInTheDocument();
+  });
+});

@@ -175,7 +175,7 @@ const traveller = (id: string, name: string) => ({ id, name, image: null, displa
 
 type Where = Record<string, unknown>;
 
-function setup(opts: { today?: string; transports?: unknown[]; thingsToDo?: unknown[]; journal?: unknown[]; photos?: unknown[] } = {}) {
+function setup(opts: { today?: string; transports?: unknown[]; thingsToDo?: unknown[]; journal?: unknown[]; photos?: unknown[]; stayFiles?: unknown[] } = {}) {
   tripTodayISOMock.mockReturnValue(opts.today ?? "2026-09-27");
   todayISOInZoneMock.mockReturnValue(opts.today ?? "2026-09-27");
   tripFindUniqueMock.mockResolvedValue(TRIP);
@@ -189,7 +189,7 @@ function setup(opts: { today?: string; transports?: unknown[]; thingsToDo?: unkn
   accommodationFindManyMock.mockResolvedValue([HOTEL]);
   journalEntryFindManyMock.mockResolvedValue(opts.journal ?? []);
   attachmentFindManyMock.mockImplementation(async ({ where }: { where: Where }) =>
-    where.targetType === "JOURNAL" ? (opts.photos ?? []) : [],
+    where.targetType === "JOURNAL" ? (opts.photos ?? []) : where.targetType === "ACCOMMODATION" ? (opts.stayFiles ?? []) : [],
   );
   costFindManyMock.mockResolvedValue([]);
   dayTitleFindManyMock.mockResolvedValue([]);
@@ -224,6 +224,13 @@ describe("getDays — one day", () => {
     expect(await one("2026-12-12")).toBe("dateless");
   });
 
+  it("tonight.attached is true when the bed has an Attachment, false when only another thing does", async () => {
+    setup({ stayFiles: [{ targetId: HOTEL.id }] });
+    expect((await loadDay("2026-12-12")).tonight?.attached).toBe(true);
+    setup({ stayFiles: [{ targetId: "some-other-stay" }] });
+    expect((await loadDay("2026-12-12")).tonight?.attached).toBe(false);
+  });
+
   it("clamps a date inside the 2-day buffer to the trip range and returns 'out-of-range' beyond it", async () => {
     expect((await loadDay("2026-12-02")).date).toBe("2026-12-04");
     expect((await loadDay("2027-01-10")).date).toBe("2027-01-08");
@@ -256,6 +263,7 @@ describe("getDays — one day", () => {
       notes: null,
       lat: 48.5795,
       lng: 7.7498,
+      attached: false,
     });
     expect(d.weatherInput).toEqual({ lat: STRASBOURG.lat, lng: STRASBOURG.lng, timezone: "Europe/Paris" });
 

@@ -411,6 +411,26 @@ describe("DaySection, Surprise Items (CONTEXT.md Surprise)", () => {
   });
 });
 
+describe("DaySection, a file attached", () => {
+  it("shows a paperclip named File attached on a row whose id is attached, and none on the others", () => {
+    renderDay({ attachedItemIds: new Set(["b"]) });
+    const rows = document.querySelectorAll("[data-row]");
+    const louvre = [...rows].find((r) => r.textContent?.includes("Louvre"))!;
+    const cafe = [...rows].find((r) => r.textContent?.includes("Café Kitsuné"))!;
+    expect(louvre.querySelector("svg.lucide-paperclip")).toHaveAttribute("aria-hidden", "true");
+    expect(within(louvre as HTMLElement).getByText("File attached")).toHaveClass("sr-only");
+    expect(cafe.querySelector("svg.lucide-paperclip")).toBeNull();
+    expect(screen.getAllByText("File attached")).toHaveLength(1);
+  });
+
+  it("never shows it on a Surprise placeholder", () => {
+    const placeholder = { id: "s", bookingStateSet: false, title: "Surprise", category: "OTHER", date: "2026-12-11", startTime: "19:00", surprise: { plannerId: "cam", plannerName: "Cam", forIds: ["sam"], forNames: ["Sam"], youAreSurprised: true } };
+    renderDay({ items: [placeholder], attachedItemIds: new Set(["s"]) });
+    expect(screen.queryByText("File attached")).toBeNull();
+    expect(document.querySelector("svg.lucide-paperclip")).toBeNull();
+  });
+});
+
 describe("DaySection Booking state (spec 2026-10-17 R2)", () => {
   it("Booked follows the Booking state, not the reference; To book shows on the row and in the summary", () => {
     renderDay({ items: [

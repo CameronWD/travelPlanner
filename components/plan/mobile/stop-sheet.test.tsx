@@ -242,6 +242,22 @@ describe("StopSheet, a Surprise (CONTEXT.md Surprise)", () => {
   });
 });
 
+describe("StopSheet, a file attached", () => {
+  it("shows a paperclip named File attached on an attached row, and none on the others", () => {
+    renderSheet({ attachedItemIds: new Set(["b"]) });
+    const row = screen.getByRole("button", { name: "10:00 Louvre" }).parentElement!;
+    expect(row.querySelector("svg.lucide-paperclip")).toHaveAttribute("aria-hidden", "true");
+    expect(within(row).getByText("File attached")).toHaveClass("sr-only");
+    expect(screen.getAllByText("File attached")).toHaveLength(1);
+  });
+
+  it("never shows it on a Surprise placeholder", () => {
+    const placeholder = { id: "s1", bookingStateSet: false, title: "Surprise", category: "OTHER", date: "2026-12-11", startTime: "19:00", surprise: { plannerId: "cam", plannerName: "Cam", forIds: ["sam"], forNames: ["Sam"], youAreSurprised: true } };
+    renderSheet({ dayItems: [placeholder], attachedItemIds: new Set(["s1"]) });
+    expect(screen.queryByText("File attached")).toBeNull();
+  });
+});
+
 describe("StopSheet booking confirmation marker", () => {
   it("never shows the missing-confirmation note on a day row or an idea", async () => {
     renderSheet();

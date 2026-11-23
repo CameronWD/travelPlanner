@@ -17,6 +17,7 @@ const tonight = {
   notes: "Door code 1942",
   lat: 48.5795,
   lng: 7.7498,
+  attached: false,
 };
 const bare = { ...tonight, address: null, confirmation: null, checkInTime: null, checkOutTime: null, notes: null, lat: null, lng: null };
 
@@ -45,6 +46,15 @@ describe("TonightCard (spec 2026-09-29 D1)", () => {
     expect(card.querySelector('[data-slot="stay-body"]')!.className).not.toMatch(/bg-lilac(\s|$)/);
     expect(card.className).toContain("bg-background");
     expect(card.querySelector('[data-slot="stay-body"]')!.className).toContain("bg-hue-lilac/15");
+  });
+
+  it("collapsed: shows a paperclip, named File attached, when the stay has a file, and none otherwise", () => {
+    const { rerender } = render(<TonightCard tripId="t1" tonight={tonight} isLastDay={false} stopId="s1" size="desktop" />);
+    expect(toggle().querySelector("svg.lucide-paperclip")).toBeNull();
+    expect(toggle()).not.toHaveTextContent("File attached");
+    rerender(<TonightCard tripId="t1" tonight={{ ...tonight, attached: true }} isLastDay={false} stopId="s1" size="desktop" />);
+    expect(toggle().querySelector("svg.lucide-paperclip")).toHaveAttribute("aria-hidden", "true");
+    expect(toggle()).toHaveTextContent("File attached");
   });
 
   it("the name wraps to two lines instead of being cut to one, and a hover shows it whole", () => {
