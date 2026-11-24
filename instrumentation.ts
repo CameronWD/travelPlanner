@@ -14,10 +14,9 @@ export const onRequestError: Instrumentation.onRequestError = async (
       return;
     }
     const { reportError } = await import("@/lib/error-sink");
-    const digest =
-      typeof err === "object" && err !== null && "digest" in err
-        ? String(err.digest)
-        : undefined;
+    const rawDigest =
+      typeof err === "object" && err !== null && "digest" in err ? err.digest : undefined;
+    const digest = typeof rawDigest === "string" && rawDigest !== "" ? rawDigest : undefined;
     await reportError(err, {
       source: "server",
       route: context.routePath,

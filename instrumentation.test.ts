@@ -57,6 +57,17 @@ describe("onRequestError", () => {
     );
   });
 
+  it("records no digest when the digest key is undefined or empty", async () => {
+    for (const digest of [undefined, ""]) {
+      reportError.mockClear();
+      await onRequestError(Object.assign(new Error("boom"), { digest }), request, context);
+      expect(reportError).toHaveBeenCalledWith(
+        expect.any(Error),
+        expect.objectContaining({ digest: undefined }),
+      );
+    }
+  });
+
   it("ignores a redirect", async () => {
     await onRequestError(thrownBy(() => redirect("/")), request, context);
     expect(reportError).not.toHaveBeenCalled();
