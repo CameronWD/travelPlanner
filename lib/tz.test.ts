@@ -246,6 +246,34 @@ describe("currentTripTimezone", () => {
     vi.setSystemTime(new Date("2026-09-01T00:00:00Z"));
     expect(currentTripTimezone(stops)).toBe("Europe/Rome");
   });
+  describe("with a Home timezone, on and after the last depart date", () => {
+    const trip = [
+      { timezone: "Europe/Paris", arriveDate: "2026-12-01", departDate: "2026-12-20" },
+      { timezone: "Europe/Rome", arriveDate: "2026-12-20", departDate: "2027-01-05" },
+    ];
+    it("stays in the last Stop's zone while its own date is still the depart date", () => {
+      vi.useFakeTimers();
+      vi.setSystemTime(new Date("2027-01-05T14:30:00Z"));
+      const zone = currentTripTimezone(trip, "Australia/Brisbane");
+      expect(zone).toBe("Europe/Rome");
+      expect(todayISOInZone(zone)).toBe("2027-01-05");
+    });
+    it("goes Home once the last Stop's own date has passed", () => {
+      vi.useFakeTimers();
+      vi.setSystemTime(new Date("2027-01-05T23:30:00Z"));
+      expect(currentTripTimezone(trip, "Australia/Brisbane")).toBe("Australia/Brisbane");
+    });
+    it("stays in the last Stop's zone while Home is still on the depart date", () => {
+      vi.useFakeTimers();
+      vi.setSystemTime(new Date("2027-01-06T02:00:00Z"));
+      expect(currentTripTimezone(trip, "America/New_York")).toBe("Europe/Rome");
+    });
+    it("is Home before the trip", () => {
+      vi.useFakeTimers();
+      vi.setSystemTime(new Date("2026-11-30T12:00:00Z"));
+      expect(currentTripTimezone(trip, "Australia/Brisbane")).toBe("Australia/Brisbane");
+    });
+  });
   it("falls back to UTC with no dated stops", () => {
     expect(currentTripTimezone([])).toBe("UTC");
     expect(currentTripTimezone([{ timezone: "Europe/Paris", arriveDate: null, departDate: null }])).toBe("UTC");

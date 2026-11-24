@@ -55,9 +55,14 @@ describe("tripTodayISO with a Home timezone", () => {
     expect(tripTodayISO(outbound, BNE)).toBe("2026-12-04");
   });
 
-  it("is the day after the return once Home has moved on, though the last Stop has not", () => {
+  it("stays on the last Stop's date through its depart date, though Home has moved on", () => {
     at("2027-01-07T22:00:00Z");
     expect(tripTodayISO(inbound)).toBe("2027-01-07");
+    expect(tripTodayISO(inbound, BNE)).toBe("2027-01-07");
+  });
+
+  it("is the day after the return once the last Stop's own date has passed", () => {
+    at("2027-01-07T23:30:00Z");
     expect(tripTodayISO(inbound, BNE)).toBe("2027-01-08");
   });
 
@@ -88,21 +93,23 @@ describe("tripTodayISO with a Home timezone", () => {
     expect(phaseOf(BNE)).toBe("travelling");
   });
 
-  it("flips the Phase to Past once Home reaches the day after the return", () => {
-    at("2027-01-07T22:00:00Z");
+  it("flips the Phase to Past once the last Stop reaches the day after the return", () => {
     const phaseOf = (home?: string) =>
       computeTripPhase({ startDate: "2026-12-20", endDate: "2027-01-07", today: tripTodayISO(inbound, home) });
+    at("2027-01-07T22:00:00Z");
     expect(phaseOf()).toBe("travelling");
+    expect(phaseOf(BNE)).toBe("travelling");
+    at("2027-01-07T23:30:00Z");
     expect(phaseOf(BNE)).toBe("past");
   });
 
-  it("is Past from 00:00 on the day after the real trip's end in Home, not a minute before", () => {
+  it("is Past from 00:00 on the day after the real trip's end in the last Stop, not a minute before", () => {
     const real = [stop("rome", 0, "Europe/Rome", "2026-12-20", "2027-01-08")];
     const phaseAt = (iso: string) => {
       at(iso);
       return computeTripPhase({ startDate: "2026-12-04", endDate: "2027-01-08", today: tripTodayISO(real, BNE) });
     };
-    expect(phaseAt("2027-01-08T13:59:00Z")).toBe("travelling");
-    expect(phaseAt("2027-01-08T14:00:00Z")).toBe("past");
+    expect(phaseAt("2027-01-08T22:59:00Z")).toBe("travelling");
+    expect(phaseAt("2027-01-08T23:00:00Z")).toBe("past");
   });
 });

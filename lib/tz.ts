@@ -484,8 +484,8 @@ export function todayISOInZone(timeZone: string): string {
  * date hasn't passed, judged in that stop's own zone. Before the trip that's
  * the first stop; after it, the last. UTC when nothing is dated.
  * With a Home timezone, the Trip is in it while the Home date is on or before
- * the first stop's arrive date, and again once the Home date (not the last
- * stop's own date) is past the last stop's depart date.
+ * the first stop's arrive date, and again once both the Home date and the
+ * last stop's own date are past the last stop's depart date.
  * Pass dated stops in sortOrder order (rough stops are ignored).
  */
 export function currentTripTimezone(
@@ -496,7 +496,8 @@ export function currentTripTimezone(
   if (homeTimezone && dated.length) {
     const homeToday = todayISOInZone(homeTimezone);
     if (homeToday <= dated[0].arriveDate!) return homeTimezone;
-    if (homeToday > dated[dated.length - 1].departDate!) return homeTimezone;
+    const last = dated[dated.length - 1];
+    if (homeToday > last.departDate! && todayISOInZone(last.timezone!) > last.departDate!) return homeTimezone;
   }
   for (const s of dated) {
     if (todayISOInZone(s.timezone!) <= s.departDate!) return s.timezone!;
