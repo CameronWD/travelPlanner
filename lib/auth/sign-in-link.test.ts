@@ -50,6 +50,11 @@ describe("Sign-in link registration (spec 2026-10-01 §B1)", () => {
     expect(magicLinkPlugin(await load({ AUTH_RESEND_FROM: FROM }))).toBeUndefined();
     expect(magicLinkPlugin(await load({}))).toBeUndefined();
   });
+
+  it("a Sign-in link lasts the 24 hours its email says", async () => {
+    const plugin = magicLinkPlugin(await load({ AUTH_RESEND_KEY: "re_x", AUTH_RESEND_FROM: FROM }))!;
+    expect(plugin.options.expiresIn).toBe(24 * 60 * 60);
+  });
 });
 
 describe("sendMagicLink", () => {

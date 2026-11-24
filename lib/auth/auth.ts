@@ -226,7 +226,7 @@ export const authServer = betterAuth({
     ...(resendKey && resendFrom
       ? [
           magicLink({
-            expiresIn: 60 * 60,
+            expiresIn: 24 * 60 * 60,
             // Only a hash of the link's token is stored, so a read of
             // AuthVerification cannot be turned into a sign-in.
             storeToken: "hashed",
