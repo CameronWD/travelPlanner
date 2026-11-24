@@ -33,6 +33,8 @@ export interface OfflineStatus {
   ranAt: number | null;
   // The last run lost a page or a page's asset (a file never counts): the next automatic open warms again.
   pagesFailed: boolean;
+  // The Trip changed since its pages were last saved: the next automatic open warms them again.
+  pagesStale: boolean;
   /** Bumped by requestWarm(); the warmer re-runs when it changes. */
   requestId: number;
 }
@@ -46,7 +48,7 @@ export interface WarmResult {
 const STORAGE_PREFIX = "teepee.offline.savedAt.";
 const BUILD_STORAGE_PREFIX = "teepee.offline.savedBuild.";
 const COUNTS_STORAGE_PREFIX = "teepee.offline.counts.";
-const IDLE: OfflineStatus = { state: "idle", savedAt: null, savedBuild: null, total: null, saved: null, ranAt: null, pagesFailed: false, requestId: 0 };
+const IDLE: OfflineStatus = { state: "idle", savedAt: null, savedBuild: null, total: null, saved: null, ranAt: null, pagesFailed: false, pagesStale: false, requestId: 0 };
 
 /** This deploy's build id (inlined by next.config.ts), "dev" when unset. */
 export function currentBuildId(): string {
@@ -57,6 +59,11 @@ const statuses = new Map<string, OfflineStatus>();
 const listeners = new Set<() => void>();
 /** Per Trip, the requestId the warmer last acted on (see takeWarmRequest). */
 const handledRequests = new Map<string, number>();
+// Which came first, a run's start or the Trip going stale: a run that began
+// before the change holds pre-change pages, so it must not clear the flag.
+let ordinal = 0;
+const warmStarts = new Map<string, number>();
+const staleMarks = new Map<string, number>();
 
 function notify() {
   for (const listener of listeners) listener();
@@ -83,23 +90,23 @@ function readSavedBuild(tripId: string): string | null {
   }
 }
 
-function readCounts(tripId: string): Pick<OfflineStatus, "total" | "saved" | "ranAt" | "pagesFailed"> {
-  const none = { total: null, saved: null, ranAt: null, pagesFailed: false };
+function readCounts(tripId: string): Pick<OfflineStatus, "total" | "saved" | "ranAt" | "pagesFailed" | "pagesStale"> {
+  const none = { total: null, saved: null, ranAt: null, pagesFailed: false, pagesStale: false };
   if (typeof window === "undefined") return none;
   try {
     const raw = window.localStorage.getItem(COUNTS_STORAGE_PREFIX + tripId);
     if (!raw) return none;
-    const { total, saved, at, pagesFailed } = JSON.parse(raw) as Record<string, unknown>;
+    const { total, saved, at, pagesFailed, pagesStale } = JSON.parse(raw) as Record<string, unknown>;
     if (typeof total !== "number" || typeof saved !== "number" || typeof at !== "number") return none;
-    return { total, saved, ranAt: at, pagesFailed: pagesFailed === true };
+    return { total, saved, ranAt: at, pagesFailed: pagesFailed === true, pagesStale: pagesStale === true };
   } catch {
     return none;
   }
 }
 
-function writeCounts(tripId: string, total: number, saved: number, at: number, pagesFailed: boolean) {
+function writeCounts(tripId: string, total: number, saved: number, at: number, pagesFailed: boolean, pagesStale: boolean) {
   try {
-    window.localStorage.setItem(COUNTS_STORAGE_PREFIX + tripId, JSON.stringify({ total, saved, at, pagesFailed }));
+    window.localStorage.setItem(COUNTS_STORAGE_PREFIX + tripId, JSON.stringify({ total, saved, at, pagesFailed, pagesStale }));
   } catch {
     // Same as writeSavedAt: the in-memory state still updates.
   }
@@ -167,6 +174,7 @@ export function isIncomplete(status: OfflineStatus): boolean {
 }
 
 export function beginWarm(tripId: string): void {
+  warmStarts.set(tripId, ++ordinal);
   update(tripId, { state: "saving" });
 }
 
@@ -177,8 +185,12 @@ export function beginWarm(tripId: string): void {
 // nothing.
 export function finishWarm(tripId: string, result: WarmResult, at: number = Date.now()): void {
   const pagesFailed = result.pagesFailed > 0;
-  writeCounts(tripId, result.total, result.saved, at, pagesFailed);
-  const counts = { total: result.total, saved: result.saved, ranAt: at, pagesFailed };
+  const marked = staleMarks.get(tripId);
+  const changedMidRun = marked !== undefined && (warmStarts.get(tripId) ?? 0) < marked;
+  const pagesStale = changedMidRun && getStatus(tripId).pagesStale;
+  if (!pagesStale) staleMarks.delete(tripId);
+  writeCounts(tripId, result.total, result.saved, at, pagesFailed, pagesStale);
+  const counts = { total: result.total, saved: result.saved, ranAt: at, pagesFailed, pagesStale };
   if (pagesFailed) {
     update(tripId, { state: "saved", ...counts });
     return;
@@ -186,6 +198,18 @@ export function finishWarm(tripId: string, result: WarmResult, at: number = Date
   const build = currentBuildId();
   writeSavedAt(tripId, at, build);
   update(tripId, { state: "saved", savedAt: at, savedBuild: build, ...counts });
+}
+
+// An edit made to the Trip leaves the saved pages one change behind. Counts
+// are only stored once a run has finished; before that the flag is in memory
+// and the first save warms the pages anyway.
+export function markPagesStale(tripId: string): void {
+  staleMarks.set(tripId, ++ordinal);
+  const current = getStatus(tripId);
+  if (current.total !== null && current.saved !== null && current.ranAt !== null) {
+    writeCounts(tripId, current.total, current.saved, current.ranAt, current.pagesFailed, true);
+  }
+  update(tripId, { pagesStale: true });
 }
 
 // A run inside the fresh window fetches only files. What it lost or got back
@@ -197,7 +221,7 @@ export function recordFileShortfall(tripId: string, files: { total: number; save
   const total = current.total ?? files.total;
   const saved = Math.max(0, total - missing);
   if (current.total === total && current.saved === saved) return;
-  writeCounts(tripId, total, saved, at, false);
+  writeCounts(tripId, total, saved, at, false, current.pagesStale);
   update(tripId, { total, saved, ranAt: at });
 }
 
@@ -226,4 +250,6 @@ export function forgetOfflineSaves(): void {
 export function resetOfflineStatus(): void {
   statuses.clear();
   handledRequests.clear();
+  warmStarts.clear();
+  staleMarks.clear();
 }

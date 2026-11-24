@@ -1,4 +1,5 @@
 import { describe, it, expect, vi } from "vitest";
+import { SOMETHING_WENT_WRONG } from "@/components/ui/action-failure";
 import { renderHook, act, waitFor } from "@testing-library/react";
 import { useEntityForm } from "./use-entity-form";
 
@@ -39,7 +40,7 @@ describe("useEntityForm", () => {
     act(() => result.current.onSubmit(fakeEvent()));
     await waitFor(() => expect(result.current.isPending).toBe(false));
     expect(result.current.errors._).toEqual([
-      "Couldn’t do that. Check your connection and try again.",
+      SOMETHING_WENT_WRONG,
     ]);
     expect(onClose).not.toHaveBeenCalled();
   });

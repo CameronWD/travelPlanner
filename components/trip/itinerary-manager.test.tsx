@@ -196,7 +196,7 @@ vi.mock("@dnd-kit/core", async (importOriginal) => {
 
 import type * as React from "react";
 import { deleteStop, moveStop, firmUpSegment, firmUpTrip, createStop, reorderStops, setStopDates, setStopNights, toggleStopPin, makeStopRough } from "@/server/actions/stops";
-import { UNDO_FAILED } from "@/components/ui/use-undoable-action";
+import { UNDO_FAILED, UNDO_REFUSED } from "@/components/ui/use-undoable-action";
 import { toastWithUndo } from "@/components/ui/undo-toast";
 import { createTransport, deleteTransport } from "@/server/actions/transport";
 import { createAccommodation, deleteAccommodation } from "@/server/actions/accommodation";
@@ -2633,7 +2633,7 @@ describe("desktop list (PLAN.md §1.3–§4)", () => {
     await act(async () => {
       onUndo();
     });
-    await waitFor(() => expect(toast).toHaveBeenCalledWith({ variant: "destructive", title: UNDO_FAILED }));
+    await waitFor(() => expect(toast).toHaveBeenCalledWith({ variant: "destructive", title: UNDO_REFUSED }));
 
     vi.mocked(toast).mockClear();
     vi.mocked(scheduleItem).mockRejectedValueOnce(new Error("network"));
@@ -2658,7 +2658,7 @@ describe("desktop list (PLAN.md §1.3–§4)", () => {
     await user.click(within(dialog).getByRole("button", { name: /^firm up$/i }));
     await waitFor(() => {
       expect(vi.mocked(toast)).toHaveBeenCalledWith(
-        expect.objectContaining({ variant: "destructive", title: expect.stringMatching(/nothing changed/i) }),
+        expect.objectContaining({ variant: "destructive", title: expect.stringMatching(/couldn’t confirm that/i) }),
       );
     });
     await waitFor(() => expect(desktop().getByRole("button", { name: /^firm up$/i })).not.toBeDisabled());
@@ -3020,7 +3020,7 @@ describe("rejected chapter actions fail like their siblings (spec 2026-10-01 §F
     expect(vi.mocked(toast)).toHaveBeenCalledWith(
       expect.objectContaining({
         variant: "destructive",
-        title: expect.stringMatching(/nothing changed/i),
+        title: expect.stringMatching(/couldn’t confirm that/i),
       }),
     );
   });

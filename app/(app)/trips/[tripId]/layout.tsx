@@ -25,6 +25,7 @@ import { ShareChooserMount, ShareTripButton } from "@/components/trip/share-choo
 import { ForkSwitcher } from "@/components/trip/fork-switcher";
 import { OfflineWarmer } from "@/components/offline-warmer";
 import { SavedCopyLine } from "@/components/trip/saved-copy-line";
+import { TripRefresher } from "@/components/trip/trip-refresher";
 import { FeedbackTripMarker } from "@/components/feedback/feedback-trip-marker";
 import { RememberLastTrip } from "@/components/shell/remember-last-trip";
 import { UsageTrip } from "@/components/usage/usage-trip";
@@ -152,6 +153,7 @@ export default async function TripLayout({
 
         <div data-trip-content className="flex min-w-0 flex-1 flex-col px-4 pt-6 sm:px-6 md:px-8">
           <div className="mx-auto flex w-full max-w-page-wide flex-col">
+            <TripRefresher />
             <SavedCopyLine
               tripRef={slug}
               startDate={trip.startDate}
@@ -234,7 +236,7 @@ export default async function TripLayout({
 
             {/* ── Page content ── */}
             <div className="py-6 [[data-trip-page-header]+&]:pt-0 pb-[calc(var(--tp-tab-bar-h)+1rem+var(--tp-fab-clearance)+env(safe-area-inset-bottom))] md:pb-[calc(1.5rem+var(--tp-fab-clearance))] print:pb-6">
-              <OfflineWarmer tripId={tripId} paths={offlinePaths} />
+              <OfflineWarmer tripId={tripId} paths={offlinePaths} changeStamp={recent[0]?.id ?? null} />
               <ShareChooserMount tripId={tripId} />
               <FeedbackTripMarker tripId={tripId} tripName={trip.name} />
               <RememberLastTrip tripId={tripId} />

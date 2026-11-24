@@ -388,7 +388,7 @@ describe("usePlanEditor — assign, nights, dates, firm-up", () => {
     await act(async () => { ok = await result.current.firmUp({ chapterId: null }); });
     expect(ok).toBe(false);
     expect(firmUpSegment).toHaveBeenLastCalledWith({ tripId: "t1", chapterId: null, forkId: "fork-1" });
-    expect(toastMock).toHaveBeenLastCalledWith(expect.objectContaining({ variant: "destructive", title: expect.stringMatching(/nothing changed/i) }));
+    expect(toastMock).toHaveBeenLastCalledWith(expect.objectContaining({ variant: "destructive", title: expect.stringMatching(/couldn’t confirm that/i) }));
     expect(result.current.state.pending).toBe(0);
   });
 });

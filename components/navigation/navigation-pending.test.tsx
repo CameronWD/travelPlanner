@@ -8,7 +8,7 @@ vi.mock("next/navigation", () => ({
   useSearchParams: () => mockUseSearchParams(),
 }));
 
-import { NavigationPendingProvider, useBeginNavigation, useSettleNavigation, useEffectivePathname, useNavigationPending, useNavState, pathnameOf, PENDING_NAVIGATION_TIMEOUT_MS } from "./navigation-pending";
+import { NavigationPendingProvider, useBeginNavigation, useSettleNavigation, useEffectivePathname, useNavigationPending, useNavState, pathnameOf, PENDING_NAVIGATION_TIMEOUT_MS, SLOW_NAVIGATION_FALLBACK_MS } from "./navigation-pending";
 
 function Probe({ to }: { to: string }) {
   const begin = useBeginNavigation();
@@ -151,6 +151,76 @@ describe("NavigationPendingProvider", () => {
     fireEvent.click(screen.getByText("go"));
     expect(screen.getByTestId("pending")).toHaveTextContent("none");
     expect(screen.getByTestId("effective")).toHaveTextContent("/trips/t1");
+  });
+});
+
+describe("slow navigation fallback", () => {
+  const assign = vi.fn();
+  function Slow() {
+    const begin = useBeginNavigation();
+    const settle = useSettleNavigation();
+    return (
+      <div>
+        <button onClick={() => begin("/trips/x/plan")}>plan</button>
+        <button onClick={() => begin("/trips/x/days")}>days</button>
+        <button onClick={() => settle("/trips/x/plan")}>settle-plan</button>
+      </div>
+    );
+  }
+  function withController(controller: unknown) {
+    Object.defineProperty(navigator, "serviceWorker", { value: { controller }, configurable: true });
+  }
+  const tap = (name: string) => fireEvent.click(screen.getByText(name));
+  const advance = (ms: number) => act(() => { vi.advanceTimersByTime(ms); });
+
+  beforeEach(() => {
+    vi.useFakeTimers();
+    assign.mockReset();
+    vi.stubGlobal("location", { ...window.location, assign });
+    withController({});
+  });
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    Reflect.deleteProperty(navigator, "serviceWorker");
+  });
+
+  it("becomes a full load of the same href once the wait reaches the fallback, when a service worker controls the page", () => {
+    render(<NavigationPendingProvider><Slow /></NavigationPendingProvider>);
+    tap("plan");
+    advance(SLOW_NAVIGATION_FALLBACK_MS - 1);
+    expect(assign).not.toHaveBeenCalled();
+    advance(1);
+    expect(assign).toHaveBeenCalledTimes(1);
+    expect(assign).toHaveBeenCalledWith("/trips/x/plan");
+  });
+
+  it("does nothing when no service worker controls the page", () => {
+    withController(null);
+    render(<NavigationPendingProvider><Slow /></NavigationPendingProvider>);
+    tap("plan");
+    advance(SLOW_NAVIGATION_FALLBACK_MS + 1000);
+    expect(assign).not.toHaveBeenCalled();
+  });
+
+  it("does nothing when a settle arrives first", () => {
+    render(<NavigationPendingProvider><Slow /></NavigationPendingProvider>);
+    tap("plan");
+    advance(5900);
+    tap("settle-plan");
+    advance(1100);
+    expect(assign).not.toHaveBeenCalled();
+  });
+
+  it("is the newer navigation's own timer, not the superseded one's", () => {
+    render(<NavigationPendingProvider><Slow /></NavigationPendingProvider>);
+    tap("plan");
+    advance(3000);
+    tap("days");
+    advance(3500);
+    expect(assign).not.toHaveBeenCalled();
+    advance(2500);
+    expect(assign).toHaveBeenCalledTimes(1);
+    expect(assign).toHaveBeenCalledWith("/trips/x/days");
   });
 });
 

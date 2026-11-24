@@ -29,6 +29,9 @@ const TRAVELLING_WARM_RADIUS_DAYS = 7;
  */
 export const WARM_FRESH_MS = 6 * 60 * 60 * 1000;
 
+/** How long after the latest change to the Trip the warmer re-saves its pages. */
+export const STALE_WARM_DELAY_MS = 30_000;
+
 /** Which days to warm: the Trip's Phase and its own today (trip layout). */
 export interface WarmDayWindow {
   phase?: TripPhase;
@@ -124,8 +127,7 @@ export function tripOfflinePaths(
   // route exactly like `${base}/help` — the project already treats those as
   // worth warming — so it rides along in the same list rather than needing
   // its own warm-set mechanism.
-  const paths = [
-    base,
+  const sections = [
     `${base}/plan`,
     `${base}/summary`,
     `${base}/budget`,
@@ -137,8 +139,12 @@ export function tripOfflinePaths(
     '/whats-new',
     '/trips',
   ];
-  for (const date of warmDayDates(startDate, endDate, dayWindow)) {
-    paths.push(`${base}/day/${date}`);
+  const days = warmDayDates(startDate, endDate, dayWindow);
+  const nowDays: string[] = [];
+  if (dayWindow.today && days.includes(dayWindow.today)) {
+    nowDays.push(dayWindow.today);
+    const tomorrow = addDays(dayWindow.today, 1);
+    if (days.includes(tomorrow)) nowDays.push(tomorrow);
   }
   // Newest-first (undefined createdAt sorts last), capped at
   // MAX_WARM_TRIP_BYTES per Trip (ADR 0043, amended 2026-10-02). A file that
@@ -148,13 +154,23 @@ export function tripOfflinePaths(
     const bt = b.createdAt ? new Date(b.createdAt).getTime() : -Infinity;
     return bt - at;
   });
+  const files: string[] = [];
   let total = 0;
   for (const att of sorted) {
     if (att.size > MAX_WARM_ATTACHMENT_BYTES) continue;
     if (total + att.size > MAX_WARM_TRIP_BYTES) continue;
     total += att.size;
-    paths.push(att.url);
+    files.push(att.url);
   }
+  // A Traveller who loses signal mid-save has the Trip home, today and the
+  // tickets, so those come before the long tail of sections and later days.
+  const paths = [
+    base,
+    ...nowDays.map((date) => `${base}/day/${date}`),
+    ...files,
+    ...sections,
+    ...days.filter((date) => !nowDays.includes(date)).map((date) => `${base}/day/${date}`),
+  ];
   if (coverUrl) paths.push(coverUrl, coverUrlForWidth(coverUrl, COVER_SMALL_WIDTH));
   return paths;
 }

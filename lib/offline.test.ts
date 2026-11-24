@@ -367,6 +367,46 @@ describe('tripOfflinePaths day window (spec 2026-10-06 §A)', () => {
   });
 });
 
+describe('tripOfflinePaths order', () => {
+  it('saves the Trip home, today, tomorrow and the tickets before the rest, dropping nothing', () => {
+    const atts = [
+      { url: '/api/attachments/old', size: 10, createdAt: new Date(2026, 0, 1) },
+      { url: '/api/attachments/new', size: 10, createdAt: new Date(2026, 0, 2) },
+    ];
+    const dayWindow = { phase: 'travelling' as const, today: '2026-07-20' };
+    const ordered = tripOfflinePaths('t1', '2026-07-01', '2026-08-30', atts, '/api/trips/t1/cover?v=k', dayWindow);
+    expect(ordered.slice(0, 5)).toEqual([
+      '/trips/t1',
+      '/trips/t1/day/2026-07-20',
+      '/trips/t1/day/2026-07-21',
+      '/api/attachments/new',
+      '/api/attachments/old',
+    ]);
+    expect(ordered.slice(-2)).toEqual(['/api/trips/t1/cover?v=k', '/api/trips/t1/cover?v=k&w=480']);
+    const days = Array.from({ length: 15 }, (_, i) => `/trips/t1/day/2026-07-${String(13 + i).padStart(2, '0')}`);
+    expect([...ordered].sort()).toEqual(
+      [
+        '/trips/t1', '/trips/t1/plan', '/trips/t1/summary', '/trips/t1/budget', '/trips/t1/calendar',
+        '/trips/t1/checklists', '/trips/t1/files', '/trips/t1/journal', '/trips/t1/help', '/whats-new', '/trips',
+        ...days,
+        '/api/attachments/new', '/api/attachments/old',
+        '/api/trips/t1/cover?v=k', '/api/trips/t1/cover?v=k&w=480',
+      ].sort(),
+    );
+    expect(new Set(ordered).size).toBe(ordered.length);
+  });
+
+  it('puts the attachments straight after the Trip home when today is not a warmed day', () => {
+    const ordered = tripOfflinePaths('t1', '2026-07-01', '2026-07-03', [{ url: '/api/attachments/a', size: 10 }]);
+    expect(ordered.slice(0, 3)).toEqual(['/trips/t1', '/api/attachments/a', '/trips/t1/plan']);
+  });
+
+  it('has no tomorrow when today is the last warmed day', () => {
+    const ordered = tripOfflinePaths('t1', '2026-07-01', '2026-07-03', [{ url: '/api/attachments/a', size: 10 }], null, { today: '2026-07-03' });
+    expect(ordered.slice(0, 3)).toEqual(['/trips/t1', '/trips/t1/day/2026-07-03', '/api/attachments/a']);
+  });
+});
+
 describe('isWarmFresh', () => {
   const now = 1_800_000_000_000;
   it('is fresh under 6 hours, stale at 6 hours or with no warm yet', () => {

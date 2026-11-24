@@ -484,7 +484,7 @@ describe("DigestPanel", () => {
     const toggle = await screen.findByLabelText(/your digest for this trip/i);
     await user.click(toggle);
 
-    expect(await screen.findByText(/couldn’t save that/i)).toBeInTheDocument();
+    expect(await screen.findByText(/couldn’t confirm that/i)).toBeInTheDocument();
     // Rolled back: the checkbox must not claim a state the server refused.
     expect(toggle).toBeChecked();
   });

@@ -52,6 +52,8 @@ function tokenUsage(u: RawUsage | null | undefined): AiTokenUsage {
   };
 }
 
+export const BOOKING_EXTRACT_TIMEOUT_MS = 45_000;
+
 export async function extractBooking(parts: readonly BookingPart[]): Promise<ExtractOutcome> {
   const model = aiModel();
   const [client, zodOutputFormat, sdk] = await Promise.all([
@@ -68,7 +70,7 @@ export async function extractBooking(parts: readonly BookingPart[]): Promise<Ext
       system: EXTRACTION_SYSTEM_PROMPT,
       messages: [{ role: "user", content: buildContent(parts) }],
       output_config: { effort: "low" as const, format: zodOutputFormat(BookingExtractionSchema) },
-    });
+    }, { timeout: BOOKING_EXTRACT_TIMEOUT_MS, maxRetries: 0 });
   } catch (err) {
     if (err instanceof sdk.APIConnectionError) return { kind: "busy", model, usage: NO_TOKENS };
     if (err instanceof sdk.APIError) {

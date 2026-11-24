@@ -4,7 +4,7 @@ import * as React from "react";
 import type { ActionResult } from "@/lib/action-result";
 import { toast } from "@/components/ui/use-toast";
 import { toastWithUndo } from "@/components/ui/undo-toast";
-import { SOMETHING_WENT_WRONG, toastRefused, toastRejected } from "@/components/ui/action-failure";
+import { NOTHING_CHANGED, SOMETHING_WENT_WRONG, toastRefused, toastRejected } from "@/components/ui/action-failure";
 
 /** The success branch of `persist`'s result, as `done`/`undo`/`applyUndo`/`revertUndo` receive it. */
 export type UndoableSuccess<R extends object> = { success: true } & R;
@@ -31,15 +31,18 @@ export interface UndoableSpec<I, R extends object = Record<never, never>> {
   failure?: string;
 }
 
-/** The one wording for an Undo that didn't go through. */
-export const UNDO_FAILED = "Couldn’t undo. Nothing changed. Try again.";
+/** The wording for an Undo the server refused. */
+export const UNDO_REFUSED = "Couldn’t undo. Nothing changed. Try again.";
+
+/** The wording for an Undo that rejected: it may have gone through. */
+export const UNDO_FAILED = "Couldn’t confirm the undo. Check it before trying again.";
 
 /**
  * One optimistic, undoable write: `apply` locally, `persist` on the server,
  * `revert` and toast on failure, else the `done` toast — with an Undo button
  * (via `toastWithUndo`) when the spec has `undo`. The Undo runs `applyUndo`
- * then `undo`; if that fails it toasts `UNDO_FAILED` (offline-aware) and calls
- * `revertUndo`. The Undo path never rejects.
+ * then `undo`; if that is refused it toasts the server's message, else `UNDO_REFUSED`;
+ * if it rejects it toasts `UNDO_FAILED` (offline-aware). Either way it calls `revertUndo`. The Undo path never rejects.
  *
  * `spec` is read through a ref captured at `run` time, so a re-render mid-run
  * never swaps an in-flight run's callbacks. `run` is stable across renders.
@@ -76,7 +79,7 @@ export function useUndoableAction<I, R extends object = Record<never, never>>(
       }
       if (!result.success) {
         s.revert?.(intent);
-        toastRefused(result, s.failure ?? SOMETHING_WENT_WRONG);
+        toastRefused(result, s.failure ?? NOTHING_CHANGED);
         return false;
       }
       const success = result as UndoableSuccess<R>;
@@ -113,7 +116,7 @@ async function runUndo<I, R extends object>(
     s.applyUndo?.(intent, result);
     const r = await undo(intent, result);
     if (r.success) return;
-    toastRefused(r, UNDO_FAILED);
+    toastRefused(r, UNDO_REFUSED);
   } catch {
     toastRejected(UNDO_FAILED);
   }

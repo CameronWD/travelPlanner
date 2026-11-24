@@ -1,8 +1,13 @@
-import { describe, it, expect, vi } from "vitest";
+import { describe, it, expect, vi, beforeEach } from "vitest";
 import { renderHook, act, waitFor } from "@testing-library/react";
+vi.mock("@/lib/trip-refresh", () => ({ requestTripRefresh: vi.fn() }));
+import { requestTripRefresh } from "@/lib/trip-refresh";
+import { SOMETHING_WENT_WRONG } from "./action-failure";
 import { useServerAction } from "./use-server-action";
 
 describe("useServerAction", () => {
+  beforeEach(() => vi.mocked(requestTripRefresh).mockClear());
+
   it("routes a failure result into errors and calls onError", async () => {
     // eslint-disable-next-line @typescript-eslint/no-unused-vars
     const action = vi.fn(async (id: string) => ({ success: false as const, errors: { name: ["Required"] } }));
@@ -43,12 +48,9 @@ describe("useServerAction", () => {
 
     act(() => result.current.run());
     await waitFor(() => expect(result.current.isPending).toBe(false));
-    expect(result.current.errors._).toEqual([
-      "Couldn’t do that. Check your connection and try again.",
-    ]);
-    expect(onError).toHaveBeenCalledWith({
-      _: ["Couldn’t do that. Check your connection and try again."],
-    });
+    expect(result.current.errors._).toEqual([SOMETHING_WENT_WRONG]);
+    expect(onError).toHaveBeenCalledWith({ _: [SOMETHING_WENT_WRONG] });
+    expect(requestTripRefresh).toHaveBeenCalledTimes(1);
   });
 
   it("reports the offline message when navigator.onLine is false at the time of the failure", async () => {
@@ -65,6 +67,7 @@ describe("useServerAction", () => {
       expect(onError).toHaveBeenCalledWith({
         _: ["You’re offline. Plan changes need a connection."],
       });
+      expect(requestTripRefresh).toHaveBeenCalledTimes(1);
     } finally {
       if (original) Object.defineProperty(navigator, "onLine", original);
     }

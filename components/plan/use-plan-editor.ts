@@ -120,7 +120,7 @@ export function usePlanEditor({ tripId, forkId, rows }: { tripId: string; forkId
 
   const reorderAction = useUndoableAction<Write, Placed>(spec("Couldn’t reorder stops. Try again."));
   const chaptersAction = useUndoableAction<Write, Placed>(spec("Couldn’t reorder chapters. Try again."));
-  // No own copy: a rejection reads "…Nothing changed. Try again." as it always did.
+  // No own copy: a rejection reads SOMETHING_WENT_WRONG.
   const assignAction = useUndoableAction<Write, Placed>(spec(undefined));
   const nightsAction = useUndoableAction<Write, Placed>(spec(undefined));
   const datesAction = useUndoableAction<Write, Placed>(spec(undefined));

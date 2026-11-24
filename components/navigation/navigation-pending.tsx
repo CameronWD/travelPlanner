@@ -25,6 +25,14 @@ const NavigationPendingContext = React.createContext<NavigationPendingValue>({ p
  */
 export const PENDING_NAVIGATION_TIMEOUT_MS = 15_000;
 
+/**
+ * The service worker answers a full page load with the saved copy after a few
+ * seconds, but a client-side navigation is a router fetch it never sees — so on
+ * a weak signal a tapped tab just hangs. Past this wait the navigation becomes
+ * a full load, which the worker can answer.
+ */
+export const SLOW_NAVIGATION_FALLBACK_MS = 6_000;
+
 /** Path part of an href: drops ?search and #hash; a search-only href is "/". */
 export function pathnameOf(href: string): string {
   return href.split("#")[0].split("?")[0] || "/";
@@ -51,7 +59,9 @@ function withoutHash(href: string): string {
  *   transition goes idle — clears only if it is still the one in flight;
  * - begin() of the URL already shown clears it (Next discards the earlier
  *   navigation, so nothing else would);
- * - backstops: any URL change, and PENDING_NAVIGATION_TIMEOUT_MS.
+ * - backstops: any URL change, and PENDING_NAVIGATION_TIMEOUT_MS;
+ * and one that is still pending after SLOW_NAVIGATION_FALLBACK_MS becomes a
+ * full load when a service worker controls the page.
  */
 export function NavigationPendingProvider({ children }: { children: React.ReactNode }) {
   const pathname = usePathname() ?? "";
@@ -71,6 +81,14 @@ export function NavigationPendingProvider({ children }: { children: React.ReactN
   React.useEffect(() => {
     if (!pending) return;
     const t = setTimeout(() => setPending(null), PENDING_NAVIGATION_TIMEOUT_MS);
+    return () => clearTimeout(t);
+  }, [pending]);
+
+  React.useEffect(() => {
+    if (!pending) return;
+    const t = setTimeout(() => {
+      if (navigator.serviceWorker?.controller) window.location.assign(pending.href);
+    }, SLOW_NAVIGATION_FALLBACK_MS);
     return () => clearTimeout(t);
   }, [pending]);
 

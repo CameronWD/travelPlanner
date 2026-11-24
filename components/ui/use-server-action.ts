@@ -3,6 +3,8 @@
 import * as React from "react";
 import type { ActionResult, FieldErrors } from "@/lib/action-result";
 import { failureMessage } from "@/components/ui/failure-message";
+import { SOMETHING_WENT_WRONG } from "@/components/ui/action-failure";
+import { requestTripRefresh } from "@/lib/trip-refresh";
 
 export interface UseServerActionOptions<
   TArgs extends unknown[],
@@ -48,12 +50,13 @@ export function useServerAction<
       } catch {
         // A rejected action (network drop, server crash) must never vanish
         // silently — surface it like a failed result, naming the connection
-        // when the device is offline.
+        // when the device is offline. The server may have saved it, so refresh.
         const errors: FieldErrors = {
-          _: [failureMessage("Couldn’t do that. Check your connection and try again.")],
+          _: [failureMessage(SOMETHING_WENT_WRONG)],
         };
         setErrors(errors);
         optionsRef.current?.onError?.(errors, ...args);
+        requestTripRefresh();
         return;
       }
       if (!result.success) {

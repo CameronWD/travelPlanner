@@ -27,6 +27,14 @@ export interface ReleaseNote {
 /** Newest first. Add new notes at the top. */
 export const RELEASE_NOTES: ReleaseNote[] = [
   {
+    publishedAt: "2026-11-24T22:50:00Z",
+    text: "Pages refresh when you reopen Teepee. Typing 12,50 now counts as twelve fifty, and Sign-in links last a day.",
+  },
+  {
+    publishedAt: "2026-11-24T22:49:00Z",
+    text: "Offline: tickets and today are saved first, and your edits are saved again a moment later. A slow tap falls back to the saved copy.",
+  },
+  {
     publishedAt: "2026-11-23T22:42:00Z",
     text: "Claude can file a trip's files onto things for you, one file onto several places at once. Thanks Cam.",
   },

@@ -1,4 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
+import { SOMETHING_WENT_WRONG } from "@/components/ui/action-failure";
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 
@@ -111,7 +112,7 @@ describe("AddFromGlobeDialog", () => {
       expect(toast).toHaveBeenCalledWith(
         expect.objectContaining({
           title: expect.stringMatching(/couldn’t add/i),
-          description: "Couldn’t do that. Check your connection and try again.",
+          description: SOMETHING_WENT_WRONG,
         }),
       ),
     );

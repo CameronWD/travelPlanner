@@ -5,7 +5,7 @@ import Link from "next/link";
 import { AlertTriangle, ExternalLink, Info } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { UNDO_FAILED, useUndoableAction } from "@/components/ui/use-undoable-action";
+import { useUndoableAction } from "@/components/ui/use-undoable-action";
 import { applyFinding, dismissFinding, undoFinding } from "@/server/actions/reviews";
 import type { ChecklistChoice } from "@/lib/review/checklist-fix";
 import { cn } from "@/lib/cn";
@@ -113,7 +113,6 @@ function FindingItem({ card, actionable }: { card: FindingCard; actionable: bool
     // happened when nothing was added (already there, or only marked Need to
     // buy); otherwise a row fix "applies" and a checklist fix "adds".
     done: (_i, r) => ({ title: r.message ?? (card.fix?.kind === "row" ? "Fix applied" : "Added"), description: card.title }),
-    failure: "Couldn’t apply that fix. Nothing changed.",
   });
   const dismiss = useUndoableAction({
     apply: () => setLocal("DISMISSED"),
@@ -136,7 +135,6 @@ function FindingItem({ card, actionable }: { card: FindingCard; actionable: bool
     persist: (id: string) => undoFinding(id),
     revert: () => setLocal(null),
     done: () => ({ title: state === "DISMISSED" ? "Dismiss undone" : "Fix undone", description: card.title }),
-    failure: UNDO_FAILED,
   });
   const busy = apply.pending || dismiss.pending || undo.pending;
   const sev = SEVERITY[card.severity];
