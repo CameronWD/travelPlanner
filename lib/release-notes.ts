@@ -28,7 +28,11 @@ export interface ReleaseNote {
 export const RELEASE_NOTES: ReleaseNote[] = [
   {
     publishedAt: "2026-11-24T22:50:00Z",
-    text: 'Offline saves tickets and today first, slow taps show the saved copy, pages refresh on reopen, "12,50" is 12.50, Sign-in links last a day.',
+    text: "Pages refresh when you reopen Teepee. Typing 12,50 now counts as twelve fifty, and Sign-in links last a day.",
+  },
+  {
+    publishedAt: "2026-11-24T22:49:00Z",
+    text: "Offline: tickets and today are saved first, and your edits are saved again a moment later. A slow tap falls back to the saved copy.",
   },
   {
     publishedAt: "2026-11-23T22:42:00Z",
