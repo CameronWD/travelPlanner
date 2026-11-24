@@ -57,7 +57,9 @@ export function decimalsFor(currency: string): number {
  *   parseAmountToMinor("abc", "EUR")    -> null   (invalid)
  *
  * Accepts an optional leading sign, thousands separators (commas/spaces),
- * and a single `.` decimal point. Rounds to the currency's decimal places.
+ * and a single `.` decimal point; for a currency with decimals, a trailing
+ * comma and one or two digits ("12,50") is read as the decimal point instead.
+ * Rounds to the currency's decimal places.
  * Returns null for empty / unparseable input so callers can ignore it.
  */
 export function parseAmountToMinor(
@@ -66,8 +68,14 @@ export function parseAmountToMinor(
 ): number | null {
   if (typeof raw !== "string") return null;
 
+  let text = raw.trim();
+  if (decimalsFor(currency) > 0 && /,\d{1,2}$/.test(text)) {
+    const last = text.lastIndexOf(",");
+    text = `${text.slice(0, last).replace(/[.,]/g, "")}.${text.slice(last + 1)}`;
+  }
+
   // Strip thousands separators (commas and spaces) but keep sign + dot.
-  const cleaned = raw.trim().replace(/[,\s]/g, "");
+  const cleaned = text.replace(/[,\s]/g, "");
   if (cleaned === "") return null;
 
   // Allow an optional sign, digits, and at most one decimal point.

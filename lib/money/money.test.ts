@@ -44,6 +44,21 @@ describe("parseAmountToMinor", () => {
     expect(parseAmountToMinor("-5", "USD")).toBe(-500);
   });
 
+  it("reads a trailing comma and one or two digits as the decimal point", () => {
+    expect(parseAmountToMinor("12,50", "EUR")).toBe(1250);
+    expect(parseAmountToMinor("12,5", "EUR")).toBe(1250);
+    expect(parseAmountToMinor("1.250,50", "EUR")).toBe(125050);
+    expect(parseAmountToMinor("-12,50", "EUR")).toBe(-1250);
+  });
+
+  it("keeps reading other commas as thousands separators", () => {
+    expect(parseAmountToMinor("1,250", "EUR")).toBe(125000);
+    expect(parseAmountToMinor("1,250.50", "EUR")).toBe(125050);
+    expect(parseAmountToMinor("1,234,567", "EUR")).toBe(123456700);
+    expect(parseAmountToMinor("12.50", "EUR")).toBe(1250);
+    expect(parseAmountToMinor("1,25", "JPY")).toBe(125);
+  });
+
   it("returns null for empty input", () => {
     expect(parseAmountToMinor("", "EUR")).toBeNull();
     expect(parseAmountToMinor("   ", "EUR")).toBeNull();
