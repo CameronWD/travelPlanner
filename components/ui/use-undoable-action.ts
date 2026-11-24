@@ -41,8 +41,8 @@ export const UNDO_FAILED = "Couldn’t confirm the undo. Check it before trying 
  * One optimistic, undoable write: `apply` locally, `persist` on the server,
  * `revert` and toast on failure, else the `done` toast — with an Undo button
  * (via `toastWithUndo`) when the spec has `undo`. The Undo runs `applyUndo`
- * then `undo`; if that fails it toasts `UNDO_FAILED` (offline-aware) and calls
- * `revertUndo`. The Undo path never rejects.
+ * then `undo`; if that is refused it toasts the server's message, else `UNDO_REFUSED`;
+ * if it rejects it toasts `UNDO_FAILED` (offline-aware). Either way it calls `revertUndo`. The Undo path never rejects.
  *
  * `spec` is read through a ref captured at `run` time, so a re-render mid-run
  * never swaps an in-flight run's callbacks. `run` is stable across renders.

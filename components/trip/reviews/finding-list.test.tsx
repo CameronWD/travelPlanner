@@ -17,6 +17,7 @@ const toastMock = vi.hoisted(() => vi.fn());
 vi.mock("@/components/ui/use-toast", () => ({ toast: (...a: unknown[]) => toastMock(...a) }));
 
 import type { Route } from "next";
+import { NOTHING_CHANGED, SOMETHING_WENT_WRONG } from "@/components/ui/action-failure";
 import { FindingList } from "./finding-list";
 import type { FindingCard, FindingGroup } from "@/lib/review/view";
 
@@ -245,6 +246,18 @@ describe("FindingList (R8, R10, spec 2026-10-18 A1, A2, A5)", () => {
     await userEvent.click(within(row("Night train not booked")).getByRole("button", { name: "Undo: Night train not booked" }));
     await waitFor(() => expect(toastMock).toHaveBeenCalled());
     expect(within(row("Night train not booked")).getByText("Applied by Cam, 18 Oct")).toBeInTheDocument();
+  });
+
+  it("a refused persistent Undo with no message says nothing changed; a rejected one says it could not be confirmed", async () => {
+    const applied = card({ state: "APPLIED", stateLabel: "Applied by Cam, 18 Oct", canApply: false, canDismiss: false, canUndo: true });
+    actions.undoFinding.mockResolvedValueOnce({ success: false, errors: {} });
+    render(<FindingList actionable open={openGroups(applied)} dealtWith={[]} />);
+    const undoBtn = () => within(row("Night train not booked")).getByRole("button", { name: "Undo: Night train not booked" });
+    await userEvent.click(undoBtn());
+    await waitFor(() => expect(toastMock).toHaveBeenCalledWith({ variant: "destructive", title: NOTHING_CHANGED }));
+    actions.undoFinding.mockRejectedValueOnce(new Error("network"));
+    await userEvent.click(undoBtn());
+    await waitFor(() => expect(toastMock).toHaveBeenCalledWith({ variant: "destructive", title: SOMETHING_WENT_WRONG }));
   });
 
   it("Dismiss offers Undo too, when canUndo is true, and says 'Dismiss undone'", async () => {
