@@ -29,6 +29,7 @@ export function TripRefresher() {
       if (!document.querySelector(OPEN_DIALOG)) return run();
       // A half-typed form in an open dialog must not be disturbed: wait for it to close.
       recheck ??= setInterval(() => {
+        if (navigator.onLine === false) return stopRecheck();
         if (!document.querySelector(OPEN_DIALOG)) run();
       }, DIALOG_RECHECK_MS);
     };

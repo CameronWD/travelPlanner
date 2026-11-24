@@ -83,6 +83,20 @@ describe("TripRefresher", () => {
     expect(refresh).toHaveBeenCalledTimes(1);
   });
 
+  it("drops a held refresh when the connection is lost before the dialog closes", () => {
+    const dialog = document.createElement("div");
+    dialog.setAttribute("role", "dialog");
+    document.body.appendChild(dialog);
+    render(<TripRefresher />);
+    act(() => requestTripRefresh());
+    setOnline(false);
+    dialog.remove();
+    act(() => {
+      vi.advanceTimersByTime(1000);
+    });
+    expect(refresh).not.toHaveBeenCalled();
+  });
+
   it("does nothing after unmount", () => {
     const { unmount } = render(<TripRefresher />);
     unmount();
