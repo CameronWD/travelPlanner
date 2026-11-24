@@ -27,6 +27,10 @@ export interface ReleaseNote {
 /** Newest first. Add new notes at the top. */
 export const RELEASE_NOTES: ReleaseNote[] = [
   {
+    publishedAt: "2026-11-24T22:50:00Z",
+    text: 'Offline saves tickets and today first, slow taps show the saved copy, pages refresh on reopen, "12,50" is 12.50, Sign-in links last a day.',
+  },
+  {
     publishedAt: "2026-11-23T22:42:00Z",
     text: "Claude can file a trip's files onto things for you, one file onto several places at once. Thanks Cam.",
   },
