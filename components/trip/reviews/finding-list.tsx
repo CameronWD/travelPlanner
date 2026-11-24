@@ -113,7 +113,6 @@ function FindingItem({ card, actionable }: { card: FindingCard; actionable: bool
     // happened when nothing was added (already there, or only marked Need to
     // buy); otherwise a row fix "applies" and a checklist fix "adds".
     done: (_i, r) => ({ title: r.message ?? (card.fix?.kind === "row" ? "Fix applied" : "Added"), description: card.title }),
-    failure: "Couldn’t apply that fix. Nothing changed.",
   });
   const dismiss = useUndoableAction({
     apply: () => setLocal("DISMISSED"),

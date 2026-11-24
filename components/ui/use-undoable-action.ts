@@ -32,7 +32,7 @@ export interface UndoableSpec<I, R extends object = Record<never, never>> {
 }
 
 /** The one wording for an Undo that didn't go through. */
-export const UNDO_FAILED = "Couldn’t undo. Nothing changed. Try again.";
+export const UNDO_FAILED = "Couldn’t confirm the undo. Check it before trying again.";
 
 /**
  * One optimistic, undoable write: `apply` locally, `persist` on the server,

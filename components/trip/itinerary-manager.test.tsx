@@ -2658,7 +2658,7 @@ describe("desktop list (PLAN.md §1.3–§4)", () => {
     await user.click(within(dialog).getByRole("button", { name: /^firm up$/i }));
     await waitFor(() => {
       expect(vi.mocked(toast)).toHaveBeenCalledWith(
-        expect.objectContaining({ variant: "destructive", title: expect.stringMatching(/nothing changed/i) }),
+        expect.objectContaining({ variant: "destructive", title: expect.stringMatching(/couldn’t confirm that/i) }),
       );
     });
     await waitFor(() => expect(desktop().getByRole("button", { name: /^firm up$/i })).not.toBeDisabled());
@@ -3020,7 +3020,7 @@ describe("rejected chapter actions fail like their siblings (spec 2026-10-01 §F
     expect(vi.mocked(toast)).toHaveBeenCalledWith(
       expect.objectContaining({
         variant: "destructive",
-        title: expect.stringMatching(/nothing changed/i),
+        title: expect.stringMatching(/couldn’t confirm that/i),
       }),
     );
   });

@@ -3,6 +3,7 @@
 import * as React from "react";
 import { BellRing } from "lucide-react";
 import { setDigestEnabled, type TripDigestSetting } from "@/server/actions/digest";
+import { SOMETHING_WENT_WRONG } from "@/components/ui/action-failure";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Switch } from "@/components/ui/switch";
 
@@ -48,7 +49,7 @@ export function TripDigestsPanel({ initial }: TripDigestsPanelProps) {
       );
       setErrors((prev) => ({
         ...prev,
-        [tripId]: "Couldn’t save that. Check your connection and try again.",
+        [tripId]: SOMETHING_WENT_WRONG,
       }));
     } finally {
       setPendingId(null);

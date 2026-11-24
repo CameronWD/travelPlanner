@@ -2,10 +2,11 @@
 
 import { toast } from "@/components/ui/use-toast";
 import { failureMessage } from "@/components/ui/failure-message";
+import { requestTripRefresh } from "@/lib/trip-refresh";
 import type { ActionFailure, FieldErrors } from "@/lib/action-result";
 
-/** The one wording for a rejected change (network drop, thrown server error). */
-export const SOMETHING_WENT_WRONG = "Couldn’t do that. Nothing changed. Try again.";
+/** The one wording for a rejected change (network drop, thrown server error): the server may have saved it. */
+export const SOMETHING_WENT_WRONG = "Couldn’t confirm that. Check it saved before trying again.";
 
 /** Unwraps either shape down to the field-error dict (ADR 0074). */
 function errorsOf(x: ActionFailure | FieldErrors | undefined): FieldErrors | undefined {
@@ -46,4 +47,5 @@ export function toastRefused(reason: ActionFailure | FieldErrors | undefined, fa
  */
 export function toastRejected(fallback: string = SOMETHING_WENT_WRONG): void {
   toast({ variant: "destructive", title: failureMessage(fallback) });
+  requestTripRefresh();
 }

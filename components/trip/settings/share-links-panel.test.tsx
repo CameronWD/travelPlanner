@@ -1,4 +1,5 @@
 import { render, screen, waitFor } from "@testing-library/react";
+import { SOMETHING_WENT_WRONG } from "@/components/ui/action-failure";
 import { renderToString } from "react-dom/server";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi, beforeEach } from "vitest";
@@ -171,7 +172,7 @@ describe("ShareLinksPanel", () => {
     await waitFor(() => {
       expect(vi.mocked(toast)).toHaveBeenCalledWith({
         variant: "destructive",
-        title: "Couldn’t do that. Nothing changed. Try again.",
+        title: SOMETHING_WENT_WRONG,
       });
     });
     // Nothing was changed: the edit form is still open, the row's caption is
@@ -190,7 +191,7 @@ describe("ShareLinksPanel", () => {
     await waitFor(() => {
       expect(vi.mocked(toast)).toHaveBeenCalledWith({
         variant: "destructive",
-        title: "Couldn’t do that. Nothing changed. Try again.",
+        title: SOMETHING_WENT_WRONG,
       });
     });
     // Nothing was changed: the create form is still open with what was typed,
@@ -242,7 +243,7 @@ describe("ShareLinksPanel", () => {
     await waitFor(() => {
       expect(vi.mocked(toast)).toHaveBeenCalledWith({
         variant: "destructive",
-        title: "Couldn’t do that. Nothing changed. Try again.",
+        title: SOMETHING_WENT_WRONG,
       });
     });
     // Nothing changed: the row and its token stay, and neither button is stuck.

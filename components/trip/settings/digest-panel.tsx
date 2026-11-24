@@ -4,7 +4,7 @@ import * as React from "react";
 import Link from "next/link";
 import { Send, Smartphone, TriangleAlert } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { formError } from "@/components/ui/action-failure";
+import { SOMETHING_WENT_WRONG, formError } from "@/components/ui/action-failure";
 import { formFail } from "@/lib/action-result";
 import { deviceTimeZone } from "@/lib/tz";
 import { servedSlotsForZone } from "@/lib/digest-schedule";
@@ -149,7 +149,7 @@ export function DigestPanel({ tripId, initial }: DigestPanelProps) {
         // never accepted — and say so here rather than let the rejection reach
         // the error boundary and take the whole Settings page down with it.
         setEnabled(previous);
-        setSaveError("Couldn’t save that. Check your connection and try again.");
+        setSaveError(SOMETHING_WENT_WRONG);
       }
     });
   };

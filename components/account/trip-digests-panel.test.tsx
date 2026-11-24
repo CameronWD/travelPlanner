@@ -90,7 +90,7 @@ describe("TripDigestsPanel", () => {
     const toggle = screen.getByRole("switch", { name: "Europe Christmas 2026" });
     await user.click(toggle);
 
-    expect(await screen.findByText(/couldn’t save that/i)).toBeInTheDocument();
+    expect(await screen.findByText(/couldn’t confirm that/i)).toBeInTheDocument();
     // Rolled back: the switch must not claim a state the server refused.
     expect(toggle).toBeChecked();
   });
@@ -109,7 +109,7 @@ describe("TripDigestsPanel", () => {
 
     await user.click(screen.getByRole("switch", { name: "Europe Christmas 2026" }));
 
-    await screen.findByText(/couldn’t save that/i);
+    await screen.findByText(/couldn’t confirm that/i);
     expect(screen.getByRole("switch", { name: "Japan 2027" })).toBeChecked();
   });
 });

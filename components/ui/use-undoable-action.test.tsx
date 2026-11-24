@@ -140,6 +140,10 @@ describe("useUndoableAction", () => {
       process.off("unhandledRejection", unhandled);
     });
 
+    it("UNDO_FAILED says the undo could not be confirmed", () => {
+      expect(UNDO_FAILED).toBe("Couldn’t confirm the undo. Check it before trying again.");
+    });
+
     it("toasts UNDO_FAILED, calls revertUndo and never rejects unhandled when undo throws", async () => {
       const s = spec({
         undo: vi.fn(async () => Promise.reject(new Error("network"))),
