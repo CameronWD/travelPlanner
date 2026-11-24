@@ -95,13 +95,13 @@ describe("OfflineWarmer", () => {
 
   it("renders nothing (null)", () => {
     stubNavigator({ onLine: true, hasController: true });
-    const { container } = render(<OfflineWarmer tripId="t1" paths={["/a", "/b"]} />);
+    const { container } = render(<OfflineWarmer tripId="t1" paths={["/a", "/b"]} changeStamp={null} />);
     expect(container.firstChild).toBeNull();
   });
 
   it("calls fetch once per path when online with an active SW controller", async () => {
     stubNavigator({ onLine: true, hasController: true });
-    render(<OfflineWarmer tripId="t1" paths={["/a", "/b"]} />);
+    render(<OfflineWarmer tripId="t1" paths={["/a", "/b"]} changeStamp={null} />);
 
     // requestIdleCallback was stubbed synchronous, but the warm() fn is async
     // (it awaits each fetch). Wait for all microtasks to drain.
@@ -113,7 +113,7 @@ describe("OfflineWarmer", () => {
 
   it("asks a Day page for its warm copy and every other page as it is", async () => {
     stubNavigator({ onLine: true, hasController: true });
-    render(<OfflineWarmer tripId="t1" paths={["/trips/t1/day/2026-12-12", "/trips/t1/plan"]} />);
+    render(<OfflineWarmer tripId="t1" paths={["/trips/t1/day/2026-12-12", "/trips/t1/plan"]} changeStamp={null} />);
     await vi.waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(2));
     expect(fetchMock).toHaveBeenCalledWith("/trips/t1/day/2026-12-12", { cache: "no-store", headers: { [WARM_REQUEST_HEADER]: "1" } });
     expect(fetchMock).toHaveBeenCalledWith("/trips/t1/plan", { cache: "no-store" });
@@ -121,7 +121,7 @@ describe("OfflineWarmer", () => {
 
   it("does NOT fetch when navigator.onLine is false", async () => {
     stubNavigator({ onLine: false, hasController: true });
-    render(<OfflineWarmer tripId="t1" paths={["/a", "/b"]} />);
+    render(<OfflineWarmer tripId="t1" paths={["/a", "/b"]} changeStamp={null} />);
 
     // Allow any pending microtasks to drain, then assert no calls.
     await new Promise((r) => setTimeout(r, 0));
@@ -130,7 +130,7 @@ describe("OfflineWarmer", () => {
 
   it("does NOT fetch when there is no SW controller", async () => {
     stubNavigator({ onLine: true, hasController: false });
-    render(<OfflineWarmer tripId="t1" paths={["/a", "/b"]} />);
+    render(<OfflineWarmer tripId="t1" paths={["/a", "/b"]} changeStamp={null} />);
 
     await new Promise((r) => setTimeout(r, 0));
     expect(fetchMock).not.toHaveBeenCalled();
@@ -141,7 +141,7 @@ describe("OfflineWarmer", () => {
     let release!: () => void;
     fetchMock.mockImplementationOnce(() => new Promise<Response>((r) => { release = () => r(new Response(null, { status: 200 })); }));
 
-    render(<OfflineWarmer tripId="t1" paths={["/a", "/b"]} />);
+    render(<OfflineWarmer tripId="t1" paths={["/a", "/b"]} changeStamp={null} />);
 
     await vi.waitFor(() => expect(getStatus("t1").state).toBe("saving"));
     release();
@@ -152,14 +152,14 @@ describe("OfflineWarmer", () => {
 
   it("leaves the status idle when there is no SW controller (dev): Not saved yet", async () => {
     stubNavigator({ onLine: true, hasController: false });
-    render(<OfflineWarmer tripId="t1" paths={["/a"]} />);
+    render(<OfflineWarmer tripId="t1" paths={["/a"]} changeStamp={null} />);
     await new Promise((r) => setTimeout(r, 0));
     expect(getStatus("t1")).toMatchObject({ state: "idle", savedAt: null });
   });
 
   it("re-runs every fetch when requestWarm() is called for its trip (Save again)", async () => {
     stubNavigator({ onLine: true, hasController: true });
-    render(<OfflineWarmer tripId="t1" paths={["/a", "/b"]} />);
+    render(<OfflineWarmer tripId="t1" paths={["/a", "/b"]} changeStamp={null} />);
     await vi.waitFor(() => expect(getStatus("t1").state).toBe("saved"));
     expect(fetchMock).toHaveBeenCalledTimes(2);
 
@@ -171,7 +171,7 @@ describe("OfflineWarmer", () => {
 
   it("does not restart the warm when re-rendered with a new array of the same paths", async () => {
     stubNavigator({ onLine: true, hasController: true });
-    const { rerender } = render(<OfflineWarmer tripId="t1" paths={["/a", "/b"]} />);
+    const { rerender } = render(<OfflineWarmer tripId="t1" paths={["/a", "/b"]} changeStamp={null} />);
     await vi.waitFor(() => expect(getStatus("t1").state).toBe("saved"));
     expect(fetchMock).toHaveBeenCalledTimes(2);
 
@@ -182,7 +182,7 @@ describe("OfflineWarmer", () => {
     const unsubscribe = subscribe(() => observedStates.push(getStatus("t1").state));
 
     // A fresh array instance, same contents — e.g. a server layout re-render.
-    rerender(<OfflineWarmer tripId="t1" paths={["/a", "/b"].slice()} />);
+    rerender(<OfflineWarmer tripId="t1" paths={["/a", "/b"].slice()} changeStamp={null} />);
     await new Promise((r) => setTimeout(r, 0));
     unsubscribe();
 
@@ -194,11 +194,11 @@ describe("OfflineWarmer", () => {
     stubNavigator({ onLine: true, hasController: true });
     // The pages are really cached (the fresh save is verified against the cache).
     vi.stubGlobal("caches", { match: vi.fn(async (p: string) => (p === "/a" ? new Response("") : undefined)) });
-    const { rerender } = render(<OfflineWarmer tripId="t1" paths={["/a", "/b"]} />);
+    const { rerender } = render(<OfflineWarmer tripId="t1" paths={["/a", "/b"]} changeStamp={null} />);
     await vi.waitFor(() => expect(getStatus("t1").state).toBe("saved"));
     expect(fetchMock).toHaveBeenCalledTimes(2);
 
-    rerender(<OfflineWarmer tripId="t1" paths={["/a", "/api/attachments/new"]} />);
+    rerender(<OfflineWarmer tripId="t1" paths={["/a", "/api/attachments/new"]} changeStamp={null} />);
 
     await vi.waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(3));
     expect(fetchMock).toHaveBeenNthCalledWith(3, "/api/attachments/new?offline=1", { cache: "no-store" });
@@ -211,7 +211,7 @@ describe("OfflineWarmer", () => {
     );
     vi.stubGlobal("caches", { match: matchMock });
 
-    render(<OfflineWarmer tripId="t1" paths={["/api/attachments/abc", "/fresh"]} />);
+    render(<OfflineWarmer tripId="t1" paths={["/api/attachments/abc", "/fresh"]} changeStamp={null} />);
 
     await vi.waitFor(() => expect(getStatus("t1").state).toBe("saved"));
     expect(fetchMock).toHaveBeenCalledTimes(1);
@@ -226,7 +226,7 @@ describe("OfflineWarmer", () => {
     const matchMock = vi.fn(async () => new Response(""));
     vi.stubGlobal("caches", { match: matchMock });
 
-    render(<OfflineWarmer tripId="t1" paths={["/trips/t1/summary", "/api/attachments/abc"]} />);
+    render(<OfflineWarmer tripId="t1" paths={["/trips/t1/summary", "/api/attachments/abc"]} changeStamp={null} />);
 
     await vi.waitFor(() => expect(getStatus("t1").state).toBe("saved"));
     expect(fetchMock).toHaveBeenCalledTimes(1);
@@ -237,7 +237,7 @@ describe("OfflineWarmer", () => {
     stubNavigator({ onLine: true, hasController: true });
     vi.stubGlobal("caches", { match: vi.fn(async () => undefined) });
 
-    render(<OfflineWarmer tripId="t1" paths={["/trips/t1", "/api/attachments/a1", "/api/trips/t1/cover?v=k"]} />);
+    render(<OfflineWarmer tripId="t1" paths={["/trips/t1", "/api/attachments/a1", "/api/trips/t1/cover?v=k"]} changeStamp={null} />);
 
     await vi.waitFor(() => expect(getStatus("t1").state).toBe("saved"), { timeout: 5_000 });
     expect(fetchMock.mock.calls.map((c) => c[0])).toEqual([
@@ -252,7 +252,7 @@ describe("OfflineWarmer", () => {
     const matchMock = vi.fn(async (p: string) => (p === "/api/trips/t1/cover?v=k" ? new Response("") : undefined));
     vi.stubGlobal("caches", { match: matchMock });
 
-    render(<OfflineWarmer tripId="t1" paths={["/api/trips/t1/cover?v=k", "/api/attachments/a1"]} />);
+    render(<OfflineWarmer tripId="t1" paths={["/api/trips/t1/cover?v=k", "/api/attachments/a1"]} changeStamp={null} />);
 
     await vi.waitFor(() => expect(getStatus("t1").state).toBe("saved"), { timeout: 5_000 });
     expect(matchMock).toHaveBeenCalledWith("/api/trips/t1/cover?v=k");
@@ -262,7 +262,7 @@ describe("OfflineWarmer", () => {
   it("a warm cut short by unmount does not leave the status stuck on saving", async () => {
     stubNavigator({ onLine: true, hasController: true });
     fetchMock.mockImplementation(() => new Promise<Response>(() => {})); // never resolves
-    const { unmount } = render(<OfflineWarmer tripId="t1" paths={["/a", "/b"]} />);
+    const { unmount } = render(<OfflineWarmer tripId="t1" paths={["/a", "/b"]} changeStamp={null} />);
     await vi.waitFor(() => expect(getStatus("t1").state).toBe("saving"));
 
     unmount();
@@ -280,7 +280,7 @@ describe("OfflineWarmer", () => {
         })
         .mockImplementationOnce(async () => new Response("", { status: 500 }));
 
-      render(<OfflineWarmer tripId="t1" paths={["/a", "/b", "/c"]} />);
+      render(<OfflineWarmer tripId="t1" paths={["/a", "/b", "/c"]} changeStamp={null} />);
 
       await vi.waitFor(() => expect(getStatus("t1").total).toBe(3));
       expect(getStatus("t1")).toMatchObject({ state: "saved", total: 3, saved: 1, savedAt: null });
@@ -289,7 +289,7 @@ describe("OfflineWarmer", () => {
 
     it("a Trip with no Attachments has a total equal to its page count", async () => {
       stubNavigator({ onLine: true, hasController: true });
-      render(<OfflineWarmer tripId="t1" paths={["/a", "/b", "/c"]} />);
+      render(<OfflineWarmer tripId="t1" paths={["/a", "/b", "/c"]} changeStamp={null} />);
       await vi.waitFor(() => expect(getStatus("t1")).toMatchObject({ total: 3, saved: 3 }));
       expect(getStatus("t1").savedAt).toEqual(expect.any(Number));
     });
@@ -297,7 +297,7 @@ describe("OfflineWarmer", () => {
     it("an already-cached file counts as saved", async () => {
       stubNavigator({ onLine: true, hasController: true });
       vi.stubGlobal("caches", { match: vi.fn(async (p: string) => (p === "/api/attachments/a1" ? new Response("") : undefined)) });
-      render(<OfflineWarmer tripId="t1" paths={["/trips/t1", "/api/attachments/a1"]} />);
+      render(<OfflineWarmer tripId="t1" paths={["/trips/t1", "/api/attachments/a1"]} changeStamp={null} />);
       await vi.waitFor(() => expect(getStatus("t1")).toMatchObject({ total: 2, saved: 2 }));
     });
 
@@ -309,7 +309,7 @@ describe("OfflineWarmer", () => {
       fetchMock
         .mockImplementationOnce(async () => redirected)
         .mockImplementationOnce(async () => new Response("", { status: 413 }));
-      render(<OfflineWarmer tripId="t1" paths={["/api/attachments/a1", "/api/attachments/a2"]} />);
+      render(<OfflineWarmer tripId="t1" paths={["/api/attachments/a1", "/api/attachments/a2"]} changeStamp={null} />);
       await vi.waitFor(() => expect(getStatus("t1")).toMatchObject({ total: 2, saved: 0 }));
     });
 
@@ -318,7 +318,7 @@ describe("OfflineWarmer", () => {
       const stale = new Response("");
       Object.defineProperty(stale, "redirected", { value: true });
       vi.stubGlobal("caches", { match: vi.fn(async () => (fetchMock.mock.calls.length ? new Response("") : stale)) });
-      render(<OfflineWarmer tripId="t1" paths={["/api/attachments/a1"]} />);
+      render(<OfflineWarmer tripId="t1" paths={["/api/attachments/a1"]} changeStamp={null} />);
       await vi.waitFor(() => expect(fetchMock).toHaveBeenCalledWith("/api/attachments/a1?offline=1", { cache: "no-store" }));
       await vi.waitFor(() => expect(getStatus("t1")).toMatchObject({ total: 1, saved: 1 }));
     });
@@ -329,7 +329,7 @@ describe("OfflineWarmer", () => {
       fetchMock.mockImplementation(async (url: string) => new Response("", { status: url.includes("/api/attachments/") ? 413 : 200 }));
       markSaved("t1", Date.now() - 60 * 60_000);
       window.localStorage.setItem("teepee.offline.counts.t1", JSON.stringify({ total: 2, saved: 1, at: Date.now() - 60_000, pagesFailed: false }));
-      render(<OfflineWarmer tripId="t1" paths={["/trips/t1", "/api/attachments/big"]} />);
+      render(<OfflineWarmer tripId="t1" paths={["/trips/t1", "/api/attachments/big"]} changeStamp={null} />);
       await vi.waitFor(() => expect(fetchMock).toHaveBeenCalledWith("/api/attachments/big?offline=1", { cache: "no-store" }));
       await new Promise((r) => setTimeout(r, 0));
       expect(fetchMock).not.toHaveBeenCalledWith("/trips/t1", expect.anything());
@@ -339,7 +339,7 @@ describe("OfflineWarmer", () => {
       stubNavigator({ onLine: true, hasController: true });
       vi.stubGlobal("caches", { match: vi.fn(async () => undefined) });
       fetchMock.mockImplementation(async (url: string) => new Response("", { status: url.includes("/api/attachments/") ? 413 : 200 }));
-      render(<OfflineWarmer tripId="t1" paths={["/trips/t1", "/api/attachments/big"]} />);
+      render(<OfflineWarmer tripId="t1" paths={["/trips/t1", "/api/attachments/big"]} changeStamp={null} />);
       await vi.waitFor(() => expect(getStatus("t1")).toMatchObject({ total: 2, saved: 1, pagesFailed: false }));
       expect(getStatus("t1").savedAt).toEqual(expect.any(Number));
     });
@@ -349,7 +349,7 @@ describe("OfflineWarmer", () => {
       vi.stubGlobal("caches", { match: vi.fn(async () => new Response("")) });
       markSaved("t1", Date.now() - 60_000);
       window.localStorage.setItem("teepee.offline.counts.t1", JSON.stringify({ total: 4, saved: 3, at: Date.now() - 60_000, pagesFailed: true }));
-      render(<OfflineWarmer tripId="t1" paths={["/trips/t1"]} />);
+      render(<OfflineWarmer tripId="t1" paths={["/trips/t1"]} changeStamp={null} />);
       await vi.waitFor(() => expect(fetchMock).toHaveBeenCalledWith("/trips/t1", { cache: "no-store" }));
     });
   });
@@ -373,7 +373,7 @@ describe("OfflineWarmer", () => {
       stubNavigator({ onLine: true, hasController: true });
       vi.stubGlobal("caches", { match: vi.fn(async () => undefined) });
       fetchMock.mockImplementation(async (url: string) => (url.includes("/api/attachments/") ? brokenDownload() : new Response("")));
-      render(<OfflineWarmer tripId="t1" paths={["/trips/t1", FILE]} />);
+      render(<OfflineWarmer tripId="t1" paths={["/trips/t1", FILE]} changeStamp={null} />);
       await vi.waitFor(() => expect(getStatus("t1")).toMatchObject({ total: 2, saved: 1, pagesFailed: false }));
     });
 
@@ -381,7 +381,7 @@ describe("OfflineWarmer", () => {
       stubNavigator({ onLine: true, hasController: true });
       const matchMock = vi.fn(async () => undefined);
       vi.stubGlobal("caches", { match: matchMock });
-      render(<OfflineWarmer tripId="t1" paths={["/trips/t1", FILE]} />);
+      render(<OfflineWarmer tripId="t1" paths={["/trips/t1", FILE]} changeStamp={null} />);
       await vi.waitFor(() => expect(getStatus("t1")).toMatchObject({ total: 2, saved: 1 }), { timeout: 5_000 });
       expect(matchMock.mock.calls.filter((c) => (c as unknown[])[0] === FILE)).toHaveLength(4);
     }, 10_000);
@@ -390,7 +390,7 @@ describe("OfflineWarmer", () => {
       stubNavigator({ onLine: true, hasController: true });
       let looks = 0;
       vi.stubGlobal("caches", { match: vi.fn(async (p: string) => (p === FILE && ++looks === 4 ? new Response("") : undefined)) });
-      render(<OfflineWarmer tripId="t1" paths={["/trips/t1", FILE]} />);
+      render(<OfflineWarmer tripId="t1" paths={["/trips/t1", FILE]} changeStamp={null} />);
       await vi.waitFor(() => expect(getStatus("t1")).toMatchObject({ total: 2, saved: 2 }), { timeout: 5_000 });
     }, 10_000);
 
@@ -398,7 +398,7 @@ describe("OfflineWarmer", () => {
       stubNavigator({ onLine: true, hasController: true });
       let looks = 0;
       vi.stubGlobal("caches", { match: vi.fn(async (p: string) => (p === FILE && ++looks === 3 ? new Response("") : undefined)) });
-      render(<OfflineWarmer tripId="t1" paths={["/trips/t1", FILE]} />);
+      render(<OfflineWarmer tripId="t1" paths={["/trips/t1", FILE]} changeStamp={null} />);
       await vi.waitFor(() => expect(getStatus("t1")).toMatchObject({ total: 2, saved: 2 }));
     });
 
@@ -406,7 +406,7 @@ describe("OfflineWarmer", () => {
       stubNavigator({ onLine: true, hasController: true });
       const matchMock = vi.fn(async () => (fetchMock.mock.calls.length ? new Response("") : undefined));
       vi.stubGlobal("caches", { match: matchMock });
-      render(<OfflineWarmer tripId="t1" paths={["/api/trips/t1/cover?v=k"]} />);
+      render(<OfflineWarmer tripId="t1" paths={["/api/trips/t1/cover?v=k"]} changeStamp={null} />);
       await vi.waitFor(() => expect(getStatus("t1")).toMatchObject({ total: 1, saved: 1 }));
       expect(matchMock.mock.calls.map((c) => (c as unknown[])[0])).toEqual(["/api/trips/t1/cover?v=k", "/api/trips/t1/cover?v=k"]);
     });
@@ -418,7 +418,7 @@ describe("OfflineWarmer", () => {
     it("a page the worker answered from the cache counts as held and as a page failure, and no save is stamped", async () => {
       stubNavigator({ onLine: true, hasController: true });
       fetchMock.mockImplementation(async (url: string) => (url === "/b" ? olderCopy() : new Response("")));
-      render(<OfflineWarmer tripId="t1" paths={["/a", "/b", "/c"]} />);
+      render(<OfflineWarmer tripId="t1" paths={["/a", "/b", "/c"]} changeStamp={null} />);
       await vi.waitFor(() => expect(getStatus("t1").total).toBe(3));
       expect(getStatus("t1")).toMatchObject({ state: "saved", total: 3, saved: 3, pagesFailed: true, savedAt: null, savedBuild: null });
       expect(window.localStorage.getItem("teepee.offline.savedAt.t1")).toBeNull();
@@ -430,7 +430,7 @@ describe("OfflineWarmer", () => {
       const earlier = Date.now() - 7 * 60 * 60_000;
       markSaved("t1", earlier);
       fetchMock.mockImplementation(async () => olderCopy());
-      render(<OfflineWarmer tripId="t1" paths={["/a", "/b", "/api/attachments/a1"]} />);
+      render(<OfflineWarmer tripId="t1" paths={["/a", "/b", "/api/attachments/a1"]} changeStamp={null} />);
       await vi.waitFor(() => expect(getStatus("t1")).toMatchObject({ total: 3, saved: 3, pagesFailed: true }));
       expect(getStatus("t1").savedAt).toBe(earlier);
       expect(JSON.parse(window.localStorage.getItem("teepee.offline.counts.t1")!)).toMatchObject({ total: 3, saved: 3, pagesFailed: true });
@@ -441,7 +441,7 @@ describe("OfflineWarmer", () => {
       const earlier = Date.now() - 7 * 60 * 60_000;
       markSaved("t1", earlier);
       fetchMock.mockImplementation(async (url: string) => (url === "/b" ? new Response("Offline", { status: 503 }) : olderCopy()));
-      render(<OfflineWarmer tripId="t1" paths={["/a", "/b", "/c"]} />);
+      render(<OfflineWarmer tripId="t1" paths={["/a", "/b", "/c"]} changeStamp={null} />);
       await vi.waitFor(() => expect(getStatus("t1")).toMatchObject({ total: 3, saved: 2, pagesFailed: true }));
       expect(getStatus("t1").savedAt).toBe(earlier);
     });
@@ -451,7 +451,7 @@ describe("OfflineWarmer", () => {
       vi.stubGlobal("caches", { match: vi.fn(async () => new Response("")) });
       markSaved("t1", Date.now() - 60 * 60_000);
       fetchMock.mockImplementation(async () => olderCopy());
-      const first = render(<OfflineWarmer tripId="t1" paths={["/trips/t1"]} />);
+      const first = render(<OfflineWarmer tripId="t1" paths={["/trips/t1"]} changeStamp={null} />);
       requestWarm("t1");
       await vi.waitFor(() => expect(getStatus("t1").pagesFailed).toBe(true));
       first.unmount();
@@ -459,7 +459,7 @@ describe("OfflineWarmer", () => {
       fetchMock.mockClear();
       fetchMock.mockImplementation(async () => new Response(""));
 
-      render(<OfflineWarmer tripId="t1" paths={["/trips/t1"]} />);
+      render(<OfflineWarmer tripId="t1" paths={["/trips/t1"]} changeStamp={null} />);
 
       await vi.waitFor(() => expect(fetchMock).toHaveBeenCalledWith("/trips/t1", { cache: "no-store" }));
       await vi.waitFor(() => expect(getStatus("t1")).toMatchObject({ total: 1, saved: 1, pagesFailed: false }));
@@ -469,7 +469,7 @@ describe("OfflineWarmer", () => {
     it("a first run that fails entirely saves nothing", async () => {
       stubNavigator({ onLine: true, hasController: true });
       fetchMock.mockImplementation(async () => new Response("Offline", { status: 503 }));
-      render(<OfflineWarmer tripId="t1" paths={["/a", "/b"]} />);
+      render(<OfflineWarmer tripId="t1" paths={["/a", "/b"]} changeStamp={null} />);
       await vi.waitFor(() => expect(getStatus("t1")).toMatchObject({ total: 2, saved: 0, pagesFailed: true, savedAt: null }));
     });
   });
@@ -485,7 +485,7 @@ describe("OfflineWarmer", () => {
       markSaved("t1", savedAt);
       window.localStorage.setItem("teepee.offline.counts.t1", JSON.stringify({ total: 12, saved: 12, at: savedAt, pagesFailed: false }));
       fetchMock.mockImplementation(async () => new Response("", { status: 413 }));
-      render(<OfflineWarmer tripId="t1" paths={["/trips/t1", "/api/attachments/new"]} />);
+      render(<OfflineWarmer tripId="t1" paths={["/trips/t1", "/api/attachments/new"]} changeStamp={null} />);
       await vi.waitFor(() => expect(getStatus("t1")).toMatchObject({ state: "saved", total: 12, saved: 11, pagesFailed: false }));
       expect(getStatus("t1").savedAt).toBe(savedAt);
       expect(fetchMock).not.toHaveBeenCalledWith("/trips/t1", expect.anything());
@@ -500,7 +500,7 @@ describe("OfflineWarmer", () => {
       const savedAt = Date.now() - 60 * 60_000;
       markSaved("t1", savedAt);
       window.localStorage.setItem("teepee.offline.counts.t1", JSON.stringify({ total: 12, saved: 11, at: savedAt, pagesFailed: false }));
-      render(<OfflineWarmer tripId="t1" paths={["/trips/t1", "/api/attachments/big"]} />);
+      render(<OfflineWarmer tripId="t1" paths={["/trips/t1", "/api/attachments/big"]} changeStamp={null} />);
       await vi.waitFor(() => expect(getStatus("t1")).toMatchObject({ total: 12, saved: 12 }));
       expect(getStatus("t1").savedAt).toBe(savedAt);
     });
@@ -511,7 +511,7 @@ describe("OfflineWarmer", () => {
       const savedAt = Date.now() - 60 * 60_000;
       markSaved("t1", savedAt);
       window.localStorage.setItem("teepee.offline.counts.t1", JSON.stringify({ total: 12, saved: 12, at: savedAt, pagesFailed: false }));
-      render(<OfflineWarmer tripId="t1" paths={["/trips/t1", "/api/attachments/a1"]} />);
+      render(<OfflineWarmer tripId="t1" paths={["/trips/t1", "/api/attachments/a1"]} changeStamp={null} />);
       await vi.waitFor(() => expect(postMessage).toHaveBeenCalled());
       await new Promise((r) => setTimeout(r, 20));
       expect(getStatus("t1").ranAt).toBe(savedAt);
@@ -522,7 +522,7 @@ describe("OfflineWarmer", () => {
     it("mounts, does nothing and throws nothing", async () => {
       stubNavigator({ onLine: true, hasController: false });
       delete (navigator as unknown as Record<string, unknown>).serviceWorker;
-      const { container } = render(<OfflineWarmer tripId="t1" paths={["/a"]} />);
+      const { container } = render(<OfflineWarmer tripId="t1" paths={["/a"]} changeStamp={null} />);
       await new Promise((r) => setTimeout(r, 0));
       expect(container.firstChild).toBeNull();
       expect(fetchMock).not.toHaveBeenCalled();
@@ -533,7 +533,7 @@ describe("OfflineWarmer", () => {
   describe("a freshly installed app", () => {
     it("warms once when the worker takes control after mount", async () => {
       stubNavigator({ onLine: true, hasController: false });
-      render(<OfflineWarmer tripId="t1" paths={["/a", "/b"]} />);
+      render(<OfflineWarmer tripId="t1" paths={["/a", "/b"]} changeStamp={null} />);
       await new Promise((r) => setTimeout(r, 0));
       expect(fetchMock).not.toHaveBeenCalled();
 
@@ -545,7 +545,7 @@ describe("OfflineWarmer", () => {
 
     it("does not warm twice when a controller is already present at mount", async () => {
       stubNavigator({ onLine: true, hasController: true });
-      render(<OfflineWarmer tripId="t1" paths={["/a", "/b"]} />);
+      render(<OfflineWarmer tripId="t1" paths={["/a", "/b"]} changeStamp={null} />);
       await vi.waitFor(() => expect(getStatus("t1").state).toBe("saved"));
       act(() => installController());
       await new Promise((r) => setTimeout(r, 0));
@@ -556,7 +556,7 @@ describe("OfflineWarmer", () => {
   describe("telling the worker which Trip was opened", () => {
     it("posts the Trip's Home path on a run that fetches pages", async () => {
       stubNavigator({ onLine: true, hasController: true });
-      render(<OfflineWarmer tripId="t1" paths={["/trips/rome", "/trips/rome/plan", "/api/attachments/a1"]} />);
+      render(<OfflineWarmer tripId="t1" paths={["/trips/rome", "/trips/rome/plan", "/api/attachments/a1"]} changeStamp={null} />);
       await vi.waitFor(() => expect(getStatus("t1").state).toBe("saved"));
       expect(postMessage).toHaveBeenCalledWith({ type: "LAST_TRIP", path: "/trips/rome" });
     });
@@ -565,7 +565,7 @@ describe("OfflineWarmer", () => {
       stubNavigator({ onLine: true, hasController: true });
       vi.stubGlobal("caches", { match: vi.fn(async () => new Response("")) });
       markSaved("t1", Date.now() - 60_000);
-      render(<OfflineWarmer tripId="t1" paths={["/trips/rome", "/trips/rome/plan"]} />);
+      render(<OfflineWarmer tripId="t1" paths={["/trips/rome", "/trips/rome/plan"]} changeStamp={null} />);
       await vi.waitFor(() => expect(postMessage).toHaveBeenCalledWith({ type: "LAST_TRIP", path: "/trips/rome" }));
       expect(fetchMock).not.toHaveBeenCalled();
     });
@@ -581,7 +581,7 @@ describe("OfflineWarmer", () => {
       vi.stubGlobal("caches", { match: vi.fn(async () => undefined) });
       serve({ "/trips/t1": page, "/trips/t1/plan": page });
 
-      render(<OfflineWarmer tripId="t1" paths={["/trips/t1", "/trips/t1/plan"]} />);
+      render(<OfflineWarmer tripId="t1" paths={["/trips/t1", "/trips/t1/plan"]} changeStamp={null} />);
 
       await vi.waitFor(() => expect(getStatus("t1")).toMatchObject({ total: 4, saved: 4 }));
       expect(fetchMock.mock.calls.map((c) => c[0])).toEqual([
@@ -597,7 +597,7 @@ describe("OfflineWarmer", () => {
       vi.stubGlobal("caches", { match: vi.fn(async (p: string) => (p.endsWith(".css") ? new Response("") : undefined)) });
       serve({ "/trips/t1": page });
 
-      render(<OfflineWarmer tripId="t1" paths={["/trips/t1"]} />);
+      render(<OfflineWarmer tripId="t1" paths={["/trips/t1"]} changeStamp={null} />);
 
       await vi.waitFor(() => expect(getStatus("t1")).toMatchObject({ total: 3, saved: 3 }));
       expect(fetchMock.mock.calls.map((c) => c[0])).toEqual(["/trips/t1", "/_next/static/chunks/one.js"]);
@@ -610,7 +610,7 @@ describe("OfflineWarmer", () => {
         url === "/_next/static/chunks/one.js" ? new Response("", { status: 404 }) : new Response(url === "/trips/t1" ? page : "", { status: 200 }),
       );
 
-      render(<OfflineWarmer tripId="t1" paths={["/trips/t1"]} />);
+      render(<OfflineWarmer tripId="t1" paths={["/trips/t1"]} changeStamp={null} />);
 
       await vi.waitFor(() => expect(getStatus("t1")).toMatchObject({ total: 3, saved: 2, savedAt: null }));
     });
@@ -619,7 +619,7 @@ describe("OfflineWarmer", () => {
       stubNavigator({ onLine: true, hasController: true });
       vi.stubGlobal("caches", { match: vi.fn(async () => (fetchMock.mock.calls.length ? new Response("") : undefined)) });
       serve({ "/api/attachments/a1?offline=1": page });
-      render(<OfflineWarmer tripId="t1" paths={["/api/attachments/a1"]} />);
+      render(<OfflineWarmer tripId="t1" paths={["/api/attachments/a1"]} changeStamp={null} />);
       await vi.waitFor(() => expect(getStatus("t1")).toMatchObject({ total: 1, saved: 1 }));
       expect(fetchMock).toHaveBeenCalledTimes(1);
     });
@@ -634,7 +634,7 @@ describe("OfflineWarmer", () => {
       const savedAt = Date.now() - HOUR;
       markSaved("t1", savedAt);
 
-      render(<OfflineWarmer tripId="t1" paths={["/trips/t1/plan", "/api/attachments/new"]} />);
+      render(<OfflineWarmer tripId="t1" paths={["/trips/t1/plan", "/api/attachments/new"]} changeStamp={null} />);
 
       await vi.waitFor(() => expect(fetchMock).toHaveBeenCalledWith("/api/attachments/new?offline=1", { cache: "no-store" }));
       expect(fetchMock).not.toHaveBeenCalledWith("/trips/t1/plan", expect.anything());
@@ -650,7 +650,7 @@ describe("OfflineWarmer", () => {
       const savedAt = Date.now() - HOUR;
       markSaved("t1", savedAt);
 
-      render(<OfflineWarmer tripId="t1" paths={["/trips/t1", "/trips/t1/plan"]} />);
+      render(<OfflineWarmer tripId="t1" paths={["/trips/t1", "/trips/t1/plan"]} changeStamp={null} />);
 
       await vi.waitFor(() => expect(getStatus("t1").savedAt).toBeGreaterThan(savedAt));
       expect(matchMock).toHaveBeenCalledWith("/trips/t1");
@@ -664,7 +664,7 @@ describe("OfflineWarmer", () => {
       const savedAt = Date.now() - HOUR;
       markSaved("t1", savedAt);
 
-      render(<OfflineWarmer tripId="t1" paths={["/trips/t1", "/trips/t1/plan"]} />);
+      render(<OfflineWarmer tripId="t1" paths={["/trips/t1", "/trips/t1/plan"]} changeStamp={null} />);
 
       await vi.waitFor(() => expect(getStatus("t1").state).toBe("saved"));
       await new Promise((r) => setTimeout(r, 0));
@@ -676,14 +676,84 @@ describe("OfflineWarmer", () => {
       stubNavigator({ onLine: true, hasController: true });
       const savedAt = Date.now() - HOUR;
       markSaved("t1", savedAt);
-      render(<OfflineWarmer tripId="t1" paths={["/trips/t1/plan"]} />);
+      render(<OfflineWarmer tripId="t1" paths={["/trips/t1/plan"]} changeStamp={null} />);
       await vi.waitFor(() => expect(fetchMock).toHaveBeenCalledWith("/trips/t1/plan", { cache: "no-store" }));
+    });
+
+    it("warms the pages when the save is fresh but flagged stale by a change", async () => {
+      stubNavigator({ onLine: true, hasController: true });
+      vi.stubGlobal("caches", { match: vi.fn(async () => new Response("")) });
+      markSaved("t1", Date.now() - HOUR);
+      window.localStorage.setItem("teepee.offline.counts.t1", JSON.stringify({ total: 2, saved: 2, at: Date.now() - HOUR, pagesFailed: false, pagesStale: true }));
+      render(<OfflineWarmer tripId="t1" paths={["/trips/t1", "/trips/t1/plan"]} changeStamp="a" />);
+      await vi.waitFor(() => expect(fetchMock).toHaveBeenCalledWith("/trips/t1/plan", { cache: "no-store" }));
+      expect(getStatus("t1").pagesStale).toBe(false);
+    });
+
+    describe("a change to the Trip", () => {
+      const PAGES = ["/trips/t1", "/trips/t1/plan"];
+      const freshSave = () => {
+        stubNavigator({ onLine: true, hasController: true });
+        vi.stubGlobal("caches", { match: vi.fn(async () => new Response("")) });
+        markSaved("t1", Date.now() - HOUR);
+      };
+      const advance = (ms: number) => act(async () => { await vi.advanceTimersByTimeAsync(ms); });
+
+      beforeEach(() => vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] }));
+      afterEach(() => vi.useRealTimers());
+
+      it("re-saves the pages 30 seconds after it, and not before", async () => {
+        freshSave();
+        const { rerender } = render(<OfflineWarmer tripId="t1" paths={PAGES} changeStamp="a" />);
+        await advance(0);
+        expect(fetchMock).not.toHaveBeenCalled();
+
+        rerender(<OfflineWarmer tripId="t1" paths={PAGES} changeStamp="b" />);
+        await advance(29_999);
+        expect(fetchMock).not.toHaveBeenCalled();
+        await advance(1);
+        expect(fetchMock).toHaveBeenCalledTimes(2);
+        expect(fetchMock).toHaveBeenCalledWith("/trips/t1/plan", { cache: "no-store" });
+      });
+
+      it("a second change 20 seconds later moves the re-save to 30 seconds after it, once", async () => {
+        freshSave();
+        const { rerender } = render(<OfflineWarmer tripId="t1" paths={PAGES} changeStamp="a" />);
+        rerender(<OfflineWarmer tripId="t1" paths={PAGES} changeStamp="b" />);
+        await advance(20_000);
+        rerender(<OfflineWarmer tripId="t1" paths={PAGES} changeStamp="c" />);
+        await advance(29_999);
+        expect(fetchMock).not.toHaveBeenCalled();
+        await advance(1);
+        expect(fetchMock).toHaveBeenCalledTimes(2);
+        await advance(60_000);
+        expect(fetchMock).toHaveBeenCalledTimes(2);
+      });
+
+      it("is not a Save again: a connection that asks to save data still skips it", async () => {
+        freshSave();
+        stubConnection({ saveData: true });
+        const { rerender } = render(<OfflineWarmer tripId="t1" paths={PAGES} changeStamp="a" />);
+        rerender(<OfflineWarmer tripId="t1" paths={PAGES} changeStamp="b" />);
+        await advance(30_000);
+        expect(fetchMock).not.toHaveBeenCalled();
+        expect(getStatus("t1").pagesStale).toBe(true);
+      });
+
+      it("a re-render with the same stamp changes nothing", async () => {
+        freshSave();
+        const { rerender } = render(<OfflineWarmer tripId="t1" paths={PAGES} changeStamp="a" />);
+        rerender(<OfflineWarmer tripId="t1" paths={PAGES} changeStamp="a" />);
+        await advance(60_000);
+        expect(fetchMock).not.toHaveBeenCalled();
+        expect(getStatus("t1").pagesStale).toBe(false);
+      });
     });
 
     it("warms the pages again once the last save is 6 hours old", async () => {
       stubNavigator({ onLine: true, hasController: true });
       markSaved("t1", Date.now() - 7 * HOUR);
-      render(<OfflineWarmer tripId="t1" paths={["/trips/t1/plan"]} />);
+      render(<OfflineWarmer tripId="t1" paths={["/trips/t1/plan"]} changeStamp={null} />);
       await vi.waitFor(() => expect(fetchMock).toHaveBeenCalledWith("/trips/t1/plan", { cache: "no-store" }));
     });
 
@@ -692,7 +762,7 @@ describe("OfflineWarmer", () => {
       vi.stubGlobal("caches", { match: vi.fn(async () => new Response("")) });
       const savedAt = Date.now() - HOUR;
       markSaved("t1", savedAt);
-      render(<OfflineWarmer tripId="t1" paths={["/trips/t1/plan"]} />);
+      render(<OfflineWarmer tripId="t1" paths={["/trips/t1/plan"]} changeStamp={null} />);
       await new Promise((r) => setTimeout(r, 0));
       expect(fetchMock).not.toHaveBeenCalled();
 
@@ -709,7 +779,7 @@ describe("OfflineWarmer", () => {
       const savedAt = Date.now() - HOUR;
       markSaved("t1", savedAt, "b1");
 
-      render(<OfflineWarmer tripId="t1" paths={["/trips/t1", "/trips/t1/plan"]} />);
+      render(<OfflineWarmer tripId="t1" paths={["/trips/t1", "/trips/t1/plan"]} changeStamp={null} />);
 
       await vi.waitFor(() => expect(getStatus("t1").savedAt).toBeGreaterThan(savedAt));
       expect(fetchMock).toHaveBeenCalledWith("/trips/t1", { cache: "no-store" });
@@ -724,7 +794,7 @@ describe("OfflineWarmer", () => {
       const savedAt = Date.now() - HOUR;
       window.localStorage.setItem("teepee.offline.savedAt.t1", String(savedAt));
 
-      render(<OfflineWarmer tripId="t1" paths={["/trips/t1/plan"]} />);
+      render(<OfflineWarmer tripId="t1" paths={["/trips/t1/plan"]} changeStamp={null} />);
 
       await vi.waitFor(() => expect(fetchMock).toHaveBeenCalledWith("/trips/t1/plan", { cache: "no-store" }));
       await vi.waitFor(() => expect(getStatus("t1").savedAt).toBeGreaterThan(savedAt));
@@ -733,7 +803,7 @@ describe("OfflineWarmer", () => {
     it("skips the automatic warm on a Save-Data connection", async () => {
       stubNavigator({ onLine: true, hasController: true });
       stubConnection({ saveData: true });
-      render(<OfflineWarmer tripId="t1" paths={["/a", "/api/attachments/x"]} />);
+      render(<OfflineWarmer tripId="t1" paths={["/a", "/api/attachments/x"]} changeStamp={null} />);
       await new Promise((r) => setTimeout(r, 0));
       expect(fetchMock).not.toHaveBeenCalled();
       expect(getStatus("t1").state).toBe("idle");
@@ -742,7 +812,7 @@ describe("OfflineWarmer", () => {
     it("skips the automatic warm on 2G", async () => {
       stubNavigator({ onLine: true, hasController: true });
       stubConnection({ effectiveType: "2g" });
-      render(<OfflineWarmer tripId="t1" paths={["/a"]} />);
+      render(<OfflineWarmer tripId="t1" paths={["/a"]} changeStamp={null} />);
       await new Promise((r) => setTimeout(r, 0));
       expect(fetchMock).not.toHaveBeenCalled();
     });
@@ -750,7 +820,7 @@ describe("OfflineWarmer", () => {
     it("still runs Save again on a constrained connection (an explicit request)", async () => {
       stubNavigator({ onLine: true, hasController: true });
       stubConnection({ saveData: true });
-      render(<OfflineWarmer tripId="t1" paths={["/a"]} />);
+      render(<OfflineWarmer tripId="t1" paths={["/a"]} changeStamp={null} />);
       await new Promise((r) => setTimeout(r, 0));
       act(() => requestWarm("t1"));
       await vi.waitFor(() => expect(fetchMock).toHaveBeenCalledWith("/a", { cache: "no-store" }));

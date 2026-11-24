@@ -236,7 +236,7 @@ export default async function TripLayout({
 
             {/* ── Page content ── */}
             <div className="py-6 [[data-trip-page-header]+&]:pt-0 pb-[calc(var(--tp-tab-bar-h)+1rem+var(--tp-fab-clearance)+env(safe-area-inset-bottom))] md:pb-[calc(1.5rem+var(--tp-fab-clearance))] print:pb-6">
-              <OfflineWarmer tripId={tripId} paths={offlinePaths} />
+              <OfflineWarmer tripId={tripId} paths={offlinePaths} changeStamp={recent[0]?.id ?? null} />
               <ShareChooserMount tripId={tripId} />
               <FeedbackTripMarker tripId={tripId} tripName={trip.name} />
               <RememberLastTrip tripId={tripId} />

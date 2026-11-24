@@ -367,6 +367,39 @@ describe('tripOfflinePaths day window (spec 2026-10-06 §A)', () => {
   });
 });
 
+describe('tripOfflinePaths order', () => {
+  it('saves the Trip home, today, tomorrow and the tickets before the rest, dropping nothing', () => {
+    const atts = [
+      { url: '/api/attachments/old', size: 10, createdAt: new Date(2026, 0, 1) },
+      { url: '/api/attachments/new', size: 10, createdAt: new Date(2026, 0, 2) },
+    ];
+    const window = { phase: 'travelling' as const, today: '2026-07-20' };
+    const ordered = tripOfflinePaths('t1', '2026-07-01', '2026-08-30', atts, '/api/trips/t1/cover?v=k', window);
+    expect(ordered.slice(0, 5)).toEqual([
+      '/trips/t1',
+      '/trips/t1/day/2026-07-20',
+      '/trips/t1/day/2026-07-21',
+      '/api/attachments/new',
+      '/api/attachments/old',
+    ]);
+    expect(ordered.slice(-2)).toEqual(['/api/trips/t1/cover?v=k', '/api/trips/t1/cover?v=k&w=480']);
+    expect([...ordered].sort()).toEqual(
+      [...tripOfflinePaths('t1', '2026-07-01', '2026-08-30', [], null, window), ...atts.map((a) => a.url), '/api/trips/t1/cover?v=k', '/api/trips/t1/cover?v=k&w=480'].sort(),
+    );
+    expect(new Set(ordered).size).toBe(ordered.length);
+  });
+
+  it('puts the attachments straight after the Trip home when today is not a warmed day', () => {
+    const ordered = tripOfflinePaths('t1', '2026-07-01', '2026-07-03', [{ url: '/api/attachments/a', size: 10 }]);
+    expect(ordered.slice(0, 3)).toEqual(['/trips/t1', '/api/attachments/a', '/trips/t1/plan']);
+  });
+
+  it('has no tomorrow when today is the last warmed day', () => {
+    const ordered = tripOfflinePaths('t1', '2026-07-01', '2026-07-03', [{ url: '/api/attachments/a', size: 10 }], null, { today: '2026-07-03' });
+    expect(ordered.slice(0, 3)).toEqual(['/trips/t1', '/trips/t1/day/2026-07-03', '/api/attachments/a']);
+  });
+});
+
 describe('isWarmFresh', () => {
   const now = 1_800_000_000_000;
   it('is fresh under 6 hours, stale at 6 hours or with no warm yet', () => {

@@ -14,6 +14,7 @@ import {
   isIncomplete,
   recordFileShortfall,
   forgetOfflineSaves,
+  markPagesStale,
 } from "./offline-status";
 
 const DONE = { total: 3, saved: 3, pagesFailed: 0 };
@@ -29,11 +30,11 @@ afterEach(() => {
 
 describe("offline status store", () => {
   it("starts idle with no timestamp for a trip that was never warmed", () => {
-    expect(getStatus("t1")).toEqual({ state: "idle", savedAt: null, savedBuild: null, total: null, saved: null, ranAt: null, pagesFailed: false, requestId: 0 });
+    expect(getStatus("t1")).toEqual({ state: "idle", savedAt: null, savedBuild: null, total: null, saved: null, ranAt: null, pagesFailed: false, pagesStale: false, requestId: 0 });
   });
 
   it("the server snapshot is always idle", () => {
-    expect(getServerStatus()).toEqual({ state: "idle", savedAt: null, savedBuild: null, total: null, saved: null, ranAt: null, pagesFailed: false, requestId: 0 });
+    expect(getServerStatus()).toEqual({ state: "idle", savedAt: null, savedBuild: null, total: null, saved: null, ranAt: null, pagesFailed: false, pagesStale: false, requestId: 0 });
   });
 
   it("returns the same object until something changes (useSyncExternalStore needs that)", () => {
@@ -115,6 +116,26 @@ describe("what the last run saved", () => {
     resetOfflineStatus();
     expect(getStatus("t2").pagesFailed).toBe(true);
     expect(getStatus("t1").pagesFailed).toBe(false);
+  });
+
+  it("marks the pages stale, keeps that across a reload, and a finished warm clears it", () => {
+    finishWarm("t1", DONE, 1_700_000_000_000);
+    markPagesStale("t1");
+    expect(getStatus("t1").pagesStale).toBe(true);
+    resetOfflineStatus();
+    expect(getStatus("t1")).toMatchObject({ pagesStale: true, savedAt: 1_700_000_000_000, total: 3, saved: 3 });
+    finishWarm("t1", DONE, 1_700_000_999_000);
+    expect(getStatus("t1").pagesStale).toBe(false);
+    resetOfflineStatus();
+    expect(getStatus("t1").pagesStale).toBe(false);
+  });
+
+  it("a files-only shortfall keeps a stale flag", () => {
+    finishWarm("t1", DONE, 1_700_000_000_000);
+    markPagesStale("t1");
+    recordFileShortfall("t1", { total: 3, saved: 2 }, 1_700_000_500_000);
+    resetOfflineStatus();
+    expect(getStatus("t1")).toMatchObject({ pagesStale: true, saved: 2 });
   });
 
   it("a first run with a failed page has no savedAt, and survives a reload as saved", () => {

@@ -1,8 +1,8 @@
 "use client";
 
-import { useEffect, useSyncExternalStore } from "react";
-import { beginWarm, cancelWarm, currentBuildId, finishWarm, getStatus, recordFileShortfall, subscribe, takeWarmRequest } from "@/lib/offline-status";
-import { assetUrlsIn, isAttachmentRoute, isCachedTripHome, isConstrainedConnection, isCoverRoute, isWarmFresh, SAVED_COPY_HEADER, WARM_REQUEST_HEADER, warmUrlFor, type ConnectionHint } from "@/lib/offline";
+import { useEffect, useRef, useState, useSyncExternalStore } from "react";
+import { beginWarm, cancelWarm, currentBuildId, finishWarm, getStatus, markPagesStale, recordFileShortfall, subscribe, takeWarmRequest } from "@/lib/offline-status";
+import { assetUrlsIn, isAttachmentRoute, isCachedTripHome, isConstrainedConnection, isCoverRoute, isWarmFresh, SAVED_COPY_HEADER, STALE_WARM_DELAY_MS, WARM_REQUEST_HEADER, warmUrlFor, type ConnectionHint } from "@/lib/offline";
 
 const FILE_STORED_WAITS_MS = [0, 250, 750];
 
@@ -47,10 +47,15 @@ function hasController(): boolean {
  * build: its pages point at that deploy's chunks, so the first open after a
  * deploy re-warms them. Attachments and the cover keep their own already-cached check.
  *
+ * A change to the Trip (`changeStamp`, the newest Activity row) leaves the
+ * saved pages one edit behind: it marks them stale and, STALE_WARM_DELAY_MS
+ * after the latest change, re-warms them. That run is automatic, not "Save
+ * again", so a connection that asks to save data still skips it.
+ *
  * Progress goes to lib/offline-status.ts so the Trip's Settings row can show
  * it.
  */
-export function OfflineWarmer({ tripId, paths }: { tripId: string; paths: string[] }) {
+export function OfflineWarmer({ tripId, paths, changeStamp }: { tripId: string; paths: string[]; changeStamp: string | null }) {
   const requestId = useSyncExternalStore(subscribe, () => getStatus(tripId).requestId, () => 0);
   const controlled = useSyncExternalStore(subscribeToController, hasController, () => false);
   // The server layout hands us a fresh `paths` array on every render (each
@@ -59,6 +64,20 @@ export function OfflineWarmer({ tripId, paths }: { tripId: string; paths: string
   // would cancel and restart the warm on every one of those re-renders, so
   // depend on this content-based key instead and rebuild the list from it.
   const pathsKey = paths.join("\n");
+  const [staleRuns, setStaleRuns] = useState(0);
+  const seenStamp = useRef(changeStamp);
+
+  useEffect(() => {
+    if (changeStamp === seenStamp.current) return;
+    seenStamp.current = changeStamp;
+    markPagesStale(tripId);
+    const timer = setTimeout(() => {
+      // A run already in flight finishes by clearing the flag, so set it again for this one.
+      markPagesStale(tripId);
+      setStaleRuns((n) => n + 1);
+    }, STALE_WARM_DELAY_MS);
+    return () => clearTimeout(timer);
+  }, [tripId, changeStamp]);
 
   useEffect(() => {
     if (typeof navigator === "undefined" || !navigator.onLine) return;
@@ -84,7 +103,7 @@ export function OfflineWarmer({ tripId, paths }: { tripId: string; paths: string
       // HTML references that deploy's chunks. No recorded build → stale.
       const saved = getStatus(tripId);
       const sameBuild = saved.savedBuild !== null && saved.savedBuild === currentBuildId();
-      let warmPages = forced || !sameBuild || !isWarmFresh(saved.savedAt, Date.now()) || saved.pagesFailed;
+      let warmPages = forced || !sameBuild || !isWarmFresh(saved.savedAt, Date.now()) || saved.pagesFailed || saved.pagesStale;
       // A fresh savedAt only counts if the pages are really still cached: a
       // new worker's activate (spec 2026-10-06 §T), sign-out's CLEAR_CACHE or
       // browser eviction can empty the cache while localStorage still says
@@ -189,7 +208,7 @@ export function OfflineWarmer({ tripId, paths }: { tripId: string; paths: string
       cancelled = true;
       cancelWarm(tripId);
     };
-  }, [tripId, pathsKey, requestId, controlled]);
+  }, [tripId, pathsKey, requestId, controlled, staleRuns]);
 
   return null;
 }

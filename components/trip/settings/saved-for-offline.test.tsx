@@ -118,7 +118,7 @@ describe("SavedForOffline", () => {
 
     render(
       <>
-        <OfflineWarmer tripId="t1" paths={["/a", "/b"]} />
+        <OfflineWarmer tripId="t1" paths={["/a", "/b"]} changeStamp={null} />
         <SavedForOffline tripId="t1" />
       </>,
     );
@@ -137,7 +137,7 @@ describe("SavedForOffline", () => {
     vi.stubGlobal("fetch", fetchMock);
     render(
       <>
-        <OfflineWarmer tripId="t1" paths={["/trips/t1"]} />
+        <OfflineWarmer tripId="t1" paths={["/trips/t1"]} changeStamp={null} />
         <SavedForOffline tripId="t1" />
       </>,
     );
