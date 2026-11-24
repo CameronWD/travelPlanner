@@ -41,7 +41,7 @@ vi.mock("@/components/ui/use-toast", () => ({
 }));
 
 import { UnscheduleItemButton } from "./unschedule-item-button";
-import { UNDO_FAILED } from "@/components/ui/use-undoable-action";
+import { UNDO_FAILED, UNDO_REFUSED } from "@/components/ui/use-undoable-action";
 
 beforeEach(() => {
   vi.clearAllMocks();
@@ -361,7 +361,7 @@ describe("UnscheduleItemButton", () => {
 
     await waitFor(() => {
       expect(toastMock).toHaveBeenCalledWith(
-        expect.objectContaining({ title: UNDO_FAILED, variant: "destructive" }),
+        expect.objectContaining({ title: UNDO_REFUSED, variant: "destructive" }),
       );
     });
     expect(refreshMock).not.toHaveBeenCalled();
@@ -388,7 +388,7 @@ describe("UnscheduleItemButton", () => {
 
     await waitFor(() => {
       expect(toastMock).toHaveBeenCalledWith(
-        expect.objectContaining({ title: UNDO_FAILED, variant: "destructive" }),
+        expect.objectContaining({ title: UNDO_REFUSED, variant: "destructive" }),
       );
     });
     expect(refreshMock).not.toHaveBeenCalled();

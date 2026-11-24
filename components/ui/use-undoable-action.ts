@@ -4,7 +4,7 @@ import * as React from "react";
 import type { ActionResult } from "@/lib/action-result";
 import { toast } from "@/components/ui/use-toast";
 import { toastWithUndo } from "@/components/ui/undo-toast";
-import { SOMETHING_WENT_WRONG, toastRefused, toastRejected } from "@/components/ui/action-failure";
+import { NOTHING_CHANGED, SOMETHING_WENT_WRONG, toastRefused, toastRejected } from "@/components/ui/action-failure";
 
 /** The success branch of `persist`'s result, as `done`/`undo`/`applyUndo`/`revertUndo` receive it. */
 export type UndoableSuccess<R extends object> = { success: true } & R;
@@ -31,7 +31,10 @@ export interface UndoableSpec<I, R extends object = Record<never, never>> {
   failure?: string;
 }
 
-/** The one wording for an Undo that didn't go through. */
+/** The wording for an Undo the server refused. */
+export const UNDO_REFUSED = "Couldn’t undo. Nothing changed. Try again.";
+
+/** The wording for an Undo that rejected: it may have gone through. */
 export const UNDO_FAILED = "Couldn’t confirm the undo. Check it before trying again.";
 
 /**
@@ -76,7 +79,7 @@ export function useUndoableAction<I, R extends object = Record<never, never>>(
       }
       if (!result.success) {
         s.revert?.(intent);
-        toastRefused(result, s.failure ?? SOMETHING_WENT_WRONG);
+        toastRefused(result, s.failure ?? NOTHING_CHANGED);
         return false;
       }
       const success = result as UndoableSuccess<R>;
@@ -113,7 +116,7 @@ async function runUndo<I, R extends object>(
     s.applyUndo?.(intent, result);
     const r = await undo(intent, result);
     if (r.success) return;
-    toastRefused(r, UNDO_FAILED);
+    toastRefused(r, UNDO_REFUSED);
   } catch {
     toastRejected(UNDO_FAILED);
   }

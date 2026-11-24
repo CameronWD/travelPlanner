@@ -3,7 +3,7 @@
 import * as React from "react";
 import { useRouter } from "next/navigation";
 import { setNothingToAttach } from "@/server/actions/booking-confirmation";
-import { SOMETHING_WENT_WRONG, formError } from "@/components/ui/action-failure";
+import { NOTHING_CHANGED, SOMETHING_WENT_WRONG, formError } from "@/components/ui/action-failure";
 import { Switch } from "@/components/ui/switch";
 import { cn } from "@/lib/cn";
 import type { ConfirmationKind } from "@/lib/booking-confirmation";
@@ -34,7 +34,7 @@ export function NothingToAttachSwitch({
         const result = await setNothingToAttach(kind, id, next);
         if (!result.success) {
           onChange(!next);
-          setError(formError(result) ?? SOMETHING_WENT_WRONG);
+          setError(formError(result) ?? NOTHING_CHANGED);
           return;
         }
         router.refresh();

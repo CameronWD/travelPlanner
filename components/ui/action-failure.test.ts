@@ -4,7 +4,7 @@ vi.mock("@/components/ui/use-toast", () => ({ toast: vi.fn() }));
 vi.mock("@/lib/trip-refresh", () => ({ requestTripRefresh: vi.fn() }));
 import { toast } from "@/components/ui/use-toast";
 import { requestTripRefresh } from "@/lib/trip-refresh";
-import { firstErrorMessage, formError, toastRefused, toastRejected, SOMETHING_WENT_WRONG } from "./action-failure";
+import { firstErrorMessage, formError, toastRefused, toastRejected, SOMETHING_WENT_WRONG, NOTHING_CHANGED } from "./action-failure";
 import { OFFLINE_MESSAGE } from "./failure-message";
 
 function setOnline(value: boolean) {
@@ -60,6 +60,9 @@ describe("toastRefused", () => {
 });
 
 describe("failure copy", () => {
+  it("a refusal keeps the old wording: the server answered, so nothing changed", () => {
+    expect(NOTHING_CHANGED).toBe("Couldn’t do that. Nothing changed. Try again.");
+  });
   it("a rejection says it could not be confirmed, not that nothing changed", () => {
     expect(SOMETHING_WENT_WRONG).toBe("Couldn’t confirm that. Check it saved before trying again.");
   });

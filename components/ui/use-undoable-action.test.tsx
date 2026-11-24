@@ -7,8 +7,8 @@ vi.mock("@/components/ui/undo-toast", () => ({ toastWithUndo: vi.fn(() => "t1") 
 
 import { toast } from "@/components/ui/use-toast";
 import { toastWithUndo } from "@/components/ui/undo-toast";
-import { SOMETHING_WENT_WRONG } from "@/components/ui/action-failure";
-import { useUndoableAction, UNDO_FAILED, type UndoableSpec } from "./use-undoable-action";
+import { NOTHING_CHANGED, SOMETHING_WENT_WRONG } from "@/components/ui/action-failure";
+import { useUndoableAction, UNDO_FAILED, UNDO_REFUSED, type UndoableSpec } from "./use-undoable-action";
 
 const toastMock = vi.mocked(toast);
 const undoToastMock = vi.mocked(toastWithUndo);
@@ -86,6 +86,15 @@ describe("useUndoableAction", () => {
       await result.current.run({ id: "a" });
     });
     expect(toastMock).toHaveBeenCalledWith({ variant: "destructive", title: "Couldn't move that." });
+  });
+
+  it("toasts NOTHING_CHANGED when a refusal carries no message and the spec has no failure copy", async () => {
+    const s = spec({ persist: vi.fn(async (): Promise<ActionResult<Res>> => ({ success: false, errors: {} })) });
+    const { result } = renderHook(() => useUndoableAction(s));
+    await act(async () => {
+      await result.current.run({ id: "a" });
+    });
+    expect(toastMock).toHaveBeenCalledWith({ variant: "destructive", title: NOTHING_CHANGED });
   });
 
   it("reverts and toasts SOMETHING_WENT_WRONG when persist rejects", async () => {
@@ -166,7 +175,7 @@ describe("useUndoableAction", () => {
       expect(unhandled).not.toHaveBeenCalled();
     });
 
-    it("toasts the server's refusal (else UNDO_FAILED) and calls revertUndo on success:false", async () => {
+    it("toasts the server's refusal (else UNDO_REFUSED) and calls revertUndo on success:false", async () => {
       const s = spec({
         undo: vi.fn(async () => ({ success: false as const, errors: { _: ["Already gone"] } })),
         revertUndo: vi.fn(),
@@ -182,6 +191,24 @@ describe("useUndoableAction", () => {
         expect(toastMock).toHaveBeenCalledWith({ variant: "destructive", title: "Already gone" }),
       );
       expect(s.revertUndo).toHaveBeenCalledTimes(1);
+    });
+
+    it("toasts UNDO_REFUSED when a refused Undo carries no message", async () => {
+      const s = spec({
+        undo: vi.fn(async () => ({ success: false as const, errors: {} })),
+        revertUndo: vi.fn(),
+      });
+      const { result } = renderHook(() => useUndoableAction(s));
+      await act(async () => {
+        await result.current.run({ id: "a" });
+      });
+      await act(async () => {
+        clickUndo();
+      });
+      await waitFor(() =>
+        expect(toastMock).toHaveBeenCalledWith({ variant: "destructive", title: UNDO_REFUSED }),
+      );
+      expect(UNDO_REFUSED).toBe("Couldn’t undo. Nothing changed. Try again.");
     });
 
     it("still toasts UNDO_FAILED when applyUndo itself throws", async () => {
