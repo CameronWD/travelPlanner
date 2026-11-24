@@ -18,6 +18,7 @@ export const BOOKING_IMPORT_MESSAGES = {
   rateLimited: (minutes: number) =>
     `You've done a lot of imports this hour. Try again in ${minutes} ${minutes === 1 ? "minute" : "minutes"}.`,
   busy: "The reader's busy right now. Try again in a minute.",
+  unreachable: "Couldn't reach Teepee. Check your connection and try again.",
   generic: "Something went wrong reading that booking. Try again later.",
   misconfigured: "Booking import isn't set up correctly. We've been told and will fix it.",
   disabled: "Booking import isn't switched on.",

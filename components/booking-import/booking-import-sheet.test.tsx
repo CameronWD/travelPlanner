@@ -103,6 +103,14 @@ describe("BookingImportSheet", () => {
     expect((m.importBooking.mock.calls[1][0] as FormData).get("file")).toBeInstanceOf(File);
   });
 
+  it("a rejected import says the connection failed and still offers Try again", async () => {
+    m.importBooking.mockRejectedValueOnce(new Error("fetch failed"));
+    open();
+    await userEvent.upload(screen.getByLabelText("Booking file"), new File(["%PDF-1.4"], "ticket.pdf", { type: "application/pdf" }));
+    expect(await screen.findByRole("alert")).toHaveTextContent(M.unreachable);
+    expect(screen.getByRole("button", { name: "Try again" })).toBeInTheDocument();
+  });
+
   it("confirming a dependent saves its Stop with it, then attaches the original to each booking", async () => {
     open();
     const pdf = new File(["%PDF-1.4"], "ticket.pdf", { type: "application/pdf" });

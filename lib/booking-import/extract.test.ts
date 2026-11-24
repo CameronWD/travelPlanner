@@ -21,20 +21,22 @@ vi.mock("@anthropic-ai/sdk", () => {
   function MockAnthropic() {
     return { messages: { parse: mockParse } };
   }
-  return { default: MockAnthropic, APIError, APIConnectionError };
+  class APIConnectionTimeoutError extends APIConnectionError {}
+  return { default: MockAnthropic, APIError, APIConnectionError, APIConnectionTimeoutError };
 });
 
 vi.mock("@anthropic-ai/sdk/helpers/zod", () => ({
   zodOutputFormat: vi.fn((schema) => ({ _schema: schema, _isAutoParseableFormat: true })),
 }));
 
-import { buildContent, extractBooking, EXTRACTION_MAX_TOKENS } from "./extract";
+import { buildContent, extractBooking, EXTRACTION_MAX_TOKENS, BOOKING_EXTRACT_TIMEOUT_MS } from "./extract";
 import { EXTRACTION_SYSTEM_PROMPT, EXTRACTION_USER_INSTRUCTION } from "./prompt";
 import { BookingExtractionSchema, UNCERTAIN_FIELD_NAMES } from "./schema";
 
 type SdkErrors = {
   APIError: new (status: number | undefined, message: string) => Error;
   APIConnectionError: new () => Error;
+  APIConnectionTimeoutError: new () => Error;
 };
 const sdk = async () => (await import("@anthropic-ai/sdk")) as unknown as SdkErrors;
 
@@ -129,6 +131,19 @@ describe("extractBooking outcomes", () => {
       model: "claude-haiku-5-5",
       usage: { inputTokens: 0, outputTokens: 0, cacheReadTokens: 0, cacheWriteTokens: 0 },
     });
+  });
+
+  it("bounds the call inside the server time limit, with no SDK retries", async () => {
+    mockParse.mockResolvedValueOnce(OK_RESPONSE);
+    await extractBooking([{ type: "text", text: "x" }]);
+    expect(BOOKING_EXTRACT_TIMEOUT_MS).toBe(45_000);
+    expect(mockParse.mock.calls[0][1]).toEqual({ timeout: 45_000, maxRetries: 0 });
+  });
+
+  it("maps an SDK timeout to busy", async () => {
+    const { APIConnectionTimeoutError } = await sdk();
+    mockParse.mockRejectedValueOnce(new APIConnectionTimeoutError());
+    expect((await extractBooking([{ type: "text", text: "x" }])).kind).toBe("busy");
   });
 
   it("maps a connection failure to busy", async () => {

@@ -128,7 +128,7 @@ function BookingImportBody({ tripId, forkId }: { tripId: string; forkId: string 
     try {
       result = await importBooking(fd);
     } catch {
-      result = formFail(M.busy, "busy");
+      result = formFail(M.unreachable, "busy");
     }
     if (!result.success) return setPhase({ kind: "failed", message: formError(result) ?? M.generic, retry: result.code === "busy" });
     setEntries(Object.fromEntries(result.proposals.map((p) => [p.clientId, { proposal: p, status: "pending" as const, error: null }])));
