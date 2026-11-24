@@ -730,6 +730,43 @@ describe("OfflineWarmer", () => {
         expect(fetchMock).toHaveBeenCalledTimes(2);
       });
 
+      it("a change that also adds a path saves the pages once, not again 30 seconds later", async () => {
+        freshSave();
+        const { rerender } = render(<OfflineWarmer tripId="t1" paths={PAGES} changeStamp="a" />);
+        rerender(<OfflineWarmer tripId="t1" paths={[...PAGES, "/api/attachments/new"]} changeStamp="b" />);
+        await advance(0);
+        expect(fetchMock).toHaveBeenCalledTimes(2);
+        await advance(60_000);
+        expect(fetchMock).toHaveBeenCalledTimes(2);
+        expect(getStatus("t1").pagesStale).toBe(false);
+      });
+
+      it("a run already going when the change lands leaves the Trip stale, across a reload", async () => {
+        stubNavigator({ onLine: true, hasController: true });
+        markSaved("t1", Date.now() - 7 * HOUR);
+        let release!: () => void;
+        fetchMock.mockImplementationOnce(() => new Promise<Response>((r) => { release = () => r(new Response("", { status: 200 })); }));
+        const { rerender } = render(<OfflineWarmer tripId="t1" paths={["/trips/t1"]} changeStamp="a" />);
+        await advance(0);
+        expect(getStatus("t1").state).toBe("saving");
+        rerender(<OfflineWarmer tripId="t1" paths={["/trips/t1"]} changeStamp="b" />);
+        release();
+        await advance(0);
+        expect(getStatus("t1")).toMatchObject({ state: "saved", pagesStale: true });
+        resetOfflineStatus();
+        expect(getStatus("t1").pagesStale).toBe(true);
+      });
+
+      it("a Trip switch on the same warmer is not a change", async () => {
+        freshSave();
+        stubConnection({ saveData: true });
+        const { rerender } = render(<OfflineWarmer tripId="t1" paths={PAGES} changeStamp="a" />);
+        rerender(<OfflineWarmer tripId="t2" paths={PAGES} changeStamp="b" />);
+        await advance(60_000);
+        expect(getStatus("t2").pagesStale).toBe(false);
+        expect(getStatus("t1").pagesStale).toBe(false);
+      });
+
       it("is not a Save again: a connection that asks to save data still skips it", async () => {
         freshSave();
         stubConnection({ saveData: true });

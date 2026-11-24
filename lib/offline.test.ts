@@ -373,8 +373,8 @@ describe('tripOfflinePaths order', () => {
       { url: '/api/attachments/old', size: 10, createdAt: new Date(2026, 0, 1) },
       { url: '/api/attachments/new', size: 10, createdAt: new Date(2026, 0, 2) },
     ];
-    const window = { phase: 'travelling' as const, today: '2026-07-20' };
-    const ordered = tripOfflinePaths('t1', '2026-07-01', '2026-08-30', atts, '/api/trips/t1/cover?v=k', window);
+    const dayWindow = { phase: 'travelling' as const, today: '2026-07-20' };
+    const ordered = tripOfflinePaths('t1', '2026-07-01', '2026-08-30', atts, '/api/trips/t1/cover?v=k', dayWindow);
     expect(ordered.slice(0, 5)).toEqual([
       '/trips/t1',
       '/trips/t1/day/2026-07-20',
@@ -383,8 +383,15 @@ describe('tripOfflinePaths order', () => {
       '/api/attachments/old',
     ]);
     expect(ordered.slice(-2)).toEqual(['/api/trips/t1/cover?v=k', '/api/trips/t1/cover?v=k&w=480']);
+    const days = Array.from({ length: 15 }, (_, i) => `/trips/t1/day/2026-07-${String(13 + i).padStart(2, '0')}`);
     expect([...ordered].sort()).toEqual(
-      [...tripOfflinePaths('t1', '2026-07-01', '2026-08-30', [], null, window), ...atts.map((a) => a.url), '/api/trips/t1/cover?v=k', '/api/trips/t1/cover?v=k&w=480'].sort(),
+      [
+        '/trips/t1', '/trips/t1/plan', '/trips/t1/summary', '/trips/t1/budget', '/trips/t1/calendar',
+        '/trips/t1/checklists', '/trips/t1/files', '/trips/t1/journal', '/trips/t1/help', '/whats-new', '/trips',
+        ...days,
+        '/api/attachments/new', '/api/attachments/old',
+        '/api/trips/t1/cover?v=k', '/api/trips/t1/cover?v=k&w=480',
+      ].sort(),
     );
     expect(new Set(ordered).size).toBe(ordered.length);
   });

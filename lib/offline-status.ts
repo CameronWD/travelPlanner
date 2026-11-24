@@ -59,6 +59,11 @@ const statuses = new Map<string, OfflineStatus>();
 const listeners = new Set<() => void>();
 /** Per Trip, the requestId the warmer last acted on (see takeWarmRequest). */
 const handledRequests = new Map<string, number>();
+// Which came first, a run's start or the Trip going stale: a run that began
+// before the change holds pre-change pages, so it must not clear the flag.
+let ordinal = 0;
+const warmStarts = new Map<string, number>();
+const staleMarks = new Map<string, number>();
 
 function notify() {
   for (const listener of listeners) listener();
@@ -169,6 +174,7 @@ export function isIncomplete(status: OfflineStatus): boolean {
 }
 
 export function beginWarm(tripId: string): void {
+  warmStarts.set(tripId, ++ordinal);
   update(tripId, { state: "saving" });
 }
 
@@ -179,8 +185,12 @@ export function beginWarm(tripId: string): void {
 // nothing.
 export function finishWarm(tripId: string, result: WarmResult, at: number = Date.now()): void {
   const pagesFailed = result.pagesFailed > 0;
-  writeCounts(tripId, result.total, result.saved, at, pagesFailed, false);
-  const counts = { total: result.total, saved: result.saved, ranAt: at, pagesFailed, pagesStale: false };
+  const marked = staleMarks.get(tripId);
+  const changedMidRun = marked !== undefined && (warmStarts.get(tripId) ?? 0) < marked;
+  const pagesStale = changedMidRun && getStatus(tripId).pagesStale;
+  if (!pagesStale) staleMarks.delete(tripId);
+  writeCounts(tripId, result.total, result.saved, at, pagesFailed, pagesStale);
+  const counts = { total: result.total, saved: result.saved, ranAt: at, pagesFailed, pagesStale };
   if (pagesFailed) {
     update(tripId, { state: "saved", ...counts });
     return;
@@ -194,6 +204,7 @@ export function finishWarm(tripId: string, result: WarmResult, at: number = Date
 // are only stored once a run has finished; before that the flag is in memory
 // and the first save warms the pages anyway.
 export function markPagesStale(tripId: string): void {
+  staleMarks.set(tripId, ++ordinal);
   const current = getStatus(tripId);
   if (current.total !== null && current.saved !== null && current.ranAt !== null) {
     writeCounts(tripId, current.total, current.saved, current.ranAt, current.pagesFailed, true);
@@ -239,4 +250,6 @@ export function forgetOfflineSaves(): void {
 export function resetOfflineStatus(): void {
   statuses.clear();
   handledRequests.clear();
+  warmStarts.clear();
+  staleMarks.clear();
 }

@@ -65,16 +65,19 @@ export function OfflineWarmer({ tripId, paths, changeStamp }: { tripId: string; 
   // depend on this content-based key instead and rebuild the list from it.
   const pathsKey = paths.join("\n");
   const [staleRuns, setStaleRuns] = useState(0);
-  const seenStamp = useRef(changeStamp);
+  const seen = useRef({ tripId, stamp: changeStamp });
 
   useEffect(() => {
-    if (changeStamp === seenStamp.current) return;
-    seenStamp.current = changeStamp;
+    if (seen.current.tripId !== tripId) {
+      seen.current = { tripId, stamp: changeStamp };
+      return;
+    }
+    if (changeStamp === seen.current.stamp) return;
+    seen.current.stamp = changeStamp;
     markPagesStale(tripId);
+    // A run that already saved the pages after this change cleared the flag: nothing is left to do.
     const timer = setTimeout(() => {
-      // A run already in flight finishes by clearing the flag, so set it again for this one.
-      markPagesStale(tripId);
-      setStaleRuns((n) => n + 1);
+      if (getStatus(tripId).pagesStale) setStaleRuns((n) => n + 1);
     }, STALE_WARM_DELAY_MS);
     return () => clearTimeout(timer);
   }, [tripId, changeStamp]);

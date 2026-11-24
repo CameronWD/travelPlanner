@@ -130,6 +130,20 @@ describe("what the last run saved", () => {
     expect(getStatus("t1").pagesStale).toBe(false);
   });
 
+  it("a run that began before the change does not clear the stale mark, and a later run does", () => {
+    finishWarm("t1", DONE, 1_700_000_000_000);
+    beginWarm("t1");
+    markPagesStale("t1");
+    finishWarm("t1", DONE, 1_700_000_100_000);
+    expect(getStatus("t1").pagesStale).toBe(true);
+    resetOfflineStatus();
+    expect(getStatus("t1")).toMatchObject({ pagesStale: true, savedAt: 1_700_000_100_000 });
+    markPagesStale("t1");
+    beginWarm("t1");
+    finishWarm("t1", DONE, 1_700_000_200_000);
+    expect(getStatus("t1").pagesStale).toBe(false);
+  });
+
   it("a files-only shortfall keeps a stale flag", () => {
     finishWarm("t1", DONE, 1_700_000_000_000);
     markPagesStale("t1");
