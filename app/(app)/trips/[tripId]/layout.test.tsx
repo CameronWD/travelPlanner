@@ -95,6 +95,7 @@ vi.mock("@/lib/fork-reads", () => ({
   listForks: vi.fn(async () => []),
 }));
 vi.mock("@/server/actions/forks", () => ({}));
+vi.mock("@/components/trip/trip-refresher", () => ({ TripRefresher: () => null }));
 vi.mock("@/components/trip/mobile-tab-bar", () => ({ MobileTabBar: () => null }));
 vi.mock("@/components/trip/notification-bell", () => ({ NotificationBell: () => null }));
 vi.mock("@/components/trip/share-chooser", () => ({ ShareChooserMount: () => null, ShareTripButton: () => null }));

@@ -25,6 +25,7 @@ import { ShareChooserMount, ShareTripButton } from "@/components/trip/share-choo
 import { ForkSwitcher } from "@/components/trip/fork-switcher";
 import { OfflineWarmer } from "@/components/offline-warmer";
 import { SavedCopyLine } from "@/components/trip/saved-copy-line";
+import { TripRefresher } from "@/components/trip/trip-refresher";
 import { FeedbackTripMarker } from "@/components/feedback/feedback-trip-marker";
 import { RememberLastTrip } from "@/components/shell/remember-last-trip";
 import { UsageTrip } from "@/components/usage/usage-trip";
@@ -152,6 +153,7 @@ export default async function TripLayout({
 
         <div data-trip-content className="flex min-w-0 flex-1 flex-col px-4 pt-6 sm:px-6 md:px-8">
           <div className="mx-auto flex w-full max-w-page-wide flex-col">
+            <TripRefresher />
             <SavedCopyLine
               tripRef={slug}
               startDate={trip.startDate}
