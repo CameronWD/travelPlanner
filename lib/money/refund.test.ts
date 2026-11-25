@@ -32,13 +32,21 @@ describe("refund rules", () => {
     expect(refundProblem(paid)).toBeNull();
     expect(refundProblem({ ...paid, refundMinor: 20000 })).toBeNull();
     expect(refundProblem({ ...paid, refundMinor: 20001 })).toBe(REFUND_MESSAGES.tooMuch);
-    expect(refundProblem({ ...paid, refundMinor: 0 })).not.toBeNull();
+    expect(refundProblem({ ...paid, refundMinor: 0 })).toBe(REFUND_MESSAGES.tooSmall);
     expect(refundProblem({ ...paid, paidAt: null, refundMinor: 5000 })).toBe(REFUND_MESSAGES.notPaid);
-    expect(refundProblem({ ...paid, refundMinor: null, refundedAt: "2026-12-01" })).not.toBeNull();
+    expect(refundProblem({ ...paid, refundMinor: null, refundedAt: "2026-12-01" })).toBe(REFUND_MESSAGES.dateNeedsAmount);
   });
-  it("rejects negative, fractional and NaN amounts, and a Refund with no paid amount", () => {
-    for (const bad of [-5, 1.5, NaN]) expect(refundProblem({ ...paid, refundMinor: bad })).not.toBeNull();
-    expect(refundProblem({ ...paid, paidMinor: null, refundMinor: 100 })).toBe(REFUND_MESSAGES.tooMuch);
+  it("rejects negative, fractional and NaN amounts", () => {
+    for (const bad of [-5, 1.5, NaN]) expect(refundProblem({ ...paid, refundMinor: bad })).toBe(REFUND_MESSAGES.tooSmall);
+  });
+  it("gives a Cost with no paid amount no Refund that counts", () => {
+    const legacy = { ...paid, paidMinor: null, refundMinor: 100, refundedAt: "2026-12-01" };
+    expect(receivedRefundMinor(legacy)).toBe(0);
+    expect([netCostMinor(legacy), netPaidMinor(legacy)]).toEqual([20000, null]);
+    expect(refundProblem(legacy)).toBe(REFUND_MESSAGES.notPaid);
+  });
+  it("counts a zero Refund as 0", () => {
+    expect(receivedRefundMinor({ ...paid, refundMinor: 0, refundedAt: "2026-12-01" })).toBe(0);
   });
   it("allows a Refund above the cost amount when the paid amount covers it", () => {
     expect(refundProblem({ ...paid, paidMinor: 22000, refundMinor: 21000 })).toBeNull();

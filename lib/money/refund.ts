@@ -10,13 +10,17 @@ export interface RefundBearing {
 
 export type RefundState = "none" | "expected" | "received";
 
+// Describes the Refund alone, not whether the Cost is paid; to show "Refunded", check receivedRefundMinor(c) > 0.
 export function refundState(c: Pick<RefundBearing, "refundMinor" | "refundedAt">): RefundState {
   if (c.refundMinor == null) return "none";
   return c.refundedAt != null ? "received" : "expected";
 }
 
 /** The Refund amount that counts in totals: 0 unless the Cost is paid and the Refund is received. */
-export function receivedRefundMinor(c: Pick<RefundBearing, "paidAt" | "refundMinor" | "refundedAt">): number {
+export function receivedRefundMinor(
+  c: Pick<RefundBearing, "paidAt" | "refundMinor" | "refundedAt"> & { paidMinor?: number | null },
+): number {
+  if (c.paidMinor === null) return 0;
   return c.paidAt != null && c.refundedAt != null ? (c.refundMinor ?? 0) : 0;
 }
 
@@ -34,6 +38,8 @@ export const REFUND_MESSAGES = {
   tooMuch: "A refund can’t be more than what was paid.",
   notPaid: "Mark it paid before recording a refund.",
   unpayBlocked: "Remove the refund before marking this unpaid.",
+  dateNeedsAmount: "A refund date needs a refund amount.",
+  tooSmall: "A refund must be more than zero.",
 };
 
 /** The rule a Cost breaks, or null. Checks: a Refund needs a paid Cost; 1 ≤ refundMinor ≤ paidMinor; refundedAt needs refundMinor. */
@@ -41,10 +47,10 @@ export function refundProblem(
   c: Pick<RefundBearing, "paidMinor" | "paidAt" | "refundMinor" | "refundedAt">,
 ): string | null {
   if (c.refundMinor == null) {
-    return c.refundedAt != null ? "A refund date needs a refund amount." : null;
+    return c.refundedAt != null ? REFUND_MESSAGES.dateNeedsAmount : null;
   }
-  if (c.paidAt == null) return REFUND_MESSAGES.notPaid;
-  if (!Number.isInteger(c.refundMinor) || c.refundMinor < 1) return "A refund must be at least 1.";
-  if (c.paidMinor == null || c.refundMinor > c.paidMinor) return REFUND_MESSAGES.tooMuch;
+  if (c.paidAt == null || c.paidMinor == null) return REFUND_MESSAGES.notPaid;
+  if (!Number.isInteger(c.refundMinor) || c.refundMinor < 1) return REFUND_MESSAGES.tooSmall;
+  if (c.refundMinor > c.paidMinor) return REFUND_MESSAGES.tooMuch;
   return null;
 }
