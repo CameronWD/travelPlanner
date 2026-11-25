@@ -26,7 +26,7 @@ describe("LegRow / LegPill (PLAN.md §2)", () => {
     render(<LegPill label={FLIGHT} onClick={onClick} />);
     const pill = screen.getByRole("button", { name: FLIGHT.accessibleName });
     expect(pill).toHaveAttribute("data-travel-row");
-    expect(pill.className).toContain("bg-sun/15");
+    expect(pill.className).toContain("bg-sun/30");
     expect(pill.className).toContain("rounded-2xl");
     expect(pill.className).toContain("tap-target");
     expect(pill.querySelector(".bg-sun")).toBeNull();
