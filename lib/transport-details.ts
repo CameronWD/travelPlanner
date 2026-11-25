@@ -58,6 +58,11 @@ const LINE_ORDER: { key: TransportDetailKey; word?: string }[] = [
   { key: "platform", word: "Platform" },
 ];
 
+function startsWithWord(value: string, word: string): boolean {
+  if (!value.toLowerCase().startsWith(word.toLowerCase())) return false;
+  return !/\p{L}/u.test(value.charAt(word.length));
+}
+
 /** The one-line summary; "" when nothing applies. */
 export function transportDetailsLine(mode: TransportMode, details: TransportDetails): string {
   const shown = new Set(FIELDS[mode].map((f) => f.key));
@@ -68,7 +73,7 @@ export function transportDetailsLine(mode: TransportMode, details: TransportDeta
     if (key === "carrier" && mode === "FLIGHT" && hasNumber) continue;
     const value = details[key]?.trim();
     if (!value) continue;
-    parts.push(word && !value.toLowerCase().startsWith(word.toLowerCase()) ? `${word} ${value}` : value);
+    parts.push(word && !startsWithWord(value, word) ? `${word} ${value}` : value);
   }
   return parts.join(" · ");
 }

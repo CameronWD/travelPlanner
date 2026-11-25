@@ -18,10 +18,14 @@ describe("transport details", () => {
     expect(transportDetailsLine("FLIGHT", { carrier: "Lufthansa", serviceNumber: "LH 2456", seat: "32A", terminal: "2", gate: "B14" })).toBe("LH 2456 · Seat 32A · Terminal 2 · Gate B14");
     expect(transportDetailsLine("FLIGHT", { carrier: "Lufthansa" })).toBe("Lufthansa");
   });
-  it("does not repeat a word the Traveller typed (Review Focus 4)", () => {
+  it("does not repeat a word the Traveller typed", () => {
     expect(transportDetailsLine("TRAIN", { coach: "Coach 7", seat: "seat 42A" })).toBe("Coach 7 · seat 42A");
+    expect(transportDetailsLine("FLIGHT", { gate: "Gateway 3" })).toBe("Gate Gateway 3");
+    expect(transportDetailsLine("TRAIN", { seat: "Seating upper" })).toBe("Seat Seating upper");
+    expect(transportDetailsLine("TRAIN", { seat: "Seat42" })).toBe("Seat42");
+    expect(transportDetailsLine("TRAIN", { seat: "Seat" })).toBe("Seat");
   });
-  it("leaves out what the mode does not show, and blanks (Review Focus 3)", () => {
+  it("leaves out what the mode does not show, and blanks", () => {
     expect(transportDetailsLine("CAR", { carrier: "Hertz", seat: "1", gate: "4" })).toBe("Hertz");
     expect(transportDetailsLine("BUS", { carrier: "  ", serviceNumber: null })).toBe("");
     expect(transportDetailsLine("FLIGHT", {})).toBe("");
