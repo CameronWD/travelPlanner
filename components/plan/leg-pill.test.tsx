@@ -56,7 +56,10 @@ describe("LegRow / LegPill (PLAN.md §2)", () => {
   it("each detail part is its own inline-block so a part moves to the next line whole", () => {
     render(<LegPill label={{ ...FLIGHT, detail: "ICE 9572 · Seat 42" }} onClick={vi.fn()} />);
     const line = document.querySelector('[data-travel-line="detail"]') as HTMLElement;
-    expect(line.querySelectorAll("span.inline-block")).toHaveLength(2);
+    const parts = line.querySelectorAll("span.inline-block");
+    expect(parts).toHaveLength(2);
+    expect(parts[0].textContent).toMatch(/·$/);
+    expect(parts[1].textContent).toBe("Seat 42");
     expect(line.className).not.toContain("whitespace-nowrap");
     expect(line.textContent).toBe("ICE 9572 · Seat 42");
   });

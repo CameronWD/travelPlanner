@@ -158,12 +158,15 @@ export function LegPill({ label, onClick, compact, bookingState, bookBy, attache
         </span>
         {when ? <span data-travel-line="when" className="text-xs font-semibold tabular-nums text-foreground">{when}</span> : null}
         {label.detail ? <span data-travel-line="detail" className="break-words text-xs font-medium text-muted-foreground">
-            {label.detail.split(" · ").map((part, i) => (
-              <React.Fragment key={i}>
-                {i > 0 ? " · " : null}
-                <span className="inline-block max-w-full">{part}</span>
-              </React.Fragment>
-            ))}
+            {(() => {
+              const parts = label.detail.split(" · ");
+              return parts.map((part, i) => (
+                <React.Fragment key={i}>
+                  {i > 0 ? " " : null}
+                  <span className="inline-block max-w-full">{i < parts.length - 1 ? `${part} ·` : part}</span>
+                </React.Fragment>
+              ));
+            })()}
           </span> : null}
       </span>
     </button>
