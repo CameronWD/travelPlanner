@@ -42,7 +42,7 @@ vi.mock("@/server/actions/transport", () => ({ createTransport: ok(), updateTran
 vi.mock("@/server/actions/booking-confirmation", () => ({ setNothingToAttach: ok() }));
 vi.mock("@/server/actions/attachments", () => ({ fileAttachment: vi.fn(async () => ({ success: true, tripId: "trip-1", attachmentIds: ["att-1"] })) }));
 vi.mock("../reads/attachments", () => ({ loadAttachmentIndexForMcp: vi.fn(async () => ({ attachments: [{ id: "att-1" }] })) }));
-vi.mock("@/server/actions/costs", () => ({ createCost: ok(), updateCost: ok(), deleteCost: ok(), markCostPaid: ok(), markCostUnpaid: ok() }));
+vi.mock("@/server/actions/costs", () => ({ createCost: ok(), updateCost: ok(), deleteCost: ok(), markCostPaid: ok(), markCostUnpaid: ok(), recordRefund: ok(), markRefundReceived: ok(), clearRefund: ok() }));
 vi.mock("@/server/actions/reminders", () => ({ addReminder: ok(), updateReminder: ok(), deleteReminder: ok() }));
 vi.mock("@/server/actions/checklists", () => ({
   addChecklistItem: ok(), updateChecklistItem: ok(), toggleChecklistItem: ok(), setBuyState: ok(), deleteChecklistItem: ok(),
@@ -166,6 +166,9 @@ const ARGS: Record<string, Record<string, unknown>> = {
   delete_cost: { costId: "cost-1" },
   mark_cost_paid: { costId: "cost-1", paidMinor: 1000, paidAt: "2027-05-01" },
   mark_cost_unpaid: { costId: "cost-1" },
+  record_refund: { costId: "cost-1", refundMinor: 500 },
+  mark_refund_received: { costId: "cost-1", receivedOn: "2027-05-10" },
+  remove_refund: { costId: "cost-1" },
   add_reminder: { tripId: "trip-1", title: "Print tickets", date: "2027-05-30" },
   update_reminder: { reminderId: "rem-1", title: "Print the tickets" },
   delete_reminder: { reminderId: "rem-1" },

@@ -13,6 +13,7 @@ import { requireTripAccess } from "@/lib/guards";
 import { REAL_PLAN } from "@/lib/plan-scope";
 import { convertCostToHome, effectiveCategory, type BudgetCost } from "@/lib/money/budget";
 import { formatMinor } from "@/lib/money/money";
+import { netCostMinor, receivedRefundMinor } from "@/lib/money/refund";
 import { isOnTrip } from "@/lib/enum-values";
 import { daysBetween, formatISODate } from "@/lib/dates";
 import { tripTodayISO } from "@/lib/trip-today";
@@ -27,6 +28,10 @@ export interface McpCost {
   home: { minor: number; currency: string; formatted: string } | null;
   /** null while unpaid. `on` is the paid date, YYYY-MM-DD. */
   paid: { minor: number; formatted: string; on: string } | null;
+  /** An expected Refund has `on: null`; a received one counts in every total. */
+  refund: { minor: number; formatted: string; state: "expected" | "received"; on: string | null } | null;
+  /** The Cost less a received Refund, in the Cost's own currency. */
+  net: { minor: number; formatted: string };
   dueDate: string | null;
   /** negative = overdue; null when paid or undated. */
   daysUntilDue: number | null;
@@ -80,6 +85,8 @@ export async function readMcpCosts(
         label: true,
         category: true,
         settlement: true,
+        refundMinor: true,
+        refundedAt: true,
       },
     }),
     db.stop.findMany({ where: { tripId, ...REAL_PLAN }, orderBy: { sortOrder: "asc" }, select: { id: true, sortOrder: true, timezone: true, arriveDate: true, departDate: true } }),
@@ -121,11 +128,25 @@ export async function readMcpCosts(
       owner = found ? { kind: found.kind, label: found.label } : { kind, label: REMOVED_LABEL };
     }
 
+    const received = receivedRefundMinor(raw);
+    const netMinor = netCostMinor(raw);
+    // A Refund on a Cost that is no longer paid counts for nothing, so only an undated one is still worth reporting.
+    const refund: McpCost["refund"] =
+      raw.refundMinor == null
+        ? null
+        : received > 0
+          ? { minor: raw.refundMinor, formatted: formatMinor(raw.refundMinor, raw.currency), state: "received", on: formatISODate(raw.refundedAt!) }
+          : raw.refundedAt == null
+            ? { minor: raw.refundMinor, formatted: formatMinor(raw.refundMinor, raw.currency), state: "expected", on: null }
+            : null;
+
     return {
       id: raw.id,
       amount: { minor: raw.costMinor, currency: raw.currency, formatted: formatMinor(raw.costMinor, raw.currency) },
       home: costHome !== null ? { minor: costHome, currency: homeCurrency, formatted: formatMinor(costHome, homeCurrency) } : null,
       paid: isPaid ? { minor: raw.paidMinor ?? 0, formatted: formatMinor(raw.paidMinor ?? 0, raw.currency), on: paidOn! } : null,
+      refund,
+      net: { minor: netMinor, formatted: formatMinor(netMinor, raw.currency) },
       dueDate: isPaid ? null : dueDate,
       daysUntilDue,
       settlement: isOnTrip(raw.settlement) ? "on-the-trip" : "before-you-go",

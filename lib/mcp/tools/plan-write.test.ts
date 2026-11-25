@@ -466,6 +466,19 @@ describe("plan write tools", () => {
     expect(deleteItem).toHaveBeenCalledWith(ITEM_ID);
   });
 
+  it("delete_thing_to_do forwards refunds as DeleteRefundAnswers", async () => {
+    deleteItem.mockResolvedValue({ success: true });
+    const c = await connectTestClient();
+    await c.callTool({
+      name: "delete_thing_to_do",
+      arguments: { itemId: ITEM_ID, refunds: [{ costId: "c1", refundMinor: 700, receivedOn: "2026-05-02" }, { costId: "c2", refundMinor: 100, receivedOn: null }] },
+    });
+    expect(deleteItem).toHaveBeenLastCalledWith(ITEM_ID, [
+      { costId: "c1", refundMinor: 700, refundedAt: "2026-05-02" },
+      { costId: "c2", refundMinor: 100, refundedAt: null },
+    ]);
+  });
+
   it("schedule_thing_to_do calls scheduleItem with a single options object, no forkId", async () => {
     scheduleItem.mockResolvedValue({ success: true });
     const c = await connectTestClient();

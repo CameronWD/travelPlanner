@@ -49,7 +49,7 @@ import { db } from "@/lib/db";
 import { requireTripAccess, requireRowAccess } from "@/lib/guards";
 import { createAccommodation, updateAccommodation, deleteAccommodation } from "@/server/actions/accommodation";
 import { createTransport, updateTransport, deleteTransport } from "@/server/actions/transport";
-import { createCost, updateCost, deleteCost, markCostPaid, markCostUnpaid } from "@/server/actions/costs";
+import { createCost, updateCost, deleteCost, markCostPaid, markCostUnpaid, recordRefund, markRefundReceived, clearRefund } from "@/server/actions/costs";
 import { transportModeSchema, costOwnerTypeSchema, costSettlementSchema } from "@/lib/enums";
 import { TRANSPORT_MODES, COST_SETTLEMENTS } from "@/lib/enum-values";
 import { CURRENCY_CODES } from "@/lib/money/currencies";
@@ -66,6 +66,7 @@ import { homeContradictionError } from "@/lib/transport-patch";
 import { TRANSPORT_DETAIL_KEYS, TRANSPORT_DETAIL_MAX, type TransportDetailKey } from "@/lib/transport-details";
 import { TRANSPORT_MODE_MEANING, SETTLEMENT_MEANING, describeValues } from "../vocab";
 import { isoDate, hhmm } from "@/lib/validations/primitives";
+import { REFUND_NOTE, refundsShape, deleteRefundArgs } from "../refund-fields";
 import { bookingCreateShape, bookingPatchFrom, bookingPatchShape } from "../booking-state-fields";
 
 const currencySchema = z.enum(CURRENCY_CODES as [string, ...string[]]);
@@ -325,15 +326,15 @@ export function registerBookingsWriteTools(server: McpServer): void {
     {
       title: "Delete accommodation",
       description: "Permanently deletes an Accommodation. This cannot be undone. Confirm with the person before calling this.",
-      inputSchema: { accommodationId: z.string() },
+      inputSchema: { accommodationId: z.string(), refunds: refundsShape },
       annotations: { destructiveHint: true },
     },
-    ({ accommodationId }) =>
+    ({ accommodationId, refunds }) =>
       runWrite(
         "delete_accommodation",
         async () => {
           await requireRealPlanRow("accommodation", accommodationId);
-          return deleteAccommodation(accommodationId);
+          return deleteAccommodation(accommodationId, ...deleteRefundArgs(refunds));
         },
         async () => ({ deleted: accommodationId }),
       ),
@@ -415,15 +416,15 @@ export function registerBookingsWriteTools(server: McpServer): void {
     {
       title: "Delete transport",
       description: "Permanently deletes a Transport leg. This cannot be undone. Confirm with the person before calling this.",
-      inputSchema: { transportId: z.string() },
+      inputSchema: { transportId: z.string(), refunds: refundsShape },
       annotations: { destructiveHint: true },
     },
-    ({ transportId }) =>
+    ({ transportId, refunds }) =>
       runWrite(
         "delete_transport",
         async () => {
           await requireRealPlanRow("transport", transportId);
-          return deleteTransport(transportId);
+          return deleteTransport(transportId, ...deleteRefundArgs(refunds));
         },
         async () => ({ deleted: transportId }),
       ),
@@ -525,6 +526,60 @@ export function registerBookingsWriteTools(server: McpServer): void {
         async () => {
           await loadCostForMark(costId);
           return markCostUnpaid(costId);
+        },
+        async () => ({ cost: await loadCostForMcp(costId) }),
+      ),
+  );
+
+  server.registerTool(
+    "record_refund",
+    {
+      title: "Record refund",
+      description: `Records a Refund on a paid Cost, replacing any Refund it has. ${REFUND_NOTE} receivedOn is the date it arrived, YYYY-MM-DD.`,
+      inputSchema: { costId: z.string(), refundMinor: z.number().int().min(1), receivedOn: isoDate.nullable().optional() },
+    },
+    ({ costId, refundMinor, receivedOn }) =>
+      runWrite(
+        "record_refund",
+        async () => {
+          await loadCostForMark(costId);
+          return recordRefund(costId, refundMinor, receivedOn ?? null);
+        },
+        async () => ({ cost: await loadCostForMcp(costId) }),
+      ),
+  );
+
+  server.registerTool(
+    "mark_refund_received",
+    {
+      title: "Mark refund received",
+      description: `Marks a Cost's expected Refund as received. ${REFUND_NOTE} receivedOn is the date it arrived, YYYY-MM-DD.`,
+      inputSchema: { costId: z.string(), receivedOn: isoDate },
+    },
+    ({ costId, receivedOn }) =>
+      runWrite(
+        "mark_refund_received",
+        async () => {
+          await loadCostForMark(costId);
+          return markRefundReceived(costId, receivedOn);
+        },
+        async () => ({ cost: await loadCostForMcp(costId) }),
+      ),
+  );
+
+  server.registerTool(
+    "remove_refund",
+    {
+      title: "Remove refund",
+      description: "Removes a Cost's Refund, expected or received.",
+      inputSchema: { costId: z.string() },
+    },
+    ({ costId }) =>
+      runWrite(
+        "remove_refund",
+        async () => {
+          await loadCostForMark(costId);
+          return clearRefund(costId);
         },
         async () => ({ cost: await loadCostForMcp(costId) }),
       ),

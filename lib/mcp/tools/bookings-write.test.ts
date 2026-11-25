@@ -12,6 +12,9 @@ const {
   deleteCost,
   markCostPaid,
   markCostUnpaid,
+  recordRefund,
+  markRefundReceived,
+  clearRefund,
   requireTripAccess,
   accommodationFindUnique,
   transportFindUnique,
@@ -34,6 +37,9 @@ const {
   deleteCost: vi.fn(),
   markCostPaid: vi.fn(),
   markCostUnpaid: vi.fn(),
+  recordRefund: vi.fn(),
+  markRefundReceived: vi.fn(),
+  clearRefund: vi.fn(),
   requireTripAccess: vi.fn(),
   accommodationFindUnique: vi.fn(),
   transportFindUnique: vi.fn(),
@@ -48,7 +54,7 @@ const {
 
 vi.mock("@/server/actions/accommodation", () => ({ createAccommodation, updateAccommodation, deleteAccommodation }));
 vi.mock("@/server/actions/transport", () => ({ createTransport, updateTransport, deleteTransport }));
-vi.mock("@/server/actions/costs", () => ({ createCost, updateCost, deleteCost, markCostPaid, markCostUnpaid }));
+vi.mock("@/server/actions/costs", () => ({ createCost, updateCost, deleteCost, markCostPaid, markCostUnpaid, recordRefund, markRefundReceived, clearRefund }));
 vi.mock("../reads/entities", () => ({ loadAccommodationForMcp, loadTransportForMcp }));
 vi.mock("../reads/costs", () => ({ loadCostForMcp }));
 vi.mock("@/lib/error-sink", () => ({ reportError: vi.fn() }));
@@ -200,6 +206,9 @@ describe("bookings write tools", () => {
         "delete_cost",
         "mark_cost_paid",
         "mark_cost_unpaid",
+        "record_refund",
+        "mark_refund_received",
+        "remove_refund",
       ]),
     );
     for (const t of tools) {
@@ -603,6 +612,78 @@ describe("bookings write tools", () => {
     expect(tool.annotations?.destructiveHint).toBe(true);
     await c.callTool({ name: "delete_cost", arguments: { costId: COST_ID } });
     expect(deleteCost).toHaveBeenCalledWith(COST_ID);
+  });
+
+  describe("Refunds", () => {
+    beforeEach(() => {
+      costFindUnique.mockResolvedValue({ tripId: TRIP_ID });
+      recordRefund.mockResolvedValue({ success: true });
+      markRefundReceived.mockResolvedValue({ success: true });
+      clearRefund.mockResolvedValue({ success: true });
+    });
+
+    it("record_refund forwards its arguments, a missing receivedOn meaning expected", async () => {
+      const c = await connectTestClient();
+      await c.callTool({ name: "record_refund", arguments: { costId: COST_ID, refundMinor: 2500 } });
+      expect(recordRefund).toHaveBeenLastCalledWith(COST_ID, 2500, null);
+      await c.callTool({ name: "record_refund", arguments: { costId: COST_ID, refundMinor: 2500, receivedOn: "2026-05-02" } });
+      expect(recordRefund).toHaveBeenLastCalledWith(COST_ID, 2500, "2026-05-02");
+      expect(requireTripAccess).toHaveBeenCalledWith(TRIP_ID);
+    });
+
+    it("record_refund refuses a refund under 1", async () => {
+      const c = await connectTestClient();
+      const r = await c.callTool({ name: "record_refund", arguments: { costId: COST_ID, refundMinor: 0 } });
+      expect(r.isError).toBe(true);
+      expect(recordRefund).not.toHaveBeenCalled();
+    });
+
+    it("mark_refund_received and remove_refund forward their arguments", async () => {
+      const c = await connectTestClient();
+      await c.callTool({ name: "mark_refund_received", arguments: { costId: COST_ID, receivedOn: "2026-05-03" } });
+      expect(markRefundReceived).toHaveBeenLastCalledWith(COST_ID, "2026-05-03");
+      await c.callTool({ name: "remove_refund", arguments: { costId: COST_ID } });
+      expect(clearRefund).toHaveBeenLastCalledWith(COST_ID);
+    });
+
+    it("a refused refund comes back as a tool error carrying the action's message", async () => {
+      recordRefund.mockResolvedValue({ success: false, errors: { refundMinor: ["A refund can\u2019t be more than what was paid."] } });
+      const c = await connectTestClient();
+      const r = await c.callTool({ name: "record_refund", arguments: { costId: COST_ID, refundMinor: 99999 } });
+      expect(r.isError).toBe(true);
+      expect((r.content as { text: string }[])[0].text).toContain("more than what was paid");
+    });
+
+    it("delete_transport forwards refunds as DeleteRefundAnswers, and none when omitted", async () => {
+      deleteTransport.mockResolvedValue({ success: true });
+      const c = await connectTestClient();
+      await c.callTool({
+        name: "delete_transport",
+        arguments: {
+          transportId: TRANSPORT_ID,
+          refunds: [
+            { costId: "c1", refundMinor: 1000, receivedOn: "2026-05-02" },
+            { costId: "c2", refundMinor: 500 },
+          ],
+        },
+      });
+      expect(deleteTransport).toHaveBeenLastCalledWith(TRANSPORT_ID, [
+        { costId: "c1", refundMinor: 1000, refundedAt: "2026-05-02" },
+        { costId: "c2", refundMinor: 500, refundedAt: null },
+      ]);
+      await c.callTool({ name: "delete_transport", arguments: { transportId: TRANSPORT_ID } });
+      expect(deleteTransport).toHaveBeenLastCalledWith(TRANSPORT_ID);
+    });
+
+    it("delete_accommodation forwards refunds", async () => {
+      deleteAccommodation.mockResolvedValue({ success: true });
+      const c = await connectTestClient();
+      await c.callTool({
+        name: "delete_accommodation",
+        arguments: { accommodationId: ACCOMMODATION_ID, refunds: [{ costId: "c1", refundMinor: 1000 }] },
+      });
+      expect(deleteAccommodation).toHaveBeenLastCalledWith(ACCOMMODATION_ID, [{ costId: "c1", refundMinor: 1000, refundedAt: null }]);
+    });
   });
 
   describe("mark_cost_paid / mark_cost_unpaid", () => {

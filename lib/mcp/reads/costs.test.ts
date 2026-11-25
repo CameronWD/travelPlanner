@@ -51,6 +51,8 @@ function baseCost(overrides: Partial<Record<string, unknown>> = {}) {
     label: "Dinner",
     category: null,
     settlement: "BEFORE",
+    refundMinor: null,
+    refundedAt: null,
     ...overrides,
   };
 }
@@ -130,6 +132,31 @@ describe("loadCostsForMcp", () => {
     expect(unpaid.paid).toBeNull();
     expect(unpaid.dueDate).toBe("2026-12-10");
     expect(unpaid.daysUntilDue).toBe(9);
+  });
+
+  it("a received partial Refund reports refund and a net, and the home amount is net too", async () => {
+    costFindMany.mockResolvedValue([
+      baseCost({ currency: "AUD", costMinor: 20000, paidMinor: 20000, paidAt: new Date("2026-11-20T00:00:00Z"), refundMinor: 5000, refundedAt: new Date("2026-11-25T00:00:00Z"), rateToHome: 1 }),
+    ]);
+    const { costs } = await loadCostsForMcp(TRIP_ID, {});
+    expect(costs[0]!.refund).toEqual({ minor: 5000, formatted: "50.00", state: "received", on: "2026-11-25" });
+    expect(costs[0]!.net).toEqual({ minor: 15000, formatted: "150.00" });
+    expect(costs[0]!.home!.minor).toBe(15000);
+    expect(costFindMany.mock.calls[0]![0].select).toMatchObject({ refundMinor: true, refundedAt: true });
+  });
+
+  it("an expected Refund is reported but does not reduce net; a plain Cost has refund null", async () => {
+    costFindMany.mockResolvedValue([
+      baseCost({ id: "exp", currency: "AUD", costMinor: 20000, paidMinor: 20000, paidAt: new Date("2026-11-20T00:00:00Z"), refundMinor: 5000 }),
+      baseCost({ id: "plain", currency: "AUD", costMinor: 1000 }),
+    ]);
+    const { costs } = await loadCostsForMcp(TRIP_ID, {});
+    const exp = costs.find((c) => c.id === "exp")!;
+    expect(exp.refund).toEqual({ minor: 5000, formatted: "50.00", state: "expected", on: null });
+    expect(exp.net.minor).toBe(20000);
+    const plain = costs.find((c) => c.id === "plain")!;
+    expect(plain.refund).toBeNull();
+    expect(plain.net).toEqual({ minor: 1000, formatted: "10.00" });
   });
 
   it("names owners; a cost whose owner is gone reads (removed)", async () => {
