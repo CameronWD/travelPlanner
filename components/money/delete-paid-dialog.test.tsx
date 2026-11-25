@@ -2,7 +2,7 @@ import { describe, it, expect, vi } from "vitest";
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import * as React from "react";
-import { useDeletePaid, type PaidCostForDelete, type DeletePaidResult } from "./delete-paid-dialog";
+import { useDeletePaid, paidCostsForDelete, type PaidCostForDelete, type DeletePaidResult } from "./delete-paid-dialog";
 import { todayLocalISO } from "@/lib/dates";
 
 const one: PaidCostForDelete[] = [{ id: "c1", label: "Hotel", paidMinor: 23521, currency: "AUD" }];
@@ -166,5 +166,17 @@ describe("useDeletePaid", () => {
         refunds: [{ costId: "c1", refundMinor: 1250, refundedAt: null }],
       }),
     );
+  });
+});
+
+describe("paidCostsForDelete", () => {
+  const base = { label: "Fare", paidMinor: 5000, paidAt: new Date("2026-11-01"), currency: "AUD" };
+  it("leaves out a Cost that already holds a Refund", () => {
+    const listed = paidCostsForDelete([
+      { id: "plain", ...base },
+      { id: "refunded", ...base, refundMinor: 5000 },
+      { id: "expected", ...base, refundMinor: 2000 },
+    ]);
+    expect(listed.map((c) => c.id)).toEqual(["plain"]);
   });
 });

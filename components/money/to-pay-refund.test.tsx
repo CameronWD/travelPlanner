@@ -71,4 +71,43 @@ describe("To pay refunds", () => {
     expect(screen.getByRole("heading", { name: "Refunded" })).toBeInTheDocument();
     expect(within(screen.getByRole("list", { name: "To pay" })).queryByRole("listitem", { name: "cancelled" })).toBeNull();
   });
+
+  it("an expected Refund never puts a row in Refunded, even when it equals the paid amount", () => {
+    const only = [input({ id: "wait-all", paidMinor: 10000, paidAt: PAID, refundMinor: 10000 })];
+    const rows = only.map((c) => ({ ...c, label: c.displayLabel, category: null, ownerId: null })) as unknown as CostRow[];
+    render(<ToPayCard tripId="t1" homeCurrency="AUD" today="2026-10-10" costs={only} costRows={rows} recentIds={[]} />);
+    expect(screen.queryByRole("list", { name: "Refunded costs" })).toBeNull();
+  });
+
+  it("groups by the shown amount: a received Refund taking a part-paid Cost to zero is Refunded", () => {
+    const only = [
+      input({ id: "part-gone", costMinor: 200000, paidMinor: 50000, paidAt: PAID, refundMinor: 50000, refundedAt: new Date("2026-09-10") }),
+      input({ id: "part-wait", costMinor: 200000, paidMinor: 50000, paidAt: PAID, refundMinor: 50000 }),
+    ];
+    const rows = only.map((c) => ({ ...c, label: c.displayLabel, category: null, ownerId: null })) as unknown as CostRow[];
+    render(<ToPayCard tripId="t1" homeCurrency="AUD" today="2026-10-10" costs={only} costRows={rows} recentIds={[]} />);
+    const group = screen.getByRole("list", { name: "Refunded costs" });
+    expect(within(group).getByRole("listitem", { name: "part-gone" })).toBeInTheDocument();
+    expect(within(group).queryByRole("listitem", { name: "part-wait" })).toBeNull();
+  });
+
+  it("caps the Refunded group on the card like the To pay list, and the sheet lists them all", async () => {
+    const many = Array.from({ length: 7 }, (_, i) =>
+      input({ id: `gone${i}`, paidMinor: 10000, paidAt: PAID, refundMinor: 10000, refundedAt: new Date("2026-09-10") }),
+    );
+    const rows = many.map((c) => ({ ...c, label: c.displayLabel, category: null, ownerId: null })) as unknown as CostRow[];
+    render(<ToPayCard tripId="t1" homeCurrency="AUD" today="2026-10-10" costs={many} costRows={rows} recentIds={[]} />);
+    const items = within(screen.getByRole("list", { name: "Refunded costs" })).getAllByRole("listitem");
+    expect(items).toHaveLength(7);
+    const onPhone = items.filter((li) => !li.classList.contains("max-md:hidden"));
+    const onDesktop = items.filter((li) => !li.classList.contains("md:hidden"));
+    expect(onPhone).toHaveLength(2);
+    expect(onDesktop).toHaveLength(5);
+
+    await userEvent.setup().click(screen.getByRole("button", { name: /^All 7 costs/ }));
+    const sheet = within(await screen.findByRole("dialog"));
+    const all = within(sheet.getByRole("list", { name: "Refunded costs" })).getAllByRole("listitem");
+    expect(all).toHaveLength(7);
+    expect(all.some((li) => li.classList.contains("md:hidden") || li.classList.contains("max-md:hidden"))).toBe(false);
+  });
 });

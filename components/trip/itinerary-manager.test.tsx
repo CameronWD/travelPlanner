@@ -1974,6 +1974,20 @@ describe("optimistic transport delete", () => {
     expect(vi.mocked(deleteTransport).mock.calls[0]).toHaveLength(1);
   });
 
+  it("keeps the plain confirmation when the only paid Cost already has a Refund", async () => {
+    const user = userEvent.setup();
+    const stopA = makeStop({ id: "s-a", name: "Sydney", sortOrder: 0 });
+    const stopB = makeStop({ id: "s-b", name: "Paris", sortOrder: 1 });
+    const paid = { id: "c-paid", costMinor: 23521, paidMinor: 23521, currency: "AUD", rateToHome: null, paidAt: new Date("2026-11-01"), refundMinor: 5000, refundedAt: null, dueDate: null, ownerType: "TRANSPORT", ownerId: "tr-opt-1", label: "Fare", category: null, settlement: "BEFORE" };
+    renderPlan(<ItineraryManager {...baseProps} initialStops={[stopA, stopB]} initialTransports={[makeTransportBetweenStops("s-a", "s-b", { costs: [paid] })]} />);
+
+    await user.click(desktop().getByRole("button", { name: /^Flight from Sydney to Paris/ }));
+    await user.click(await screen.findByRole("button", { name: "Delete leg" }));
+    expect(screen.queryByRole("radio")).not.toBeInTheDocument();
+    await user.click(await screen.findByRole("button", { name: "Delete" }));
+    await waitFor(() => expect(deleteTransport).toHaveBeenCalledWith("tr-opt-1"));
+  });
+
   it("cancelling the money question deletes nothing", async () => {
     const user = userEvent.setup();
     const stopA = makeStop({ id: "s-a", name: "Sydney", sortOrder: 0 });

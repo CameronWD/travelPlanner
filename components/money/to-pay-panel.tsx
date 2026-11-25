@@ -13,7 +13,6 @@ import { ToPayRowView } from "./to-pay-row";
 import { formatMoneyWhole } from "@/lib/money/format-parts";
 import { PaidConfirm } from "@/components/money/paid-confirm";
 import { RefundDialog } from "@/components/money/refund-dialog";
-import { costNetMinor } from "@/lib/money/cost-row";
 import { OtherCostFormDialog } from "@/components/trip/other-cost-editor";
 import { OwnedCostFormDialog } from "@/components/trip/cost-editor";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -99,12 +98,9 @@ export function ToPayPanel({
       .map((x) => x.r);
   }, [optimistic, order]);
 
-  const isRefunded = (id: string) => {
-    const c = costs.find((x) => x.id === id);
-    return c != null && c.refundMinor != null && costNetMinor(c) === 0;
-  };
-  const active = listed.filter((r) => !isRefunded(r.id));
-  const refundedRows = listed.filter((r) => isRefunded(r.id));
+  const isRefunded = (r: ToPayRow) => r.refund?.state === "received" && r.originalMinor === 0;
+  const active = listed.filter((r) => !isRefunded(r));
+  const refundedRows = listed.filter(isRefunded);
 
   // Rows on the list at mount are already on screen; only later arrivals rise in (MOTION.md M9).
   // Once it has played the class is dropped: rows toggle display:none by index,
@@ -148,15 +144,19 @@ export function ToPayPanel({
     };
   }
 
-  const refundedGroup =
+  const refundedGroup = (capped: boolean) =>
     refundedRows.length > 0 ? (
       <section aria-label="Refunded" className="mt-4">
         <h3 className="font-display text-base font-extrabold tracking-[-0.02em]">
           Refunded
         </h3>
         <ul aria-label="Refunded costs">
-          {refundedRows.map((row) => (
-            <ToPayRowView key={row.id} {...rowProps(row)} />
+          {refundedRows.map((row, i) => (
+            <ToPayRowView
+              key={row.id}
+              {...rowProps(row)}
+              className={cn(capped && i >= TO_PAY_PHONE_ROWS && "max-md:hidden", capped && i >= TO_PAY_DESKTOP_ROWS && "md:hidden")}
+            />
           ))}
         </ul>
       </section>
@@ -203,7 +203,7 @@ export function ToPayPanel({
         ))}
       </ul>
 
-      {refundedGroup}
+      {refundedGroup(true)}
 
       <button
         type="button"
@@ -261,7 +261,7 @@ export function ToPayPanel({
               <ToPayRowView key={row.id} {...rowProps(row)} />
             ))}
           </ul>
-          {refundedGroup}
+          {refundedGroup(false)}
           {ratesFooter ? <div className="md:hidden">{ratesFooter}</div> : null}
         </DialogContent>
       </Dialog>
