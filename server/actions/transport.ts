@@ -25,7 +25,7 @@ import { transportBookingSubject } from "@/lib/booking-state";
 import { TRANSPORT_DETAIL_KEYS, type TransportDetailKey } from "@/lib/transport-details";
 
 function detailColumns(data: Partial<Record<TransportDetailKey, string>>) {
-  return Object.fromEntries(TRANSPORT_DETAIL_KEYS.map((k) => [k, data[k] ?? null])) as Record<TransportDetailKey, string | null>;
+  return Object.fromEntries(TRANSPORT_DETAIL_KEYS.map((k) => [k, data[k] || null])) as Record<TransportDetailKey, string | null>;
 }
 
 // ---------------------------------------------------------------------------

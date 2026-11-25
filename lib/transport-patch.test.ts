@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { TRANSPORT_DETAIL_KEYS } from "./transport-details";
 import { mergeTransportPatch, type TransportPatchRow } from "./transport-patch";
 
 const row: TransportPatchRow = {
@@ -17,6 +18,10 @@ describe("mergeTransportPatch", () => {
       depPlace: "Roma Termini", arrPlace: undefined, depAt: row.depAt, arrAt: row.arrAt, reference: "FR 9514", notes: undefined,
       carrier: undefined, serviceNumber: "ICE 9572", seat: "42", terminal: undefined, gate: undefined, coach: undefined, platform: undefined,
     });
+  });
+  it("carries every Travel detail key, even a cleared one", () => {
+    const merged = mergeTransportPatch(row, { seat: null });
+    for (const k of TRANSPORT_DETAIL_KEYS) expect(merged).toHaveProperty(k);
   });
   it("keeps the Travel details on a patch that does not mention them, and clears only the one set to null", () => {
     expect(mergeTransportPatch(row, { notes: "x" })).toMatchObject({ seat: "42", serviceNumber: "ICE 9572" });
