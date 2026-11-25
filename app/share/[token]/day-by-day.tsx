@@ -90,7 +90,7 @@ export function DayByDay({
               </li>
             ))}
             {homeBack && (
-              <li>
+              <li className="-mt-3">
                 <LegLine leg={homeBack} />
               </li>
             )}

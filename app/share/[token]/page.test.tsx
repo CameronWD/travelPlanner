@@ -915,20 +915,27 @@ describe("SharePage — travel legs", () => {
     expect(legs(container)).toHaveLength(0);
   });
 
-  it.each([["a Home timezone", "Europe/Berlin"], ["no Home timezone", null]])("lists the flights from and back Home, with %s", async (_n, homeTimezone) => {
+  it.each([
+    ["a Home timezone", "Australia/Sydney", "19:00", "08:00 +2"],
+    ["no Home timezone, reading each Home end in the Stop's zone", null, "09:00", "21:00 +1"],
+  ])("lists the flights from and back Home, with %s", async (_n, homeTimezone, outDep, backArr) => {
     shareFindFirstMock.mockResolvedValue(share({ homeTimezone } as never));
     transportFindManyMock.mockResolvedValue([
-      { ...BASE, id: "out", mode: "FLIGHT", fromStopId: null, toStopId: "s1", depIsHome: true, depPlace: "Sydney (SYD)", arrPlace: "Munich (MUC)", depAt: new Date("2020-12-05T08:00:00Z"), arrAt: new Date("2020-12-06T06:00:00Z"), serviceNumber: "QF 1" },
+      { ...BASE, id: "out", mode: "FLIGHT", fromStopId: null, toStopId: "s1", depIsHome: true, depPlace: "12 Example St, Gold Coast", arrPlace: "Munich (MUC)", depAt: new Date("2020-12-05T08:00:00Z"), arrAt: new Date("2020-12-06T06:00:00Z"), serviceNumber: "QF 1" },
       { ...BASE, id: "mid", mode: "FLIGHT", fromStopId: "s1", toStopId: "s2", depPlace: "Munich (MUC)", arrPlace: "London (LHR)" },
-      { ...BASE, id: "back", mode: "FLIGHT", fromStopId: "s2", toStopId: null, arrIsHome: true, depPlace: "London (LHR)", arrPlace: "Sydney (SYD)", depAt: new Date("2020-12-09T09:00:00Z"), arrAt: new Date("2020-12-10T21:00:00Z"), serviceNumber: "QF 2" },
+      { ...BASE, id: "back", mode: "FLIGHT", fromStopId: "s2", toStopId: null, arrIsHome: true, depPlace: "London (LHR)", arrPlace: "1 Home Rd, Gold Coast", depAt: new Date("2020-12-09T09:00:00Z"), arrAt: new Date("2020-12-10T21:00:00Z"), serviceNumber: "QF 2" },
     ]);
     const { container } = await renderPage();
     const rows = legs(container);
     expect(rows).toHaveLength(3);
     expect(rows[0]).toHaveTextContent("Flight to Munich");
+    expect(rows[0]).toHaveTextContent(`${outDep} → Munich (MUC) 07:00 +1`);
     expect(rows[0]).toHaveTextContent("QF 1");
     expect(rows[2]).toHaveTextContent("Flight home");
+    expect(rows[2]).toHaveTextContent(`London (LHR) 09:00 → ${backArr}`);
     expect(rows[2]).toHaveTextContent("QF 2");
+    expect(container.textContent).not.toContain("Example St");
+    expect(container.textContent).not.toContain("Home Rd");
     const stopItems = Array.from(container.querySelectorAll("[data-share-stop]"));
     expect(rows[0].compareDocumentPosition(stopItems[0]) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     expect(rows[2].compareDocumentPosition(stopItems[stopItems.length - 1]) & Node.DOCUMENT_POSITION_PRECEDING).toBeTruthy();

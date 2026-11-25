@@ -77,4 +77,29 @@ describe("buildShareLeg", () => {
     expect(buildShareLeg({ ...base, serviceNumber: "   " }, BERLIN, "x").line).toBe("");
     expect(buildShareLeg({ ...base, serviceNumber: "  ICE 1 " }, BERLIN, "x").line).toBe("ICE 1");
   });
+
+  it("marks an arrival on the day before with a true minus", () => {
+    const { line } = buildShareLeg(
+      { ...base, mode: "FLIGHT", depPlace: "Munich (MUC)", arrPlace: "Honolulu (HNL)", depAt: new Date("2026-12-05T20:00:00Z"), arrAt: new Date("2026-12-05T23:00:00Z") },
+      { dep: "Asia/Tokyo", arr: "Pacific/Honolulu" },
+      "x",
+    );
+    expect(line).toContain("→ Honolulu (HNL) 13:00 \u22121");
+  });
+
+  it("shows an arrival-only leg with no arrow or duration", () => {
+    const { line } = buildShareLeg({ ...base, arrPlace: "Strasbourg", arrAt: new Date("2026-12-10T09:40:00Z") }, BERLIN, "x");
+    expect(line).toBe("Strasbourg 10:40");
+  });
+
+  it("leaves a hidden end's place out and keeps its time", () => {
+    const t = { ...base, mode: "FLIGHT" as const, depPlace: "12 Example St, Gold Coast", arrPlace: "Denpasar (DPS)", depAt: new Date("2026-12-05T07:50:00Z"), arrAt: new Date("2026-12-05T14:15:00Z"), serviceNumber: "QF 1" };
+    const zones = { dep: "Australia/Brisbane", arr: "Asia/Makassar" };
+    const out = buildShareLeg(t, zones, "x", { hideDepPlace: true }).line;
+    expect(out).not.toContain("Example St");
+    expect(out).toContain("17:50 \u2192 Denpasar (DPS) 22:15");
+    const back = buildShareLeg({ ...t, depPlace: "Denpasar (DPS)", arrPlace: "1 Home Rd" }, zones, "x", { hideArrPlace: true }).line;
+    expect(back).not.toContain("Home Rd");
+    expect(back).toContain("Denpasar (DPS) 17:50 \u2192 22:15");
+  });
 });

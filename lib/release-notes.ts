@@ -28,7 +28,7 @@ export interface ReleaseNote {
 export const RELEASE_NOTES: ReleaseNote[] = [
   {
     publishedAt: "2026-11-25T02:52:00Z",
-    text: "Shared links show travel with its duration and flight or train number, and list the flights from and back home.",
+    text: "Shared links show travel with its duration and flight or train number, and list the legs from and back home.",
   },
   {
     publishedAt: "2026-11-25T01:52:00Z",

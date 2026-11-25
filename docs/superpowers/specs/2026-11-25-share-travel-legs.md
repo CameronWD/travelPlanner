@@ -7,7 +7,7 @@ Agreed with Cam on 25 Nov, after the Plan's travel row shipped. On a shared link
 1. **Look.** The mode icon sits in a round sun tile, as on the Plan's travel row. No card and no fill: the leg stays a quiet entry between Stops.
 2. **The line gains** the arrival's day marker and the duration: `Thu 10 Dec · Munich Hbf 09:28 → Strasbourg 13:05 · 3h 37m`; an arrival on another local date shows `+1` (or `−1`) after the arrival time. A leg with no times is unchanged.
 3. **The flight or train number is shown**, for a Flight and a Train only, after the duration: `· ICE 9568`. Cam's decision: it is what family would use to follow a flight. A bus or ferry number is not shown (it means little without the operator).
-4. **The Home legs are listed.** The leg from the Home base to the first Stop appears above the first Stop, labelled like the others ("Flight to Denpasar"); the leg from the last Stop back appears below the last Stop, labelled "{Mode} home". Their Home end's time is read in the Trip's Home timezone, as the page already does elsewhere.
+4. **The Home legs are listed.** The leg from the Home base to the first Stop appears above the first Stop, labelled like the others ("Flight to Denpasar"); the leg from the last Stop back appears below the last Stop, labelled "{Mode} home". A Home leg shows its Home end's time but never its place (a drive from home could be a street address); the Home end's time is read in the Trip's Home timezone, or, when the Trip has none, in the other end's zone, as the rest of the app does.
 
 ## What does not change
 

@@ -21,7 +21,13 @@ export interface ShareLeg {
 /** The only Travel detail a public link carries, and only for a mode people follow by its number. */
 const NUMBERED: readonly TransportMode[] = ["FLIGHT", "TRAIN"];
 
-export function buildShareLeg(t: ShareLegInput, zones: { dep: string; arr: string }, label: string): ShareLeg {
+/** `hide*` leaves an end's place out, keeping its time: a Home end is never named on a public link. */
+export function buildShareLeg(
+  t: ShareLegInput,
+  zones: { dep: string; arr: string },
+  label: string,
+  hide: { hideDepPlace?: boolean; hideArrPlace?: boolean } = {},
+): ShareLeg {
   const { dep, arr, dayDelta } = transportTimeDisplay({
     depAt: t.depAt,
     arrAt: t.arrAt,
@@ -29,8 +35,8 @@ export function buildShareLeg(t: ShareLegInput, zones: { dep: string; arr: strin
     toTimezone: zones.arr,
   });
   const plus = dep && arr && dayDelta !== 0 ? ` ${dayDelta > 0 ? "+" : "−"}${Math.abs(dayDelta)}` : "";
-  const from = [t.depPlace, dep?.time].filter(Boolean).join(" ");
-  const to = [t.arrPlace, arr?.time].filter(Boolean).join(" ");
+  const from = [hide.hideDepPlace ? null : t.depPlace, dep?.time].filter(Boolean).join(" ");
+  const to = [hide.hideArrPlace ? null : t.arrPlace, arr?.time].filter(Boolean).join(" ");
   const route = from && to ? `${from} → ${to}${plus}` : from || to;
   const minutes = durationMinutes(t.depAt, t.arrAt);
   const number = NUMBERED.includes(t.mode) ? t.serviceNumber?.trim() : null;

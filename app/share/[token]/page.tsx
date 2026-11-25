@@ -505,12 +505,12 @@ export default async function SharePage({
   const outbound = firstStop ? transports.find((t) => t.depIsHome && t.toStopId === firstStop.id) : undefined;
   const homeOut =
     outbound && firstStop
-      ? buildShareLeg({ ...outbound, mode: outbound.mode as TransportMode }, { dep: zoneOfEnd(null, true), arr: zoneOfEnd(firstStop.id, false) }, `${MODE_LABELS[outbound.mode] ?? "Transport"} to ${firstStop.name}`)
+      ? buildShareLeg({ ...outbound, mode: outbound.mode as TransportMode }, { dep: trip.homeTimezone ?? zoneOfEnd(firstStop.id, false), arr: zoneOfEnd(firstStop.id, false) }, `${MODE_LABELS[outbound.mode] ?? "Transport"} to ${firstStop.name}`, { hideDepPlace: true })
       : null;
   const inbound = lastStop ? transports.find((t) => t.arrIsHome && t.fromStopId === lastStop.id) : undefined;
   const homeBack =
     inbound && lastStop
-      ? buildShareLeg({ ...inbound, mode: inbound.mode as TransportMode }, { dep: zoneOfEnd(lastStop.id, false), arr: zoneOfEnd(null, true) }, `${MODE_LABELS[inbound.mode] ?? "Transport"} home`)
+      ? buildShareLeg({ ...inbound, mode: inbound.mode as TransportMode }, { dep: zoneOfEnd(lastStop.id, false), arr: trip.homeTimezone ?? zoneOfEnd(lastStop.id, false) }, `${MODE_LABELS[inbound.mode] ?? "Transport"} home`, { hideArrPlace: true })
       : null;
   // Computed here so the client's first render matches (current stop during,
   // first stop before, everything folded after).
