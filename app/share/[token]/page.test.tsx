@@ -85,6 +85,12 @@ vi.mock("./day-by-day", async (orig) => {
   return { ...actual, DayByDay: (props: Parameters<typeof actual.DayByDay>[0]) => { dayByDaySpy(props); return actual.DayByDay(props); } };
 });
 
+const { rightNowSpy } = vi.hoisted(() => ({ rightNowSpy: vi.fn() }));
+vi.mock("./right-now-card", async (orig) => {
+  const actual = await orig<typeof import("./right-now-card")>();
+  return { ...actual, RightNowCard: (props: Parameters<typeof actual.RightNowCard>[0]) => { rightNowSpy(props); return actual.RightNowCard(props); } };
+});
+
 vi.mock("@/components/usage/usage-share-opened", () => ({ UsageShareOpened: () => <i data-testid="usage-share-opened" /> }));
 import SharePage, { dynamic, metadata } from "./page";
 import { SHARE_FOOTER_COPY } from "./share-cta";
@@ -1017,6 +1023,51 @@ describe("SharePage — travel legs", () => {
     await renderStage("before", { includeDailyPlans: false });
     expect(summariesOf()).not.toMatch(/plans?\b/);
     expect(summariesOf()).toContain("Platzl Hotel");
+  });
+
+  describe("the Right now clock on the travel days", () => {
+    const sydney = { homeTimezone: "Australia/Sydney" };
+    const duringAt = (stops: typeof STOPS, startDate: string, endDate: string) => {
+      shareFindFirstMock.mockResolvedValue({ ...share({ startDate, endDate, ...sydney } as never), id: "link-1", includeJournal: false, showTravellers: false, includeContacts: false });
+      stopFindManyMock.mockResolvedValue(stops);
+      transportFindManyMock.mockResolvedValue([]);
+    };
+    const expectNoHomeZone = (container: HTMLElement) => {
+      const props = JSON.stringify(rightNowSpy.mock.calls.at(-1)![0]);
+      expect(props).not.toContain("Australia/Sydney");
+      expect(container.innerHTML).not.toContain("Australia/Sydney");
+      expect(container.textContent).not.toMatch(/AEDT|AEST|GMT\+11/);
+    };
+
+    it("after the last Stop's departure, reads the last Stop's zone", async () => {
+      duringAt(
+        [
+          { ...STOPS[0], arriveDate: addDays(T, -8), departDate: addDays(T, -5) },
+          { ...STOPS[1], arriveDate: addDays(T, -5), departDate: addDays(T, -3) },
+        ],
+        addDays(T, -8),
+        addDays(T, 4),
+      );
+      const { container } = await renderPage();
+      expect(rightNowSpy).toHaveBeenCalled();
+      expect(rightNowSpy.mock.calls.at(-1)![0].timeZone).toBe("Europe/London");
+      expectNoHomeZone(container);
+    });
+
+    it("before the first Stop's arrival, reads the first Stop's zone", async () => {
+      duringAt(
+        [
+          { ...STOPS[0], arriveDate: addDays(T, 2), departDate: addDays(T, 5) },
+          { ...STOPS[1], arriveDate: addDays(T, 5), departDate: addDays(T, 8) },
+        ],
+        addDays(T, -1),
+        addDays(T, 8),
+      );
+      const { container } = await renderPage();
+      expect(rightNowSpy).toHaveBeenCalled();
+      expect(rightNowSpy.mock.calls.at(-1)![0].timeZone).toBe("Europe/Berlin");
+      expectNoHomeZone(container);
+    });
   });
 
   it("renders no Home leg when the Trip has none", async () => {

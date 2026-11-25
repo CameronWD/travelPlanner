@@ -404,7 +404,15 @@ export default async function SharePage({
   // transports is [] when includeTransport is off, so no leg either.
   const leg = stage === "during" ? currentLeg(transports, now) : null;
   const currentStop = scheduled.find((s) => s.id === currentStopId) ?? null;
-  const zone = currentStop?.timezone ?? timeZone;
+  // The Home timezone is never sent to the browser or printed: on the days around the trip
+  // (before the first arrival, after the last departure) the clock reads the adjacent Stop's zone.
+  const firstScheduled = scheduled[0];
+  const lastScheduled = scheduled[scheduled.length - 1];
+  const legDestinationZone = leg ? scheduled.find((s) => s.id === leg.toStopId)?.timezone : null;
+  const adjacentStopZone = (todayISO <= (firstScheduled?.arriveDate ?? "") ? firstScheduled : lastScheduled)?.timezone;
+  const zone =
+    currentStop?.timezone ??
+    (trip.homeTimezone && timeZone === trip.homeTimezone ? (legDestinationZone ?? adjacentStopZone ?? "UTC") : timeZone);
   const localDateISO = todayISOInZone(zone);
   const nowHHMM = instantToZonedTime(now, zone);
   const next = nextStopAfter(scheduled, currentStopId ?? leg?.toStopId ?? null);

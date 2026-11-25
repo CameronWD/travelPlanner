@@ -72,6 +72,8 @@ The card is `bg-coral border-2 rounded-[28px] shadow-5`: `p-7 lg:p-8`, `min-h-80
 
 ## 4. Right now (During only)
 
+> Amended 2026-11-25: the clock adds "· HH:mm for you" when the viewer's zone differs; a leg into Home reads "Travelling home"; and the card never uses the Home timezone: before the first arrival and after the last departure it reads the adjacent Stop's zone.
+
 This **replaces `ShareTodayCard`.** The card is `bg-card border-2 rounded-[28px] shadow-5 p-6` on desktop, beside the hero (`grid-cols-[7fr_5fr]`); on mobile it's the full width under the hero.
 
 - **Head row:**

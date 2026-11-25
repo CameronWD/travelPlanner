@@ -38,6 +38,20 @@ describe("DayByDay (SHARE.md §7)", () => {
     expect(card).toHaveTextContent("St Pancras 09:31 → Gare du Nord 12:47");
   });
 
+  it("lets the last Stop touch a Home-back leg, and gap it otherwise", () => {
+    const back = { mode: "FLIGHT" as const, label: "Flight home", when: "x", number: null, arrivesAt: null, arrivesLocal: null };
+    const withBack = render(<DayByDay stops={stops} initialOpenId="par" homeBack={back} />);
+    expect(withBack.container.querySelector("[data-share-stop='par']")!.className).not.toMatch(/mb-3/);
+    withBack.unmount();
+    const without = render(<DayByDay stops={stops} initialOpenId="par" />);
+    expect(without.container.querySelector("[data-share-stop='par']")!.className).not.toMatch(/mb-3/);
+  });
+
+  it("gives a Stop its gap only when no leg follows it and it is not last", () => {
+    const { container } = render(<DayByDay stops={[{ ...stops[0], legAfter: null }, stops[1]]} initialOpenId="par" />);
+    expect(container.querySelector("[data-share-stop='lon']")!.className).toMatch(/mb-3/);
+  });
+
   it("adds the viewer's arrival only to a leg that has an arrival time", () => {
     const homeOut = { mode: "FLIGHT" as const, label: "Flight to London", when: "Fri 4 Dec", number: null, arrivesAt: null, arrivesLocal: null };
     render(<DayByDay stops={stops} initialOpenId="par" homeOut={homeOut} />);

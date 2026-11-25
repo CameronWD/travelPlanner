@@ -86,7 +86,7 @@ export function DayByDay({
                 id={`share-stop-${s.id}`}
                 data-share-stop={s.id}
                 // The gap between Stops lives here, not on the list, so a leg's connector runs unbroken from card to card.
-                className={cn("relative scroll-mt-6", !s.legAfter && (i < stops.length - 1 || homeBack) && "mb-3")}
+                className={cn("relative scroll-mt-6", !s.legAfter && i < stops.length - 1 && "mb-3")}
               >
                 <StopBlock
                   stopId={s.id}
