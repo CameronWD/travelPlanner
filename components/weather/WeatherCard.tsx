@@ -73,7 +73,7 @@ export function WeatherCard({ size, dateLabel, placeName, theme, day, daylight, 
       <section aria-label="Weather" className={box}>
         <h2 className="sr-only">Weather</h2>
         {eyebrow}
-        <p className={cn("font-display font-extrabold tracking-[-0.03em] leading-none", compact ? "mt-1 text-[26px]" : "mt-2 text-[40px]")}>No forecast right now</p>
+        <p data-testid="wx-no-forecast" className={cn("font-display font-extrabold leading-tight tracking-[-0.02em]", compact ? "mt-1 text-[17px]" : "mt-2 text-[20px]")}>No forecast right now</p>
         <div className="relative mt-auto">
           <DaylightArc {...daylight} now={nowLocal} size={size} />
         </div>

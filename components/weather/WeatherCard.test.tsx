@@ -146,7 +146,9 @@ describe("WeatherCard — every theme at both sizes (WEATHER_CARD §7, behaviour
       const el = article();
       expect(el.className).toContain(size === "regular" ? "h-[236px]" : "h-[140px]");
       expect(el.querySelector("[data-scene]")).toBeNull();
-      expect(screen.getByText("No forecast right now")).toBeInTheDocument();
+      const heading = screen.getByText("No forecast right now");
+      expect(heading.className).toContain(size === "regular" ? "text-[20px]" : "text-[17px]");
+      expect(heading.className).not.toMatch(/text-\[(40|26|44|60)px\]/);
       expect(container.textContent).not.toContain("—");
       expect(container.textContent).not.toContain("Overcast");
       expect(screen.getByText(/08:12/)).toBeInTheDocument();

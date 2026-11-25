@@ -1,3 +1,4 @@
+import { FORECAST_WINDOW_DAYS } from "@/lib/weather";
 import { addDays, dayNumberInTrip, daysBetween, formatDayLabel, formatLongDate, nightsBetween } from "@/lib/dates";
 import type { BookingState, TransportMode } from "@/lib/enum-values";
 import { findOutboundLeg, findReturnLeg } from "@/lib/home-base";
@@ -149,7 +150,7 @@ export function dayIdeasRows(i: { stopName: string; thingsToDo: Array<{ id: stri
   return { rows, all, more: all.length - rows.length, eyebrow: onlyWishlist ? `FROM YOUR WISHLIST IN ${stop}` : `IDEAS FOR ${stop}` };
 }
 
-export const forecastOpensOn = (dateISO: string) => formatDayLabel(addDays(dateISO, -15));
+export const forecastOpensOn = (dateISO: string) => formatDayLabel(addDays(dateISO, -FORECAST_WINDOW_DAYS));
 
 // ── One day, assembled (card 3.M) ─────────────────────────────────────────
 // The Day view (lib/day-view-loader.ts) and the Travelling Home's today
