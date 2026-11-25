@@ -9,7 +9,7 @@ Agreed with Cam on 25 Nov after he looked at the shared page with its new travel
 3. **One list.** "The route" and "Day by day" become one section headed "The route": the Stop cards and travel cards, each Stop opening to show its days.
    - A Stop card shows its country: on a closed card it is the last part of the summary line ("Platzl Hotel · 7 plans · Germany"), and on an open card it follows the name line as today's sub-line does.
    - Stops with no dates yet, which only the old route list showed, come at the end of the list as plain, non-opening cards with their name, country, nights when known, and "Dates to come".
-   - **Exception:** a link with accommodation, transport and daily plans all off has nothing to open. It keeps today's simple route list, unchanged.
+   - **Exception:** a link with accommodation, transport and daily plans all off, or a Trip with no scheduled Stops, has nothing to open. It keeps today's simple route list, unchanged.
 4. The page reads: header, Right now (during the trip), map, the route, the footer.
 
 5. **Names are never cut off.** A long Stop name wraps in the wide-screen index, the phone's picker and the open Stop's heading.
