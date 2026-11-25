@@ -14,11 +14,12 @@ import { requireOutsideSurprise } from "@/lib/surprise-guard";
 import { entityLabel } from "@/lib/activity";
 import { type PlanId } from "@/lib/plan-scope";
 import { resolveRateForTrip, persistRate } from "@/lib/money/fx";
-import { type ActionResult, validationResult } from "@/lib/action-result";
+import { type ActionResult, validationResult, formFail } from "@/lib/action-result";
 import { applyPatch, type Patch } from "@/lib/patch";
 import { completeInlineCost, OWNED_COST_SELECT } from "@/lib/money/cost-patch";
 import { cleanupTargetSideDataTx } from "@/server/actions/target-cleanup";
-import { deleteOwnedCostsTx } from "@/server/actions/owned-costs";
+import { deleteOwnedCostsTx, deleteRefundsProblemTx } from "@/server/actions/owned-costs";
+import type { DeleteRefundAnswer } from "@/lib/money/delete-refund";
 import { revalidateTrip } from "@/lib/revalidate";
 import { resolveBookingWrite } from "@/lib/booking-state-patch";
 
@@ -304,6 +305,7 @@ export async function updateAccommodation(
  */
 export async function deleteAccommodation(
   accommodationId: string,
+  refunds?: readonly DeleteRefundAnswer[],
 ): Promise<AccommodationActionResult> {
   const acc = await requireAccommodationAccess(accommodationId);
 
@@ -311,13 +313,16 @@ export async function deleteAccommodation(
 
   // cleanupTargetSideDataTx schedules attachment blobs for retention inside
   // this same transaction (ARCH-DAT-3) — no post-commit blob call needed.
-  await db.$transaction(async (tx) => {
+  const owner = { type: "ACCOMMODATION", id: accommodationId, label: doomed?.name ?? "Accommodation" } as const;
+  const refused = await db.$transaction(async (tx) => {
+    const problem = await deleteRefundsProblemTx(tx, acc.tripId, owner, refunds);
+    if (problem) return problem;
     await tx.accommodation.delete({ where: { id: accommodationId } });
-    await deleteOwnedCostsTx(tx, acc.tripId, [
-      { type: "ACCOMMODATION", id: accommodationId, label: doomed?.name ?? "Accommodation" },
-    ]);
+    await deleteOwnedCostsTx(tx, acc.tripId, [owner], refunds);
     await cleanupTargetSideDataTx(tx, acc.tripId, "ACCOMMODATION", accommodationId);
+    return null;
   });
+  if (refused) return formFail(refused);
 
   await recordPlanActivity(acc.forkId, { tripId: acc.tripId, verb: "DELETED", entityType: "ACCOMMODATION", entityId: accommodationId, entityLabel: doomed?.name ?? "", surpriseOf: acc.surpriseOf });
 

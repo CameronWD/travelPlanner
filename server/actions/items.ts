@@ -17,11 +17,12 @@ import { planScope, REAL_PLAN, type PlanId } from "@/lib/plan-scope";
 import { resolveRateForTrip, persistRate } from "@/lib/money/fx";
 import { getUserGlobe } from "@/lib/globe";
 import { markerToWishlistItemData } from "@/lib/marker-to-item";
-import { type ActionResult, validationResult } from "@/lib/action-result";
+import { type ActionResult, validationResult, formFail } from "@/lib/action-result";
 import { applyPatch, type Patch } from "@/lib/patch";
 import { completeInlineCost, OWNED_COST_SELECT } from "@/lib/money/cost-patch";
 import { cleanupTargetSideDataTx } from "@/server/actions/target-cleanup";
-import { deleteOwnedCostsTx } from "@/server/actions/owned-costs";
+import { deleteOwnedCostsTx, deleteRefundsProblemTx } from "@/server/actions/owned-costs";
+import type { DeleteRefundAnswer } from "@/lib/money/delete-refund";
 import { copyItemPhoto } from "@/lib/item-photo-copy";
 import { setSurprise, revealSurprise } from "@/server/actions/surprise";
 import { validateSurpriseFor } from "@/lib/surprise";
@@ -736,22 +737,28 @@ async function lockItemFamily(tx: Prisma.TransactionClient, itemId: string, reci
 /**
  * Delete an item.
  */
-export async function deleteItem(itemId: string): Promise<ItemActionResult> {
+export async function deleteItem(
+  itemId: string,
+  refunds?: readonly DeleteRefundAnswer[],
+): Promise<ItemActionResult> {
   const item = await requireItemAccess(itemId);
 
   const doomed = await db.item.findUnique({ where: { id: itemId }, select: { title: true } });
 
   // cleanupTargetSideDataTx schedules attachment blobs for retention inside
   // this same transaction (ARCH-DAT-3) — no post-commit blob call needed.
-  await db.$transaction(async (tx) => {
+  const owner = { type: "ITEM", id: itemId, label: doomed?.title ?? "Item" } as const;
+  const refused = await db.$transaction(async (tx) => {
+    const problem = await deleteRefundsProblemTx(tx, item.tripId, owner, refunds);
+    if (problem) return problem;
     // Unlinked (onDelete SetNull) a Reminder would turn into a Trip-wide one, visible to the Traveller the Surprise is kept from.
     if (item.surpriseOf) await tx.reminder.deleteMany({ where: { itemId } });
     await tx.item.delete({ where: { id: itemId } });
-    await deleteOwnedCostsTx(tx, item.tripId, [
-      { type: "ITEM", id: itemId, label: doomed?.title ?? "Item" },
-    ]);
+    await deleteOwnedCostsTx(tx, item.tripId, [owner], refunds);
     await cleanupTargetSideDataTx(tx, item.tripId, "ITEM", itemId);
+    return null;
   });
+  if (refused) return formFail(refused);
 
   // A Surprise Item deleted by its planner takes its Surprise with it, so its own line is unstamped.
   const surpriseOf = item.surpriseOf?.type === "ITEM" && item.surpriseOf.id === itemId ? null : item.surpriseOf;

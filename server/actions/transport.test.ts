@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { REFUND_MESSAGES } from "@/lib/money/refund";
 import { expectAccessCheckedBeforeWrite } from "@/test/helpers/access-order";
 
 /**
@@ -1809,5 +1810,53 @@ describe("updateTransport: a Refund on the inline Cost", () => {
     const data = costUpdateMock.mock.calls[0][0].data;
     expect(data).not.toHaveProperty("refundMinor");
     expect(data).not.toHaveProperty("refundedAt");
+  });
+});
+
+describe("deleteTransport with refund answers", () => {
+  const paidCost = { id: "c1", paidMinor: 20000, paidAt: new Date("2026-06-01"), label: null, ownerType: "TRANSPORT", ownerId: "t-1" };
+
+  it("refuses a cost that is not this owner's, and deletes nothing", async () => {
+    transportFindUniqueMock.mockResolvedValue({ id: "t-1", tripId: "trip-1", mode: "FLIGHT", reference: "BA490" });
+    costFindManyMock.mockResolvedValue([]);
+
+    const result = await deleteTransport("t-1", [{ costId: "not-mine", refundMinor: 100, refundedAt: null }]);
+
+    expect(result).toEqual({ success: false, errors: { _: ["That cost isn't part of this."] } });
+    expect(transportDeleteMock).not.toHaveBeenCalled();
+    expect(costUpdateMock).not.toHaveBeenCalled();
+    expect(costDeleteManyMock).not.toHaveBeenCalled();
+  });
+
+  it("refuses more than was paid, and deletes nothing", async () => {
+    transportFindUniqueMock.mockResolvedValue({ id: "t-1", tripId: "trip-1", mode: "FLIGHT", reference: "BA490" });
+    costFindManyMock.mockResolvedValue([paidCost]);
+
+    const result = await deleteTransport("t-1", [{ costId: "c1", refundMinor: 25000, refundedAt: null }]);
+
+    expect(result).toEqual({ success: false, errors: { _: [REFUND_MESSAGES.tooMuch] } });
+    expect(transportDeleteMock).not.toHaveBeenCalled();
+    expect(costUpdateMock).not.toHaveBeenCalled();
+  });
+
+  it("deletes and passes a valid answer through to the converted cost", async () => {
+    transportFindUniqueMock.mockResolvedValue({ id: "t-1", tripId: "trip-1", mode: "FLIGHT", reference: "BA490" });
+    costFindManyMock.mockResolvedValue([paidCost, { ...paidCost, id: "c2", paidMinor: null, paidAt: null }]);
+
+    const result = await deleteTransport("t-1", [{ costId: "c1", refundMinor: 15000, refundedAt: "2026-07-02" }]);
+
+    expect(result.success).toBe(true);
+    expect(transportDeleteMock).toHaveBeenCalledWith({ where: { id: "t-1" } });
+    expect(costUpdateMock).toHaveBeenCalledWith({
+      where: { id: "c1" },
+      data: {
+        ownerType: "OTHER",
+        ownerId: null,
+        label: "BA490 (cancelled)",
+        refundMinor: 15000,
+        refundedAt: new Date("2026-07-02"),
+      },
+    });
+    expect(costDeleteManyMock).toHaveBeenCalledWith({ where: { id: { in: ["c2"] } } });
   });
 });

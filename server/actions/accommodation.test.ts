@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { REFUND_MESSAGES } from "@/lib/money/refund";
 import { expectAccessCheckedBeforeWrite } from "@/test/helpers/access-order";
 
 /**
@@ -1046,5 +1047,53 @@ describe("Surprise write guard", () => {
     expect(recordActivity).toHaveBeenCalledWith(
       expect.objectContaining({ verb: "DELETED", entityType: "ACCOMMODATION", surpriseOf: { type: "STOP", id: "stop-1" } }),
     );
+  });
+});
+
+describe("deleteAccommodation with refund answers", () => {
+  const paidCost = { id: "c1", paidMinor: 20000, paidAt: new Date("2026-06-01"), label: null, ownerType: "ACCOMMODATION", ownerId: "acc-1" };
+
+  it("refuses a cost that is not this owner's, and deletes nothing", async () => {
+    accFindUniqueMock.mockResolvedValue({ id: "acc-1", tripId: "trip-1", forkId: null, name: "Grand Hotel" });
+    costFindManyMock.mockResolvedValue([]);
+
+    const result = await deleteAccommodation("acc-1", [{ costId: "not-mine", refundMinor: 100, refundedAt: null }]);
+
+    expect(result).toEqual({ success: false, errors: { _: ["That cost isn't part of this."] } });
+    expect(accDeleteMock).not.toHaveBeenCalled();
+    expect(costUpdateMock).not.toHaveBeenCalled();
+    expect(costDeleteManyMock).not.toHaveBeenCalled();
+  });
+
+  it("refuses more than was paid, and deletes nothing", async () => {
+    accFindUniqueMock.mockResolvedValue({ id: "acc-1", tripId: "trip-1", forkId: null, name: "Grand Hotel" });
+    costFindManyMock.mockResolvedValue([paidCost]);
+
+    const result = await deleteAccommodation("acc-1", [{ costId: "c1", refundMinor: 25000, refundedAt: null }]);
+
+    expect(result).toEqual({ success: false, errors: { _: [REFUND_MESSAGES.tooMuch] } });
+    expect(accDeleteMock).not.toHaveBeenCalled();
+    expect(costUpdateMock).not.toHaveBeenCalled();
+  });
+
+  it("deletes and passes a valid answer through to the converted cost", async () => {
+    accFindUniqueMock.mockResolvedValue({ id: "acc-1", tripId: "trip-1", forkId: null, name: "Grand Hotel" });
+    costFindManyMock.mockResolvedValue([paidCost, { ...paidCost, id: "c2", paidMinor: null, paidAt: null }]);
+
+    const result = await deleteAccommodation("acc-1", [{ costId: "c1", refundMinor: 15000, refundedAt: "2026-07-02" }]);
+
+    expect(result.success).toBe(true);
+    expect(accDeleteMock).toHaveBeenCalledWith({ where: { id: "acc-1" } });
+    expect(costUpdateMock).toHaveBeenCalledWith({
+      where: { id: "c1" },
+      data: {
+        ownerType: "OTHER",
+        ownerId: null,
+        label: "Grand Hotel (cancelled)",
+        refundMinor: 15000,
+        refundedAt: new Date("2026-07-02"),
+      },
+    });
+    expect(costDeleteManyMock).toHaveBeenCalledWith({ where: { id: { in: ["c2"] } } });
   });
 });

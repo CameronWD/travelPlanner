@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
-import { deleteOwnedCostsTx, type DeletedCostOwner } from "./owned-costs";
+import { deleteOwnedCostsTx, deleteRefundsProblemTx, type DeletedCostOwner } from "./owned-costs";
+import { REFUND_MESSAGES } from "@/lib/money/refund";
 import type { Prisma } from "@prisma/client";
 
 function makeTx(costs: Array<Record<string, unknown>>) {
@@ -66,5 +67,112 @@ describe("deleteOwnedCostsTx", () => {
     });
     const empty = await deleteOwnedCostsTx(tx, "trip-1", []);
     expect(empty).toEqual({ deleted: 0, converted: 0 });
+  });
+
+  describe("with refund answers", () => {
+    const paid = { id: "c2", paidMinor: 20000, paidAt: new Date("2026-06-01"), label: null, ownerType: "ACCOMMODATION", ownerId: "acc-1" };
+
+    it("a received answer converts the cost with the refund and a (cancelled) label", async () => {
+      const { tx, update } = makeTx([paid]);
+      await deleteOwnedCostsTx(tx, "trip-1", [owner], [{ costId: "c2", refundMinor: 15000, refundedAt: "2026-07-02" }]);
+      expect(update).toHaveBeenCalledWith({
+        where: { id: "c2" },
+        data: {
+          ownerType: "OTHER",
+          ownerId: null,
+          label: "Hotel Lisboa (cancelled)",
+          refundMinor: 15000,
+          refundedAt: new Date("2026-07-02"),
+        },
+      });
+    });
+
+    it("an expected answer stores no date", async () => {
+      const { tx, update } = makeTx([paid]);
+      await deleteOwnedCostsTx(tx, "trip-1", [owner], [{ costId: "c2", refundMinor: 15000, refundedAt: null }]);
+      expect(update).toHaveBeenCalledWith({
+        where: { id: "c2" },
+        data: { ownerType: "OTHER", ownerId: null, label: "Hotel Lisboa (cancelled)", refundMinor: 15000, refundedAt: null },
+      });
+    });
+
+    it("a cost with no answer keeps today's (deleted) conversion", async () => {
+      const { tx, update } = makeTx([paid]);
+      await deleteOwnedCostsTx(tx, "trip-1", [owner], [{ costId: "other", refundMinor: 1, refundedAt: null }]);
+      expect(update).toHaveBeenCalledWith({
+        where: { id: "c2" },
+        data: { ownerType: "OTHER", ownerId: null, label: "Hotel Lisboa (deleted)" },
+      });
+    });
+
+    it("leaves a refund already on the cost alone when no answer names it", async () => {
+      const { tx, update } = makeTx([{ ...paid, refundMinor: 5000, refundedAt: null }]);
+      await deleteOwnedCostsTx(tx, "trip-1", [owner], []);
+      const data = update.mock.calls[0][0].data;
+      expect(data).not.toHaveProperty("refundMinor");
+      expect(data).not.toHaveProperty("refundedAt");
+    });
+
+    it("still deletes the owner's unpaid costs", async () => {
+      const { tx, update, deleteMany } = makeTx([
+        paid,
+        { id: "c9", paidMinor: null, paidAt: null, label: null, ownerType: "ACCOMMODATION", ownerId: "acc-1" },
+      ]);
+      const result = await deleteOwnedCostsTx(tx, "trip-1", [owner], [{ costId: "c2", refundMinor: 100, refundedAt: null }]);
+      expect(result).toEqual({ deleted: 1, converted: 1 });
+      expect(update).toHaveBeenCalledTimes(1);
+      expect(deleteMany).toHaveBeenCalledWith({ where: { id: { in: ["c9"] } } });
+    });
+  });
+});
+
+describe("deleteRefundsProblemTx", () => {
+  const paid = { id: "c2", paidMinor: 20000, paidAt: new Date("2026-06-01") };
+  const run = (costs: Array<Record<string, unknown>>, refunds: Parameters<typeof deleteRefundsProblemTx>[3]) => {
+    const { tx, findMany } = makeTx(costs);
+    return { promise: deleteRefundsProblemTx(tx, "trip-1", owner, refunds), findMany };
+  };
+
+  it("is null with no answers and never queries", async () => {
+    const { promise, findMany } = run([], []);
+    expect(await promise).toBeNull();
+    expect(findMany).not.toHaveBeenCalled();
+  });
+
+  it("is null for a valid answer, looked up by owner", async () => {
+    const { promise, findMany } = run([paid], [{ costId: "c2", refundMinor: 20000, refundedAt: null }]);
+    expect(await promise).toBeNull();
+    expect(findMany).toHaveBeenCalledWith({
+      where: { tripId: "trip-1", ownerType: "ACCOMMODATION", ownerId: "acc-1", id: { in: ["c2"] } },
+      select: { id: true, paidMinor: true, paidAt: true },
+    });
+  });
+
+  it("refuses a cost that is not this owner's", async () => {
+    const { promise } = run([paid], [{ costId: "not-mine", refundMinor: 100, refundedAt: null }]);
+    expect(await promise).toBe("That cost isn't part of this.");
+  });
+
+  it("refuses more than was paid", async () => {
+    const { promise } = run([paid], [{ costId: "c2", refundMinor: 25000, refundedAt: null }]);
+    expect(await promise).toBe(REFUND_MESSAGES.tooMuch);
+  });
+
+  it("refuses a cost that is not currently paid", async () => {
+    const { promise } = run([{ id: "c2", paidMinor: 20000, paidAt: null }], [{ costId: "c2", refundMinor: 100, refundedAt: null }]);
+    expect(await promise).toBe(REFUND_MESSAGES.notPaid);
+  });
+
+  it("refuses two answers for one cost", async () => {
+    const { promise } = run([paid], [
+      { costId: "c2", refundMinor: 100, refundedAt: null },
+      { costId: "c2", refundMinor: 200, refundedAt: null },
+    ]);
+    expect(await promise).toBe("Each cost can only have one refund.");
+  });
+
+  it("refuses a date that is not a date", async () => {
+    const { promise } = run([paid], [{ costId: "c2", refundMinor: 100, refundedAt: "soon" }]);
+    expect(await promise).toBe("Enter when it arrived.");
   });
 });
