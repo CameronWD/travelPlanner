@@ -127,8 +127,7 @@ describe("DayByDay (SHARE.md §7)", () => {
     const open = container.querySelector("[data-stop-open='lon']") as HTMLElement;
     const name = within(open).getByRole("heading", { name: long });
     expect(name.className).toMatch(/break-words/);
-    expect(name.className).toMatch(/sm:truncate/);
-    expect(name.className).not.toMatch(/(^|\s)truncate/);
+    expect(name.className).not.toMatch(/truncate/);
     const dates = within(open).getByText(/5 Dec.*–.*10 Dec/);
     expect(dates.className).not.toMatch(/hidden/);
     expect(dates.className).toMatch(/text-muted-foreground/);
@@ -137,6 +136,17 @@ describe("DayByDay (SHARE.md §7)", () => {
   it("an open card carries the Stop's country on its sub-line", () => {
     const { container } = render(<DayByDay stops={[{ ...stops[0], country: "England" }, stops[1]]} initialOpenId="lon" />);
     expect(within(container.querySelector("[data-stop-open='lon']") as HTMLElement).getByText(/5 Dec.*10 Dec.*5 nights · England/)).toBeInTheDocument();
+  });
+
+  it("the Stop index lets a long name wrap and keeps its dates on one line", () => {
+    render(<DayByDay stops={[{ ...stops[0], name: "Rovaniemi (Lapland) and the Arctic Circle" }, stops[1]]} initialOpenId="par" />);
+    const button = within(screen.getByRole("navigation", { name: "Stops" })).getByRole("button", { name: /Rovaniemi/ });
+    const name = within(button).getByText("Rovaniemi (Lapland) and the Arctic Circle");
+    expect(name.className.split(/\s+/)).not.toContain("truncate");
+    expect(name.className).not.toMatch(/whitespace-nowrap/);
+    expect(within(button).getByText(/5–10 Dec/).className).toMatch(/whitespace-nowrap/);
+    expect(button.className).toMatch(/min-h-10/);
+    expect(button.className).not.toMatch(/(^|\s)h-10/);
   });
 
   it("marks today with aria-current, a TODAY pill and a sun tint", () => {

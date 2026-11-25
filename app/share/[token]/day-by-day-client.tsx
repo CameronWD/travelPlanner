@@ -219,7 +219,7 @@ export function StopIndex({
           type="button"
           aria-current={active === s.id ? "true" : undefined}
           onClick={() => jumpTo(s.id)}
-          className="pressable relative flex h-10 items-center gap-2.5 rounded-xl border-2 border-transparent px-3 text-left text-sm font-bold tap-target"
+          className="pressable relative flex min-h-10 items-start gap-2.5 rounded-xl border-2 border-transparent px-3 py-2.5 text-left text-sm font-bold leading-5 tap-target"
         >
           {/* MOTION.md S8: one highlight that moves between rows. */}
           {active === s.id && (
@@ -233,9 +233,9 @@ export function StopIndex({
               />
             </LayoutMotion>
           )}
-          <span aria-hidden className={cn("relative size-3 shrink-0 rounded-full border-2 border-border", s.dotClass)} />
-          <span className="relative min-w-0 truncate">{s.name}</span>
-          <span className="relative ml-auto shrink-0 whitespace-nowrap text-xs font-semibold tabular-nums text-muted-foreground">
+          <span aria-hidden className={cn("relative mt-1 size-3 shrink-0 rounded-full border-2 border-border", s.dotClass)} />
+          <span className="relative min-w-0 flex-1 overflow-hidden text-ellipsis">{s.name}</span>
+          <span className="relative ml-auto shrink-0 whitespace-nowrap text-xs font-semibold leading-5 tabular-nums text-muted-foreground">
             {s.dates}
           </span>
         </button>
@@ -249,15 +249,15 @@ export function StopPicker({ stops, className }: { stops: { id: string; name: st
   const openName = stops.find((s) => s.id === openIds.at(-1))?.name;
 
   return (
-    <div className={className}>
+    <div className={cn("min-w-0", className)}>
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
           <button
             type="button"
-            className="pressable inline-flex h-11 shrink-0 items-center gap-1 whitespace-nowrap rounded-full border-2 border-border bg-card px-4 text-sm font-bold"
+            className="pressable inline-flex min-h-11 max-w-full items-center gap-1 rounded-full border-2 border-border bg-card px-4 py-1.5 text-left text-sm font-bold"
           >
-            {openName ?? "Stops"}
-            <ChevronDown aria-hidden className="size-4" />
+            <span className="min-w-0">{openName ?? "Stops"}</span>
+            <ChevronDown aria-hidden className="size-4 shrink-0" />
           </button>
         </DropdownMenuTrigger>
         {/* Portalled to <body>, outside the page's light root: force light here too. */}

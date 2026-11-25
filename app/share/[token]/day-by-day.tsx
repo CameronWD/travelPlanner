@@ -230,7 +230,7 @@ function OpenStop({ s }: { s: DayByDayStop }) {
           {s.number}
         </span>
         <div className="flex min-w-0 flex-1 flex-col sm:contents">
-          <h3 className="break-words font-display text-[22px] font-extrabold sm:min-w-0 sm:flex-1 sm:truncate">{s.name}</h3>
+          <h3 className="break-words font-display text-[22px] font-extrabold sm:min-w-0 sm:flex-1">{s.name}</h3>
           <span className="text-[13px] font-semibold tabular-nums text-muted-foreground sm:shrink-0 sm:whitespace-nowrap sm:font-bold sm:text-foreground">
             {formatDayLabel(s.arriveDate)} – {formatDayLabel(s.departDate)} · {formatNights(s.nights)}
             {s.country ? ` · ${s.country}` : ""}
