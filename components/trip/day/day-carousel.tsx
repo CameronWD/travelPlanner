@@ -660,15 +660,20 @@ const HELD_STILL = '[data-slot="day-arrow"], [data-slot="day-trip-switcher"]';
 
 const TITLE_BLOCK = '[data-slot="day-title-block"]';
 
-// Clips the sides (the neighbour) and the bottom (the height between the two),
-// never the top: the bell's unread badge and the top bar's focus rings sit above the area's edge.
-const HEADING_CLIP = "inset(-1rem 0 0 0)";
+// Clips the bottom (the height between the two headings) flush, and the sides
+// a little way out: from md to lg the bell and the switcher pill sit flush with
+// the area's sides, and the bell's unread badge (8px out, more as it pops), the
+// focus rings and the hard shadow must not be cut. The top is left a rem: the
+// badge and the top bar's rings reach above the area's edge.
+const HEADING_CLIP = "inset(-1rem -0.75rem 0 -0.75rem)";
 
-// Below lg the track, the area's clip and the held arrows keep what a drag gives
-// them at rest too: the identity, and the same clip. WebKit left the heading blank
-// after a settle that tore the layer and the clip down in the frame that swapped
-// the panels (ADR 0065, amended 2026-11-25).
+// Below lg the track, the area's clip, the held arrows and the title blocks keep
+// a transform or a clip at rest too: the identity, the same area clip, and a clip
+// that cuts nothing. WebKit left the heading blank after a settle that tore the
+// layer and the clips down in the frame that swapped the panels (ADR 0065,
+// amended 2026-11-25).
 const AT_REST = "translate3d(0, 0, 0)";
+const TITLE_AT_REST = "inset(-100vh -100vw -100vh -100vw)";
 
 /** Read once per gesture and per commit, so a frame of the gesture only writes. */
 interface HeadingMeasure {
@@ -707,7 +712,7 @@ function restHeading(area: HTMLElement, track: HTMLElement, desktop: boolean) {
   area.style.height = "";
   area.style.clipPath = desktop ? "" : HEADING_CLIP;
   for (const el of area.querySelectorAll<HTMLElement>(HELD_STILL)) el.style.transform = still;
-  for (const el of area.querySelectorAll<HTMLElement>(TITLE_BLOCK)) el.style.clipPath = "";
+  for (const el of area.querySelectorAll<HTMLElement>(TITLE_BLOCK)) el.style.clipPath = desktop ? "" : TITLE_AT_REST;
 }
 
 function moveHeading(area: HTMLElement, track: HTMLElement, progress: number, lerp: boolean, m: HeadingMeasure) {
@@ -739,8 +744,8 @@ function moveHeading(area: HTMLElement, track: HTMLElement, progress: number, le
  * and on each commit; only a change of neighbour renders. A settle onto the
  * neighbour leaves the track where it is until the day in view changes, so
  * the outgoing heading never shows for a frame on the way. Below lg the track
- * keeps its layer and the area its clip at rest (`AT_REST`); from lg, where
- * nothing moves, neither is set.
+ * keeps its layer, the area its clip and the title blocks a clip that cuts
+ * nothing at rest (`AT_REST`); from lg, where nothing moves, none is set.
  */
 function DayHeadingTrack({ carousel, view, panels, desktop, header }: { carousel: DayCarouselApi; view: string; panels: DayPanel[]; desktop: boolean; header: (iso: string) => React.ReactNode }) {
   const area = React.useRef<HTMLDivElement>(null);

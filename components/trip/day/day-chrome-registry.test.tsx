@@ -84,7 +84,8 @@ describe("DayCarouselFrame: the heading travels with the body (below lg)", () =>
   });
 
   const AT_REST = "translate3d(0, 0, 0)";
-  const CLIP = "inset(-1rem 0 0 0)";
+  const CLIP = "inset(-1rem -0.75rem 0 -0.75rem)";
+  const TITLE_AT_REST = "inset(-100vh -100vw -100vh -100vw)";
   const held = (area: HTMLElement) => Array.from(area.querySelectorAll<HTMLElement>('[data-slot="day-arrow"], [data-slot="day-trip-switcher"]'));
   const titleBlocks = (area: HTMLElement) => Array.from(area.querySelectorAll<HTMLElement>('[data-slot="day-title-block"]'));
   const titleBlockOf = (area: HTMLElement, iso: string) => area.querySelector(`[data-day-heading-panel="${iso}"] [data-slot="day-title-block"]`) as HTMLElement;
@@ -95,7 +96,7 @@ describe("DayCarouselFrame: the heading travels with the body (below lg)", () =>
     const ARROW = { width: 44, lefts: [16, 330] };
     const BLOCK = { left: 74, width: 242 };
     const panelOf = (el: HTMLElement) => el.closest<HTMLElement>("[data-day-heading-panel]");
-    // jsdom has no offsetParent at all, so it is defined here and removed after each test.
+    // happy-dom has no offsetParent on HTMLElement, so it is defined here and removed after each test.
     Object.defineProperty(HTMLElement.prototype, "offsetParent", {
       configurable: true,
       get(this: HTMLElement) {
@@ -317,15 +318,43 @@ describe("DayCarouselFrame: the heading travels with the body (below lg)", () =>
     expect(area.style.height).toBe(`${lerpHeight(96, 120, 0.6)}px`);
   });
 
-  it("below lg the track, the area's clip and the held arrows keep their layer at rest from the first paint, and no title block is clipped", () => {
+  it("below lg the track, the area's clip, the held arrows and the title block keep their layer at rest from the first paint, the title's clip cutting nothing", () => {
     const { area, track } = mount("2026-12-19");
     expect(track.style.transform).toBe(AT_REST);
     expect(area.style.clipPath).toBe(CLIP);
     for (const el of held(area)) expect(el.style.transform).toBe(AT_REST);
-    for (const el of titleBlocks(area)) expect(el.style.clipPath).toBe("");
+    expect(titleBlocks(area)).toHaveLength(1);
+    for (const el of titleBlocks(area)) expect(el.style.clipPath).toBe(TITLE_AT_REST);
   });
 
-  it("below lg a settle onto the next day keeps the track's layer, the area's clip and the arrows' identity, and unclips the title blocks", () => {
+  it("below lg the area's clip reaches past its sides, so the bell's badge, focus rings and hard shadow flush with its edges from md are not cut", () => {
+    const { area } = mount("2026-12-19");
+    const [, right, , left] = area.style.clipPath.replace(/^inset\((.*)\)$/, "$1").split(/\s+/);
+    expect(parseFloat(right)).toBeLessThan(0);
+    expect(parseFloat(left)).toBeLessThan(0);
+  });
+
+  it("below lg the incoming title block's clip is never removed between the last drag frame and rest", async () => {
+    phoneGeometry();
+    const { area, publish, settle } = mount("2026-12-19");
+    publish(0.5);
+    const incoming = titleBlockOf(area, "2026-12-20");
+    const seen: string[] = [];
+    const watch = new MutationObserver((records) => {
+      for (const r of records) seen.push(r.oldValue ?? "");
+    });
+    watch.observe(incoming, { attributes: true, attributeFilter: ["style"], attributeOldValue: true });
+    publish(0.9);
+    publish(1);
+    settle();
+    await act(async () => {});
+    watch.disconnect();
+    expect(seen.length).toBeGreaterThan(0);
+    for (const style of [...seen, incoming.getAttribute("style") ?? ""]) expect(style).toMatch(/clip-path:\s*inset\(/);
+    expect(incoming.style.clipPath).toBe(TITLE_AT_REST);
+  });
+
+  it("below lg a settle onto the next day keeps the track's layer, the area's clip and the arrows' identity, and gives the title block a clip that cuts nothing", () => {
     phoneGeometry();
     const { area, track, publish, settle } = mount("2026-12-19");
     publish(0.5);
@@ -336,7 +365,7 @@ describe("DayCarouselFrame: the heading travels with the body (below lg)", () =>
     expect(held(area).length).toBeGreaterThan(0);
     for (const el of held(area)) expect(el.style.transform).toBe(AT_REST);
     expect(titleBlocks(area)).toHaveLength(1);
-    for (const el of titleBlocks(area)) expect(el.style.clipPath).toBe("");
+    for (const el of titleBlocks(area)) expect(el.style.clipPath).toBe(TITLE_AT_REST);
   });
 
   it("below lg a settle back onto the same day keeps the same rest state", () => {
@@ -348,7 +377,8 @@ describe("DayCarouselFrame: the heading travels with the body (below lg)", () =>
     expect(track.style.transform).toBe(AT_REST);
     expect(area.style.clipPath).toBe(CLIP);
     for (const el of held(area)) expect(el.style.transform).toBe(AT_REST);
-    for (const el of titleBlocks(area)) expect(el.style.clipPath).toBe("");
+    expect(titleBlocks(area)).toHaveLength(1);
+    for (const el of titleBlocks(area)) expect(el.style.clipPath).toBe(TITLE_AT_REST);
   });
 
   it("half-way to the next day, the day in view's title block is clipped at the left arrow's inner edge and the incoming one at the right arrow's; the arrows are never clipped", () => {

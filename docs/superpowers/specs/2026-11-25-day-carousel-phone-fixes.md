@@ -34,13 +34,18 @@ From Cam's screen recording of the live site on his iPhone over 5G, swiping the 
 
 **Seen:** after landing on a day, the eyebrow, title, date and sub-line are empty while the arrows, the strip (new day selected) and the body are present.
 
-**What is known:** the heading for the neighbouring day is on the client before the swipe; the strip follows the day in view through a synchronous store, the heading through React state.
+**Not a state problem:** a probe of the carousel showed that a settle commits once. In the microtask after the settle, one render carries the strip, the new day's heading at rest and the body together (React 19.3 renders its Sync, InputContinuous and Default lanes in one pass). No commit leaves the heading empty, so changing which state the heading reads would change nothing. The earlier guess, that the heading and the day in view commit apart, is disproved.
 
-**Likely cause (not proven from code):** on a settle onto the neighbour, the heading track drops the neighbour's panel and is left translated, relying on the day in view changing in the same commit. On the phone the two evidently do not commit together, so for a while the visible slot of the track is empty.
+**Hypothesis (unconfirmed):** the settle frame removes the outgoing panel, takes the incoming one from absolute to static, and in the same frame tears down the track's composited layer (`translate3d`) and the heading's clips. Safari then skips repainting the title block until something later touches the header.
 
-**Fix:**
-- A settle onto the neighbour does not drop the neighbour's heading; it stays drawn until the day in view has changed.
-- The heading track reads the day in view from the same store the strip reads, so the two change in the same frame.
+**What was built:** below `lg`, nothing is torn down at rest:
+- the track, the arrows and the top bar keep an identity transform;
+- the area keeps its clip;
+- the title blocks keep a clip that cuts nothing.
+
+From `lg` nothing changes. ADR 0065, amended 2026-11-25, has the details.
+
+**If it is still blank:** the blank set (eyebrow, title, date, sub-line) is exactly the contents of the header's `day-heading-text` ViewTransition. Check in Safari Web Inspector whether a view transition runs on the commit where the navigation lands.
 
 This one can only be confirmed on a phone. It goes to beta for Cam to swipe through a dozen days.
 
@@ -52,5 +57,5 @@ This one can only be confirmed on a phone. It goes to beta for Cam to swipe thro
 ## Documents to bring into line
 
 - ADR 0015 says a weather failure renders only daylight; the 2026-09-27 weather-card spec says it renders no card and closes the gap. This work settles it: inside the forecast window the card always holds its place.
-- ADR 0065 gains an amendment for the heading clip and the settle rule.
+- ADR 0065 gains an amendment for the heading clip and the layer the heading keeps through a settle.
 - The 2026-11-23 shift-and-feedback audit records the strip's fade; note the change there.
