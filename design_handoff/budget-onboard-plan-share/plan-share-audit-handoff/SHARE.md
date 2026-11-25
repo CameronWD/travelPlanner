@@ -141,9 +141,9 @@ This replaces the grid of day cards. It's shown when any of `includeAccommodatio
 **Right, one block per stop,** in plan order:
 - **Folded stop** (past stops during the trip, all stops after it, and every stop except the first before it):
   - A row card: `bg-card border-2 rounded-[18px] px-4 py-3`, dashed for past stops.
-  - It contains the dot, "{Stop} · {n} days" (`font-display text-[17px]`), and a right-hand status:
-    - "✓ Done" (`text-teal-text`) for past stops
-    - the dates for future ones
+  - It contains a 28px numbered circle in the stop colour, the name (`font-display text-[17px]`) over a truncating summary line (the first stay by check-in with "+N", then "N plans", each only when the link includes accommodation or daily plans; else the country), and a right-hand cluster:
+    - "✓ Done" (`text-teal-text`) for past stops, the compact dates for future ones
+    - a nights chip in the stop colour ("4n")
   - Then a **Show ⌄** toggle, which is a client `<details>` or a small component.
 - **Open stop:** `bg-card border-2 rounded-[22px] shadow-4 overflow-hidden`.
   - **Head band:** filled with the stop colour, `border-b-2 px-4 py-3`. It has a 28px white numbered dot, the name (`font-display text-[22px]`) and, on the right, "Thu 10 – Tue 15 Dec · 5 nights".

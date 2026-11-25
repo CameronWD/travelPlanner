@@ -49,6 +49,7 @@ import { ShareTally } from "./share-tally";
 import { ShareRouteList } from "./share-route-list";
 import { DayByDay, type DayByDayStop } from "./day-by-day";
 import { buildShareLeg } from "./share-leg";
+import { stopSummary } from "./stop-summary";
 import { JournalPolaroids, buildJournalCards, type JournalPolaroidsProps } from "./journal-polaroids";
 import { ShareCta, ShareFooter } from "./share-cta";
 import { ShareReveal } from "./share-reveal";
@@ -483,6 +484,12 @@ export default async function SharePage({
       t && following
         ? buildShareLeg({ ...t, mode: t.mode as TransportMode }, { dep: zoneOfEnd(s.id, false), arr: zoneOfEnd(following.id, false) }, `${MODE_LABELS[t.mode] ?? "Transport"} to ${following.name}`)
         : null;
+    const days = (daysByStop.get(s.id) ?? []).map((day) => ({
+        dateISO: day.dateISO,
+        isToday: stage === "during" && day.dateISO === todayISO,
+        title: scope.includeDailyPlans ? (dayTitles.get(day.dateISO)?.title ?? null) : null,
+        rows: buildShareRows(day, { nowHHMM: day.dateISO === localDateISO ? nowHHMM : null, withAddress: true }),
+      }));
     return {
       id: s.id,
       name: s.name,
@@ -492,12 +499,14 @@ export default async function SharePage({
       departDate: s.departDate,
       nights: nightsBetween(s.arriveDate, s.departDate),
       status: statuses.get(s.id) ?? "future",
-      days: (daysByStop.get(s.id) ?? []).map((day) => ({
-        dateISO: day.dateISO,
-        isToday: stage === "during" && day.dateISO === todayISO,
-        title: scope.includeDailyPlans ? (dayTitles.get(day.dateISO)?.title ?? null) : null,
-        rows: buildShareRows(day, { nowHHMM: day.dateISO === localDateISO ? nowHHMM : null, withAddress: true }),
-      })),
+      days,
+      summary: stopSummary({
+        stays: accommodations.filter((a) => a.stopId === s.id),
+        plans: days.reduce((n, d) => n + d.rows.filter((r) => r.kind === "item").length, 0),
+        includeAccommodation: scope.includeAccommodation,
+        includeDailyPlans: scope.includeDailyPlans,
+        country: s.country,
+      }),
       legAfter,
     };
   });

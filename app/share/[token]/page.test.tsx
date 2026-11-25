@@ -997,6 +997,28 @@ describe("SharePage — travel legs", () => {
     expect(container.innerHTML).not.toContain("Home Rd");
   });
 
+  const summariesOf = () =>
+    (dayByDaySpy.mock.calls.at(-1)![0].stops as { summary: string | null }[]).map((s) => s.summary ?? "").join("|");
+
+  it("a closed Stop card's summary names the stay and counts the plans when the link includes them", async () => {
+    await renderStage("before");
+    expect(summariesOf()).toContain("Platzl Hotel");
+    expect(summariesOf()).toMatch(/1 plan\b/);
+  });
+
+  it("leaves the stay's name out of every closed-card summary when accommodation is off", async () => {
+    const { container } = await renderStage("before", { includeAccommodation: false });
+    expect(summariesOf()).not.toContain("Platzl Hotel");
+    expect(container.innerHTML).not.toContain("Platzl Hotel");
+    expect(summariesOf()).toMatch(/1 plan\b/);
+  });
+
+  it("leaves out the plans count when daily plans are off", async () => {
+    await renderStage("before", { includeDailyPlans: false });
+    expect(summariesOf()).not.toMatch(/plans?\b/);
+    expect(summariesOf()).toContain("Platzl Hotel");
+  });
+
   it("renders no Home leg when the Trip has none", async () => {
     const { container } = await renderPage();
     expect(legs(container)).toHaveLength(1);

@@ -25,6 +25,8 @@ export interface DayByDayStop {
   arriveDate: string;
   departDate: string;
   nights: number;
+  /** The closed card's line under the name, built on the server from this link's switches. */
+  summary: string | null;
   status: StopStatus;
   days: DayByDayDay[];
   /** Transport from this stop to the next; null when includeTransport is off or none. */
@@ -109,32 +111,46 @@ export function DayByDay({
 }
 
 function FoldedStop({ s }: { s: DayByDayStop }) {
-  const n = s.days.length;
   return (
     <>
-      <span aria-hidden className={cn("size-3.5 shrink-0 rounded-full border-2 border-border", stopDotClass(s.sortOrder))} />
-      <span className="flex min-w-0 flex-1 flex-col sm:flex-row sm:items-baseline sm:gap-1.5">
-        <span className="break-words font-display text-[17px] font-extrabold sm:truncate">{s.name}</span>
-        <span className="whitespace-nowrap text-[13px] font-semibold text-muted-foreground sm:shrink-0 sm:font-display sm:text-[17px] sm:font-extrabold sm:text-foreground">
-          <span aria-hidden className="hidden sm:inline">
-            {"· "}
-          </span>
-          {`${n} ${n === 1 ? "day" : "days"}`}
-          {s.status !== "past" && (
-            <span className="sm:hidden">{` · ${formatDateRangeCompact(s.arriveDate, s.departDate)}`}</span>
-          )}
-        </span>
+      <span
+        aria-hidden
+        className={cn(
+          "flex size-7 shrink-0 items-center justify-center rounded-full border-2 border-border text-xs font-extrabold text-on-accent",
+          HUE_CLASSES[stopHue(s.sortOrder)].fill,
+        )}
+      >
+        {s.number}
       </span>
-      {s.status === "past" ? (
-        <span className="inline-flex shrink-0 items-center gap-1 whitespace-nowrap text-[13px] font-bold text-teal-text">
-          <Check aria-hidden className="size-3.5" />
-          Done
-        </span>
-      ) : (
-        <span className="hidden shrink-0 whitespace-nowrap text-[13px] font-bold tabular-nums sm:inline">
-          {formatDateRangeCompact(s.arriveDate, s.departDate)}
-        </span>
-      )}
+      <span className="flex min-w-0 flex-1 flex-col">
+        <span className="break-words font-display text-[17px] font-extrabold leading-tight">{s.name}</span>
+        {s.summary && (
+          <span data-stop-summary className="truncate text-[13px] font-semibold text-muted-foreground">
+            {s.summary}
+          </span>
+        )}
+      </span>
+      {/* Stacked on a phone (dates over chip) so the card stays two lines tall beside the Show control. */}
+      <span className="flex shrink-0 flex-col items-end gap-1 sm:flex-row sm:items-center sm:gap-2">
+        {s.status === "past" ? (
+          <span className="inline-flex items-center gap-1 whitespace-nowrap text-[13px] font-bold text-teal-text">
+            <Check aria-hidden className="size-3.5" />
+            Done
+          </span>
+        ) : (
+          <span className="whitespace-nowrap text-[13px] font-bold tabular-nums">{formatDateRangeCompact(s.arriveDate, s.departDate)}</span>
+        )}
+        {s.nights > 0 && (
+          <span
+            className={cn(
+              "whitespace-nowrap rounded-full border-2 border-border px-2 text-xs font-extrabold tabular-nums text-on-accent",
+              HUE_CLASSES[stopHue(s.sortOrder)].fill,
+            )}
+          >
+            {`${s.nights}n`}
+          </span>
+        )}
+      </span>
     </>
   );
 }

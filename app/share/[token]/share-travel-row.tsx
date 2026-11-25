@@ -28,8 +28,8 @@ export function ShareTravelRow({ mode, label, when, number, arrivesAt, arrivesLo
     accessibleName: "",
   };
   return (
-    // 7px right of the Plan's own line: its centre then sits under both a folded Stop's dot and an open Stop's number circle.
-    <div data-share-leg className="pl-[7px]">
+    // 11px right of the Plan's own line (centre 21): at 32 it runs through the centre of the 28px number circle that opens and closes a Stop card (18..46).
+    <div data-share-leg className="pl-[11px]">
       <LegRow kind="legs" compact>
         <LegCard
           label={leg}
