@@ -158,6 +158,8 @@ export const COST_SELECT = {
   currency: true,
   rateToHome: true,
   paidAt: true,
+  refundMinor: true,
+  refundedAt: true,
   dueDate: true,
   ownerType: true,
   ownerId: true,

@@ -61,7 +61,7 @@ export type ItemRow = {
 };
 export type CostRow = {
   id: string; tripId: string; forkId: string | null; ownerType: string; ownerId: string | null; costMinor: number;
-  paidMinor: number | null; currency: string; rateToHome: number | null; paidAt: Date | null; dueDate: string | null;
+  paidMinor: number | null; currency: string; rateToHome: number | null; paidAt: Date | null; refundMinor: number | null; refundedAt: Date | null; dueDate: string | null;
   settlement: string; label: string | null; category: string | null; createdAt: Date; updatedAt: Date;
 };
 export type ChapterRow = {
@@ -123,7 +123,7 @@ export function item(o: Partial<ItemRow> = {}): ItemRow {
 export function cost(o: Partial<CostRow> = {}): CostRow {
   return {
     id: "cost-1", tripId: "trip-1", forkId: null, ownerType: "ITEM", ownerId: "item-1", costMinor: 1200, paidMinor: null,
-    currency: "EUR", rateToHome: 1.6, paidAt: null, dueDate: null, settlement: "BEFORE", label: null, category: null,
+    currency: "EUR", rateToHome: 1.6, paidAt: null, refundMinor: null, refundedAt: null, dueDate: null, settlement: "BEFORE", label: null, category: null,
     createdAt: NOW, updatedAt: NOW, ...o,
   };
 }

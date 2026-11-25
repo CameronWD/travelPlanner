@@ -195,6 +195,8 @@ export default async function BudgetPage({
     label: c.label,
     category: c.category,
     paidAt: c.paidAt,
+    refundMinor: c.refundMinor,
+    refundedAt: c.refundedAt,
   }));
 
   const today = tripTodayISO(stops, trip.homeTimezone);

@@ -192,7 +192,7 @@ async function readWindowExtras(ctx: DayReadContext, dates: readonly string[]) {
       where: { tripId: ctx.tripId, ...REAL_PLAN, ownerType: { in: ["ITEM", "TRANSPORT", "ACCOMMODATION"] }, ownerId: { not: null }, ...ctx.visibility.where.cost },
       orderBy: { createdAt: "asc" },
       select: {
-        id: true, costMinor: true, paidMinor: true, currency: true, rateToHome: true, paidAt: true, dueDate: true,
+        id: true, costMinor: true, paidMinor: true, currency: true, rateToHome: true, paidAt: true, refundMinor: true, refundedAt: true, dueDate: true,
         ownerType: true, ownerId: true, label: true, category: true, settlement: true,
       },
     }),

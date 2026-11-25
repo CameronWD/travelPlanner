@@ -116,6 +116,20 @@ describe("loadBudget", () => {
     expect(buildBudget).toHaveBeenCalledWith(expect.objectContaining({ homeTimezone: "Australia/Brisbane" }));
   });
 
+  it("selects a Cost's Refund and hands it to buildBudget, so the roll-ups are net", async () => {
+    const refundedAt = new Date("2026-09-10");
+    db.cost.findMany.mockResolvedValue([
+      { id: "c1", costMinor: 2000, paidMinor: 2000, paidAt: new Date("2026-09-01"), refundMinor: 500, refundedAt, currency: "GBP", rateToHome: 1, ownerType: "OTHER", ownerId: null, label: null, category: null },
+    ]);
+    await loadBudget(TRIP_ID, VIEWER);
+    expect(db.cost.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({ select: expect.objectContaining({ refundMinor: true, refundedAt: true }) }),
+    );
+    expect(buildBudget).toHaveBeenCalledWith(
+      expect.objectContaining({ costs: [expect.objectContaining({ refundMinor: 500, refundedAt })] }),
+    );
+  });
+
   it("queries only dated chapters and passes them through when chapters are enabled", async () => {
     db.trip.findUnique.mockResolvedValue({ homeCurrency: "GBP", startDate: "2026-01-01", endDate: "2026-01-10", chaptersEnabled: true });
     const chapters = [{ id: "c1", name: "Italy", colour: "sky", startDate: "2026-01-01", endDate: "2026-01-05" }];
@@ -144,7 +158,7 @@ describe("buildBudgetFromRows", () => {
     buildBudgetFromRows({
       homeCurrency: "GBP",
       costs: [
-        { id: "c1", costMinor: 500, paidMinor: null, paidAt: null, currency: "GBP", rateToHome: 1, ownerType: "OTHER", ownerId: null, label: "Snack", category: "Food" },
+        { id: "c1", costMinor: 500, paidMinor: null, paidAt: null, refundMinor: null, refundedAt: null, currency: "GBP", rateToHome: 1, ownerType: "OTHER", ownerId: null, label: "Snack", category: "Food" },
       ],
       stops: [{ id: "s1", name: "Rome", timezone: "Europe/Rome", arriveDate: "2026-01-02", departDate: "2026-01-05", sortOrder: 0 }],
       items: [{ id: "i1", stopId: "s1", category: "SIGHTSEEING", date: "2026-01-03" }],
@@ -172,13 +186,13 @@ describe("buildBudgetFromRows", () => {
   });
 
   it("is what loadBudget calls internally after its own fetch", async () => {
-    db.cost.findMany.mockResolvedValue([{ id: "c1", costMinor: 1, paidMinor: null, paidAt: null, currency: "GBP", rateToHome: 1, ownerType: "OTHER", ownerId: null, label: null, category: null }]);
+    db.cost.findMany.mockResolvedValue([{ id: "c1", costMinor: 1, paidMinor: null, paidAt: null, refundMinor: null, refundedAt: null, currency: "GBP", rateToHome: 1, ownerType: "OTHER", ownerId: null, label: null, category: null }]);
     await loadBudget(TRIP_ID, VIEWER);
     const fromLoadBudget = buildBudget.mock.calls[0][0];
     buildBudget.mockClear();
     buildBudgetFromRows({
       homeCurrency: "GBP",
-      costs: [{ id: "c1", costMinor: 1, paidMinor: null, paidAt: null, currency: "GBP", rateToHome: 1, ownerType: "OTHER", ownerId: null, label: null, category: null }],
+      costs: [{ id: "c1", costMinor: 1, paidMinor: null, paidAt: null, refundMinor: null, refundedAt: null, currency: "GBP", rateToHome: 1, ownerType: "OTHER", ownerId: null, label: null, category: null }],
       stops: [],
       items: [],
       accommodations: [],

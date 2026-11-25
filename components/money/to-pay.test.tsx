@@ -46,7 +46,7 @@ import type { ToPayInput } from "@/lib/money/to-pay";
 import type { CostRow } from "@/server/actions/costs";
 
 function input(over: Partial<ToPayInput> & { id: string }): ToPayInput {
-  return { displayLabel: over.id, costMinor: 10000, paidMinor: null, currency: "AUD", rateToHome: null, paidAt: null, dueDate: null, ownerType: "OTHER", settlement: "BEFORE", ...over };
+  return { displayLabel: over.id, costMinor: 10000, paidMinor: null, currency: "AUD", rateToHome: null, paidAt: null, refundMinor: null, refundedAt: null, dueDate: null, ownerType: "OTHER", settlement: "BEFORE", ...over };
 }
 const COSTS: ToPayInput[] = [
   input({ id: "rome", displayLabel: "Rome apartment · balance", currency: "EUR", costMinor: 76000, rateToHome: 2, dueDate: "2026-10-15", ownerType: "ACCOMMODATION" }),

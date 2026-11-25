@@ -58,7 +58,7 @@ async function loadTravellingHomeUncached(tripId: string, userId: string | null)
       db.cost.findMany({
         where: { tripId, ...REAL_PLAN },
         select: {
-          id: true, costMinor: true, paidMinor: true, currency: true, rateToHome: true, paidAt: true, dueDate: true,
+          id: true, costMinor: true, paidMinor: true, currency: true, rateToHome: true, paidAt: true, refundMinor: true, refundedAt: true, dueDate: true,
           ownerType: true, ownerId: true, label: true, category: true, settlement: true,
         },
       }),

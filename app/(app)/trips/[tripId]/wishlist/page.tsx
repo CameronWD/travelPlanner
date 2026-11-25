@@ -184,6 +184,8 @@ export default async function WishlistPage({
             currency: true,
             rateToHome: true,
             paidAt: true,
+            refundMinor: true,
+            refundedAt: true,
             dueDate: true,
             ownerType: true,
             ownerId: true,

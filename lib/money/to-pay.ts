@@ -1,6 +1,7 @@
 import { convertMinor } from "@/lib/money/money";
 import { daysBetween, formatDayLabel, formatDayMonth, formatISODate } from "@/lib/dates";
 import { isOnTrip } from "@/lib/enum-values";
+import { netCostMinor, netPaidMinor, refundState } from "@/lib/money/refund";
 
 const TO_PAY_SOON_DAYS = 14;
 
@@ -14,6 +15,8 @@ export interface ToPayInput {
   currency: string;
   rateToHome: number | null;
   paidAt: Date | null;
+  refundMinor: number | null;
+  refundedAt: Date | null;
   dueDate: string | null;
   ownerType: string;
   settlement?: string;
@@ -31,6 +34,8 @@ export interface ToPayRow {
   foreign: boolean;
   originalMinor: number;
   homeMinor: number | null;
+  /** The Refund as entered; `originalMinor`/`homeMinor` above are already net of a received one. */
+  refund: { minor: number; homeMinor: number | null; state: "expected" | "received"; on: string | null } | null;
   dueLine: string;
   dueTone: DueTone;
   unpaidDueLine: string;
@@ -62,12 +67,15 @@ export function mergeToPay(
   const rows = costs.map((c, index) => {
     const paid = c.paidAt != null;
     const legacy = !paid && c.paidMinor != null;
-    const originalMinor = paid ? (c.paidMinor ?? c.costMinor) : c.costMinor;
+    const originalMinor = paid ? (netPaidMinor(c) ?? netCostMinor(c)) : c.costMinor;
     const foreign = c.currency.toUpperCase() !== home;
-    const homeMinor = !foreign
-      ? originalMinor
-      : c.rateToHome != null
-        ? convertMinor(originalMinor, c.currency, home, c.rateToHome)
+    const toHome = (minor: number) =>
+      !foreign ? minor : c.rateToHome != null ? convertMinor(minor, c.currency, home, c.rateToHome) : null;
+    const homeMinor = toHome(originalMinor);
+    const state = refundState(c);
+    const refund: ToPayRow["refund"] =
+      paid && c.refundMinor != null && state !== "none"
+        ? { minor: c.refundMinor, homeMinor: toHome(c.refundMinor), state, on: c.refundedAt ? formatISODate(c.refundedAt) : null }
         : null;
     const u = unpaidDue(c, today);
     const paidISO = paid ? formatISODate(c.paidAt!) : null;
@@ -88,6 +96,7 @@ export function mergeToPay(
       foreign,
       originalMinor,
       homeMinor,
+      refund,
       dueLine: due.line,
       dueTone: due.tone,
       unpaidDueLine: u.line,

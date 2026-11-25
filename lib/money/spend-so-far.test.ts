@@ -3,7 +3,7 @@ import { buildSpendSoFar, legacyPaidCount, type SpendCost } from "./spend-so-far
 
 const cost = (o: Partial<SpendCost>): SpendCost => ({
   id: "c", costMinor: 0, paidMinor: null, currency: "AUD", rateToHome: null,
-  ownerType: "OTHER", ownerId: null, label: null, category: null, paidAt: null, ...o,
+  ownerType: "OTHER", ownerId: null, label: null, category: null, paidAt: null, refundMinor: null, refundedAt: null, ...o,
 });
 
 describe("buildSpendSoFar", () => {
@@ -23,6 +23,26 @@ describe("buildSpendSoFar", () => {
     expect(res.varianceMinor).toBe(0);           // 15000 - 15000
     expect(res.costRemainingMinor).toBe(8000); // 23000 - 15000
     expect(res.tripElapsedPct).toBe(50);         // day 5 of 10
+  });
+
+  it("counts a received Refund as money back, and an expected one as still spent", () => {
+    const paidAt = new Date("2026-08-02");
+    const back = new Date("2026-08-04");
+    const res = buildSpendSoFar({
+      homeCurrency: "AUD",
+      costs: [
+        cost({ id: "a", costMinor: 20000, paidMinor: 20000, paidAt, refundMinor: 5000, refundedAt: back }),
+        cost({ id: "b", costMinor: 40000, paidMinor: 40000, paidAt, refundMinor: 40000, refundedAt: back }),
+        cost({ id: "c", costMinor: 10000, paidMinor: 10000, paidAt, refundMinor: 10000, refundedAt: null }),
+        cost({ id: "d", costMinor: 30000, paidMinor: null }),
+      ],
+      tripStart: null, tripEnd: null, today: "2026-08-06",
+    });
+    expect(res.costTotalMinor).toBe(55000);
+    expect(res.paidSoFarMinor).toBe(25000);
+    expect(res.paidCostMinor).toBe(25000);
+    expect(res.varianceMinor).toBe(0);
+    expect(res.costRemainingMinor).toBe(30000);
   });
 
   it("excludes missing-rate foreign costs and handles no dates", () => {

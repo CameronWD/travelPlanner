@@ -17,6 +17,7 @@ import { formatMoney, sumMinorToHome } from "@/lib/money/money";
 import { formatDayLabel } from "@/lib/dates";
 import { plural } from "@/lib/plural";
 import type { CostRow } from "@/server/actions/costs";
+import { costNetMinor } from "@/lib/money/cost-row";
 import { PresenceDiv } from "./presence";
 import { REDUCED_EXIT, useMotionTiming } from "./use-motion-timing";
 import { IdeaPickerMenu } from "./idea-picker-menu";
@@ -94,7 +95,7 @@ function daySummary(items: StopDayItem[], costsById: Map<string, CostRow[]> | un
   if (toBook > 0) parts.push(`${toBook} to book`);
   if (costs.length > 0 && homeCurrency) {
     const total = sumMinorToHome(
-      costs.map((c) => ({ amountMinor: c.costMinor, currency: c.currency })),
+      costs.map((c) => ({ amountMinor: costNetMinor(c), currency: c.currency })),
       homeCurrency,
       (cur) => costs.find((c) => c.currency.toUpperCase() === cur)?.rateToHome ?? undefined,
     ).totalMinor;
@@ -220,7 +221,7 @@ function DayRow({ stopId, dateISO, item, costs, owner, attached, isNew, onRiseIn
       endTime: item.endTime ?? null,
     },
   });
-  const rowCost = costs.length > 0 ? formatMoney(costs.reduce((sum, c) => sum + c.costMinor, 0), costs[0].currency) : null;
+  const rowCost = costs.length > 0 ? formatMoney(costs.reduce((sum, c) => sum + costNetMinor(c), 0), costs[0].currency) : null;
 
   return (
     <div

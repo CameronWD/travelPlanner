@@ -38,6 +38,8 @@ const COST_SELECT = {
   currency: true,
   rateToHome: true,
   paidAt: true,
+  refundMinor: true,
+  refundedAt: true,
   ownerType: true,
   ownerId: true,
   label: true,
@@ -54,6 +56,8 @@ interface RawCostRow {
   costMinor: number;
   paidMinor: number | null;
   paidAt: Date | string | null;
+  refundMinor: number | null;
+  refundedAt: Date | null;
   currency: string;
   rateToHome: number | null;
   ownerType: string;
@@ -136,6 +140,8 @@ export function buildBudgetFromRows({
     costMinor: c.costMinor,
     paidMinor: c.paidMinor,
     paidAt: c.paidAt,
+    refundMinor: c.refundMinor,
+    refundedAt: c.refundedAt,
     currency: c.currency,
     rateToHome: c.rateToHome,
     ownerType: c.ownerType as BudgetCost["ownerType"],

@@ -2,6 +2,8 @@ import * as React from "react";
 import { DollarSign, CheckCircle2 } from "lucide-react";
 import { formatMoney, convertMinor } from "@/lib/money/money";
 import { cn } from "@/lib/cn";
+import { shownCostMinor } from "@/lib/money/cost-row";
+import { RefundTag } from "@/components/money/refund-tag";
 import type { CostRow } from "@/server/actions/costs";
 
 // ---------------------------------------------------------------------------
@@ -25,15 +27,13 @@ export interface CostSummaryProps {
  * Shows exactly one current number: the cost amount while unpaid, or the
  * paid amount (emerald, with a checkmark and "paid") once `paidAt` is set.
  * The paid gate is `Boolean(cost.paidAt)` — a stale `paidMinor` on an
- * un-marked cost must never surface. The `≈ home` equivalent is always
+ * un-marked cost must never surface. A received Refund comes off the shown
+ * amount; the Refund itself rides beside it as a tag. The `≈ home` equivalent is always
  * computed from whichever amount is shown.
  */
 export function CostSummary({ cost, homeCurrency, className }: CostSummaryProps) {
   const isPaid = Boolean(cost.paidAt);
-  const shownMinor =
-    isPaid && cost.paidMinor !== null && cost.paidMinor !== undefined
-      ? cost.paidMinor
-      : cost.costMinor;
+  const shownMinor = shownCostMinor(cost);
   const shownStr = formatMoney(shownMinor, cost.currency);
 
   // Home-currency equivalent, computed from the shown amount.
@@ -73,6 +73,7 @@ export function CostSummary({ cost, homeCurrency, className }: CostSummaryProps)
           {shownStr}
           {isPaid && <span>paid</span>}
         </span>
+        {isPaid && <RefundTag cost={cost} />}
         {homeEquivStr && (
           <span className="text-muted-foreground/70">
             ≈&nbsp;{homeEquivStr}

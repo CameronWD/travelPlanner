@@ -191,6 +191,9 @@ export function DetailsSheet({
               <span className={view.cost.paid ? "text-teal-text" : "text-muted-foreground"}>
                 {view.cost.paid ? "Paid" : "Not paid yet"}
               </span>
+              {view.cost.refund ? (
+                <span data-refund-tag className="text-xs font-semibold text-muted-foreground">{view.cost.refund}</span>
+              ) : null}
             </p>
           </Row>
         ) : null}

@@ -14,7 +14,7 @@ const file: AttachmentView = {
 
 function cost(over: Partial<CostRow> = {}): CostRow {
   return {
-    id: "c1", costMinor: 12000, paidMinor: null, currency: "EUR", rateToHome: null, paidAt: null, dueDate: null,
+    id: "c1", costMinor: 12000, paidMinor: null, currency: "EUR", rateToHome: null, paidAt: null, refundMinor: null, refundedAt: null, dueDate: null,
     ownerType: "ITEM", ownerId: "i1", label: null, category: null, settlement: "BEFORE", ...over,
   };
 }
@@ -188,5 +188,24 @@ describe("itemDetails", () => {
       attachments: [file], costs: [cost({ ownerId: "i9" })], stops: [{ id: "s1", name: "Munich" }],
     });
     expect(v).toEqual({ ...EMPTY, title: "Surprise" });
+  });
+});
+
+describe("details cost with a Refund", () => {
+  it("shows the net and names the Refund", () => {
+    const v = transportDetails(
+      {
+        id: "t1", mode: "TRAIN", bookingStateSet: false, sortOrder: 0,
+        fromStopName: "Paris", toStopName: "Munich",
+        fromStopTimezone: "Europe/Paris", toStopTimezone: "Europe/Berlin",
+        depAt: new Date("2026-12-05T08:30:00Z"), arrAt: new Date("2026-12-05T15:10:00Z"),
+      },
+      { ...ctx, costs: [cost({ costMinor: 20000, paidMinor: 20000, paidAt: new Date("2026-11-02"), refundMinor: 5000, refundedAt: new Date("2026-11-09") })] },
+    );
+    expect(v.cost).toEqual({
+      label: formatMoney(15000, "EUR"),
+      paid: true,
+      refund: `Refunded ${formatMoney(5000, "EUR")}`,
+    });
   });
 });

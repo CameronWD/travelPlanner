@@ -6,6 +6,7 @@ import { m } from "motion/react";
 import { LayoutMotion } from "@/components/ui/layout-motion";
 import { cn } from "@/lib/cn";
 import { formatMoneyWhole } from "@/lib/money/format-parts";
+import { RefundTag } from "@/components/money/refund-tag";
 import type { ToPayRow, DueTone } from "@/lib/money/to-pay";
 import {
   DropdownMenu,
@@ -75,6 +76,12 @@ export function ToPayRowView({
         </span>
       </p>
       {row.dueLine ? <p className={cn("text-xs font-semibold", TONE[row.dueTone])}>{row.dueLine}</p> : null}
+      {row.refund ? (
+        <RefundTag
+          cost={{ refundMinor: row.refund.minor, refundedAt: row.refund.on, currency: row.currency }}
+          className="block"
+        />
+      ) : null}
     </>
   );
 
