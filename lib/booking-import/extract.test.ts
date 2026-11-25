@@ -182,7 +182,8 @@ describe("the extraction asks for Slot time (R3)", () => {
   });
   it("the schema requires cityEnglish and cityLocal on every place", () => {
     expect(BookingExtractionSchema.safeParse(SAMPLE_EXTRACTION).success).toBe(true);
-    const { cityEnglish: _dropped, ...arrWithout } = OUTBOUND.transport!.arr;
+    const arrWithout: Record<string, unknown> = { ...OUTBOUND.transport!.arr };
+    delete arrWithout.cityEnglish;
     const broken = { ...SAMPLE_EXTRACTION, proposals: [{ ...OUTBOUND, transport: { ...OUTBOUND.transport!, arr: arrWithout } }] };
     expect(BookingExtractionSchema.safeParse(broken).success).toBe(false);
   });

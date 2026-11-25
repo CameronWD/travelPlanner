@@ -24,6 +24,8 @@ export interface MatchHome {
 
 export interface PlaceQuery {
   city: string | null;
+  cityEnglish: string | null;
+  cityLocal: string | null;
   country: string | null;
   place: string | null;
 }
@@ -92,8 +94,11 @@ function countryNames(): Map<string, string> {
         name = undefined;
       }
       // Keep the FIRST code seen for a name: Intl also names "UK" "United
-      // Kingdom", and it must not overwrite "GB" (P1 ruling).
-      const key = name && name !== "Unknown Region" ? normalise(name) : null;
+      // Kingdom", and it must not overwrite "GB" (P1 ruling). Retired codes
+      // sort first for some names ("DD" is "Germany", "FX" "France"): skip
+      // any code the locale data canonicalises to another region.
+      const retired = Intl.getCanonicalLocales(`und-${code}`)[0] !== `und-${code}`;
+      const key = name && name !== "Unknown Region" && !retired ? normalise(name) : null;
       if (key && !map.has(key)) map.set(key, code.toLowerCase());
     }
   }
@@ -108,6 +113,16 @@ export function countryCodeOf(value: string | null | undefined): string | null {
   if (ALIASES[key]) return ALIASES[key];
   if (/^[a-z]{2}$/.test(key)) return key;
   return countryNames().get(key) ?? null;
+}
+
+/** The name a new Stop or a presence test uses: the English name when Claude gave one, else the city as printed. */
+export function cityNameOf(q: PlaceQuery): string | null {
+  return q.cityEnglish?.trim() || q.city?.trim() || null;
+}
+
+/** True when any name the booking gives for the place (printed city, English, local, airport or station) names `stopName`. */
+function namesCity(q: PlaceQuery, stopName: string | null | undefined): boolean {
+  return [q.city, q.cityEnglish, q.cityLocal, q.place].some((t) => sameCity(t, stopName));
 }
 
 function stopCountry(s: MatchStop): string | null {
@@ -147,8 +162,8 @@ function matchesHome(q: PlaceQuery, home: MatchHome): boolean {
   // country on either side is no disagreement, the same rule as a Stop's
   // `compatible` in resolvePlace.
   const agrees = !cc || !homeCc || cc === homeCc;
-  if (agrees && (sameCity(q.city, home.name) || sameCity(q.place, home.name))) return true;
-  return !q.city && !q.place && cc !== null && cc === homeCc;
+  if (agrees && namesCity(q, home.name)) return true;
+  return !cityNameOf(q) && !q.place && cc !== null && cc === homeCc;
 }
 
 export function resolvePlace(
@@ -162,10 +177,10 @@ export function resolvePlace(
   const cc = countryCodeOf(q.country);
   const compatible = (s: MatchStop) => !cc || !stopCountry(s) || stopCountry(s) === cc;
 
-  const byCity = ctx.stops.filter((s) => (sameCity(q.city, s.name) || sameCity(q.place, s.name)) && compatible(s));
+  const byCity = ctx.stops.filter((s) => namesCity(q, s.name) && compatible(s));
   if (byCity.length > 0) return { kind: "stop", stop: nearest(byCity, range) };
 
-  if (!q.city && cc) {
+  if (!cityNameOf(q) && cc) {
     const inCountry = ctx.stops.filter((s) => stopCountry(s) === cc && overlaps(s, range));
     if (inCountry.length > 0) return { kind: "stop", stop: nearest(inCountry, range) };
   }
@@ -175,8 +190,8 @@ export function resolvePlace(
     if (covering.length > 0) return { kind: "stop", stop: nearest(covering, range) };
   }
 
-  if (opts.allowNew && q.city) {
-    const name = q.city.trim();
+  const name = cityNameOf(q);
+  if (opts.allowNew && name) {
     return { kind: "new", key: `${normalise(name)}|${cc ?? ""}`, name, country: q.country?.trim() || null, countryCode: cc };
   }
   return { kind: "none" };

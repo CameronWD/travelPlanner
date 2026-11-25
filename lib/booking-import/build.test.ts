@@ -16,6 +16,7 @@ const CTX: MatchContext = {
   existing: NO_EXISTING,
   today: "2026-10-14",
 };
+const end2 = (place: string, city: string, cityEnglish: string | null, localDateTime: string) => ({ place, city, cityEnglish, cityLocal: null, country: "Portugal", localDateTime });
 const report = (...proposals: ExtractedProposal[]): BookingExtraction => ({ isBooking: true, notBookingReason: null, bookedOn: null, proposals });
 const byId = (ps: Proposal[], id: string) => ps.find((p) => p.clientId === id)!;
 const item = (over: Partial<NonNullable<ExtractedProposal["item"]>>, cost: ExtractedProposal["cost"] = null): ExtractedProposal => ({
@@ -159,9 +160,48 @@ describe("buildProposals: Review Focus", () => {
   });
 
   it("a city match beats a same-country Stop whose dates overlap (Review Focus 4)", () => {
-    const portoStay: ExtractedProposal = { ...STAY, accommodation: { ...STAY.accommodation!, city: "Porto", checkIn: "2026-12-03", checkOut: "2026-12-05" } };
+    const portoStay: ExtractedProposal = { ...STAY, accommodation: { ...STAY.accommodation!, city: "Porto", cityEnglish: "Porto", cityLocal: null, checkIn: "2026-12-03", checkOut: "2026-12-05" } };
     const { proposals } = buildProposals(report(portoStay), CTX);
     expect(byId(proposals, "p1").input).toMatchObject({ stopId: "s-opo" });
+  });
+});
+
+describe("buildProposals: city names in other languages", () => {
+  const lisboaStay = { ...STAY, accommodation: { ...STAY.accommodation!, city: "Lisboa", cityEnglish: "Lisbon", cityLocal: "Lisboa" } };
+
+  it("a flight printing Lisbon and a hotel printing Lisboa propose one Stop, named Lisbon, and both hang on it", () => {
+    const { proposals } = buildProposals({ ...SAMPLE_EXTRACTION, proposals: [OUTBOUND, RETURN, lisboaStay] }, { ...CTX, stops: [] });
+    const stops = proposals.filter((p) => p.kind === "stop");
+    expect(stops.map((s) => s.input.name)).toEqual(["Lisbon"]);
+    const flight = proposals.find((p) => p.kind === "transport")!;
+    const stay = proposals.find((p) => p.kind === "accommodation")!;
+    expect(stay.input.stopId).toBe(flight.input.toStopId);
+  });
+
+  it("a hotel printing Lisboa lands on the existing Lisbon Stop, which keeps its name", () => {
+    const { proposals } = buildProposals({ ...SAMPLE_EXTRACTION, proposals: [lisboaStay] }, CTX);
+    expect(proposals.filter((p) => p.kind === "stop")).toEqual([]);
+    expect(proposals.find((p) => p.kind === "accommodation")!.input.stopId).toBe("s-lis");
+  });
+
+  it("an unplaced end keeps the station as printed", () => {
+    const muc = { place: "München Hbf", city: "München", cityEnglish: "Munich", cityLocal: "München", country: "Germany" };
+    const train: ExtractedProposal = { ...OUTBOUND, cost: null, transport: { ...OUTBOUND.transport!, mode: "TRAIN", dep: { ...muc, localDateTime: "2026-12-04T09:00" }, arr: { ...NO_END, city: "Lisbon", cityEnglish: "Lisbon", country: "Portugal", localDateTime: "2026-12-04T20:00" } } };
+    const { proposals } = buildProposals(report(train), { ...CTX, stops: [] });
+    expect(byId(proposals, "p1").input).toMatchObject({ depPlace: "München Hbf" });
+  });
+
+  it("a connection through a city printed two ways is still a layover (Review Focus 5)", () => {
+    const leg1: ExtractedProposal = { ...OUTBOUND, transport: { ...OUTBOUND.transport!, arr: end2("Lisboa Airport", "Lisboa", "Lisbon", "2026-12-02T07:15") } };
+    const leg2: ExtractedProposal = {
+      ...OUTBOUND,
+      cost: null,
+      transport: { ...OUTBOUND.transport!, serviceNumber: "SK7", dep: end2("Lisbon Airport", "Lisbon", null, "2026-12-02T09:00"), arr: { ...NO_END, place: "Porto Airport", city: "Porto", cityEnglish: "Porto", country: "Portugal", localDateTime: "2026-12-02T10:00" } },
+    };
+    const { proposals } = buildProposals(report(leg1, leg2), { ...CTX, stops: [] });
+    expect(proposals.some((p) => p.kind === "stop" && p.input.name === "Lisbon")).toBe(false);
+    expect(byId(proposals, "p1").input).toMatchObject({ arrPlace: "Lisboa Airport" });
+    expect(byId(proposals, "p2").input).toMatchObject({ depPlace: "Lisbon Airport" });
   });
 });
 
@@ -369,7 +409,7 @@ describe("buildProposals: fix round 1 findings", () => {
     const stay: ExtractedProposal = {
       ...STAY,
       cost: null,
-      accommodation: { ...STAY.accommodation!, name: "Changi Transit Hotel", city: "Singapore", country: "Singapore", checkIn: "2026-12-01", checkOut: "2026-12-02" },
+      accommodation: { ...STAY.accommodation!, name: "Changi Transit Hotel", city: "Singapore", cityEnglish: "Singapore", cityLocal: null, country: "Singapore", checkIn: "2026-12-01", checkOut: "2026-12-02" },
     };
     const { proposals } = buildProposals(report(leg1, leg2, stay), CTX);
     const stops = proposals.filter((p) => p.kind === "stop");

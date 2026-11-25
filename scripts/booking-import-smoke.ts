@@ -65,7 +65,7 @@ async function main(): Promise<void> {
     const i = p.input as unknown as Record<string, unknown>;
     const when = [i.arriveDate, i.depAt, i.checkIn, i.date].find(Boolean) ?? "no date";
     const flags = [p.missing.length ? `missing: ${p.missing.join(", ")}` : null, p.doubleCheck.length ? `${p.doubleCheck.length} double-check notes` : null, i.costMinor !== undefined ? "has a Cost" : null].filter(Boolean).join("; ");
-    console.log(`  ${p.clientId} ${p.kind}${p.kind === "transport" ? ` ${i.mode}` : ""} · ${p.confidence} · ${String(when)}${flags ? ` · ${flags}` : ""}`);
+    console.log(`  ${p.clientId} ${p.kind}${p.kind === "transport" ? ` ${i.mode}` : p.kind === "stop" ? ` ${String(i.name)}` : ""} · ${p.confidence} · ${String(when)}${flags ? ` · ${flags}` : ""}`);
   }
 }
 
