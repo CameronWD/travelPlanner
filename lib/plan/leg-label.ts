@@ -93,6 +93,7 @@ export function legLabel(
   let sub = "";
   let spoken = "";
   let arrival = "";
+  let arrivalSpoken = "";
   if (t.depAt) {
     if (fromShort && toShort) {
       const e = ends(fromShort, toShort);
@@ -113,7 +114,9 @@ export function legLabel(
     }
     if (arr) {
       const mins = durationMinutes(t.depAt, t.arrAt);
-      arrival = `→ ${arr.time}${dayDelta >= 1 ? ` +${dayDelta}` : ""}${mins ? ` · ${formatDuration(mins)}` : ""}`;
+      const plus = dayDelta === 0 ? "" : ` ${dayDelta > 0 ? "+" : "−"}${Math.abs(dayDelta)}`;
+      arrival = `→ ${arr.time}${plus}${mins ? ` · ${formatDuration(mins)}` : ""}`;
+      arrivalSpoken = ` Arrives ${arr.time}${plus}.`;
     }
   } else if (isCar && t.driveEstimate) {
     sub = `${t.driveEstimate.estimated ? "~" : ""}${formatDuration(t.driveEstimate.minutes)} · ${t.driveEstimate.roadKm} km${t.driveEstimate.estimated ? " (estimated)" : ""}`;
@@ -131,14 +134,15 @@ export function legLabel(
     const e = ends(fromName, toName);
     route = typeof e === "string" ? ` in ${e}` : ` from ${e[0]} to ${e[1]}`;
   }
+  const detail = [transportDetailsLine(t.mode, t), t.reference?.trim()].filter(Boolean).join(" · ");
   return {
     icon: meta.icon,
     label,
     sub,
     missing: false,
-    accessibleName: `${word}${route}${spoken ? `, ${spoken}` : ""}. Edit.`,
+    accessibleName: `${word}${route}${spoken ? `, ${spoken}` : ""}.${arrivalSpoken}${detail ? ` ${detail}.` : ""} Edit.`,
     arrival,
-    detail: [transportDetailsLine(t.mode, t), t.reference?.trim()].filter(Boolean).join(" · "),
+    detail,
   };
 }
 

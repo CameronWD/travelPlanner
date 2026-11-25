@@ -23,7 +23,7 @@ describe("legLabel", () => {
       STOPS,
     );
     expect(l).toMatchObject({ icon: Plane, label: "Flight CDG → FCO", sub: "Tue 15 Dec 10:05", missing: false });
-    expect(l.accessibleName).toBe("Flight from Paris to Rome, Tuesday 15 December 10:05. Edit.");
+    expect(l.accessibleName).toBe("Flight from Paris to Rome, Tuesday 15 December 10:05. Arrives 12:10. Edit.");
   });
 
   it("timed with no places: falls back to the stop names", () => {
@@ -117,6 +117,25 @@ describe("legLabel arrival and detail", () => {
     expect(next.startsWith("→ ")).toBe(true);
     expect(next).toContain(" +1 · ");
     expect(legLabel(flight("2026-12-17T01:00:00Z"), STOPS).arrival).toContain(" +2 · ");
+  });
+  it("an arrival on an earlier local day gets a signed minus", () => {
+    const AUCKLAND = { id: "a", name: "Auckland", timezone: "Pacific/Auckland", arriveDate: null, departDate: null };
+    const HONOLULU = { id: "h", name: "Honolulu", timezone: "Pacific/Honolulu", arriveDate: null, departDate: null };
+    const t = { mode: "FLIGHT" as const, fromStopId: "a", toStopId: "h", depAt: new Date("2026-12-15T12:00:00Z"), arrAt: new Date("2026-12-15T22:00:00Z") };
+    const l = legLabel(t, [AUCKLAND, HONOLULU]);
+    expect(l.arrival).toContain(" −1 · ");
+    expect(l.accessibleName).toContain(" Arrives 12:00 −1.");
+  });
+  it("the day difference is local-date, not UTC-date", () => {
+    const HONOLULU = { id: "h", name: "Honolulu", timezone: "Pacific/Honolulu", arriveDate: null, departDate: null };
+    const AUCKLAND = { id: "a", name: "Auckland", timezone: "Pacific/Auckland", arriveDate: null, departDate: null };
+    const t = { mode: "FLIGHT" as const, fromStopId: "h", toStopId: "a", depAt: new Date("2026-12-15T10:00:00Z"), arrAt: new Date("2026-12-15T20:00:00Z") };
+    expect(legLabel(t, [HONOLULU, AUCKLAND]).arrival).toContain(" +1 · ");
+    expect(legLabel({ ...t, depAt: new Date("2026-12-15T09:00:00Z") }, [HONOLULU, AUCKLAND]).arrival).toContain(" +2 · ");
+  });
+  it("the accessible name speaks the arrival and the detail", () => {
+    const l = legLabel({ ...train, serviceNumber: "ICE 9572", seat: "42" }, STOPS);
+    expect(l.accessibleName).toBe("Train from Rome to Florence, Tuesday 22 December 09:28. Arrives 13:05. ICE 9572 · Seat 42. Edit.");
   });
   it("no arrival time, no arrival line", () => {
     expect(legLabel({ ...train, arrAt: null }, STOPS).arrival).toBe("");

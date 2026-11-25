@@ -29,7 +29,7 @@ describe("LegRow / LegPill (PLAN.md §2)", () => {
     expect(pill.className).toContain("bg-sun/15");
     expect(pill.className).toContain("rounded-2xl");
     expect(pill.className).toContain("tap-target");
-    expect(pill.querySelector(".bg-sun")).not.toBeNull();
+    expect(pill.querySelector(".bg-sun")).toBeNull();
     expect(screen.getByText("Tue 15 Dec 10:05").className).toContain("tabular-nums");
     await userEvent.click(pill);
     expect(onClick).toHaveBeenCalled();
@@ -51,6 +51,14 @@ describe("LegRow / LegPill (PLAN.md §2)", () => {
     expect(document.querySelector('[data-travel-line="detail"]')).toBeNull();
     rerender(<LegPill label={{ ...FLIGHT, detail: "ICE 9572 · QX7P2M" }} onClick={vi.fn()} />);
     expect(document.querySelector('[data-travel-line="detail"]')).toHaveTextContent("ICE 9572 · QX7P2M");
+  });
+
+  it("each detail part is its own inline-block so a part moves to the next line whole", () => {
+    render(<LegPill label={{ ...FLIGHT, detail: "ICE 9572 · Seat 42" }} onClick={vi.fn()} />);
+    const line = document.querySelector('[data-travel-line="detail"]') as HTMLElement;
+    expect(line.querySelectorAll("span.inline-block")).toHaveLength(2);
+    expect(line.className).not.toContain("whitespace-nowrap");
+    expect(line.textContent).toBe("ICE 9572 · Seat 42");
   });
 
   it("the missing pill is dashed on paper with a coral Add", () => {
@@ -139,20 +147,41 @@ describe("LegRow — metro line (spec 2026-10-05 §F)", () => {
     expect(container.querySelectorAll("[data-station-dot]")).toHaveLength(2);
   });
 
-  it("compact and desktop each centre the dot on their own connector", () => {
+  it("the mode icon is the marker on the line, centred on the row, with a stub to the row", () => {
     const { container, rerender } = render(<LegRow kind="legs"><LegPill label={FLIGHT} onClick={vi.fn()} /></LegRow>);
-    expect(container.querySelector("[data-leg-stack]")!.className).toContain("ml-[18px]");
-    expect(container.querySelector("[data-station-dot]")!.className).toContain("left-[-19px]");
-    expect(container.querySelector("[data-station-dot]")!.className).toContain("top-7");
+    const dot = container.querySelector("[data-station-dot]") as HTMLElement;
+    const stub = container.querySelector("[data-station-stub]") as HTMLElement;
+    expect(dot).toHaveAttribute("aria-hidden");
+    expect(stub).toHaveAttribute("aria-hidden");
+    expect(dot.className).toContain("bg-sun");
+    expect(dot.className).toContain("size-8");
+    expect(dot.className).toContain("ring-background");
+    expect(dot.className).toContain("top-1/2");
+    expect(dot.className).toContain("left-[-36px]");
+    expect(dot.querySelector("svg")).not.toBeNull();
+    expect(stub.className).toContain("bg-border");
+    expect(stub.className).toContain("w-5");
+    expect(container.querySelector("[data-leg-stack]")!.className).toContain("ml-[35px]");
+    expect(screen.getByRole("button", { name: FLIGHT.accessibleName }).querySelector("svg.lucide-plane")).toBeNull();
     rerender(<LegRow kind="legs" compact><LegPill label={FLIGHT} onClick={vi.fn()} compact /></LegRow>);
-    expect(container.querySelector("[data-leg-stack]")!.className).toContain("ml-3");
-    expect(container.querySelector("[data-station-dot]")!.className).toContain("left-[-13px]");
-    expect(container.querySelector("[data-station-dot]")!.className).toContain("top-6");
+    const cdot = container.querySelector("[data-station-dot]") as HTMLElement;
+    expect(cdot.className).toContain("size-7");
+    expect(cdot.className).toContain("left-[-32px]");
+    expect(container.querySelector("[data-leg-stack]")!.className).toContain("ml-[31px]");
+    expect(container.querySelector("[data-station-stub]")!.className).toContain("w-[18px]");
+  });
+
+  it("room around the row: py-5 / gap-3, and py-4 compact", () => {
+    const { container, rerender } = render(<LegRow kind="legs"><LegPill label={FLIGHT} onClick={vi.fn()} /></LegRow>);
+    expect(container.querySelector("[data-leg-stack]")!.className).toMatch(/py-5.*gap-3|gap-3.*py-5/);
+    rerender(<LegRow kind="legs" compact><LegPill label={FLIGHT} onClick={vi.fn()} compact /></LegRow>);
+    expect(container.querySelector("[data-leg-stack]")!.className).toContain("py-4");
   });
 
   it("the missing prompt and the bare line get no dot", () => {
     const { container, rerender } = render(<LegRow kind="missing"><LegPill label={MISSING} onClick={vi.fn()} /></LegRow>);
     expect(container.querySelector("[data-station-dot]")).toBeNull();
+    expect(container.querySelector("[data-station-stub]")).toBeNull();
     expect(screen.getByRole("button", { name: MISSING.accessibleName })).toBeInTheDocument();
     rerender(<LegRow kind="line" />);
     expect(container.querySelector("[data-leg-stack]")).toBeNull();
