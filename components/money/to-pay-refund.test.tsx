@@ -21,6 +21,7 @@ const PAID = new Date("2026-09-02");
 const COSTS: ToPayInput[] = [
   input({ id: "unpaid" }),
   input({ id: "paid", paidMinor: 10000, paidAt: PAID }),
+  input({ id: "nopaidamount", paidAt: PAID }),
   input({ id: "waiting", paidMinor: 10000, paidAt: PAID, refundMinor: 4000 }),
   input({ id: "cancelled", paidMinor: 10000, paidAt: PAID, refundMinor: 10000, refundedAt: new Date("2026-09-10") }),
   input({ id: "partial", paidMinor: 10000, paidAt: PAID, refundMinor: 3000, refundedAt: new Date("2026-09-10") }),
@@ -43,6 +44,13 @@ describe("To pay refunds", () => {
     await user.click(screen.getByRole("button", { name: "More for paid" }));
     expect(await screen.findByRole("menuitem", { name: "Refund" })).toBeInTheDocument();
     expect(screen.queryByRole("menuitem", { name: "Received" })).toBeNull();
+  });
+
+  it("offers no Refund on a paid Cost with no paid amount", async () => {
+    const user = userEvent.setup();
+    renderCard();
+    await user.click(screen.getByRole("button", { name: "More for nopaidamount" }));
+    expect(screen.queryByRole("menuitem", { name: "Refund" })).toBeNull();
   });
 
   it("a row with an expected refund shows the tag and a Received action that opens the dialog on Received", async () => {

@@ -7,6 +7,7 @@ import { Field } from "@/components/ui/field";
 import { FormError } from "@/components/ui/form-error";
 import { Input } from "@/components/ui/input";
 import { NOTHING_CHANGED, SOMETHING_WENT_WRONG, formError } from "@/components/ui/action-failure";
+import { REFUND_MESSAGES } from "@/lib/money/refund";
 import { formatMinor, parseAmountToMinor } from "@/lib/money/money";
 import { formatISODate, todayLocalISO } from "@/lib/dates";
 import { clearRefund, markRefundReceived, recordRefund } from "@/server/actions/costs";
@@ -52,18 +53,25 @@ export function RefundDialog({ cost, receiving, onClose }: { cost: RefundDialogC
     // The dialog's React tree sits inside the cost form's; a submit would bubble into it.
     e.stopPropagation();
     const minor = parseAmountToMinor(amount, cost.currency);
-    if (minor === null || minor < 1) {
+    if (minor === null) {
       setError("Enter the refund amount");
+      return;
+    }
+    if (minor < 1) {
+      setError(REFUND_MESSAGES.tooSmall);
       return;
     }
     if (received && !date) {
       setError("Enter when it arrived");
       return;
     }
+    const unchangedExpected = cost.refundMinor === minor && cost.refundedAt == null;
     void run(() =>
-      receiving && minor === cost.refundMinor
-        ? markRefundReceived(cost.id, date)
-        : recordRefund(cost.id, minor, received ? date : null),
+      !received
+        ? recordRefund(cost.id, minor, null)
+        : unchangedExpected
+          ? markRefundReceived(cost.id, date)
+          : recordRefund(cost.id, minor, date),
     );
   }
 
@@ -84,7 +92,6 @@ export function RefundDialog({ cost, receiving, onClose }: { cost: RefundDialogC
                 value={amount}
                 onChange={(e) => setAmount(e.target.value)}
                 disabled={submitting}
-                aria-label="Refund amount"
                 className="min-w-0 flex-1"
               />
               <span className="flex h-12 w-20 shrink-0 items-center justify-center rounded-md border border-input bg-muted text-sm text-muted-foreground sm:w-24">

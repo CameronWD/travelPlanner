@@ -126,7 +126,7 @@ export function ToPayPanel({
       pending: pendingId === row.id,
       onToggle: () => toggle(row),
       onPartlyPaid: !row.paid ? () => setPartly(row) : undefined,
-      onRefund: row.paid && cost ? () => setRefunding({ id: row.id, receiving: false }) : undefined,
+      onRefund: row.paid && cost?.paidMinor != null ? () => setRefunding({ id: row.id, receiving: false }) : undefined,
       onRefundReceived: row.refund?.state === "expected" && cost ? () => setRefunding({ id: row.id, receiving: true }) : undefined,
       onEdit: row.ownerType === "OTHER" || cost?.ownerId ? () => setEditing(row.id) : undefined,
       onDelete:

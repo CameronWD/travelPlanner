@@ -66,4 +66,52 @@ describe("RefundDialog", () => {
     await user.click(screen.getByRole("button", { name: "Save" }));
     expect(actions.markRefundReceived).toHaveBeenCalledWith("c1", "2026-11-25");
   });
+
+  it("opened on Received, switched to Expected and saved, records Expected and does not mark it received", async () => {
+    const user = userEvent.setup();
+    render(<RefundDialog cost={{ ...paid, refundMinor: 5000 }} receiving onClose={vi.fn()} />);
+    await user.click(screen.getByRole("radio", { name: "Expected" }));
+    await user.click(screen.getByRole("button", { name: "Save" }));
+    expect(actions.recordRefund).toHaveBeenCalledWith("c1", 5000, null);
+    expect(actions.markRefundReceived).not.toHaveBeenCalled();
+  });
+
+  it("opened on Received with the amount changed, records the new amount as received", async () => {
+    const user = userEvent.setup();
+    render(<RefundDialog cost={{ ...paid, refundMinor: 5000 }} receiving onClose={vi.fn()} />);
+    await user.clear(screen.getByLabelText("Refund amount"));
+    await user.type(screen.getByLabelText("Refund amount"), "40");
+    await user.click(screen.getByRole("button", { name: "Save" }));
+    expect(actions.recordRefund).toHaveBeenCalledWith("c1", 4000, "2026-11-25");
+    expect(actions.markRefundReceived).not.toHaveBeenCalled();
+  });
+
+  it("editing a received refund without touching the date sends the same date back", async () => {
+    const user = userEvent.setup();
+    render(<RefundDialog cost={{ ...paid, refundMinor: 5000, refundedAt: new Date("2026-11-10") }} onClose={vi.fn()} />);
+    expect(screen.getByLabelText("Date received")).toHaveValue("2026-11-10");
+    await user.click(screen.getByRole("button", { name: "Save" }));
+    expect(actions.recordRefund).toHaveBeenCalledWith("c1", 5000, "2026-11-10");
+  });
+
+  it("switching a received refund to Expected sends null", async () => {
+    const user = userEvent.setup();
+    render(<RefundDialog cost={{ ...paid, refundMinor: 5000, refundedAt: new Date("2026-11-10") }} onClose={vi.fn()} />);
+    await user.click(screen.getByRole("radio", { name: "Expected" }));
+    await user.click(screen.getByRole("button", { name: "Save" }));
+    expect(actions.recordRefund).toHaveBeenCalledWith("c1", 5000, null);
+  });
+
+  it("says a zero refund is too small, and a blank one needs an amount", async () => {
+    const user = userEvent.setup();
+    render(<RefundDialog cost={paid} onClose={vi.fn()} />);
+    await user.clear(screen.getByLabelText("Refund amount"));
+    await user.type(screen.getByLabelText("Refund amount"), "0");
+    await user.click(screen.getByRole("button", { name: "Save" }));
+    expect(await screen.findByRole("alert")).toHaveTextContent("A refund must be more than zero.");
+    await user.clear(screen.getByLabelText("Refund amount"));
+    await user.click(screen.getByRole("button", { name: "Save" }));
+    expect(await screen.findByRole("alert")).toHaveTextContent("Enter the refund amount");
+    expect(actions.recordRefund).not.toHaveBeenCalled();
+  });
 });
