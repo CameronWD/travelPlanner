@@ -80,7 +80,46 @@ describe("DayCarouselFrame: the heading travels with the body (below lg)", () =>
     });
     vi.useRealTimers();
     vi.restoreAllMocks();
+    delete (HTMLElement.prototype as { offsetParent?: unknown }).offsetParent;
   });
+
+  const AT_REST = "translate3d(0, 0, 0)";
+  const CLIP = "inset(-1rem 0 0 0)";
+  const held = (area: HTMLElement) => Array.from(area.querySelectorAll<HTMLElement>('[data-slot="day-arrow"], [data-slot="day-trip-switcher"]'));
+  const titleBlocks = (area: HTMLElement) => Array.from(area.querySelectorAll<HTMLElement>('[data-slot="day-title-block"]'));
+  const titleBlockOf = (area: HTMLElement, iso: string) => area.querySelector(`[data-day-heading-panel="${iso}"] [data-slot="day-title-block"]`) as HTMLElement;
+
+  // A phone's header row at 390px: px-4, a 44px arrow, a 14px gap, the title block, and the mirror.
+  // Offsets are layout positions, as a browser gives them, unmoved by any transform.
+  function phoneGeometry() {
+    const ARROW = { width: 44, lefts: [16, 330] };
+    const BLOCK = { left: 74, width: 242 };
+    const panelOf = (el: HTMLElement) => el.closest<HTMLElement>("[data-day-heading-panel]");
+    // jsdom has no offsetParent at all, so it is defined here and removed after each test.
+    Object.defineProperty(HTMLElement.prototype, "offsetParent", {
+      configurable: true,
+      get(this: HTMLElement) {
+        const panel = panelOf(this);
+        if (!panel) return null;
+        if (panel === this) return this.closest<HTMLElement>("[data-day-heading-track]");
+        return panel.hasAttribute("inert") ? panel : panel.closest<HTMLElement>("[data-day-heading-track]");
+      },
+    });
+    vi.spyOn(HTMLElement.prototype, "offsetLeft", "get").mockImplementation(function (this: HTMLElement) {
+      if (this.hasAttribute("data-day-heading-panel")) {
+        if (!this.hasAttribute("inert")) return 0;
+        return this.className.split(/\s+/).includes("right-full") ? -WIDTH : WIDTH;
+      }
+      if (this.getAttribute("data-slot") === "day-arrow") return ARROW.lefts[Array.from(panelOf(this)!.querySelectorAll('[data-slot="day-arrow"]')).indexOf(this)];
+      if (this.getAttribute("data-slot") === "day-title-block") return BLOCK.left;
+      return 0;
+    });
+    vi.spyOn(HTMLElement.prototype, "offsetWidth", "get").mockImplementation(function (this: HTMLElement) {
+      if (this.getAttribute("data-slot") === "day-arrow") return ARROW.width;
+      if (this.getAttribute("data-slot") === "day-title-block") return BLOCK.width;
+      return WIDTH;
+    });
+  }
 
   const frame = (shown: string) => (
     <NavigationPendingProvider>
@@ -115,18 +154,18 @@ describe("DayCarouselFrame: the heading travels with the body (below lg)", () =>
     expect(area.style.height).toBe(`${lerpHeight(96, 120, 0.25)}px`);
   });
 
-  it("settling back where it began removes the neighbour and clears the height and the transform", () => {
+  it("settling back where it began removes the neighbour, clears the height and rests the track at the identity", () => {
     const { area, track, headings, publish, settle } = mount("2026-12-19");
     publish(0.25);
     publish(0);
     settle();
     expect(headings()).toEqual(["2026-12-19"]);
     expect(area.style.height).toBe("");
-    expect(track.style.transform).toBe("");
+    expect(track.style.transform).toBe(AT_REST);
     expect(push).not.toHaveBeenCalled();
   });
 
-  it("settling on the next day makes its heading the one in view, alone, with the height and transform cleared", () => {
+  it("settling on the next day makes its heading the one in view, alone, with the height cleared and the track at the identity", () => {
     const { area, track, headings, publish, settle } = mount("2026-12-19");
     publish(0.6);
     publish(1);
@@ -134,7 +173,7 @@ describe("DayCarouselFrame: the heading travels with the body (below lg)", () =>
     expect(headings()).toEqual(["2026-12-20"]);
     expect(area.querySelector('[data-day-heading-panel="2026-12-20"]')).not.toHaveAttribute("inert");
     expect(area.style.height).toBe("");
-    expect(track.style.transform).toBe("");
+    expect(track.style.transform).toBe(AT_REST);
   });
 
   it("a drag back past the first day renders no neighbour and leaves the height the day's own (review focus 5)", () => {
@@ -173,7 +212,7 @@ describe("DayCarouselFrame: the heading travels with the body (below lg)", () =>
     expect((inView().querySelector('[data-slot="day-title-block"]') as HTMLElement).style.transform).toBe("");
     publish(0);
     settle();
-    for (const el of still()) expect(el.style.transform).toBe("");
+    for (const el of still()) expect(el.style.transform).toBe(AT_REST);
   });
 
   it("after a settle onto the next day the heading box holds no height of its own: it is the day in view's heading, exactly", () => {
@@ -183,7 +222,7 @@ describe("DayCarouselFrame: the heading travels with the body (below lg)", () =>
     settle();
     expect(box.style.minHeight).toBe("");
     expect(area.style.height).toBe("");
-    expect(area.style.clipPath).toBe("");
+    expect(area.style.clipPath).toBe(CLIP);
   });
 
   it("scrolled into the header, a settle onto the next day leaves no held height once the swap is corrected", () => {
@@ -212,20 +251,21 @@ describe("DayCarouselFrame: the heading travels with the body (below lg)", () =>
     expect(area.style.height).toBe("");
   });
 
-  it("while moving, the area is clipped at its sides and bottom but never above its top, where the bell's unread badge sits", () => {
+  it("the area is clipped at its sides and bottom, moving and at rest, but never above its top, where the bell's unread badge sits", () => {
     const { area, publish, settle } = mount("2026-12-19");
+    expect(area.style.clipPath).toBe(CLIP);
     for (const at of [0.1, 0.25, 0.6]) {
       publish(at);
       expect(area.style.overflow).toBe("");
       expect(area.style.overflowY).toBe("");
-      expect(area.style.clipPath).toBe("inset(-1rem 0 0 0)");
+      expect(area.style.clipPath).toBe(CLIP);
     }
     publish(0);
     settle();
-    expect(area.style.clipPath).toBe("");
+    expect(area.style.clipPath).toBe(CLIP);
   });
 
-  it("an overscroll past the first day that settles back on it clears the track, the clip and the held top bar and arrows", () => {
+  it("an overscroll past the first day that settles back on it rests the track, the clip and the held top bar and arrows", () => {
     const { area, track, publish, settle } = mount("2026-12-18");
     const held = () => Array.from(area.querySelectorAll<HTMLElement>('[data-slot="day-arrow"], [data-slot="day-trip-switcher"]'));
     publish(-0.3);
@@ -233,10 +273,10 @@ describe("DayCarouselFrame: the heading travels with the body (below lg)", () =>
     expect(held().some((el) => el.style.transform !== "")).toBe(true);
     publish(0);
     settle();
-    expect(track.style.transform).toBe("");
-    expect(area.style.clipPath).toBe("");
+    expect(track.style.transform).toBe(AT_REST);
+    expect(area.style.clipPath).toBe(CLIP);
     expect(area.style.height).toBe("");
-    for (const el of held()) expect(el.style.transform).toBe("");
+    for (const el of held()) expect(el.style.transform).toBe(AT_REST);
     expect(push).not.toHaveBeenCalled();
   });
 
@@ -275,6 +315,85 @@ describe("DayCarouselFrame: the heading travels with the body (below lg)", () =>
     for (const at of [0.3, 0.4, 0.5, 0.6]) publish(at);
     expect(reads).toEqual({ height: 0, width: 0, rect: 0 });
     expect(area.style.height).toBe(`${lerpHeight(96, 120, 0.6)}px`);
+  });
+
+  it("below lg the track, the area's clip and the held arrows keep their layer at rest from the first paint, and no title block is clipped", () => {
+    const { area, track } = mount("2026-12-19");
+    expect(track.style.transform).toBe(AT_REST);
+    expect(area.style.clipPath).toBe(CLIP);
+    for (const el of held(area)) expect(el.style.transform).toBe(AT_REST);
+    for (const el of titleBlocks(area)) expect(el.style.clipPath).toBe("");
+  });
+
+  it("below lg a settle onto the next day keeps the track's layer, the area's clip and the arrows' identity, and unclips the title blocks", () => {
+    phoneGeometry();
+    const { area, track, publish, settle } = mount("2026-12-19");
+    publish(0.5);
+    publish(1);
+    settle();
+    expect(track.style.transform).toBe(AT_REST);
+    expect(area.style.clipPath).toBe(CLIP);
+    expect(held(area).length).toBeGreaterThan(0);
+    for (const el of held(area)) expect(el.style.transform).toBe(AT_REST);
+    expect(titleBlocks(area)).toHaveLength(1);
+    for (const el of titleBlocks(area)) expect(el.style.clipPath).toBe("");
+  });
+
+  it("below lg a settle back onto the same day keeps the same rest state", () => {
+    phoneGeometry();
+    const { area, track, publish, settle } = mount("2026-12-19");
+    publish(0.5);
+    publish(0);
+    settle();
+    expect(track.style.transform).toBe(AT_REST);
+    expect(area.style.clipPath).toBe(CLIP);
+    for (const el of held(area)) expect(el.style.transform).toBe(AT_REST);
+    for (const el of titleBlocks(area)) expect(el.style.clipPath).toBe("");
+  });
+
+  it("half-way to the next day, the day in view's title block is clipped at the left arrow's inner edge and the incoming one at the right arrow's; the arrows are never clipped", () => {
+    phoneGeometry();
+    const { area, publish } = mount("2026-12-19");
+    publish(0.5);
+    // Moved 195px left, the day in view's block spans -121..121: the 181px left of the left arrow's edge (60) is clipped.
+    expect(titleBlockOf(area, "2026-12-19").style.clipPath).toBe("inset(-1rem 0px 0 181px)");
+    // The next day's spans 269..511: the 181px right of the right arrow's edge (330) is clipped.
+    expect(titleBlockOf(area, "2026-12-20").style.clipPath).toBe("inset(-1rem 181px 0 0px)");
+    for (const el of area.querySelectorAll<HTMLElement>('[data-slot="day-arrow"]')) expect(el.style.clipPath).toBe("");
+  });
+
+  it("half-way to the previous day the clips mirror: the day in view's at the right arrow, the incoming one's at the left", () => {
+    phoneGeometry();
+    const { area, publish } = mount("2026-12-19");
+    publish(-0.5);
+    expect(titleBlockOf(area, "2026-12-19").style.clipPath).toBe("inset(-1rem 181px 0 0px)");
+    expect(titleBlockOf(area, "2026-12-18").style.clipPath).toBe("inset(-1rem 0px 0 181px)");
+    for (const el of area.querySelectorAll<HTMLElement>('[data-slot="day-arrow"]')) expect(el.style.clipPath).toBe("");
+  });
+
+  it("a commit mid-drag re-measures the clips from layout, not from where the track has moved them", () => {
+    phoneGeometry();
+    const { area, publish, rerender } = mount("2026-12-19");
+    publish(0.25);
+    // getBoundingClientRect would see the track's move; layout offsets do not. A re-render commits mid-drag.
+    vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockImplementation(function (this: HTMLElement) {
+      if (this.closest('[data-slot="day-arrow"], [data-slot="day-title-block"]')) throw new Error("the heading's clip must not be measured from transformed rects");
+      return RECT;
+    });
+    rerender(frame("2026-12-19"));
+    publish(0.5);
+    expect(titleBlockOf(area, "2026-12-19").style.clipPath).toBe("inset(-1rem 0px 0 181px)");
+    expect(titleBlockOf(area, "2026-12-20").style.clipPath).toBe("inset(-1rem 181px 0 0px)");
+  });
+
+  it("from lg nothing is left set on the heading at rest: no transform, no clip, no held arrows", () => {
+    setMatchMedia(true);
+    const { area, track } = mount("2026-12-19");
+    expect(track.style.transform).toBe("");
+    expect(area.style.clipPath).toBe("");
+    expect(area.style.height).toBe("");
+    for (const el of held(area)) expect(el.style.transform).toBe("");
+    for (const el of titleBlocks(area)) expect(el.style.clipPath).toBe("");
   });
 
   it("the track has no transition of its own: it follows the finger", () => {
