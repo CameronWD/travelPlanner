@@ -25,7 +25,7 @@ const item = (over: Partial<NonNullable<ExtractedProposal["item"]>>, cost: Extra
   uncertainFields: [],
   transport: null,
   accommodation: null,
-  item: { title: "Ticket", category: "SIGHTSEEING", date: "2026-12-04", startTime: null, endTime: null, place: null, address: null, city: "Lisbon", country: "Portugal", booking: null, slotTime: null, arriveByMinutes: null, refundable: null, ...over },
+  item: { title: "Ticket", category: "SIGHTSEEING", date: "2026-12-04", startTime: null, endTime: null, place: null, address: null, city: "Lisbon", cityEnglish: null, cityLocal: null, country: "Portugal", booking: null, slotTime: null, arriveByMinutes: null, refundable: null, ...over },
   cost,
 });
 
@@ -93,8 +93,8 @@ describe("buildProposals: the sample booking", () => {
       doubleCheck: [],
       transport: {
         ...OUTBOUND.transport!,
-        dep: { place: "Lisbon (LIS)", city: "Lisbon", country: "Portugal", localDateTime: "2026-12-05T09:00" },
-        arr: { place: "Porto (OPO)", city: "Porto", country: "Portugal", localDateTime: "2026-12-20" },
+        dep: { place: "Lisbon (LIS)", city: "Lisbon", cityEnglish: null, cityLocal: null, country: "Portugal", localDateTime: "2026-12-05T09:00" },
+        arr: { place: "Porto (OPO)", city: "Porto", cityEnglish: null, cityLocal: null, country: "Portugal", localDateTime: "2026-12-20" },
       },
     };
     const p = byId(buildProposals(report(arrivesLate), CTX).proposals, "p1");
@@ -136,7 +136,7 @@ describe("buildProposals: Review Focus", () => {
   });
 
   it("a connection airport stays free text with its own zone, and no Stop is proposed for it (Review Focus 2)", () => {
-    const sin = { place: "Singapore Changi (SIN)", city: "Singapore", country: "Singapore" };
+    const sin = { place: "Singapore Changi (SIN)", city: "Singapore", cityEnglish: null, cityLocal: null, country: "Singapore" };
     const leg1: ExtractedProposal = { ...OUTBOUND, transport: { ...OUTBOUND.transport!, arr: { ...sin, localDateTime: "2026-12-01T16:00" } } };
     const leg2: ExtractedProposal = { ...OUTBOUND, cost: null, transport: { ...OUTBOUND.transport!, serviceNumber: "SK7", dep: { ...sin, localDateTime: "2026-12-01T23:30" } } };
     const { proposals } = buildProposals(report(leg1, leg2), CTX);
@@ -289,8 +289,8 @@ describe("buildProposals: things to do, car hire, gaps", () => {
       doubleCheck: [],
       transport: {
         mode: "CAR", carrier: "Hertz", serviceNumber: null, reference: "H-778", seat: null, travelClass: null,
-        dep: { place: "Hertz Lisbon Airport", city: "Lisbon", country: "Portugal", localDateTime: "2026-12-08T10:00" },
-        arr: { place: null, city: "Porto", country: "Portugal", localDateTime: "2026-12-08T18:00" },
+        dep: { place: "Hertz Lisbon Airport", city: "Lisbon", cityEnglish: null, cityLocal: null, country: "Portugal", localDateTime: "2026-12-08T10:00" },
+        arr: { place: null, city: "Porto", cityEnglish: null, cityLocal: null, country: "Portugal", localDateTime: "2026-12-08T18:00" },
       },
     };
     expect(byId(buildProposals(report(car), CTX).proposals, "p1").input).toMatchObject({ mode: "CAR", fromStopId: "s-lis", depPlace: "Hertz Lisbon Airport", toStopId: "s-opo", notes: "Hertz", reference: "H-778" });
@@ -363,7 +363,7 @@ describe("buildProposals: Surprise", () => {
 
 describe("buildProposals: fix round 1 findings", () => {
   it("a connection city a Stay in this import covers is not just a connection: both legs link to its proposed Stop (finding 1a)", () => {
-    const sin = { place: "Singapore Changi (SIN)", city: "Singapore", country: "Singapore" };
+    const sin = { place: "Singapore Changi (SIN)", city: "Singapore", cityEnglish: null, cityLocal: null, country: "Singapore" };
     const leg1: ExtractedProposal = { ...OUTBOUND, transport: { ...OUTBOUND.transport!, arr: { ...sin, localDateTime: "2026-12-01T22:00" } } };
     const leg2: ExtractedProposal = { ...OUTBOUND, cost: null, transport: { ...OUTBOUND.transport!, serviceNumber: "SK7", dep: { ...sin, localDateTime: "2026-12-02T09:00" } } };
     const stay: ExtractedProposal = {
@@ -383,7 +383,7 @@ describe("buildProposals: fix round 1 findings", () => {
   it("a connection city that is already a Stop links both legs to it, even under 24h apart (finding 1b)", () => {
     const SINGAPORE: MatchStop = { id: "s-sin", name: "Singapore", country: "Singapore", countryCode: "sg", timezone: "Asia/Singapore", arriveDate: "2026-12-01", departDate: "2026-12-02", sortOrder: 0 };
     const ctx: MatchContext = { ...CTX, stops: [...CTX.stops, SINGAPORE] };
-    const sin = { place: "Singapore Changi (SIN)", city: "Singapore", country: "Singapore" };
+    const sin = { place: "Singapore Changi (SIN)", city: "Singapore", cityEnglish: null, cityLocal: null, country: "Singapore" };
     const leg1: ExtractedProposal = { ...OUTBOUND, transport: { ...OUTBOUND.transport!, arr: { ...sin, localDateTime: "2026-12-01T22:00" } } };
     const leg2: ExtractedProposal = { ...OUTBOUND, cost: null, transport: { ...OUTBOUND.transport!, serviceNumber: "SK7", dep: { ...sin, localDateTime: "2026-12-02T09:00" } } };
     const { proposals } = buildProposals(report(leg1, leg2), ctx);

@@ -1,7 +1,7 @@
 import { readFileSync } from "node:fs";
 import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { SAMPLE_EXTRACTION } from "@/test/fixtures/booking-import/sample-extraction";
+import { OUTBOUND, SAMPLE_EXTRACTION } from "@/test/fixtures/booking-import/sample-extraction";
 
 const { mockParse } = vi.hoisted(() => ({ mockParse: vi.fn() }));
 
@@ -173,11 +173,24 @@ describe("the extraction asks for Slot time (R3)", () => {
     expect(EXTRACTION_SYSTEM_PROMPT).toMatch(/refundable/);
     expect(UNCERTAIN_FIELD_NAMES).toEqual(expect.arrayContaining(["slotTime", "arriveBy", "refundable"]));
   });
+  it("the prompt asks for the English and local city names and an English country, and keeps places and addresses as printed", () => {
+    expect(EXTRACTION_SYSTEM_PROMPT).toMatch(/cityEnglish/);
+    expect(EXTRACTION_SYSTEM_PROMPT).toMatch(/cityLocal/);
+    expect(EXTRACTION_SYSTEM_PROMPT).toMatch(/"Germany", not "Deutschland"/);
+    expect(EXTRACTION_SYSTEM_PROMPT).toMatch(/Never translate/);
+    expect(EXTRACTION_SYSTEM_PROMPT).not.toMatch(/the city and the country as printed/);
+  });
+  it("the schema requires cityEnglish and cityLocal on every place", () => {
+    expect(BookingExtractionSchema.safeParse(SAMPLE_EXTRACTION).success).toBe(true);
+    const { cityEnglish: _dropped, ...arrWithout } = OUTBOUND.transport!.arr;
+    const broken = { ...SAMPLE_EXTRACTION, proposals: [{ ...OUTBOUND, transport: { ...OUTBOUND.transport!, arr: arrWithout } }] };
+    expect(BookingExtractionSchema.safeParse(broken).success).toBe(false);
+  });
   it("the schema accepts a reported ticket and rejects a made-up refundability", () => {
     const base = { isBooking: true, notBookingReason: null, bookedOn: null };
     const proposal = (refundable: unknown) => ({
       kind: "item", confidence: "high", doubleCheck: [], uncertainFields: [], transport: null, accommodation: null, cost: null,
-      item: { title: "Tour", category: null, date: null, startTime: null, endTime: null, place: null, address: null, city: null, country: null, booking: null, slotTime: "10:00", arriveByMinutes: 15, refundable },
+      item: { title: "Tour", category: null, date: null, startTime: null, endTime: null, place: null, address: null, city: null, cityEnglish: null, cityLocal: null, country: null, booking: null, slotTime: "10:00", arriveByMinutes: 15, refundable },
     });
     expect(BookingExtractionSchema.safeParse({ ...base, proposals: [proposal("no")] }).success).toBe(true);
     expect(BookingExtractionSchema.safeParse({ ...base, proposals: [proposal("maybe")] }).success).toBe(false);
