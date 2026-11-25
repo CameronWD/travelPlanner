@@ -122,6 +122,11 @@ it("carries Booking state, book-by, Slot time and Opening hours into the variant
   });
 });
 
+it("copies the Travel details on a transport", () => {
+  const plan = buildForkPlan({ ...source, transports: [{ ...source.transports[0], carrier: "DB", platform: "12" }] });
+  expect(plan.transports[0].data).toMatchObject({ carrier: "DB", platform: "12", seat: null, serviceNumber: null });
+});
+
 it("copies nothingToAttach on transports, accommodations and items", () => {
   const plan = buildForkPlan({
     ...source,

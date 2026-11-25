@@ -6,6 +6,12 @@ const VALID_BASE = {
 };
 
 describe("transportSchema", () => {
+  it("trims a Travel detail and refuses one over 60 characters", () => {
+    const ok = transportSchema.safeParse({ ...VALID_BASE, seat: " 42A " });
+    expect(ok.success && ok.data.seat).toBe("42A");
+    expect(transportSchema.safeParse({ ...VALID_BASE, gate: "x".repeat(61) }).success).toBe(false);
+  });
+
   it("accepts a minimal valid input with just mode", () => {
     const result = transportSchema.safeParse(VALID_BASE);
     expect(result.success).toBe(true);

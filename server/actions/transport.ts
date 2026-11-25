@@ -22,6 +22,11 @@ import { growTripEndTx, tripWindowScopes } from "@/server/actions/trip-window";
 import { revalidateTrip } from "@/lib/revalidate";
 import { resolveBookingWrite } from "@/lib/booking-state-patch";
 import { transportBookingSubject } from "@/lib/booking-state";
+import { TRANSPORT_DETAIL_KEYS, type TransportDetailKey } from "@/lib/transport-details";
+
+function detailColumns(data: Partial<Record<TransportDetailKey, string>>) {
+  return Object.fromEntries(TRANSPORT_DETAIL_KEYS.map((k) => [k, data[k] ?? null])) as Record<TransportDetailKey, string | null>;
+}
 
 // ---------------------------------------------------------------------------
 // Result types
@@ -193,6 +198,7 @@ export async function createTransport(
       arrPlace,
       arrAt: arrAtInstant,
       reference: data.reference ?? null,
+      ...detailColumns(data),
       notes: data.notes ?? null,
       sortOrder,
       ...ends,
@@ -344,6 +350,7 @@ export async function updateTransport(
     arrPlace,
     arrAt: arrAtInstant,
     reference: data.reference ?? null,
+    ...detailColumns(data),
     notes: data.notes ?? null,
     ...ends,
     ...booking,

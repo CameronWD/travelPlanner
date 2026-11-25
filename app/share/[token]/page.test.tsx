@@ -265,7 +265,7 @@ describe("SharePage — public guarantees", () => {
     shareFindFirstMock.mockResolvedValue({ ...share(), showTravellers: true });
     await renderPage();
     const selectOf = (mock: ReturnType<typeof vi.fn>) => Object.keys(mock.mock.calls[0][0].select);
-    const FORBIDDEN = ["reference", "confirmation", "notes", "link", "booking", "costMinor", "currency", "amountMinor", "costs", "photoAttachmentId", "email", "bankDetails", "emergencyName", "emergencyPhone"];
+    const FORBIDDEN = ["reference", "confirmation", "notes", "link", "booking", "costMinor", "currency", "amountMinor", "costs", "photoAttachmentId", "email", "bankDetails", "emergencyName", "emergencyPhone", "carrier", "serviceNumber", "seat", "terminal", "gate", "coach", "platform"];
     for (const mock of [transportFindManyMock, accommodationFindManyMock, itemFindManyMock, stopFindManyMock]) {
       expect(mock).toHaveBeenCalledTimes(1);
       const keys = selectOf(mock);

@@ -5,6 +5,7 @@ const row: TransportPatchRow = {
   mode: "TRAIN", fromStopId: "stop-a", toStopId: "stop-b", anchorStopId: "stop-a", depIsHome: false, arrIsHome: false,
   depPlace: "Roma Termini", arrPlace: null, depAt: new Date("2026-05-04T08:00:00Z"), arrAt: new Date("2026-05-04T11:00:00Z"),
   reference: "FR 9512", notes: null,
+  carrier: null, serviceNumber: "ICE 9572", seat: "42", terminal: null, gate: null, coach: null, platform: null,
 };
 const homeDep: TransportPatchRow = { ...row, fromStopId: null, depPlace: null, depIsHome: true };
 const at = (overrides: Partial<TransportPatchRow>): TransportPatchRow => ({ ...row, ...overrides });
@@ -14,7 +15,12 @@ describe("mergeTransportPatch", () => {
     expect(mergeTransportPatch(row, { reference: "FR 9514" })).toEqual({
       mode: "TRAIN", fromStopId: "stop-a", toStopId: "stop-b", anchorStopId: "stop-a", depIsHome: false, arrIsHome: false,
       depPlace: "Roma Termini", arrPlace: undefined, depAt: row.depAt, arrAt: row.arrAt, reference: "FR 9514", notes: undefined,
+      carrier: undefined, serviceNumber: "ICE 9572", seat: "42", terminal: undefined, gate: undefined, coach: undefined, platform: undefined,
     });
+  });
+  it("keeps the Travel details on a patch that does not mention them, and clears only the one set to null", () => {
+    expect(mergeTransportPatch(row, { notes: "x" })).toMatchObject({ seat: "42", serviceNumber: "ICE 9572" });
+    expect(mergeTransportPatch(row, { seat: null })).toMatchObject({ seat: undefined, serviceNumber: "ICE 9572" });
   });
   it("keeps depIsHome true when the patch doesn't mention it", () => {
     expect(mergeTransportPatch(homeDep, { notes: "x" })).toMatchObject({ depIsHome: true, fromStopId: undefined });

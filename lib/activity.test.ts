@@ -194,6 +194,13 @@ describe("describeChanges TRANSPORT", () => {
     expect(changes[0].to).toBe("Train");
   });
 
+  it("labels a Travel detail change", () => {
+    const changes = describeChanges("TRANSPORT", { seat: "42" }, { seat: "43" });
+    expect(changes).toHaveLength(1);
+    expect(changes[0]).toMatchObject({ field: "seat", from: "42", to: "43" });
+    expect(describeChanges("TRANSPORT", {}, { seat: "43" })[0]).toMatchObject({ label: "Seat" });
+  });
+
   it("returns [] when mode is unchanged", () => {
     expect(
       describeChanges("TRANSPORT", { mode: "FLIGHT" }, { mode: "FLIGHT" }),
