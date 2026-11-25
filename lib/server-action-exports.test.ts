@@ -72,7 +72,7 @@ const ALLOWLIST: Record<string, string[]> = {
     "updateChecklistItem",
   ],
   "connected-apps.ts": ["disconnectApp", "listConnectedApps"],
-  "costs.ts": ["createCost", "deleteCost", "markCostPaid", "markCostUnpaid", "updateCost"],
+  "costs.ts": ["clearRefund", "createCost", "deleteCost", "markCostPaid", "markCostUnpaid", "markRefundReceived", "recordRefund", "updateCost"],
   "cover.ts": ["removeTripCover", "setCoverFocal", "setTripCover"],
   "cron-health.ts": ["getDispatcherHealth"],
   "day-titles.ts": ["setDayTitle"],
