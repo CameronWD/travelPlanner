@@ -3,17 +3,16 @@
 import { useEffect, useState } from "react";
 import { formatWeekday } from "@/lib/dates";
 import { deviceTimeZone, instantToZonedDateISO, instantToZonedTime } from "@/lib/tz";
+import { wallClock } from "./wall-clock";
 
 // The viewer's zone is known only in the browser, so both pieces render nothing
 // on the server and on first client render, then fill in after mount (the same
 // no-mismatch rule as LocalClock). A time that already reads the same in the
 // viewer's zone is not repeated.
 
-const wall = (instant: Date, zone: string) => `${instantToZonedDateISO(instant, zone)} ${instantToZonedTime(instant, zone)}`;
-
-function viewerZoneFor(instant: Date, placeZone: string): string | null {
+function viewerZoneFor(instant: Date, placeLocal: string): string | null {
   const zone = deviceTimeZone();
-  return zone && wall(instant, zone) !== wall(instant, placeZone) ? zone : null;
+  return zone && wallClock(instant, zone) !== placeLocal ? zone : null;
 }
 
 export function ViewerNow({ timeZone }: { timeZone: string }) {
@@ -23,7 +22,7 @@ export function ViewerNow({ timeZone }: { timeZone: string }) {
     let interval: ReturnType<typeof setInterval> | undefined;
     const update = () => {
       const now = new Date();
-      const zone = viewerZoneFor(now, timeZone);
+      const zone = viewerZoneFor(now, wallClock(now, timeZone));
       setText(zone ? instantToZonedTime(now, zone) : null);
     };
     update();
@@ -38,20 +37,20 @@ export function ViewerNow({ timeZone }: { timeZone: string }) {
   }, [timeZone]);
 
   if (!text) return null;
-  return <span className="tabular-nums">{` · ${text} for you`}</span>;
+  return <span className="whitespace-nowrap tabular-nums">{`· ${text} for you`}</span>;
 }
 
-export function ViewerArrival({ arrivesAt, arrZone }: { arrivesAt: string; arrZone: string }) {
+export function ViewerArrival({ instant: iso, placeLocal }: { instant: string; placeLocal: string }) {
   const [text, setText] = useState<string | null>(null);
 
   useEffect(() => {
     const show = () => {
-      const instant = new Date(arrivesAt);
-      const zone = viewerZoneFor(instant, arrZone);
+      const instant = new Date(iso);
+      const zone = viewerZoneFor(instant, placeLocal);
       setText(zone ? `arrives ${formatWeekday(instantToZonedDateISO(instant, zone))} ${instantToZonedTime(instant, zone)} your time` : null);
     };
     show();
-  }, [arrivesAt, arrZone]);
+  }, [iso, placeLocal]);
 
   if (!text) return null;
   return <span className="text-[13px] font-medium tabular-nums text-muted-foreground">{text}</span>;

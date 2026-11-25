@@ -5,7 +5,7 @@ import userEvent from "@testing-library/user-event";
 const { scrollToId } = vi.hoisted(() => ({ scrollToId: vi.fn() }));
 vi.mock("@/lib/scroll-to", () => ({ scrollToId }));
 
-vi.mock("./viewer-time", () => ({ ViewerArrival: ({ arrivesAt }: { arrivesAt: string }) => <i data-testid="viewer-arrival">{arrivesAt}</i> }));
+vi.mock("./viewer-time", () => ({ ViewerArrival: ({ instant }: { instant: string }) => <i data-testid="viewer-arrival">{instant}</i> }));
 
 import { DayByDay, type DayByDayStop } from "./day-by-day";
 import { MotionProvider } from "@/components/ui/motion-provider";
@@ -14,7 +14,7 @@ const row = (title: string) => ({ key: title, time: "10:00", title, sub: null, k
 const stops: DayByDayStop[] = [
   { id: "lon", name: "London", number: 1, sortOrder: 0, arriveDate: "2026-12-05", departDate: "2026-12-10", nights: 5, status: "past",
     days: [{ dateISO: "2026-12-05", isToday: false, title: null, rows: [row("Borough Market")] }],
-    legAfter: { mode: "TRAIN", label: "Train to Paris", line: "Thu 10 Dec · St Pancras 09:31 → Gare du Nord 12:47", arrivesAt: "2026-12-10T11:47:00.000Z", arrZone: "Europe/Paris" } },
+    legAfter: { mode: "TRAIN", label: "Train to Paris", line: "Thu 10 Dec · St Pancras 09:31 → Gare du Nord 12:47", arrivesAt: "2026-12-10T11:47:00.000Z", arrivesLocal: "2026-12-10 12:47" } },
   { id: "par", name: "Paris", number: 2, sortOrder: 1, arriveDate: "2026-12-10", departDate: "2026-12-15", nights: 5, status: "current",
     days: [
       { dateISO: "2026-12-11", isToday: false, title: null, rows: [row("Louvre")] },
@@ -37,14 +37,14 @@ describe("DayByDay (SHARE.md §7)", () => {
   });
 
   it("adds the viewer's arrival only to a leg that has an arrival time", () => {
-    const homeOut = { mode: "FLIGHT" as const, label: "Flight to London", line: "Fri 4 Dec", arrivesAt: null, arrZone: "Europe/London" };
+    const homeOut = { mode: "FLIGHT" as const, label: "Flight to London", line: "Fri 4 Dec", arrivesAt: null, arrivesLocal: null };
     render(<DayByDay stops={stops} initialOpenId="par" homeOut={homeOut} />);
     expect(screen.getAllByTestId("viewer-arrival")).toHaveLength(1);
   });
 
   it("lists the Home legs above the first Stop and below the last", () => {
-    const homeOut = { mode: "FLIGHT" as const, label: "Flight to London", line: "Fri 4 Dec · QF 1", arrivesAt: null, arrZone: "Europe/London" };
-    const homeBack = { mode: "FLIGHT" as const, label: "Flight home", line: "Tue 15 Dec · QF 2", arrivesAt: null, arrZone: "UTC" };
+    const homeOut = { mode: "FLIGHT" as const, label: "Flight to London", line: "Fri 4 Dec · QF 1", arrivesAt: null, arrivesLocal: null };
+    const homeBack = { mode: "FLIGHT" as const, label: "Flight home", line: "Tue 15 Dec · QF 2", arrivesAt: null, arrivesLocal: null };
     const { container } = render(<DayByDay stops={stops} initialOpenId="par" homeOut={homeOut} homeBack={homeBack} />);
     const rows = Array.from(container.querySelectorAll("[data-share-leg]"));
     expect(rows).toHaveLength(3);

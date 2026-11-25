@@ -30,7 +30,7 @@ describe("buildShareLeg", () => {
       label: "Train to Strasbourg",
       line: "Thu 10 Dec · Munich Hbf 06:51 → Strasbourg 10:40 · 3h 49m · ICE 9572",
       arrivesAt: "2026-12-10T09:40:00.000Z",
-      arrZone: "Europe/Berlin",
+      arrivesLocal: "2026-12-10 10:40",
     });
   });
 
@@ -108,7 +108,8 @@ describe("buildShareLeg", () => {
   it("carries the arrival instant and its zone for the viewer's own time", () => {
     const withArrival = buildShareLeg({ ...base, depAt: new Date("2026-12-10T05:51:00Z"), arrAt: new Date("2026-12-10T09:40:00Z") }, BERLIN, "x");
     expect(withArrival.arrivesAt).toBe("2026-12-10T09:40:00.000Z");
-    expect(withArrival.arrZone).toBe("Europe/Berlin");
-    expect(buildShareLeg(base, BERLIN, "x").arrivesAt).toBeNull();
+    expect(withArrival.arrivesLocal).toBe("2026-12-10 10:40");
+    expect(withArrival).not.toHaveProperty("arrZone");
+    expect(buildShareLeg(base, BERLIN, "x")).toMatchObject({ arrivesAt: null, arrivesLocal: null });
   });
 });

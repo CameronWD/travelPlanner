@@ -198,7 +198,7 @@ function LegLine({ leg }: { leg: ShareLeg }) {
       <span className="flex min-w-0 flex-col gap-0.5 self-center">
         <span className="break-words font-bold">{leg.label}</span>
         <span className="text-[13px] font-medium tabular-nums text-muted-foreground">{leg.line}</span>
-        {leg.arrivesAt && <ViewerArrival arrivesAt={leg.arrivesAt} arrZone={leg.arrZone} />}
+        {leg.arrivesAt && leg.arrivesLocal && <ViewerArrival instant={leg.arrivesAt} placeLocal={leg.arrivesLocal} />}
       </span>
     </div>
   );

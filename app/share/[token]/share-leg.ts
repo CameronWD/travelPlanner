@@ -1,6 +1,7 @@
 import type { TransportMode } from "@/lib/enum-values";
 import { formatDayLabel } from "@/lib/dates";
 import { transportTimeDisplay } from "@/lib/time-display";
+import { wallClock } from "./wall-clock";
 import { durationMinutes, formatDuration } from "@/lib/transport";
 
 export interface ShareLegInput {
@@ -16,9 +17,13 @@ export interface ShareLeg {
   mode: TransportMode;
   label: string;
   line: string;
-  /** ISO instant of the arrival and its end's zone: public facts, already shown as a local time. */
+  /**
+   * The arrival instant and its local date and time as one string, for the
+   * viewer's own-time check. Never a zone name: a Home end's zone is the Trip's
+   * Home timezone, which a public link must not carry.
+   */
   arrivesAt: string | null;
-  arrZone: string;
+  arrivesLocal: string | null;
 }
 
 /** The only Travel detail a public link carries, and only for a mode people follow by its number. */
@@ -46,5 +51,5 @@ export function buildShareLeg(
   const line = [dep ? formatDayLabel(dep.dateISO) : null, route || null, minutes ? formatDuration(minutes) : null, number || null]
     .filter(Boolean)
     .join(" · ");
-  return { mode: t.mode, label, line, arrivesAt: t.arrAt ? new Date(t.arrAt).toISOString() : null, arrZone: zones.arr };
+  return { mode: t.mode, label, line, arrivesAt: t.arrAt ? new Date(t.arrAt).toISOString() : null, arrivesLocal: t.arrAt ? wallClock(new Date(t.arrAt), zones.arr) : null };
 }

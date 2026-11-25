@@ -421,7 +421,8 @@ export default async function SharePage({
     const to = stops.find((s) => s.id === leg.toStopId);
     place = {
       kind: "leg",
-      toName: to?.name ?? leg.arrPlace ?? "the next stop",
+      toName: to?.name ?? (leg.arrIsHome ? "home" : leg.arrPlace) ?? "the next stop",
+      toHome: Boolean(leg.arrIsHome),
       mode: leg.mode,
       landsAt: leg.arrAt ? instantToZonedTime(leg.arrAt, zoneOfEnd(leg.toStopId, leg.arrIsHome)) : null,
     };
@@ -440,12 +441,12 @@ export default async function SharePage({
   let rightNowRows: ShareRowModel[] | null =
     scope.includeDailyPlans && todayPlan ? buildShareRows(todayPlan, { nowHHMM, withAddress: false }) : null;
   if (rightNowRows && leg && !rightNowRows.some((r) => r.key === `transport-departure-${leg.id}`)) {
-    const toName = place.kind === "leg" ? place.toName : null;
+    const toName = place.kind === "leg" && !place.toHome ? place.toName : null;
     rightNowRows = [
       {
         key: `transport-departure-${leg.id}`,
         time: leg.depAt ? instantToZonedTime(leg.depAt, zoneOfEnd(leg.fromStopId, leg.depIsHome)) : null,
-        title: `${MODE_LABELS[leg.mode] ?? "Transport"}${toName ? ` to ${toName}` : ""}`,
+        title: `${MODE_LABELS[leg.mode] ?? "Transport"}${place.kind === "leg" && place.toHome ? " home" : toName ? ` to ${toName}` : ""}`,
         sub: null,
         kind: "transport",
         category: null,

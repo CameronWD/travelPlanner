@@ -915,13 +915,13 @@ describe("SharePage — travel legs", () => {
     for (const secret of ["SEAT-14C", "GATE-B22", "CARRIER-X"]) expect(text).not.toContain(secret);
   });
 
-  it("hands the client only mode, label, line, arrivesAt and arrZone for a leg", async () => {
+  it("hands the client only mode, label, line, arrivesAt and arrivesLocal for a leg", async () => {
     transportFindManyMock.mockResolvedValue([
       { ...BASE, ...withSeatAndGate, id: "tr1", mode: "TRAIN", fromStopId: "s1", toStopId: "s2", depAt: new Date("2020-12-08T05:51:00Z"), arrAt: new Date("2020-12-08T12:40:00Z"), serviceNumber: "ICE 1" },
     ]);
     await renderPage();
     const { stops } = dayByDaySpy.mock.calls[0][0];
-    expect(Object.keys(stops[0].legAfter).sort()).toEqual(["arrZone", "arrivesAt", "label", "line", "mode"]);
+    expect(Object.keys(stops[0].legAfter).sort()).toEqual(["arrivesAt", "arrivesLocal", "label", "line", "mode"]);
   });
 
   it("lists no leg at all, Home legs included, when the link leaves transport out", async () => {
@@ -954,6 +954,47 @@ describe("SharePage — travel legs", () => {
     const stopItems = Array.from(container.querySelectorAll("[data-share-stop]"));
     expect(rows[0].compareDocumentPosition(stopItems[0]) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     expect(rows[2].compareDocumentPosition(stopItems[stopItems.length - 1]) & Node.DOCUMENT_POSITION_PRECEDING).toBeTruthy();
+  });
+
+  const HOME_LEGS = [
+    { ...BASE, id: "out", mode: "FLIGHT", fromStopId: null, toStopId: "s1", depIsHome: true, depPlace: "5 Example St", arrPlace: "Munich (MUC)", depAt: new Date("2099-12-05T08:00:00Z"), arrAt: new Date("2099-12-06T06:00:00Z") },
+    { ...BASE, id: "back", mode: "FLIGHT", fromStopId: "s2", toStopId: null, arrIsHome: true, depPlace: "London (LHR)", arrPlace: "12 Home Rd", depAt: new Date("2099-12-09T09:00:00Z"), arrAt: new Date("2099-12-10T21:00:00Z") },
+  ];
+
+  it("sends no zone name and no Home place to the browser or the page", async () => {
+    shareFindFirstMock.mockResolvedValue({ ...share({ startDate: "2099-12-06", endDate: "2099-12-09", homeTimezone: "Australia/Sydney" } as never) });
+    stopFindManyMock.mockResolvedValue(STAGE_TRIPS.before.stops);
+    transportFindManyMock.mockResolvedValue(HOME_LEGS);
+    const { container } = await renderPage();
+    const sent = JSON.stringify(dayByDaySpy.mock.calls[0][0]);
+    for (const text of [sent, container.innerHTML]) {
+      expect(text).not.toContain("Australia/Sydney");
+      expect(text).not.toContain("Home Rd");
+      expect(text).not.toContain("Example St");
+    }
+  });
+
+  it("titles a day row for a flight into Home without naming Home", async () => {
+    shareFindFirstMock.mockResolvedValue({ ...share({ startDate: "2099-12-06", endDate: "2099-12-09" }) });
+    stopFindManyMock.mockResolvedValue(STAGE_TRIPS.before.stops);
+    transportFindManyMock.mockResolvedValue(HOME_LEGS);
+    await renderPage();
+    const titles = dayByDaySpy.mock.calls[0][0].stops.flatMap((s: { days: { rows: { title: string }[] }[] }) => s.days.flatMap((d) => d.rows.map((r) => r.title)));
+    expect(titles).toContain("Flight home");
+    expect(titles.join("|")).not.toContain("Home Rd");
+  });
+
+  it("says Travelling home, never the Home place, while a Home leg is under way", async () => {
+    const t = STAGE_TRIPS.during;
+    shareFindFirstMock.mockResolvedValue({ ...share({ startDate: t.startDate, endDate: t.endDate }), includeJournal: false, showTravellers: false, includeContacts: false });
+    stopFindManyMock.mockResolvedValue(t.stops);
+    transportFindManyMock.mockResolvedValue([
+      { ...BASE, id: "back", mode: "FLIGHT", fromStopId: "s2", toStopId: null, arrIsHome: true, depPlace: "London (LHR)", arrPlace: "12 Home Rd", depAt: new Date(Date.now() - 3_600_000), arrAt: new Date(Date.now() + 3_600_000) },
+    ]);
+    const { container } = await renderPage();
+    expect(container.textContent).toContain("Travelling home");
+    expect(container.textContent).not.toContain("Home Rd");
+    expect(container.innerHTML).not.toContain("Home Rd");
   });
 
   it("renders no Home leg when the Trip has none", async () => {
