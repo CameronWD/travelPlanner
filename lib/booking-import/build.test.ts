@@ -437,6 +437,46 @@ describe("buildProposals: things to do, car hire, gaps", () => {
     expect(byId(buildProposals(report(flight(["travelClass"])), CTX).proposals, "p1").highlight).toEqual(["notes"]);
   });
 
+  describe("Travel details from a ticket", () => {
+    const withTransport = (patch: Partial<NonNullable<ExtractedProposal["transport"]>>, uncertainFields: string[] = []): ExtractedProposal => ({
+      ...OUTBOUND,
+      uncertainFields,
+      transport: { ...OUTBOUND.transport!, ...patch },
+    });
+    const p1 = (e: ExtractedProposal) => byId(buildProposals(report(e), CTX).proposals, "p1");
+
+    it("a seat longer than the Travel details limit goes to Notes, ahead of the class", () => {
+      const seat = "S".repeat(61);
+      const p = p1(withTransport({ seat }));
+      expect(p.input).not.toHaveProperty("seat");
+      expect(p.input).toMatchObject({ notes: `Seat ${seat} · Economy` });
+    });
+
+    it("a seat at the limit is stored as a detail", () => {
+      const seat = "S".repeat(60);
+      const p = p1(withTransport({ seat }));
+      expect(p.input).toMatchObject({ seat, notes: "Economy" });
+    });
+
+    it("long carrier and flight number go to Notes in order, before the class", () => {
+      const carrier = "C".repeat(61);
+      const serviceNumber = "N".repeat(61);
+      const p = p1(withTransport({ carrier, serviceNumber }));
+      expect(p.input).not.toHaveProperty("carrier");
+      expect(p.input).not.toHaveProperty("serviceNumber");
+      expect(p.input).toMatchObject({ notes: `${carrier} · ${serviceNumber} · Economy` });
+    });
+
+    it("a blank carrier yields no carrier key", () => {
+      expect(p1(withTransport({ carrier: "   " })).input).not.toHaveProperty("carrier");
+    });
+
+    it("an uncertain carrier and an uncertain flight number each highlight the details line", () => {
+      expect(p1(withTransport({}, ["carrier"])).highlight).toEqual(["details"]);
+      expect(p1(withTransport({}, ["serviceNumber"])).highlight).toEqual(["details"]);
+    });
+  });
+
   it("an uncertain slot highlights the slot on the card", () => {
     const p = byId(buildProposals(report({ ...item({ slotTime: "10:00" }), uncertainFields: ["slotTime", "refundable"] }), CTX).proposals, "p1");
     expect(p.highlight).toEqual(expect.arrayContaining(["slotTime", "refundable"]));

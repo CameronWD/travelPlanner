@@ -6,7 +6,7 @@
 import type { BookingState, TransportMode } from "@/lib/enum-values";
 import type { Category } from "@/lib/categories";
 import type { ActionResult } from "@/lib/action-result";
-import type { TransportDetails } from "@/lib/transport-details";
+import type { TransportDetailKey } from "@/lib/transport-details";
 
 export type Confidence = "high" | "medium" | "low";
 
@@ -51,7 +51,7 @@ export interface ProposedStopInput {
  * its own (a connection airport, or Home when the Trip's Home timezone is
  * unset); confirm converts that end itself and strips them.
  */
-export interface ProposedTransportInput extends ProposalCostFields, TransportDetails {
+export interface ProposedTransportInput extends ProposalCostFields, Partial<Record<TransportDetailKey, string>> {
   mode: TransportMode;
   fromStopId?: string;
   toStopId?: string;

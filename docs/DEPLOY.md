@@ -765,84 +765,23 @@ This branch carries one migration:
   columns to `Item` (the Ends at place) and two new tables, `HopMode` and
   `FlagDismissal`.
 
-Applying it under the old build is safe: the columns are nullable and the tables
-are new, so the code already running neither selects nor writes them. The reverse
-is the risk. Beta and previews share the production database (§4d) and do not run
-migrations, so new code on either reads the new `Item` columns and the new tables
-before they exist, and Trip pages and plan edits fail with P2022 or a missing table
-until production has migrated.
-
-**Deploy `main` first, confirm the migration applied (the production build log shows
-`migrate deploy`), and only then push `beta`.** Do not push `main` and `beta`
-together, and do not let a preview of this branch run before `main` has deployed.
-
-## 4l. 2026-11-20 Usage (`feat/usage`) — deploy order
-
-This branch carries one migration:
-
-- `prisma/migrations/20261124120000_usage` — adds two new tables, `UsageRecord` and
-  `UsageSwitch`, with CHECK constraints that hold every name to the lists in
-  `lib/usage/lists.ts`.
-
-Applying it under the old build is safe: the tables are new, so the code already
-running never touches them. The reverse is the risk. Beta and previews share the
-production database (§4d) and do not run migrations, so new code on either before
-production has migrated gets a 503 from `/api/usage` (browsers back off from it and
-Travellers see nothing), and the Admin page's Usage section says it couldn’t be read.
-
-**Deploy `main` first, confirm the production build log shows `migrate deploy` applying
-`20261124120000_usage`, confirm the site is live, and only then push `beta`.** Never push
-`feat/usage` itself first: its preview runs against the shared database.
-
-Then check on the live site:
-
-1. `/admin` shows Usage with Recording on.
-2. After a minute of browsing a Trip, the total has grown.
-3. Turn recording off from the Usage section on `/admin`, wait a minute (servers catch up
-   within 30 seconds), note the total, browse for a minute, and the total does not move. Turn it back on; each device picks that up at its next page
-   load. Nothing needs a deploy to switch it either way.
-
-Usage records older than 180 days are deleted by the nightly `purge-trips` job (§5); a
-failure in that step is reported but does not fail the job.
-
-## 4m. 2026-11-22 Phone fixes and Feedback pictures (`feat/phone-fixes-2026-11-22`) — deploy order
-
-This branch carries one migration:
-
-- `prisma/migrations/20261124130000_feedback_pictures` — adds one new table,
-  `FeedbackPicture`, with a foreign key to `FeedbackNote` that cascades on delete.
-
-Applying it under the old build is safe: the table is new, so the code already running
-never touches it. The reverse is the risk. Only a production build runs
-`prisma migrate deploy` (`vercel.json`); beta and previews share the production
-database (§4d) and do not migrate. Until production has migrated, the Feedback panel on
-a beta build or a preview of this branch reads and writes a table that does not exist,
-so its log fails to load, sending any note fails (the saved note is read back with its
-pictures), and pictures fail to upload; and `npm run feedback:pull`
-run from this branch fails the same way, because it selects each note's pictures.
-
-**Deploy `main` first, confirm the production build log shows `migrate deploy` applying
-`20261124130000_feedback_pictures`, confirm the site is live, and only then push
-`beta`.** Do not push `main` and `beta` together, and do not let a preview of this
-branch run before `main` has deployed.
-
-## 4n. 2026-11-25 Travel details (`feat/travel-row-and-details-2026-11-25`) — deploy order
-
-This branch carries one migration:
-
-- `prisma/migrations/20261125120000_transport_travel_details` — adds seven nullable text
-  columns to `Transport`: `carrier`, `serviceNumber`, `seat`, `terminal`, `gate`, `coach`
-  and `platform`. Nothing is backfilled.
-
 Applying it under the old build is safe: the columns are new and nullable, so the code
-already running never touches them. The reverse is the risk. Only a production build runs
-`prisma migrate deploy` (`vercel.json`); beta and previews share the production
-database (§4d) and do not migrate. Until production has migrated, code that selects the
-new columns fails with P2022 on a beta build or a preview of this branch.
+already running never touches them. The reverse is the risk, and it has two parts.
 
-**Deploy `main` first with the migration commit alone, confirm the production build log
-shows `migrate deploy` applying `20261125120000_transport_travel_details`, confirm the
-site is live, and only then push the code that reads the columns and `beta`.**
+Production must have run this migration before any other deployment that shares its
+database runs code from this branch. Beta and previews share the production database
+(§4d) and do not migrate, so until production has migrated, code that selects the new
+columns fails with P2022 on a beta build or a preview of this branch.
+
+Vercel runs `prisma migrate deploy` before `next build` on a production deploy
+(`vercel.json`). So deploying `main` with the whole branch in one go is safe: the
+migration applies first, then the build that reads the columns.
+
+To try the branch on beta before it reaches `main`, first deploy `main` with only the
+migration commit (the commit that adds the seven columns), confirm the production build
+log shows `migrate deploy` applying `20261125120000_transport_travel_details` and the
+site is live, and only then push the branch to `beta`. This does not survive a squash
+merge, so merge the branch with a merge commit.
 
 Rollback is redeploying the previous build. The columns can stay: nothing else reads them.
 

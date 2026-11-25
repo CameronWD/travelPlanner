@@ -8,7 +8,8 @@
  */
 import { buildStopDays, groupScheduledItemsByStop, type StopDayItem } from "@/lib/stop-days";
 import { transportTimeDisplay } from "@/lib/time-display";
-import type { BookingState } from "@/lib/enum-values";
+import { transportDetailFields, type TransportDetailKey } from "@/lib/transport-details";
+import type { BookingState, TransportMode } from "@/lib/enum-values";
 import type { OpeningHours } from "@/lib/opening-hours";
 import { withOpeningHours } from "@/lib/opening-hours-stored";
 import { parseOpeningHours } from "@/lib/validations/opening-hours";
@@ -543,6 +544,8 @@ export function toMcpTransport(
     toTimezone: t.toStopId ? ctx.tzById.get(t.toStopId) ?? null : null,
     depIsHome: t.depIsHome, arrIsHome: t.arrIsHome, homeTimezone: ctx.homeTimezone,
   });
+  const shownKeys = new Set<TransportDetailKey>(transportDetailFields(t.mode as TransportMode).map((f) => f.key));
+  const detail = (key: TransportDetailKey): string | null => (shownKeys.has(key) ? t[key] : null);
   return {
     id: t.id, mode: t.mode,
     from: endpoint(t.fromStopId, t.depIsHome), to: endpoint(t.toStopId, t.arrIsHome),
@@ -550,7 +553,7 @@ export function toMcpTransport(
     depAt: t.depAt ? t.depAt.toISOString() : null, arrAt: t.arrAt ? t.arrAt.toISOString() : null,
     departs: local(t.depAt, shown.dep), arrives: local(t.arrAt, shown.arr), dayDelta: shown.dayDelta,
     reference: t.reference,
-    carrier: t.carrier, serviceNumber: t.serviceNumber, seat: t.seat, terminal: t.terminal, gate: t.gate, coach: t.coach, platform: t.platform,
+    carrier: detail("carrier"), serviceNumber: detail("serviceNumber"), seat: detail("seat"), terminal: detail("terminal"), gate: detail("gate"), coach: detail("coach"), platform: detail("platform"),
     notes: t.notes,
     bookingState: t.bookingState as BookingState, bookBy: t.bookBy,
     nothingToAttach: t.nothingToAttach, needsBookingConfirmation: ctx.needsConfirmation.has(t.id),

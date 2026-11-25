@@ -204,7 +204,7 @@ describe("toMcpItem / toMcpTransport", () => {
   it("toMcpTransport reads a Home end in the Home timezone and a Stop end in the Stop's", () => {
     const t = toMcpTransport(
       {
-        id: "t1", mode: "FLIGHT", fromStopId: null, toStopId: "s1", depIsHome: true, arrIsHome: false,
+        id: "t1", mode: "TRAIN", fromStopId: null, toStopId: "s1", depIsHome: true, arrIsHome: false,
         depPlace: null, arrPlace: null, depAt: new Date("2027-05-31T22:00:00Z"), arrAt: new Date("2027-06-01T10:00:00Z"),
         reference: "QF1", carrier: "DB", serviceNumber: null, seat: null, terminal: null, gate: null, coach: null, platform: "12", notes: null, bookingState: "TO_BOOK", bookBy: "2027-05-01", nothingToAttach: false,
       },
@@ -216,6 +216,18 @@ describe("toMcpItem / toMcpTransport", () => {
     expect(t.departs).toMatchObject({ localTime: "08:00", localDate: "2027-06-01" });
     expect(t.arrives).toMatchObject({ localTime: "11:00", localDate: "2027-06-01" });
     expect(t).toMatchObject({ bookingState: "TO_BOOK", bookBy: "2027-05-01" });
+  });
+
+  it("toMcpTransport shows null for a detail the mode hides", () => {
+    const t = toMcpTransport(
+      {
+        id: "t1", mode: "TRAIN", fromStopId: null, toStopId: null, depIsHome: false, arrIsHome: false,
+        depPlace: null, arrPlace: null, depAt: null, arrAt: null, reference: null,
+        carrier: null, serviceNumber: null, seat: null, terminal: null, gate: "B14", coach: null, platform: "12", notes: null, bookingState: "NONE", bookBy: null, nothingToAttach: false,
+      },
+      { stopNameById: new Map(), tzById: new Map(), homeTimezone: null, filesFor: noFiles, needsConfirmation: none },
+    );
+    expect(t).toMatchObject({ gate: null, platform: "12" });
   });
 });
 

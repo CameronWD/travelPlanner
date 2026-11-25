@@ -347,6 +347,7 @@ export function registerBookingsWriteTools(server: McpServer): void {
         `Adds a Transport leg to a trip. depAt/arrAt are a date and time, e.g. "2026-07-01T08:00". ` +
         "Give fromStopId and depPlace together to link a Stop and name the exact departure point (e.g. a station); same for toStopId/arrPlace. " +
         "Home takes no point: depIsHome/arrIsHome can't be true together with fromStopId/toStopId or depPlace/arrPlace. " +
+        "Travel details (carrier, serviceNumber, seat, terminal, gate, coach, platform) are optional; a detail that does not apply to the Transport's mode is kept but not shown. " +
         MONEY_NOTE,
       inputSchema: { tripId: z.string(), ...transportCreateShape },
     },
@@ -382,6 +383,7 @@ export function registerBookingsWriteTools(server: McpServer): void {
         "fromStopId clears the old point unless you pass depPlace too. fromStopId \"\" unlinks the Stop. Home takes no " +
         "point. The same applies to toStopId/arrPlace. " +
         "A leg not bought yet is bookingState TO_BOOK; give bookBy for the day to book it by. " +
+        "Travel details (carrier, serviceNumber, seat, terminal, gate, coach, platform) are optional; a detail that does not apply to the Transport's mode is kept but not shown. " +
         `${MONEY_NOTE} To change paid status or settlement on an owned Cost, use update_cost/mark_cost_paid/mark_cost_unpaid once it exists.`,
       inputSchema: { transportId: z.string(), ...transportPatchShape },
     },

@@ -620,6 +620,7 @@ function TransportForm({
   // itself), so it's wired back in via the `form` attribute instead of DOM
   // containment.
   const formId = React.useId();
+  const detailsHeadingId = React.useId();
 
   const showLeavesArrives = mode !== "CAR" || Boolean(depAt) || Boolean(arrAt) || showTimes;
 
@@ -859,8 +860,8 @@ function TransportForm({
           </Badge>
         )}
 
-        <div data-group="travel-details" className="space-y-2">
-          <h3 className="text-[11px] font-semibold text-muted-foreground">Travel details</h3>
+        <div data-group="travel-details" role="group" aria-labelledby={detailsHeadingId} className="space-y-2">
+          <h3 id={detailsHeadingId} className="text-[11px] font-semibold text-muted-foreground">Travel details</h3>
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             {transportDetailFields(mode as TransportMode).map((f) => (
               <Field key={f.key} label={f.label} error={errors[f.key]?.[0]}>

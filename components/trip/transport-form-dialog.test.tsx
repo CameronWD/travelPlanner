@@ -2184,7 +2184,9 @@ describe("TransportFormDialog: Travel details", () => {
       />,
     );
     expect(screen.getByLabelText("Airline")).toHaveValue("Qantas");
+    expect(within(screen.getByRole("group", { name: "Travel details" })).getByLabelText("Flight number")).toBeInTheDocument();
     expect(onDraftChange).toHaveBeenLastCalledWith(expect.objectContaining({ carrier: "Qantas", gate: "B14" }));
+    expect(onDraftChange.mock.lastCall![0]).not.toHaveProperty("seat");
     await user.click(screen.getByRole("button", { name: "Confirm" }));
     expect(onSubmitOverride).toHaveBeenCalledWith(expect.objectContaining({ carrier: "Qantas", gate: "B14" }));
   });
