@@ -181,6 +181,27 @@ describe("describeChanges COST", () => {
     expect(received[0].to).toBe("Tue 1 Dec 2026");
   });
 
+  it("reads a cleared Refund's date as removed", () => {
+    const changes = describeChanges(
+      "COST",
+      { refundMinor: 5000, refundedAt: new Date("2026-12-01T00:00:00Z") },
+      { refundMinor: null, refundedAt: null },
+    );
+    const received = changes.find((c) => c.field === "refundedAt")!;
+    expect(received.to).toBe("removed");
+  });
+
+  it("a Refund recorded already received does not read as expected before", () => {
+    const changes = describeChanges(
+      "COST",
+      { refundMinor: null, refundedAt: null },
+      { refundMinor: 5000, refundedAt: new Date("2026-12-01T00:00:00Z") },
+    );
+    const received = changes.find((c) => c.field === "refundedAt")!;
+    expect(received.from).toBe("");
+    expect(received.to).toBe("Tue 1 Dec 2026");
+  });
+
   it("describes marking a cost paid", () => {
     const changes = describeChanges("COST", { paidAt: null }, { paidAt: new Date("2026-08-14T00:00:00Z") });
     expect(changes).toHaveLength(1);

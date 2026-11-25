@@ -155,7 +155,7 @@ export const costSchema = z
       refundMinor: data.refundMinor,
       refundedAt: data.refundedAt,
     });
-    if (problem) ctx.addIssue({ code: "custom", message: problem, path: ["refundMinor"] });
+    if (problem) ctx.addIssue({ code: "custom", message: problem, path: [] });
   });
 
 /** The raw input type before parsing — this is what callers pass in. */

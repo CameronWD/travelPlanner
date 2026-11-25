@@ -1189,11 +1189,20 @@ describe("Refund actions", () => {
     label: "Pass", category: null, settlement: "BEFORE",
   };
 
-  it("updateCost refuses lowering the paid amount below the Refund", async () => {
+  it("updateCost refuses lowering the paid amount below the Refund, form-level", async () => {
     costFindUniqueMock.mockResolvedValue(heldRefunded);
+    tripFindUniqueMock.mockResolvedValue({ homeCurrency: "AUD" });
+    resolveRateForTripMock.mockResolvedValue({ rate: 1, persist: null });
+    costUpdateMock.mockResolvedValue({});
     const r = await updateCost("c1", { paidMinor: 4000 });
-    expect(r.success).toBe(false);
+    expect(r).toEqual({ success: false, errors: { _: [REFUND_MESSAGES.tooMuch] } });
     expect(costUpdateMock).not.toHaveBeenCalled();
+  });
+
+  it("createCost refuses a Refund on an unpaid Cost, form-level", async () => {
+    const r = await createCost("trip-1", { ...VALID_OTHER_INPUT, refundMinor: 100 });
+    expect(r).toEqual({ success: false, errors: { _: [REFUND_MESSAGES.notPaid] } });
+    expect(costCreateMock).not.toHaveBeenCalled();
   });
 
   it("updateCost refuses un-paying a refunded Cost, including through a currency change", async () => {
@@ -1203,15 +1212,23 @@ describe("Refund actions", () => {
     expect(costUpdateMock).not.toHaveBeenCalled();
   });
 
-  it("updateCost keeps the Refund when the patch does not speak of it", async () => {
+  it("updateCost leaves the refund columns out of the write when the patch does not mention them", async () => {
     costFindUniqueMock.mockResolvedValue(heldRefunded);
     tripFindUniqueMock.mockResolvedValue({ homeCurrency: "AUD" });
     resolveRateForTripMock.mockResolvedValue({ rate: 1, persist: null });
     costUpdateMock.mockResolvedValue({});
     expect((await updateCost("c1", { label: "Day pass" })).success).toBe(true);
-    expect(costUpdateMock).toHaveBeenCalledWith({
-      where: { id: "c1" },
-      data: expect.objectContaining({ refundMinor: 5000, refundedAt: null }),
-    });
+    const data = costUpdateMock.mock.calls[0][0].data;
+    expect(data).not.toHaveProperty("refundMinor");
+    expect(data).not.toHaveProperty("refundedAt");
+  });
+
+  it("updateCost writes both refund columns when the patch clears the Refund", async () => {
+    costFindUniqueMock.mockResolvedValue(heldRefunded);
+    tripFindUniqueMock.mockResolvedValue({ homeCurrency: "AUD" });
+    resolveRateForTripMock.mockResolvedValue({ rate: 1, persist: null });
+    costUpdateMock.mockResolvedValue({});
+    await updateCost("c1", { refundMinor: null });
+    expect(costUpdateMock.mock.calls[0][0].data).toMatchObject({ refundMinor: null, refundedAt: null });
   });
 });

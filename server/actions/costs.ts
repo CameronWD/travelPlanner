@@ -123,6 +123,14 @@ export async function createCost(
 ): Promise<CostActionResult> {
   const { user, plan } = await requirePlanAccess(tripId, forkId);
 
+  const refundBreak = refundProblem({
+    paidMinor: input.paidMinor ?? null,
+    paidAt: input.paidAt,
+    refundMinor: input.refundMinor,
+    refundedAt: input.refundedAt,
+  });
+  if (refundBreak) return formFail(refundBreak);
+
   const parsed = costSchema.safeParse(input);
   if (!parsed.success) {
     return validationResult(parsed.error);
@@ -199,8 +207,12 @@ export async function updateCost(
 
   const merged = mergeCostPatch(before, patch);
   if ("success" in merged) return merged;
-  // Un-paying a Cost that holds a Refund is its own message; the schema words the rest.
-  if (merged.refundMinor != null && merged.paidAt === undefined) return formFail(REFUND_MESSAGES.unpayBlocked);
+  // Form-level, so the dialog shows it; the schema's own refine is the backstop.
+  const refundBreak = refundGuard(
+    { paidMinor: merged.paidMinor ?? null, paidAt: merged.paidAt },
+    { refundMinor: merged.refundMinor, refundedAt: merged.refundedAt },
+  );
+  if (refundBreak) return formFail(refundBreak);
   const parsed = costSchema.safeParse(merged);
   if (!parsed.success) {
     return validationResult(parsed.error);
@@ -236,14 +248,16 @@ export async function updateCost(
         currency: data.currency,
         rateToHome: resolved.rate,
         paidAt: data.paidAt ?? null,
-        refundMinor: data.refundMinor ?? null,
-        refundedAt: data.refundedAt ?? null,
         dueDate: data.dueDate ?? null,
         ownerType: data.ownerType,
         ownerId: data.ownerId ?? null,
         label: data.label ?? null,
         category: data.category ?? null,
         settlement: data.settlement,
+        // Only a patch that speaks of the Refund writes it: a Refund recorded since `before` was read must survive.
+        ...(patch.refundMinor !== undefined || patch.refundedAt !== undefined
+          ? { refundMinor: data.refundMinor ?? null, refundedAt: data.refundedAt ?? null }
+          : {}),
         // paidMinor is included only when the merged Cost carries one —
         // an un-paid Cost's merge leaves it undefined (never null), so the
         // paid amount survives as history (CONTEXT.md "Paid"); omitting
