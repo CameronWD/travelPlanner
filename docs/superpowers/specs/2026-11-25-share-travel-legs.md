@@ -1,0 +1,21 @@
+# Shared view: travel in the same family as the Plan, 2026-11-25
+
+Agreed with Cam on 25 Nov, after the Plan's travel row shipped. On a shared link, a leg between two Stops is a small icon, "Train to Strasbourg", and a line with the day, the two places and their times. It has no duration, no day marker for an overnight arrival, none of the Plan's sun colour, and the flights to and from the Home base are not listed at all.
+
+## What changes
+
+1. **Look.** The mode icon sits in a round sun tile, as on the Plan's travel row. No card and no fill: the leg stays a quiet entry between Stops.
+2. **The line gains** the arrival's day marker and the duration: `Thu 10 Dec · Munich Hbf 09:28 → Strasbourg 13:05 · 3h 37m`; an arrival on another local date shows `+1` (or `−1`) after the arrival time. A leg with no times is unchanged.
+3. **The flight or train number is shown**, for a Flight and a Train only, after the duration: `· ICE 9568`. Cam's decision: it is what family would use to follow a flight. A bus or ferry number is not shown (it means little without the operator).
+4. **The Home legs are listed.** The leg from the Home base to the first Stop appears above the first Stop, labelled like the others ("Flight to Denpasar"); the leg from the last Stop back appears below the last Stop, labelled "{Mode} home". Their Home end's time is read in the Trip's Home timezone, as the page already does elsewhere.
+
+## What does not change
+
+- Everything above appears only when the link includes transport.
+- Never shown on a shared link: carrier, seat, coach, terminal, gate, platform, the booking reference, notes, Costs.
+- The Home base's name is already on a shared link (the route map names it); nothing new is revealed by listing the Home legs.
+- The "Right now" card, the route list, the social preview image.
+
+## Words
+
+CONTEXT.md **Travel details** says they are never shown on a shared link. It becomes: only the flight or train number is, when the link includes transport.
