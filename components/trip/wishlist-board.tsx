@@ -17,6 +17,8 @@ import { sortItemsByVotes } from "@/lib/votes";
 import { AiActivitySuggestions } from "./ai-activity-suggestions";
 import { AnimatedList, AnimatedItem } from "@/components/ui/animated-list";
 import { useConfirm } from "@/components/ui/confirm-dialog";
+import { useDeletePaid, paidCostsForDelete } from "@/components/money/delete-paid-dialog";
+import type { DeleteRefundAnswer } from "@/lib/money/delete-refund";
 import { toastRefused, toastRejected } from "@/components/ui/action-failure";
 import { Segmented, SegmentedItem } from "@/components/ui/segmented";
 import { Badge } from "@/components/ui/badge";
@@ -110,6 +112,7 @@ export function WishlistBoard({
     [forksEnabled, placedIdeaIds],
   );
   const { confirm, dialog } = useConfirm();
+  const { ask: askDeletePaid, dialog: deletePaidDialog } = useDeletePaid();
   const stopOptions: StopOption[] = stops.map((s) => ({ id: s.id, name: s.name, lat: s.lat, lng: s.lng }));
 
   // ── View toggle ──
@@ -133,16 +136,25 @@ export function WishlistBoard({
   // ── Handlers ──
   async function handleDelete(itemId: string) {
     const item = items.find((i) => i.id === itemId);
-    const confirmed = await confirm({
-      title: `Delete “${item?.title ?? "this item"}”?`,
-      description: "This can’t be undone.",
-      confirmLabel: "Delete",
-      destructive: true,
-    });
-    if (!confirmed) return;
+    const title = `Delete “${item?.title ?? "this item"}”?`;
+    const paid = paidCostsForDelete(costsByItemId?.get(itemId));
+    let refunds: DeleteRefundAnswer[] | undefined;
+    if (paid.length > 0) {
+      const answer = await askDeletePaid({ title, costs: paid });
+      if (!answer.confirmed) return;
+      refunds = answer.refunds;
+    } else {
+      const confirmed = await confirm({
+        title,
+        description: "This can’t be undone.",
+        confirmLabel: "Delete",
+        destructive: true,
+      });
+      if (!confirmed) return;
+    }
     setPendingId(itemId);
     try {
-      const r = await deleteItem(itemId);
+      const r = refunds ? await deleteItem(itemId, refunds) : await deleteItem(itemId);
       if (!r.success) toastRefused(r.errors, "Couldn’t delete that idea.");
     } catch {
       toastRejected("Couldn’t delete that idea.");
@@ -465,6 +477,7 @@ export function WishlistBoard({
       )}
 
       {dialog}
+      {deletePaidDialog}
     </div>
   );
 }

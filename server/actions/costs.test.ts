@@ -124,7 +124,8 @@ vi.mock("@/lib/guards", () => ({
   requireRowAccess: requireRowAccessMock,
 }));
 
-import { createCost, updateCost, deleteCost, markCostPaid, markCostUnpaid } from "./costs";
+import { createCost, updateCost, deleteCost, markCostPaid, markCostUnpaid, recordRefund, markRefundReceived, clearRefund } from "./costs";
+import { REFUND_MESSAGES } from "@/lib/money/refund";
 import { recordActivity } from "@/lib/activity-record";
 
 // ---------------------------------------------------------------------------
@@ -462,6 +463,22 @@ describe("updateCost", () => {
       where: { id: "cost-1" },
       data: expect.objectContaining({ rateToHome: 0.65 }),
     });
+  });
+
+  it("refuses a currency change on a Cost that holds a Refund, and writes nothing", async () => {
+    costFindUniqueMock.mockResolvedValue({ id: "cost-1", tripId: "trip-1", currency: "AUD", paidMinor: 20000, paidAt: new Date("2026-06-01"), refundMinor: 5000, refundedAt: null });
+    const result = await updateCost("cost-1", { currency: "EUR" });
+    expect(result).toEqual({ success: false, errors: { _: [REFUND_MESSAGES.currencyBlocked] } });
+    expect(costUpdateMock).not.toHaveBeenCalled();
+  });
+
+  it("lets a refunded Cost repeat its own currency", async () => {
+    costFindUniqueMock.mockResolvedValue({ id: "cost-1", tripId: "trip-1", currency: "AUD", costMinor: 20000, paidMinor: 20000, paidAt: new Date("2026-06-01"), refundMinor: 5000, refundedAt: null, ownerType: "OTHER", ownerId: null, label: "Insurance", settlement: "BEFORE" });
+    tripFindUniqueMock.mockResolvedValue({ homeCurrency: "AUD" });
+    resolveRateForTripMock.mockResolvedValue({ rate: 1, persist: null });
+    costUpdateMock.mockResolvedValue({});
+    const result = await updateCost("cost-1", { currency: "AUD" });
+    expect(result.success).toBe(true);
   });
 
   it("access-checks via requireCostAccess → requireTripAccess", async () => {
@@ -1105,5 +1122,129 @@ describe("What-if plans hidden", () => {
     expect(await markCostPaid("c1", 1000, "2026-06-04")).toEqual({ success: false, errors: { _: ["Cost not found"] } });
     expect(await markCostUnpaid("c1")).toEqual({ success: false, errors: { _: ["Cost not found"] } });
     expect(costUpdateMock).not.toHaveBeenCalled();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Refunds
+// ---------------------------------------------------------------------------
+
+describe("Refund actions", () => {
+  const paidCost = { id: "c1", tripId: "t1", forkId: null, paidMinor: 20000, paidAt: new Date("2026-06-01"), refundMinor: null, refundedAt: null };
+  const refundedCost = { ...paidCost, refundMinor: 5000 };
+
+  afterEach(() => {
+    costFindUniqueMock.mockReset();
+    costUpdateMock.mockReset();
+  });
+
+  it("recordRefund writes an expected Refund (no date)", async () => {
+    costFindUniqueMock.mockResolvedValue(paidCost);
+    costUpdateMock.mockResolvedValue({ id: "c1", tripId: "t1", label: null });
+    expect((await recordRefund("c1", 5000, null)).success).toBe(true);
+    expect(costUpdateMock).toHaveBeenCalledWith({ where: { id: "c1" }, data: { refundMinor: 5000, refundedAt: null } });
+  });
+
+  it("recordRefund writes a received Refund with its date", async () => {
+    costFindUniqueMock.mockResolvedValue(paidCost);
+    costUpdateMock.mockResolvedValue({ id: "c1", tripId: "t1", label: null });
+    await recordRefund("c1", 5000, "2026-12-01");
+    expect(costUpdateMock).toHaveBeenCalledWith({ where: { id: "c1" }, data: { refundMinor: 5000, refundedAt: new Date("2026-12-01") } });
+  });
+
+  it("recordRefund refuses more than was paid and writes nothing", async () => {
+    costFindUniqueMock.mockResolvedValue(paidCost);
+    const r = await recordRefund("c1", 25000, null);
+    expect(r).toEqual({ success: false, errors: { _: [REFUND_MESSAGES.tooMuch] } });
+    expect(costUpdateMock).not.toHaveBeenCalled();
+  });
+
+  it("recordRefund refuses an unpaid Cost", async () => {
+    costFindUniqueMock.mockResolvedValue({ ...paidCost, paidAt: null });
+    const r = await recordRefund("c1", 100, null);
+    expect(r).toEqual({ success: false, errors: { _: [REFUND_MESSAGES.notPaid] } });
+    expect(costUpdateMock).not.toHaveBeenCalled();
+  });
+
+  it("markRefundReceived writes the date on an expected Refund", async () => {
+    costFindUniqueMock.mockResolvedValue(refundedCost);
+    costUpdateMock.mockResolvedValue({ id: "c1", tripId: "t1", label: null });
+    expect((await markRefundReceived("c1", "2026-12-02")).success).toBe(true);
+    expect(costUpdateMock).toHaveBeenCalledWith({ where: { id: "c1" }, data: { refundedAt: new Date("2026-12-02") } });
+  });
+
+  it("markRefundReceived errors when there is no Refund", async () => {
+    costFindUniqueMock.mockResolvedValue(paidCost);
+    expect((await markRefundReceived("c1", "2026-12-02")).success).toBe(false);
+    expect(costUpdateMock).not.toHaveBeenCalled();
+  });
+
+  it("clearRefund nulls both columns", async () => {
+    costFindUniqueMock.mockResolvedValue({ ...refundedCost, refundedAt: new Date("2026-12-02") });
+    costUpdateMock.mockResolvedValue({ id: "c1", tripId: "t1", label: null });
+    expect((await clearRefund("c1")).success).toBe(true);
+    expect(costUpdateMock).toHaveBeenCalledWith({ where: { id: "c1" }, data: { refundMinor: null, refundedAt: null } });
+  });
+
+  it("markCostUnpaid refuses a refunded Cost and writes nothing", async () => {
+    costFindUniqueMock.mockResolvedValue(refundedCost);
+    const r = await markCostUnpaid("c1");
+    expect(r).toEqual({ success: false, errors: { _: [REFUND_MESSAGES.unpayBlocked] } });
+    expect(costUpdateMock).not.toHaveBeenCalled();
+  });
+
+  it("markCostPaid refuses a paid amount below the Refund", async () => {
+    costFindUniqueMock.mockResolvedValue(refundedCost);
+    const r = await markCostPaid("c1", 4000, "2026-06-04");
+    expect(r).toEqual({ success: false, errors: { _: [REFUND_MESSAGES.tooMuch] } });
+    expect(costUpdateMock).not.toHaveBeenCalled();
+  });
+
+  const heldRefunded = {
+    ...refundedCost, costMinor: 20000, currency: "AUD", dueDate: null, ownerType: "OTHER", ownerId: null,
+    label: "Pass", category: null, settlement: "BEFORE",
+  };
+
+  it("updateCost refuses lowering the paid amount below the Refund, form-level", async () => {
+    costFindUniqueMock.mockResolvedValue(heldRefunded);
+    tripFindUniqueMock.mockResolvedValue({ homeCurrency: "AUD" });
+    resolveRateForTripMock.mockResolvedValue({ rate: 1, persist: null });
+    costUpdateMock.mockResolvedValue({});
+    const r = await updateCost("c1", { paidMinor: 4000 });
+    expect(r).toEqual({ success: false, errors: { _: [REFUND_MESSAGES.tooMuch] } });
+    expect(costUpdateMock).not.toHaveBeenCalled();
+  });
+
+  it("createCost refuses a Refund on an unpaid Cost, form-level", async () => {
+    const r = await createCost("trip-1", { ...VALID_OTHER_INPUT, refundMinor: 100 });
+    expect(r).toEqual({ success: false, errors: { _: [REFUND_MESSAGES.notPaid] } });
+    expect(costCreateMock).not.toHaveBeenCalled();
+  });
+
+  it("updateCost refuses un-paying a refunded Cost, including through a currency change", async () => {
+    costFindUniqueMock.mockResolvedValue(heldRefunded);
+    expect(await updateCost("c1", { paidAt: null })).toEqual({ success: false, errors: { _: [REFUND_MESSAGES.unpayBlocked] } });
+    expect(await updateCost("c1", { currency: "EUR", paidAt: null })).toEqual({ success: false, errors: { _: [REFUND_MESSAGES.unpayBlocked] } });
+    expect(costUpdateMock).not.toHaveBeenCalled();
+  });
+
+  it("updateCost leaves the refund columns out of the write when the patch does not mention them", async () => {
+    costFindUniqueMock.mockResolvedValue(heldRefunded);
+    tripFindUniqueMock.mockResolvedValue({ homeCurrency: "AUD" });
+    resolveRateForTripMock.mockResolvedValue({ rate: 1, persist: null });
+    costUpdateMock.mockResolvedValue({});
+    expect((await updateCost("c1", { label: "Day pass" })).success).toBe(true);
+    const data = costUpdateMock.mock.calls[0][0].data;
+    expect(data).not.toHaveProperty("refundMinor");
+    expect(data).not.toHaveProperty("refundedAt");
+  });
+
+  it("updateCost writes both refund columns when the patch clears the Refund", async () => {
+    costFindUniqueMock.mockResolvedValue(heldRefunded);
+    tripFindUniqueMock.mockResolvedValue({ homeCurrency: "AUD" });
+    resolveRateForTripMock.mockResolvedValue({ rate: 1, persist: null });
+    costUpdateMock.mockResolvedValue({});
+    await updateCost("c1", { refundMinor: null });
+    expect(costUpdateMock.mock.calls[0][0].data).toMatchObject({ refundMinor: null, refundedAt: null });
   });
 });

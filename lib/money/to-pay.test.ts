@@ -15,6 +15,8 @@ function cost(over: Partial<ToPayInput> & { id: string }): ToPayInput {
     dueDate: null,
     ownerType: "OTHER",
     settlement: "BEFORE",
+    refundMinor: null,
+    refundedAt: null,
     ...over,
   };
 }
@@ -99,5 +101,37 @@ describe("mergeToPay amounts", () => {
   it("carries the label", () => {
     const [r] = mergeToPay([cost({ id: "a", displayLabel: "Rome apartment · balance" })], OPTS);
     expect(r.label).toBe("Rome apartment · balance");
+  });
+});
+
+describe("mergeToPay Refunds", () => {
+  const paidAt = new Date("2026-09-01");
+  it("a received Refund shows the net and says so", () => {
+    const [row] = mergeToPay(
+      [cost({ id: "r", costMinor: 20000, paidMinor: 20000, paidAt, refundMinor: 5000, refundedAt: new Date("2026-09-10") })],
+      OPTS,
+    );
+    expect(row.originalMinor).toBe(15000);
+    expect(row.homeMinor).toBe(15000);
+    expect(row.refund).toEqual({ minor: 5000, homeMinor: 5000, state: "received", on: "2026-09-10" });
+  });
+  it("an expected Refund shows the full paid amount", () => {
+    const [row] = mergeToPay(
+      [cost({ id: "r", costMinor: 20000, paidMinor: 20000, paidAt, refundMinor: 5000, refundedAt: null })],
+      OPTS,
+    );
+    expect(row.originalMinor).toBe(20000);
+    expect(row.refund).toEqual({ minor: 5000, homeMinor: 5000, state: "expected", on: null });
+  });
+  it("a Cost with no Refund has refund null", () => {
+    const [row] = mergeToPay([cost({ id: "r", paidMinor: 10000, paidAt })], OPTS);
+    expect(row.refund).toBeNull();
+  });
+  it("a foreign Refund carries its home amount", () => {
+    const [row] = mergeToPay(
+      [cost({ id: "r", currency: "EUR", rateToHome: 1.5, costMinor: 10000, paidMinor: 10000, paidAt, refundMinor: 4000, refundedAt: null })],
+      OPTS,
+    );
+    expect(row.refund).toEqual({ minor: 4000, homeMinor: 6000, state: "expected", on: null });
   });
 });

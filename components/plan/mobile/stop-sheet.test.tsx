@@ -264,7 +264,7 @@ describe("StopSheet booking confirmation marker", () => {
     expect(screen.queryByText("No booking confirmation attached")).toBeNull();
     await userEvent.click(screen.getByRole("radio", { name: "Ideas 1" }));
     expect(screen.queryByText("No booking confirmation attached")).toBeNull();
-    expect(screen.queryByRole("button", { name: "Nothing to attach" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "No file needed" })).toBeNull();
   });
 });
 

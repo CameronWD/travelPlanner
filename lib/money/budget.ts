@@ -8,6 +8,7 @@
  */
 
 import { convertMinor } from "@/lib/money/money";
+import { netCostMinor, netPaidMinor } from "@/lib/money/refund";
 import { isOnTrip } from "@/lib/enum-values";
 import { categoryLabel } from "@/lib/categories";
 import { addDays, daysBetween, nightsBetween } from "@/lib/dates";
@@ -30,6 +31,9 @@ export interface BudgetCost {
    * ADR 0037 and the "Paid" entry in CONTEXT.md.
    */
   paidAt: Date | string | null;
+  /** A Refund on a paid Cost (lib/money/refund.ts): expected until `refundedAt` is set. */
+  refundMinor: number | null;
+  refundedAt: Date | null;
   currency: string;
   /** Snapshot rate: 1 unit of cost.currency = rateToHome units of homeCurrency. */
   rateToHome: number | null;
@@ -143,6 +147,8 @@ export interface BudgetResult {
   homeCurrency: string;
   /** Grand total in home minor units (missing-rate costs excluded). */
   grandTotal: BudgetTotals;
+  /** How many Costs are in the totals. A Cost refunded in full counts, so a zero total is not "nothing recorded". */
+  costCount: number;
   /** Per-category breakdown, sorted descending by estimated. */
   byCategory: BudgetByCategory[];
   /** Per-stop breakdown; null stopId = "Trip-wide / Other". */
@@ -189,6 +195,9 @@ export interface BudgetResult {
  * - Foreign currency with a rate → convertMinor.
  * - Foreign currency with null rate → returns null (rate missing).
  *
+ * Both amounts are the net of a received Refund (lib/money/refund.ts), so
+ * every roll-up built on this is net.
+ *
  * `paidAt` is the sole signal for "is this cost paid" (ADR 0037 / CONTEXT.md
  * "Paid"). A cost with a `paidMinor` but no `paidAt` is not paid — its
  * `paidHome` is `null`, genuinely excluded, never a fabricated zero. Callers
@@ -201,11 +210,12 @@ export function convertCostToHome(
 ): { costHome: number | null; paidHome: number | null } {
   const from = cost.currency.toUpperCase();
   const home = homeCurrency.toUpperCase();
-  const paidMinor = cost.paidAt != null ? cost.paidMinor : null;
+  const costMinor = netCostMinor(cost);
+  const paidMinor = cost.paidAt != null ? netPaidMinor(cost) : null;
 
   if (from === home) {
     return {
-      costHome: cost.costMinor,
+      costHome: costMinor,
       paidHome: paidMinor,
     };
   }
@@ -216,7 +226,7 @@ export function convertCostToHome(
 
   const rate = cost.rateToHome;
   return {
-    costHome: convertMinor(cost.costMinor, from, home, rate),
+    costHome: convertMinor(costMinor, from, home, rate),
     paidHome: paidMinor !== null ? convertMinor(paidMinor, from, home, rate) : null,
   };
 }
@@ -233,6 +243,7 @@ export interface RawCostInput {
   id: string; costMinor: number; paidMinor: number | null; currency: string;
   rateToHome: number | null; ownerType: string; ownerId: string | null;
   label: string | null; category: string | null; paidAt: Date | string | null;
+  refundMinor: number | null; refundedAt: Date | null;
   settlement?: string;
 }
 
@@ -544,6 +555,7 @@ export function buildBudget({
   // ---------------------------------------------------------------------------
   // Process each cost
   // ---------------------------------------------------------------------------
+  let costCount = 0;
   for (const cost of costs) {
     // Surprise (ADR 0051): decided before any `continue` below, so a hidden
     // cost is reported in `surpriseCostIds` — and never leaks its real
@@ -560,6 +572,7 @@ export function buildBudget({
       continue;
     }
 
+    costCount += 1;
     const actualVal = paidHome ?? 0;
 
     // Grand total
@@ -682,6 +695,7 @@ export function buildBudget({
 
   return {
     homeCurrency,
+    costCount,
     grandTotal: {
       costTotalMinor: grandCost,
       paidTotalMinor: grandPaid,

@@ -30,6 +30,7 @@ import { fail, type ActionResult } from "@/lib/action-result";
 import { toPatch } from "@/lib/patch";
 import { BookingStateField, seedFromProposal, useBookingStateField } from "./booking-state-field";
 import { NothingToAttachSwitch } from "./nothing-to-attach-switch";
+import { hasBookingConfirmation } from "@/lib/booking-confirmation";
 import type { ProposedAccommodationInput } from "@/lib/booking-import/types";
 import { useDraftReporter } from "@/components/ui/use-draft-reporter";
 import { AttachmentList, type AttachmentView } from "@/components/trip/attachment-list";
@@ -298,9 +299,6 @@ function AccommodationForm({
 
       {/* Booking state (CONTEXT.md): a stay is To book; a confirmation implies Booked until the Traveller picks. */}
       <BookingStateField field={bookingField} errors={errors} disabled={isPending} className="sm:col-span-2" />
-      {!forkId && accommodation?.id && bookingField.shown === "BOOKED" && (
-        <NothingToAttachSwitch kind="ACCOMMODATION" id={accommodation.id} value={nothingToAttach} onChange={setNothingToAttach} className="sm:col-span-2" />
-      )}
 
       {/* Dates — own sub-grid so they always pair. */}
       <div className="sm:col-span-2 grid gap-4 sm:grid-cols-2">
@@ -385,6 +383,9 @@ function AccommodationForm({
           </p>
         )}
       </Field>
+      {!forkId && accommodation?.id && bookingField.shown === "BOOKED" && (nothingToAttach || !hasBookingConfirmation((attachments ?? []).map((a) => a.id))) && (
+        <NothingToAttachSwitch kind="ACCOMMODATION" id={accommodation.id} value={nothingToAttach} onChange={setNothingToAttach} className="sm:col-span-2" />
+      )}
 
       {/* Inline cost — hidden when >1 costs exist (CostEditor is authoritative) */}
       <div className="sm:col-span-2 flex flex-col gap-4">

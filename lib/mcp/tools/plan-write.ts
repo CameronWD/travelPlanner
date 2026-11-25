@@ -70,6 +70,7 @@ import { fail } from "@/lib/action-result";
 import { requireRealPlanRow, requireRealPlanRows } from "../real-plan";
 import { CATEGORY_MEANING, VOTE_LEVEL_MEANING, REFUNDABLE_MEANING, REFUNDABLE_VALUES, describeValues, type RefundableLabel } from "../vocab";
 import { isoDate, hhmm } from "@/lib/validations/primitives";
+import { refundsShape, deleteRefundArgs } from "../refund-fields";
 import { arriveByMinutesSchema } from "@/lib/validations/planning";
 import { bookingCreateShape, bookingPatchFrom, bookingPatchShape } from "../booking-state-fields";
 
@@ -282,15 +283,15 @@ export function registerPlanWriteTools(server: McpServer): void {
     {
       title: "Delete thing to do",
       description: "Permanently deletes a thing to do or see. This cannot be undone. Confirm with the person before calling this.",
-      inputSchema: { itemId: z.string() },
+      inputSchema: { itemId: z.string(), refunds: refundsShape },
       annotations: { destructiveHint: true },
     },
-    ({ itemId }) =>
+    ({ itemId, refunds }) =>
       runWrite(
         "delete_thing_to_do",
         async () => {
           await requireRealPlanRow("item", itemId);
-          return deleteItem(itemId);
+          return deleteItem(itemId, ...deleteRefundArgs(refunds));
         },
         async () => ({ deleted: itemId }),
       ),

@@ -2,6 +2,7 @@ import { z } from "zod";
 import { COST_SETTLEMENTS, costOwnerTypeSchema } from "@/lib/enums";
 import { CURRENCY_CODES } from "@/lib/money/currencies";
 import { isoDateWith } from "@/lib/validations/primitives";
+import { refundProblem } from "@/lib/money/refund";
 
 // ---------------------------------------------------------------------------
 // Constants
@@ -26,6 +27,12 @@ export const paidAtStringSchema = z
   .string()
   .datetime({ offset: true, message: "paidAt must be an ISO datetime string" })
   .or(isoDateWith("paidAt must be YYYY-MM-DD or ISO datetime", "paidAt must be a real calendar date"));
+
+/** `paidAtStringSchema`'s shape for the day a Refund arrived; also used by the standalone Refund actions. */
+export const refundedAtStringSchema = z
+  .string()
+  .datetime({ offset: true, message: "refundedAt must be an ISO datetime string" })
+  .or(isoDateWith("refundedAt must be YYYY-MM-DD or ISO datetime", "refundedAt must be a real calendar date"));
 
 /**
  * A date-only `paidAt`, for the inline cost fields on the Transport, Item and
@@ -86,6 +93,15 @@ export const costSchema = z
 
     paidAt: paidAtStringSchema.transform((s) => new Date(s)).optional(),
 
+    refundMinor: z
+      .number()
+      .int("Refund must be a whole number in minor units")
+      .max(MAX_AMOUNT_MINOR, "Amount is too large")
+      .nullable()
+      .optional(),
+
+    refundedAt: refundedAtStringSchema.transform((s) => new Date(s)).nullable().optional(),
+
     dueDate: dueDateSchema.optional(),
 
     ownerType: costOwnerTypeSchema,
@@ -130,6 +146,16 @@ export const costSchema = z
   .refine((data) => !(data.paidAt && data.paidMinor == null), {
     message: "Enter what you paid",
     path: ["paidMinor"],
+  })
+  // A Refund needs a paid Cost and fits inside what was paid (lib/money/refund.ts owns the wording).
+  .superRefine((data, ctx) => {
+    const problem = refundProblem({
+      paidMinor: data.paidMinor ?? null,
+      paidAt: data.paidAt,
+      refundMinor: data.refundMinor,
+      refundedAt: data.refundedAt,
+    });
+    if (problem) ctx.addIssue({ code: "custom", message: problem, path: [] });
   });
 
 /** The raw input type before parsing — this is what callers pass in. */

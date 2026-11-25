@@ -16,6 +16,8 @@ const baseCost: CostRow = {
   ownerId: null,
   label: null,
   category: null,
+  refundMinor: null,
+  refundedAt: null,
 };
 
 describe("CostSummary", () => {
@@ -68,5 +70,26 @@ describe("CostSummary", () => {
     expect(screen.getByText(/118\.00/)).toBeInTheDocument();
     expect(screen.queryByText(/120\.00/)).not.toBeInTheDocument();
     expect(screen.getByText(/paid/i)).toBeInTheDocument();
+  });
+
+  it("shows the net as the one number, with a Refunded tag, once a Refund is received", () => {
+    const { container } = render(
+      <CostSummary
+        cost={{ ...baseCost, costMinor: 20000, paidMinor: 20000, paidAt: new Date(), refundMinor: 5000, refundedAt: new Date() }}
+      />,
+    );
+    expect(screen.getByText(/150\.00/)).toBeInTheDocument();
+    expect(screen.queryByText(/200\.00/)).not.toBeInTheDocument();
+    expect(container.querySelector("[data-refund-tag]")).toHaveTextContent(/^Refunded .*50\.00$/);
+  });
+
+  it("keeps the full paid amount while the Refund is only expected", () => {
+    const { container } = render(
+      <CostSummary
+        cost={{ ...baseCost, costMinor: 20000, paidMinor: 20000, paidAt: new Date(), refundMinor: 5000, refundedAt: null }}
+      />,
+    );
+    expect(screen.getByText(/200\.00/)).toBeInTheDocument();
+    expect(container.querySelector("[data-refund-tag]")).toHaveTextContent(/50\.00 refund expected$/);
   });
 });

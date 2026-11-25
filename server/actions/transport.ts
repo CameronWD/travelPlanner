@@ -16,7 +16,8 @@ import { type ActionFailure, type ActionResult, validationResult, formFail } fro
 import { mergeTransportPatch, type TransportPatch } from "@/lib/transport-patch";
 import { completeInlineCost, OWNED_COST_SELECT } from "@/lib/money/cost-patch";
 import { cleanupTargetSideDataTx } from "@/server/actions/target-cleanup";
-import { deleteOwnedCostsTx } from "@/server/actions/owned-costs";
+import { deleteOwnedCostsTx, deleteRefundsProblemTx } from "@/server/actions/owned-costs";
+import type { DeleteRefundAnswer } from "@/lib/money/delete-refund";
 import { lockPlanTransportsTx } from "@/server/actions/stop-flow";
 import { growTripEndTx, tripWindowScopes } from "@/server/actions/trip-window";
 import { revalidateTrip } from "@/lib/revalidate";
@@ -470,6 +471,7 @@ export async function reorderTransports(
  */
 export async function deleteTransport(
   transportId: string,
+  refunds?: readonly DeleteRefundAnswer[],
 ): Promise<TransportActionResult> {
   const transport = await requireTransportAccess(transportId);
 
@@ -478,13 +480,16 @@ export async function deleteTransport(
 
   // cleanupTargetSideDataTx schedules attachment blobs for retention inside
   // this same transaction (ARCH-DAT-3) — no post-commit blob call needed.
-  await db.$transaction(async (tx) => {
+  const owner = { type: "TRANSPORT", id: transportId, label: ownerLabel } as const;
+  const refused = await db.$transaction(async (tx) => {
+    const problem = await deleteRefundsProblemTx(tx, transport.tripId, owner, refunds);
+    if (problem) return problem;
     await tx.transport.delete({ where: { id: transportId } });
-    await deleteOwnedCostsTx(tx, transport.tripId, [
-      { type: "TRANSPORT", id: transportId, label: ownerLabel },
-    ]);
+    await deleteOwnedCostsTx(tx, transport.tripId, [owner], refunds);
     await cleanupTargetSideDataTx(tx, transport.tripId, "TRANSPORT", transportId);
+    return null;
   });
+  if (refused) return formFail(refused);
 
   await recordPlanActivity(transport.forkId, { tripId: transport.tripId, verb: "DELETED", entityType: "TRANSPORT", entityId: transportId, entityLabel: ownerLabel });
 

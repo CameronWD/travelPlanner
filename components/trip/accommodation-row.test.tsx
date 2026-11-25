@@ -165,7 +165,7 @@ it("defaultOpen starts expanded (the stay panel opens a block this way)", () => 
 it("never shows the missing-confirmation note", () => {
   render(<AccommodationRow accommodation={accommodation} stop={stop} />);
   expect(screen.queryByText("No booking confirmation attached")).not.toBeInTheDocument();
-  expect(screen.queryByRole("button", { name: "Nothing to attach" })).not.toBeInTheDocument();
+  expect(screen.queryByRole("button", { name: "No file needed" })).not.toBeInTheDocument();
 });
 
 it("shows a paperclip, named File attached, when the stay has a file, and none when it has not", () => {

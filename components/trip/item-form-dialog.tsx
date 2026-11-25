@@ -24,6 +24,8 @@ import { CATEGORIES, type Category } from "@/lib/categories";
 import { CategoryPill } from "./category-pill";
 import { FormError } from "@/components/ui/form-error";
 import { useConfirm } from "@/components/ui/confirm-dialog";
+import { useDeletePaid, paidCostsForDelete } from "@/components/money/delete-paid-dialog";
+import type { DeleteRefundAnswer } from "@/lib/money/delete-refund";
 import { toastRefused, toastRejected, formError } from "@/components/ui/action-failure";
 import { createItem, updateItem, deleteItem } from "@/server/actions/items";
 import { setItemPhoto, removeItemPhoto } from "@/server/actions/item-photo";
@@ -39,6 +41,7 @@ import { fail, type ActionResult } from "@/lib/action-result";
 import { toPatch } from "@/lib/patch";
 import { BookingStateField, seedFromProposal, useBookingStateField } from "./booking-state-field";
 import { NothingToAttachSwitch } from "./nothing-to-attach-switch";
+import { hasBookingConfirmation } from "@/lib/booking-confirmation";
 import { OpeningHoursEditor } from "@/components/trip/opening-hours-editor";
 import type { OpeningHours } from "@/lib/opening-hours";
 import { TryListEditor, draftFromTryList, tryListPayload } from "@/components/trip/try-list-editor";
@@ -716,6 +719,7 @@ function ItemForm({
   });
 
   const { confirm, dialog: confirmDialog } = useConfirm();
+  const { ask: askDeletePaid, dialog: deletePaidDialog } = useDeletePaid();
   const [deleting, setDeleting] = React.useState(false);
   const [deleteError, setDeleteError] = React.useState<string | null>(null);
 
@@ -723,17 +727,26 @@ function ItemForm({
 
   async function handleDelete() {
     if (!item) return;
-    const ok = await confirm({
-      title: `Delete “${item.title}”?`,
-      description: "This can’t be undone.",
-      confirmLabel: "Delete",
-      destructive: true,
-    });
-    if (!ok) return;
+    const title = `Delete “${item.title}”?`;
+    const paid = paidCostsForDelete(costs);
+    let refunds: DeleteRefundAnswer[] | undefined;
+    if (paid.length > 0) {
+      const answer = await askDeletePaid({ title, costs: paid });
+      if (!answer.confirmed) return;
+      refunds = answer.refunds;
+    } else {
+      const ok = await confirm({
+        title,
+        description: "This can’t be undone.",
+        confirmLabel: "Delete",
+        destructive: true,
+      });
+      if (!ok) return;
+    }
     setDeleting(true);
     setDeleteError(null);
     try {
-      const result = await deleteItem(item.id);
+      const result = refunds ? await deleteItem(item.id, refunds) : await deleteItem(item.id);
       if (result.success) {
         onSaved?.();
         onClose();
@@ -989,9 +1002,6 @@ function ItemForm({
 
       {/* Booking state (CONTEXT.md): a reference implies Booked until the Traveller picks. */}
       <BookingStateField field={bookingField} errors={errors} disabled={isPending} className="sm:col-span-2" />
-      {!forkId && item?.id && bookingField.shown === "BOOKED" && (
-        <NothingToAttachSwitch kind="ITEM" id={item.id} value={nothingToAttach} onChange={setNothingToAttach} className="sm:col-span-2" />
-      )}
 
       {/* Notes */}
       <Field label="Notes" error={errors.notes?.[0]} className="sm:col-span-2">
@@ -1077,6 +1087,9 @@ function ItemForm({
           </p>
         )}
       </Field>
+      {!forkId && item?.id && bookingField.shown === "BOOKED" && (nothingToAttach || !hasBookingConfirmation((attachments ?? []).map((a) => a.id), attachments?.find((a) => a.url === item.photoUrl)?.id)) && (
+        <NothingToAttachSwitch kind="ITEM" id={item.id} value={nothingToAttach} onChange={setNothingToAttach} className="sm:col-span-2" />
+      )}
 
       {isEdit && item && (reminders || onAddReminder) && (
         <Field label="Reminders" className="sm:col-span-2">
@@ -1123,6 +1136,7 @@ function ItemForm({
         </Button>
       </DialogFooter>
       {confirmDialog}
+      {deletePaidDialog}
     </form>
   );
 }

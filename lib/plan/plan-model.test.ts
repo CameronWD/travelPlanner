@@ -106,6 +106,11 @@ describe("costPaidState / stayCostLabel", () => {
     expect(costPaidState([cost()])).toBe("unpaid");
     expect(costPaidState([cost(), cost({ paidAt: new Date("2026-10-01") })])).toBe("paid");
   });
+  it("takes a received Refund off a stay's total, and ignores an expected one", () => {
+    const paidAt = new Date("2026-10-01");
+    expect(stayCostLabel([{ ...cost({ paidAt }), paidMinor: 54000, refundMinor: 4000, refundedAt: new Date("2026-10-05") }])).toBe(formatMoney(50000, "EUR"));
+    expect(stayCostLabel([{ ...cost({ paidAt }), paidMinor: 54000, refundMinor: 4000, refundedAt: null }])).toBe(formatMoney(54000, "EUR"));
+  });
   it("one currency sums in it; mixed converts to home; mixed without home lists each", () => {
     expect(stayCostLabel(undefined)).toBeNull();
     expect(stayCostLabel([cost(), cost({ costMinor: 6000 })])).toBe(formatMoney(60000, "EUR"));

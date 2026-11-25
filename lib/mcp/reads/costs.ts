@@ -13,6 +13,8 @@ import { requireTripAccess } from "@/lib/guards";
 import { REAL_PLAN } from "@/lib/plan-scope";
 import { convertCostToHome, effectiveCategory, type BudgetCost } from "@/lib/money/budget";
 import { formatMinor } from "@/lib/money/money";
+import { receivedRefundMinor } from "@/lib/money/refund";
+import { shownCostMinor } from "@/lib/money/cost-row";
 import { isOnTrip } from "@/lib/enum-values";
 import { daysBetween, formatISODate } from "@/lib/dates";
 import { tripTodayISO } from "@/lib/trip-today";
@@ -27,6 +29,10 @@ export interface McpCost {
   home: { minor: number; currency: string; formatted: string } | null;
   /** null while unpaid. `on` is the paid date, YYYY-MM-DD. */
   paid: { minor: number; formatted: string; on: string } | null;
+  /** An expected Refund has `on: null`; a received one counts in every total. */
+  refund: { minor: number; formatted: string; state: "expected" | "received"; on: string | null } | null;
+  /** What the Cost has actually cost so far, as the app shows it: paid less a received Refund, or the cost amount while unpaid. In the Cost's own currency. */
+  net: { minor: number; formatted: string };
   dueDate: string | null;
   /** negative = overdue; null when paid or undated. */
   daysUntilDue: number | null;
@@ -80,6 +86,8 @@ export async function readMcpCosts(
         label: true,
         category: true,
         settlement: true,
+        refundMinor: true,
+        refundedAt: true,
       },
     }),
     db.stop.findMany({ where: { tripId, ...REAL_PLAN }, orderBy: { sortOrder: "asc" }, select: { id: true, sortOrder: true, timezone: true, arriveDate: true, departDate: true } }),
@@ -90,7 +98,7 @@ export async function readMcpCosts(
   const today = tripTodayISO(stops, trip?.homeTimezone);
   // Raw rateToHome only, no ExchangeRate-table fallback — matches the Budget
   // page and get_budget (lib/money/budget-loader.ts loadBudget → buildBudgetFromRows).
-  const budgetCosts = rawCosts as unknown as BudgetCost[];
+  const budgetCosts: BudgetCost[] = rawCosts.map((c) => ({ ...c, ownerType: c.ownerType as BudgetCost["ownerType"] }));
 
   const { owners } = await loadOwners(
     tripId,
@@ -121,11 +129,25 @@ export async function readMcpCosts(
       owner = found ? { kind: found.kind, label: found.label } : { kind, label: REMOVED_LABEL };
     }
 
+    const received = receivedRefundMinor(raw);
+    const netMinor = shownCostMinor(raw);
+    // A Refund on a Cost that is no longer paid counts for nothing, so only an undated one is still worth reporting.
+    const refund: McpCost["refund"] =
+      raw.refundMinor == null
+        ? null
+        : received > 0
+          ? { minor: raw.refundMinor, formatted: formatMinor(raw.refundMinor, raw.currency), state: "received", on: formatISODate(raw.refundedAt!) }
+          : raw.refundedAt == null
+            ? { minor: raw.refundMinor, formatted: formatMinor(raw.refundMinor, raw.currency), state: "expected", on: null }
+            : null;
+
     return {
       id: raw.id,
       amount: { minor: raw.costMinor, currency: raw.currency, formatted: formatMinor(raw.costMinor, raw.currency) },
       home: costHome !== null ? { minor: costHome, currency: homeCurrency, formatted: formatMinor(costHome, homeCurrency) } : null,
       paid: isPaid ? { minor: raw.paidMinor ?? 0, formatted: formatMinor(raw.paidMinor ?? 0, raw.currency), on: paidOn! } : null,
+      refund,
+      net: { minor: netMinor, formatted: formatMinor(netMinor, raw.currency) },
       dueDate: isPaid ? null : dueDate,
       daysUntilDue,
       settlement: isOnTrip(raw.settlement) ? "on-the-trip" : "before-you-go",

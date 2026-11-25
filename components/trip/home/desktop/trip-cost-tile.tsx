@@ -23,6 +23,8 @@ export interface TripCostTileProps {
   href: Route;
   hasCover: boolean;
   costTotalMinor: number;
+  /** Costs in the total: a trip whose Costs are all refunded in full has a zero total but is not uncosted. */
+  costCount: number;
   paidTotalMinor: number;
   /** The Trip's home currency — the totals are in it. */
   currency: string;
@@ -43,11 +45,12 @@ export function TripCostTile({
   href,
   hasCover,
   costTotalMinor,
+  costCount,
   paidTotalMinor,
   currency,
   nextPayment,
 }: TripCostTileProps) {
-  const costed = costTotalMinor > 0;
+  const costed = costCount > 0;
   const pct = paidPct(paidTotalMinor, costTotalMinor);
   const total = formatMoneyAuto(costed ? costTotalMinor : 0, currency);
 

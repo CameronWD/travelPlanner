@@ -34,6 +34,8 @@ function makeCost(overrides: Partial<BudgetCost> = {}): BudgetCost {
     ownerId: null,
     label: "Test cost",
     category: null,
+    refundMinor: null,
+    refundedAt: null,
     ...overrides,
   };
 }
@@ -43,6 +45,33 @@ function makeCost(overrides: Partial<BudgetCost> = {}): BudgetCost {
 // ---------------------------------------------------------------------------
 
 describe("convertCostToHome", () => {
+  const RECEIVED = new Date("2026-06-20");
+
+  it("a received Refund comes off both the cost and the paid amount", () => {
+    const cost = makeCost({ costMinor: 20000, paidMinor: 20000, paidAt: "2026-06-04", refundMinor: 5000, refundedAt: RECEIVED });
+    expect(convertCostToHome(cost, "AUD")).toEqual({ costHome: 15000, paidHome: 15000 });
+  });
+
+  it("an expected Refund changes nothing", () => {
+    const cost = makeCost({ costMinor: 20000, paidMinor: 20000, paidAt: "2026-06-04", refundMinor: 5000, refundedAt: null });
+    expect(convertCostToHome(cost, "AUD")).toEqual({ costHome: 20000, paidHome: 20000 });
+  });
+
+  it("a full Refund nets the Cost to zero", () => {
+    const cost = makeCost({ costMinor: 20000, paidMinor: 20000, paidAt: "2026-06-04", refundMinor: 20000, refundedAt: RECEIVED });
+    expect(convertCostToHome(cost, "AUD")).toEqual({ costHome: 0, paidHome: 0 });
+  });
+
+  it("a foreign Cost converts the net at the Cost's own rate", () => {
+    const cost = makeCost({ costMinor: 10000, paidMinor: 10000, paidAt: "2026-06-04", currency: "EUR", rateToHome: 1.5, refundMinor: 4000, refundedAt: RECEIVED });
+    expect(convertCostToHome(cost, "AUD")).toEqual({ costHome: 9000, paidHome: 9000 });
+  });
+
+  it("a Refund on an unpaid Cost is ignored", () => {
+    const cost = makeCost({ costMinor: 20000, paidMinor: null, paidAt: null, refundMinor: 5000, refundedAt: RECEIVED });
+    expect(convertCostToHome(cost, "AUD")).toEqual({ costHome: 20000, paidHome: null });
+  });
+
   it("same currency, paid → passthrough (no conversion needed)", () => {
     const cost = makeCost({ costMinor: 10000, paidMinor: 8000, paidAt: "2026-06-04", currency: "AUD", rateToHome: null });
     const result = convertCostToHome(cost, "AUD");
@@ -872,6 +901,19 @@ describe("buildBudget — byChapter", () => {
 
   const allCosts = [costFinlandAcc, costItalyItem, costItalyAcc, costIntraItaly, costCrossing, costOther, costUngrouped];
   const allAccommodations = [accFinland, accItaly, accUngrouped];
+
+  // One Refund in each bucket: received-partial (chapter Stop's Accommodation),
+  // received-full (ungrouped), received-partial (between legs), expected (Other).
+  const REFUNDED = new Date("2026-07-20");
+  const refundedCosts = [
+    { ...costFinlandAcc, refundMinor: 2000, refundedAt: REFUNDED },
+    { ...costItalyItem },
+    { ...costItalyAcc },
+    { ...costIntraItaly },
+    { ...costCrossing, refundMinor: 1000, refundedAt: REFUNDED },
+    { ...costOther, refundMinor: 500, refundedAt: null },
+    { ...costUngrouped, refundMinor: 3500, refundedAt: REFUNDED },
+  ];
   const allItems = [itemItaly];
   const allTransports = [transportIntraItaly, transportCrossing];
 
@@ -952,6 +994,31 @@ describe("buildBudget — byChapter", () => {
     expect(totalFromParts_act).toBe(result.grandTotal.paidTotalMinor);
   });
 
+  it("a Refund in every bucket nets each bucket and the grand total, and they still reconcile", () => {
+    const result = buildBudget({ ...chapterInput, costs: refundedCosts });
+    const fi = result.byChapter.find((c) => c.chapterId === "ch-fi")!;
+    expect(fi.costTotalMinor).toBe(8000);   // 10000 - 2000
+    expect(fi.paidTotalMinor).toBe(7000);   // 9000 - 2000
+    expect(result.chapterReconciliation.betweenLegs.costTotalMinor).toBe(4000);
+    expect(result.chapterReconciliation.betweenLegs.paidTotalMinor).toBe(3500);
+    expect(result.chapterReconciliation.ungrouped.costTotalMinor).toBe(500);  // 4000 - 3500
+    expect(result.chapterReconciliation.ungrouped.paidTotalMinor).toBe(0);    // 3500 - 3500
+    expect(result.chapterReconciliation.otherCosts.costTotalMinor).toBe(1500); // expected: unchanged
+    expect(result.chapterReconciliation.otherCosts.paidTotalMinor).toBe(1000);
+    // 10000+3000+8000+2000+5000+1500+4000 = 33500 less 2000+1000+3500
+    expect(result.grandTotal.costTotalMinor).toBe(27000);
+    // 9000+2500+8000+2000+4500+1000+3500 = 30500 less 6500
+    expect(result.grandTotal.paidTotalMinor).toBe(24000);
+    const parts = (k: "costTotalMinor" | "paidTotalMinor") =>
+      result.byChapter.reduce((s, c) => s + c[k], 0) +
+      result.chapterReconciliation.ungrouped[k] +
+      result.chapterReconciliation.betweenLegs[k] +
+      result.chapterReconciliation.otherCosts[k];
+    expect(parts("costTotalMinor")).toBe(result.grandTotal.costTotalMinor);
+    expect(parts("paidTotalMinor")).toBe(result.grandTotal.paidTotalMinor);
+    expect(result.costCount).toBe(7);
+  });
+
   it("when chapters is omitted, byChapter is empty and all non-OTHER costs fall into ungrouped, OTHER into otherCosts", () => {
     const inputNoChapters: BuildBudgetInput = {
       ...chapterInput,
@@ -988,7 +1055,7 @@ describe("applyFxRatesToCosts", () => {
   const raw = (over: Partial<Parameters<typeof applyFxRatesToCosts>[0]["costs"][number]> = {}) => ({
     id: "c1", costMinor: 1000, paidMinor: null, currency: "EUR",
     rateToHome: null, ownerType: "OTHER", ownerId: null, label: "x", category: null,
-    paidAt: null, ...over,
+    paidAt: null, refundMinor: null, refundedAt: null, ...over,
   });
   it("keeps an existing snapshot rateToHome untouched", () => {
     const [c] = applyFxRatesToCosts({ costs: [raw({ rateToHome: 1.7 })], exchangeRates: [{ base: "EUR", quote: "AUD", rate: 1.6 }], homeCurrency: "AUD" });

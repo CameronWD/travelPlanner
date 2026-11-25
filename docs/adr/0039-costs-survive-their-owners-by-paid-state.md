@@ -42,3 +42,12 @@ pre-existing plan-replacement semantics, not a regression introduced here;
 it is recorded as an exception to this ADR's paid-survives rule pending a
 follow-up decision on whether promotion should also convert ever-paid costs
 to Other instead of deleting them.
+
+## Amendment 2026-11-25: a Refund given at delete time (ADR 0079)
+A converted paid Cost may carry a Refund, given by the Traveller when they delete the
+owner (expected, or received on a date). Such a Cost is labelled "<owner or cost label>
+(cancelled)" instead of "(deleted)". The Traveller who says the money was not refunded
+gets today's behaviour unchanged.
+A converted paid Cost keeps only what was paid, in every case: its cost amount becomes its
+paid amount, because the thing no longer exists and only the money that left counts. It is
+labelled "(cancelled)" when it carries a Refund (given at delete, or already on it).

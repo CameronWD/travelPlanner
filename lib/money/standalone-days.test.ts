@@ -4,7 +4,7 @@ import { dayRowsWithStandalone, type StandaloneDayCost } from "./standalone-days
 
 const cost = (o: Partial<StandaloneDayCost>): StandaloneDayCost => ({
   id: "c", costMinor: 0, paidMinor: null, currency: "EUR", rateToHome: 2, ownerType: "OTHER", ownerId: null,
-  label: null, category: null, paidAt: null, dueDate: null, ...o,
+  label: null, category: null, paidAt: null, refundMinor: null, refundedAt: null, dueDate: null, ...o,
 });
 
 describe("dayRowsWithStandalone", () => {

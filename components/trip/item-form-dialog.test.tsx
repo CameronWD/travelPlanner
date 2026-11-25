@@ -42,6 +42,7 @@ import { deleteAttachment } from "@/server/actions/attachments";
 
 import { ItemFormDialog, AddItemButton } from "./item-form-dialog";
 import type { ItemCardItem } from "./item-card";
+import type { CostRow } from "@/lib/money/cost-row";
 import { nearestPositionedAncestor } from "@/test/helpers/containing-block";
 import { reminderItem } from "@/test/helpers/reminder-item";
 
@@ -820,6 +821,21 @@ describe("ItemFormDialog", () => {
     await user.click(within(confirmDialog).getByRole("button", { name: /^delete$/i }));
     expect(deleteItem).toHaveBeenCalledWith("item-99");
     expect(onOpenChange).toHaveBeenCalledWith(false);
+  });
+
+  it("asks what happened to the money for a paid item and sends the answer", async () => {
+    const user = userEvent.setup();
+    const paid = { id: "c-paid", costMinor: 23521, paidMinor: 23521, currency: "AUD", rateToHome: null, paidAt: new Date("2026-11-01"), dueDate: null, ownerType: "ITEM", ownerId: "item-99", label: "Fare", category: null, settlement: "BEFORE" };
+    render(<ItemFormDialog {...baseProps} item={existingItem} costs={[paid as CostRow]} />);
+    await user.click(screen.getByRole("button", { name: /^delete$/i }));
+    const dialog = await screen.findByRole("dialog", { name: /delete “museum visit”\?/i });
+    await user.click(within(dialog).getByRole("radio", { name: /^Refunded/ }));
+    await user.click(within(dialog).getByRole("button", { name: /^delete$/i }));
+    await waitFor(() =>
+      expect(deleteItem).toHaveBeenCalledWith("item-99", [
+        { costId: "c-paid", refundMinor: 23521, refundedAt: expect.stringMatching(/^\d{4}-\d{2}-\d{2}$/) },
+      ]),
+    );
   });
 
   it("does nothing when the confirmation is cancelled", async () => {
@@ -1932,35 +1948,44 @@ describe("ItemFormDialog address search", () => {
   });
 });
 
-describe("ItemFormDialog: Nothing to attach switch", () => {
+describe("ItemFormDialog: No ticket or file needed tick box", () => {
   beforeEach(() => vi.clearAllMocks());
   const booked = { ...existingItem, bookingState: "BOOKED" as const, bookingStateSet: true };
+  const file = {
+    id: "att-9",
+    filename: "ticket.pdf",
+    mime: "application/pdf",
+    size: 1000,
+    url: "/api/attachments/att-9",
+    uploadedById: "user-1",
+    createdAt: new Date("2026-07-01"),
+  };
 
   it("shows on an existing thing that is Booked, with its stored value", () => {
     render(<ItemFormDialog {...baseProps} item={{ ...booked, nothingToAttach: true }} />);
-    expect(screen.getByRole("switch", { name: "Nothing to attach" })).toHaveAttribute("aria-checked", "true");
+    expect(screen.getByRole("checkbox", { name: "No ticket or file needed" })).toBeChecked();
   });
 
   it("is absent on a What-if (Fork) plan, where it could only fail", () => {
     render(<ItemFormDialog {...baseProps} item={booked} forkId="fork-1" />);
-    expect(screen.queryByRole("switch", { name: "Nothing to attach" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("checkbox", { name: "No ticket or file needed" })).not.toBeInTheDocument();
   });
 
   it("hides while the form's state is To book, and is never on a new thing", async () => {
     const user = userEvent.setup();
     const { unmount } = render(<ItemFormDialog {...baseProps} item={booked} />);
     await user.click(screen.getByRole("radio", { name: "To book" }));
-    expect(screen.queryByRole("switch", { name: "Nothing to attach" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("checkbox", { name: "No ticket or file needed" })).not.toBeInTheDocument();
     unmount();
     render(<ItemFormDialog {...baseProps} />);
     await user.click(screen.getByRole("radio", { name: "Booked" }));
-    expect(screen.queryByRole("switch", { name: "Nothing to attach" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("checkbox", { name: "No ticket or file needed" })).not.toBeInTheDocument();
   });
 
   it("toggling saves through its own action and is not part of the form's patch", async () => {
     const user = userEvent.setup();
     render(<ItemFormDialog {...baseProps} item={booked} />);
-    await user.click(screen.getByRole("switch", { name: "Nothing to attach" }));
+    await user.click(screen.getByRole("checkbox", { name: "No ticket or file needed" }));
     await waitFor(() => expect(setNothingToAttach).toHaveBeenCalledWith("ITEM", booked.id, true));
     await user.click(screen.getByRole("button", { name: /save changes|save/i }));
     expect(vi.mocked(updateItem).mock.calls.at(-1)!.some((a) => JSON.stringify(a).includes("nothingToAttach"))).toBe(false);
@@ -1969,11 +1994,27 @@ describe("ItemFormDialog: Nothing to attach switch", () => {
   it("keeps a toggled value when the state is flipped away from Booked and back", async () => {
     const user = userEvent.setup();
     render(<ItemFormDialog {...baseProps} item={booked} />);
-    await user.click(screen.getByRole("switch", { name: "Nothing to attach" }));
+    await user.click(screen.getByRole("checkbox", { name: "No ticket or file needed" }));
     await waitFor(() => expect(setNothingToAttach).toHaveBeenCalled());
     await user.click(screen.getByRole("radio", { name: "To book" }));
     await user.click(screen.getByRole("radio", { name: "Booked" }));
-    expect(screen.getByRole("switch", { name: "Nothing to attach" })).toHaveAttribute("aria-checked", "true");
+    expect(screen.getByRole("checkbox", { name: "No ticket or file needed" })).toBeChecked();
+  });
+
+  it("is absent on a Booked thing that already has a file", () => {
+    render(<ItemFormDialog {...baseProps} item={booked} attachments={[file]} />);
+    expect(screen.queryByRole("checkbox", { name: "No ticket or file needed" })).not.toBeInTheDocument();
+  });
+
+  it("stays on a Booked thing with a file once ticked, so it can be unticked", () => {
+    render(<ItemFormDialog {...baseProps} item={{ ...booked, nothingToAttach: true }} attachments={[file]} />);
+    expect(screen.getByRole("checkbox", { name: "No ticket or file needed" })).toBeChecked();
+  });
+
+  it("is absent on a thing that is To book, and there is no switch", () => {
+    render(<ItemFormDialog {...baseProps} item={{ ...booked, bookingState: "TO_BOOK" as const }} />);
+    expect(screen.queryByRole("checkbox", { name: "No ticket or file needed" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("switch")).not.toBeInTheDocument();
   });
 });
 

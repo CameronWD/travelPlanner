@@ -58,7 +58,7 @@ async function loadTravellingHomeUncached(tripId: string, userId: string | null)
       db.cost.findMany({
         where: { tripId, ...REAL_PLAN },
         select: {
-          id: true, costMinor: true, paidMinor: true, currency: true, rateToHome: true, paidAt: true, dueDate: true,
+          id: true, costMinor: true, paidMinor: true, currency: true, rateToHome: true, paidAt: true, refundMinor: true, refundedAt: true, dueDate: true,
           ownerType: true, ownerId: true, label: true, category: true, settlement: true,
         },
       }),
@@ -141,7 +141,7 @@ async function loadTravellingHomeUncached(tripId: string, userId: string | null)
 
   // ── Spend so far ──
   const homeCurrency = trip.homeCurrency;
-  const spend = buildSpendSoFar({ costs: costs as SpendCost[], homeCurrency, tripStart: startDate, tripEnd: endDate, today: effectiveDate });
+  const spend = buildSpendSoFar({ costs: costs.map((c) => ({ ...c, ownerType: c.ownerType as SpendCost["ownerType"] })), homeCurrency, tripStart: startDate, tripEnd: endDate, today: effectiveDate });
 
   // ── Upcoming payments ── Owner labels (lib/money/cost-labels.ts) prefer the
   // linked Stop's current name over the Transport's free text.

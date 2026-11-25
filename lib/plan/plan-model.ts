@@ -6,6 +6,7 @@
 import { uncoveredNightDates, uncoveredNights } from "@/lib/accommodation-coverage";
 import { addDays, daysBetween, formatDateRangeCompact, formatDayLabel, nightsBetween, parseISODate } from "@/lib/dates";
 import { flowDates, type FlowStop, type ProjectionStop } from "@/lib/firm-up";
+import { costNetMinor, type CostRow } from "@/lib/money/cost-row";
 import { formatMoney, sumMinorToHome } from "@/lib/money/money";
 import { orderPlanStops } from "@/lib/plan-order";
 import type { PlanSummary } from "@/lib/plan-overview";
@@ -136,16 +137,16 @@ export function costPaidState(costs: readonly { paidAt: Date | null }[] | undefi
  * out, as daySummary does); each currency listed when mixed with no home.
  */
 export function stayCostLabel(
-  costs: readonly { costMinor: number; currency: string; rateToHome: number | null }[] | undefined,
+  costs: readonly (Pick<CostRow, "costMinor"> & Partial<Pick<CostRow, "paidMinor" | "paidAt" | "refundMinor" | "refundedAt">> & { currency: string; rateToHome: number | null })[] | undefined,
   homeCurrency?: string,
 ): string | null {
   if (!costs || costs.length === 0) return null;
   const currencies = [...new Set(costs.map((c) => c.currency.toUpperCase()))];
-  const sumIn = (cur: string) => costs.filter((c) => c.currency.toUpperCase() === cur).reduce((s, c) => s + c.costMinor, 0);
+  const sumIn = (cur: string) => costs.filter((c) => c.currency.toUpperCase() === cur).reduce((s, c) => s + costNetMinor(c), 0);
   if (currencies.length === 1) return formatMoney(sumIn(currencies[0]), currencies[0]);
   if (homeCurrency) {
     const { totalMinor } = sumMinorToHome(
-      costs.map((c) => ({ amountMinor: c.costMinor, currency: c.currency })),
+      costs.map((c) => ({ amountMinor: costNetMinor(c), currency: c.currency })),
       homeCurrency,
       (cur) => costs.find((c) => c.currency.toUpperCase() === cur)?.rateToHome ?? undefined,
     );

@@ -12,6 +12,7 @@ function renderTile(overrides: Partial<Props> = {}) {
       currency="AUD"
       paidSoFarMinor={420_000}
       costTotalMinor={1_110_000}
+      recordedCount={4}
       varianceMinor={-12_550}
       tripElapsedPct={14}
       {...overrides}
@@ -47,8 +48,13 @@ describe("SpendSoFarTile", () => {
     );
   });
 
+  it("is not the empty state when every Cost was refunded in full", () => {
+    renderTile({ paidSoFarMinor: 0, costTotalMinor: 0, recordedCount: 2, varianceMinor: 0, tripElapsedPct: null });
+    expect(screen.queryByRole("link", { name: "Add your first cost" })).toBeNull();
+  });
+
   it("shows $0 and 'Add your first cost' when nothing is costed", () => {
-    renderTile({ paidSoFarMinor: 0, costTotalMinor: 0, varianceMinor: 0, tripElapsedPct: null });
+    renderTile({ paidSoFarMinor: 0, costTotalMinor: 0, recordedCount: 0, varianceMinor: 0, tripElapsedPct: null });
     expect(screen.getByText("$0")).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Add your first cost" })).toHaveAttribute("href", "/trips/t1/budget");
     expect(screen.queryByText(/under|over/)).toBeNull();

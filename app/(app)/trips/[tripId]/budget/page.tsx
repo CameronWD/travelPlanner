@@ -28,6 +28,8 @@ import { MoneyHeader } from "@/components/money/money-header";
 import { AddCostButton } from "@/components/money/add-cost-button";
 import { CostTile } from "@/components/money/cost-tile";
 import { ToPayCard } from "@/components/money/to-pay-card";
+import { RefundsWaitingCard } from "@/components/money/refunds-waiting-card";
+import { mergeToPay } from "@/lib/money/to-pay";
 import { BreakdownCard } from "@/components/money/breakdown-card";
 import { RatesStrip } from "@/components/money/rates-strip";
 
@@ -195,6 +197,8 @@ export default async function BudgetPage({
     label: c.label,
     category: c.category,
     paidAt: c.paidAt,
+    refundMinor: c.refundMinor,
+    refundedAt: c.refundedAt,
   }));
 
   const today = tripTodayISO(stops, trip.homeTimezone);
@@ -335,6 +339,7 @@ export default async function BudgetPage({
     foreignCurrencies.length > 0 ? (
       <RatesStrip tripId={tripId} homeCurrency={homeCurrency} rates={rateEntries} note={ratesNote} missingLine={missingLine} />
     ) : null;
+  const waitingRefunds = mergeToPay(toPayInputs, { today, homeCurrency }).filter((r) => r.refund?.state === "expected");
   // Paid tracking is real-plan-only, so a variant has no To pay.
   const showToPay = !activeFork;
   const hasRight = showToPay || ratesStrip != null;
@@ -360,6 +365,13 @@ export default async function BudgetPage({
         />
         {hasRight ? (
           <div className={SPAN.right}>
+            {showToPay ? (
+              <RefundsWaitingCard
+                rows={waitingRefunds}
+                costs={visibleCosts}
+                homeCurrency={homeCurrency}
+              />
+            ) : null}
             {showToPay ? (
               <ToPayCard
                 className="tp-rise-in"

@@ -6,7 +6,8 @@
  * verifies WishlistBoard never renders it.
  */
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { render, screen, cleanup, within, act } from "@testing-library/react";
+import { render, screen, cleanup, within, act, waitFor } from "@testing-library/react";
+import type { CostRow } from "@/lib/money/cost-row";
 import userEvent from "@testing-library/user-event";
 
 // Mock WishlistMapLoader so the map never touches jsdom.
@@ -145,7 +146,7 @@ const baseStop = {
   departDate: "2026-07-15",
 };
 
-function renderBoard(items: ItemCardItem[]) {
+function renderBoard(items: ItemCardItem[], costsByItemId?: Map<string, CostRow[]>) {
   return render(
     <>
       <Toaster />
@@ -153,6 +154,7 @@ function renderBoard(items: ItemCardItem[]) {
         tripId={TRIP_ID}
         stops={[baseStop]}
         items={items}
+        costsByItemId={costsByItemId}
       />
     </>,
   );
@@ -660,6 +662,31 @@ describe("WishlistBoard — delete failures (spec 2026-10-06 §E)", () => {
     await user.click(await screen.findByRole("button", { name: `Delete ${item.title}` }));
     await user.click(await screen.findByRole("button", { name: "Delete" }));
     expect(await screen.findByText("That idea was already removed.")).toBeInTheDocument();
+  });
+});
+
+describe("WishlistBoard — deleting a paid idea", () => {
+  it("asks what happened to the money and sends the answer", async () => {
+    const user = userEvent.setup();
+    const item = makeItem({ id: "item-paid", date: null, startTime: null, endTime: null });
+    const paid = { id: "c-paid", costMinor: 23521, paidMinor: 23521, currency: "AUD", rateToHome: null, paidAt: new Date("2026-11-01"), dueDate: null, ownerType: "ITEM", ownerId: "item-paid", label: "Fare", category: null, settlement: "BEFORE" } as CostRow;
+    renderBoard([item], new Map([["item-paid", [paid]]]));
+    await user.click(await screen.findByRole("button", { name: `Delete ${item.title}` }));
+    await user.click(await screen.findByRole("radio", { name: /Refund expected/ }));
+    await user.click(screen.getByRole("button", { name: "Delete" }));
+    await waitFor(() =>
+      expect(deleteItem).toHaveBeenCalledWith("item-paid", [{ costId: "c-paid", refundMinor: 23521, refundedAt: null }]),
+    );
+  });
+
+  it("keeps the plain confirmation when nothing was paid", async () => {
+    const user = userEvent.setup();
+    const item = makeItem({ id: "item-free", date: null, startTime: null, endTime: null });
+    renderBoard([item]);
+    await user.click(await screen.findByRole("button", { name: `Delete ${item.title}` }));
+    expect(screen.queryByRole("radio")).not.toBeInTheDocument();
+    await user.click(await screen.findByRole("button", { name: "Delete" }));
+    await waitFor(() => expect(deleteItem).toHaveBeenCalledWith("item-free"));
   });
 });
 

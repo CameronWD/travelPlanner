@@ -1,7 +1,8 @@
 import type { AttachmentView } from "@/lib/attachment-view";
 import type { LatLng } from "@/lib/geo";
-import type { CostRow } from "@/lib/money/cost-row";
+import { shownCostMinor, type CostRow } from "@/lib/money/cost-row";
 import { formatMoney } from "@/lib/money/money";
+import { refundTagText, type RefundTagCost } from "@/lib/money/refund-tag-text";
 import type {
   AccommodationCardAccommodation,
   DayEntryEditor,
@@ -33,7 +34,7 @@ export interface DetailsView {
   link: string | null;
   tryList: TryList | null;
   openingHours: string | null;
-  cost: { label: string; paid: boolean } | null;
+  cost: { label: string; paid: boolean; refunds?: RefundTagCost[] } | null;
 }
 
 export type DetailsContext = Partial<Pick<DayEntryEditor, "homeBaseName" | "homeTimezone">> & {
@@ -54,17 +55,21 @@ function stopName(ctx: DetailsContext, stopId: string | null | undefined): strin
   return text(ctx.stops?.find((s) => s.id === stopId)?.name);
 }
 
-/** CONTEXT.md "Cost": one current number per Cost (the paid amount once Paid), summed per currency. */
+/** CONTEXT.md "Cost": one current number per Cost (the paid amount once Paid, less a received Refund), summed per currency. */
 function costSummary(costs: CostRow[]): DetailsView["cost"] {
   if (costs.length === 0) return null;
   const byCurrency = new Map<string, number>();
   for (const c of costs) {
-    const shown = c.paidAt ? (c.paidMinor ?? c.costMinor) : c.costMinor;
+    const shown = shownCostMinor(c);
     byCurrency.set(c.currency, (byCurrency.get(c.currency) ?? 0) + shown);
   }
+  const refunds = costs
+    .map((c): RefundTagCost => ({ refundMinor: c.refundMinor, refundedAt: c.refundedAt, paidAt: c.paidAt, currency: c.currency }))
+    .filter((c) => refundTagText(c) != null);
   return {
     label: [...byCurrency].map(([currency, minor]) => formatMoney(minor, currency)).join(" + "),
     paid: costs.every((c) => c.paidAt),
+    ...(refunds.length > 0 ? { refunds } : {}),
   };
 }
 

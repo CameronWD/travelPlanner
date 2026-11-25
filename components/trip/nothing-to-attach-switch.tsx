@@ -4,7 +4,6 @@ import * as React from "react";
 import { useRouter } from "next/navigation";
 import { setNothingToAttach } from "@/server/actions/booking-confirmation";
 import { NOTHING_CHANGED, SOMETHING_WENT_WRONG, formError } from "@/components/ui/action-failure";
-import { Switch } from "@/components/ui/switch";
 import { cn } from "@/lib/cn";
 import type { ConfirmationKind } from "@/lib/booking-confirmation";
 
@@ -22,7 +21,6 @@ export function NothingToAttachSwitch({
   className?: string;
 }) {
   const router = useRouter();
-  const switchId = React.useId();
   const [pending, startTransition] = React.useTransition();
   const [error, setError] = React.useState<string | null>(null);
 
@@ -47,12 +45,16 @@ export function NothingToAttachSwitch({
 
   return (
     <div className={cn("flex flex-col gap-1", className)}>
-      <div className="flex items-center gap-3">
-        <Switch id={switchId} checked={value} onCheckedChange={toggle} disabled={pending} />
-        <label htmlFor={switchId} className="text-sm font-semibold">
-          Nothing to attach
-        </label>
-      </div>
+      <label className="flex items-center gap-2 text-sm font-medium">
+        <input
+          type="checkbox"
+          checked={value}
+          onChange={(e) => toggle(e.target.checked)}
+          disabled={pending}
+          className="size-4 rounded border-input accent-primary"
+        />
+        No ticket or file needed
+      </label>
       {error && (
         <p role="alert" className="text-xs text-destructive">
           {error}

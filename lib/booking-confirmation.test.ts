@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { needsBookingConfirmation, type ConfirmationSubject } from "./booking-confirmation";
+import { hasBookingConfirmation, needsBookingConfirmation, type ConfirmationSubject } from "./booking-confirmation";
 
 const today = "2026-12-10";
 
@@ -51,5 +51,14 @@ describe("needsBookingConfirmation", () => {
 
   it("a subject with no date still needs one", () => {
     expect(needsBookingConfirmation(subject({ lastDay: null }), [], today)).toBe(true);
+  });
+});
+
+describe("hasBookingConfirmation", () => {
+  it("is true for a file, false for none or only the Item photo", () => {
+    expect(hasBookingConfirmation(["a1"], null)).toBe(true);
+    expect(hasBookingConfirmation([], null)).toBe(false);
+    expect(hasBookingConfirmation(["p1"], "p1")).toBe(false);
+    expect(hasBookingConfirmation(["p1", "a1"], "p1")).toBe(true);
   });
 });

@@ -12,6 +12,7 @@ import type { ToPayRow } from "@/lib/money/to-pay";
 import { ToPayRowView } from "./to-pay-row";
 import { formatMoneyWhole } from "@/lib/money/format-parts";
 import { PaidConfirm } from "@/components/money/paid-confirm";
+import { RefundDialog } from "@/components/money/refund-dialog";
 import { OtherCostFormDialog } from "@/components/trip/other-cost-editor";
 import { OwnedCostFormDialog } from "@/components/trip/cost-editor";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -42,6 +43,7 @@ export function ToPayPanel({
   const [pendingId, setPendingId] = React.useState<string | null>(null);
   const [partly, setPartly] = React.useState<ToPayRow | null>(null);
   const [editing, setEditing] = React.useState<string | null>(null);
+  const [refunding, setRefunding] = React.useState<{ id: string; receiving: boolean } | null>(null);
   const [allOpen, setAllOpen] = React.useState(false);
   const { confirm, dialog } = useConfirm();
 
@@ -96,6 +98,10 @@ export function ToPayPanel({
       .map((x) => x.r);
   }, [optimistic, order]);
 
+  const isRefunded = (r: ToPayRow) => r.refund?.state === "received" && r.originalMinor === 0;
+  const active = listed.filter((r) => !isRefunded(r));
+  const refundedRows = listed.filter(isRefunded);
+
   // Rows on the list at mount are already on screen; only later arrivals rise in (MOTION.md M9).
   // Once it has played the class is dropped: rows toggle display:none by index,
   // and a CSS animation restarts whenever its element is shown again.
@@ -105,6 +111,7 @@ export function ToPayPanel({
 
   const recentRows = recentIds.flatMap((id) => optimistic.find((r) => r.id === id) ?? []);
 
+  const refundingCost = refunding ? costs.find((c) => c.id === refunding.id) : undefined;
   const editingCost = editing != null ? costs.find((c) => c.id === editing) : undefined;
 
   function rowProps(row: ToPayRow) {
@@ -115,6 +122,8 @@ export function ToPayPanel({
       pending: pendingId === row.id,
       onToggle: () => toggle(row),
       onPartlyPaid: !row.paid ? () => setPartly(row) : undefined,
+      onRefund: row.paid && cost?.paidMinor != null ? () => setRefunding({ id: row.id, receiving: false }) : undefined,
+      onRefundReceived: row.refund?.state === "expected" && cost ? () => setRefunding({ id: row.id, receiving: true }) : undefined,
       onEdit: row.ownerType === "OTHER" || cost?.ownerId ? () => setEditing(row.id) : undefined,
       onDelete:
         row.ownerType === "OTHER"
@@ -134,6 +143,24 @@ export function ToPayPanel({
       onOpen: row.ownerType === "OTHER" ? () => setEditing(row.id) : undefined,
     };
   }
+
+  const refundedGroup = (capped: boolean) =>
+    refundedRows.length > 0 ? (
+      <section aria-label="Refunded" className="mt-4">
+        <h3 className="font-display text-base font-extrabold tracking-[-0.02em]">
+          Refunded
+        </h3>
+        <ul aria-label="Refunded costs">
+          {refundedRows.map((row, i) => (
+            <ToPayRowView
+              key={row.id}
+              {...rowProps(row)}
+              className={cn(capped && i >= TO_PAY_PHONE_ROWS && "max-md:hidden", capped && i >= TO_PAY_DESKTOP_ROWS && "md:hidden")}
+            />
+          ))}
+        </ul>
+      </section>
+    ) : null;
 
   return (
     <>
@@ -162,7 +189,7 @@ export function ToPayPanel({
       </div>
 
       <ul aria-label="To pay" className="mt-2">
-        {listed.map((row, i) => (
+        {active.map((row, i) => (
           <ToPayRowView
             key={row.id}
             {...rowProps(row)}
@@ -175,6 +202,8 @@ export function ToPayPanel({
           />
         ))}
       </ul>
+
+      {refundedGroup(true)}
 
       <button
         type="button"
@@ -228,10 +257,11 @@ export function ToPayPanel({
             <DialogTitle>All costs</DialogTitle>
           </DialogHeader>
           <ul aria-label="All costs">
-            {listed.map((row) => (
+            {active.map((row) => (
               <ToPayRowView key={row.id} {...rowProps(row)} />
             ))}
           </ul>
+          {refundedGroup(false)}
           {ratesFooter ? <div className="md:hidden">{ratesFooter}</div> : null}
         </DialogContent>
       </Dialog>
@@ -244,6 +274,10 @@ export function ToPayPanel({
           {partly ? <PaidConfirm row={partly} onCancel={() => setPartly(null)} onDone={() => setPartly(null)} /> : null}
         </DialogContent>
       </Dialog>
+
+      {refunding && refundingCost ? (
+        <RefundDialog cost={refundingCost} receiving={refunding.receiving} onClose={() => setRefunding(null)} />
+      ) : null}
 
       {editingCost?.ownerType === "OTHER" ? (
         <OtherCostFormDialog

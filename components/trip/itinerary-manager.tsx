@@ -73,6 +73,8 @@ import type { StopDayItem } from "@/lib/stop-days";
 import type { TravellerLike } from "@/lib/traveller";
 import type { CostRow } from "@/server/actions/costs";
 import { useConfirm } from "@/components/ui/confirm-dialog";
+import { useDeletePaid, paidCostsForDelete } from "@/components/money/delete-paid-dialog";
+import type { DeleteRefundAnswer } from "@/lib/money/delete-refund";
 import type { NoteView } from "./note-thread";
 import type { AttachmentView } from "./attachment-list";
 import {
@@ -502,6 +504,7 @@ export function ItineraryManager({
 }: ItineraryManagerProps) {
   usePreloadWhenIdle(LAZY_DIALOGS);
   const { confirm, dialog } = useConfirm();
+  const { ask: askDeletePaid, dialog: deletePaidDialog } = useDeletePaid();
 
   // Safety net: chapters are opt-in (spec 2026-08-24). Even if a caller passes
   // a non-empty `chapters` prop alongside `chaptersEnabled={false}` (a stale
@@ -1018,9 +1021,11 @@ export function ItineraryManager({
   // ── Transport handlers ──
   // Optimistic: the leg disappears at once; a failure shows it again.
   const deleteTransportAction = useUndoableAction({
-    apply: (transportId: string) => setHiddenTransportIds((prev) => new Set(prev).add(transportId)),
-    persist: (transportId) => deleteTransport(transportId),
-    revert: (transportId) =>
+    apply: ({ transportId }: { transportId: string; refunds?: DeleteRefundAnswer[] }) =>
+      setHiddenTransportIds((prev) => new Set(prev).add(transportId)),
+    persist: ({ transportId, refunds }) =>
+      refunds ? deleteTransport(transportId, refunds) : deleteTransport(transportId),
+    revert: ({ transportId }) =>
       setHiddenTransportIds((prev) => {
         const next = new Set(prev);
         next.delete(transportId);
@@ -1041,31 +1046,50 @@ export function ItineraryManager({
             ? `${modeLabel} to ${t.arrPlace}`
             : modeLabel)
       : modeLabel;
-    const confirmed = await confirm({
-      title: `Delete “${routeLabel}”?`,
-      description: "This can’t be undone.",
-      confirmLabel: "Delete",
-      destructive: true,
-    });
-    if (!confirmed) return;
-    await busy(transportId, () => deleteTransportAction.run(transportId));
+    const title = `Delete “${routeLabel}”?`;
+    const paid = paidCostsForDelete(t?.costs);
+    let refunds: DeleteRefundAnswer[] | undefined;
+    if (paid.length > 0) {
+      const answer = await askDeletePaid({ title, costs: paid });
+      if (!answer.confirmed) return;
+      refunds = answer.refunds;
+    } else {
+      const confirmed = await confirm({
+        title,
+        description: "This can’t be undone.",
+        confirmLabel: "Delete",
+        destructive: true,
+      });
+      if (!confirmed) return;
+    }
+    await busy(transportId, () => deleteTransportAction.run({ transportId, refunds }));
   }
 
   // ── Accommodation handlers ──
   const deleteAccommodationAction = useUndoableAction({
-    persist: (accId: string) => deleteAccommodation(accId),
+    persist: ({ accId, refunds }: { accId: string; refunds?: DeleteRefundAnswer[] }) =>
+      refunds ? deleteAccommodation(accId, refunds) : deleteAccommodation(accId),
     failure: "Couldn’t delete that stay.",
   });
   async function handleDeleteAccommodation(accId: string) {
     const acc = stops.flatMap((s) => s.accommodations).find((a) => a.id === accId);
-    const confirmed = await confirm({
-      title: `Delete “${acc?.name ?? "this accommodation"}”?`,
-      description: "This can’t be undone.",
-      confirmLabel: "Delete",
-      destructive: true,
-    });
-    if (!confirmed) return;
-    await busy(accId, () => deleteAccommodationAction.run(accId));
+    const title = `Delete “${acc?.name ?? "this accommodation"}”?`;
+    const paid = paidCostsForDelete(acc?.costs);
+    let refunds: DeleteRefundAnswer[] | undefined;
+    if (paid.length > 0) {
+      const answer = await askDeletePaid({ title, costs: paid });
+      if (!answer.confirmed) return;
+      refunds = answer.refunds;
+    } else {
+      const confirmed = await confirm({
+        title,
+        description: "This can’t be undone.",
+        confirmLabel: "Delete",
+        destructive: true,
+      });
+      if (!confirmed) return;
+    }
+    await busy(accId, () => deleteAccommodationAction.run({ accId, refunds }));
   }
 
   // ── Chapter handler ──
@@ -2436,6 +2460,7 @@ export function ItineraryManager({
       )}
 
       {dialog}
+      {deletePaidDialog}
     </div>
   );
 }

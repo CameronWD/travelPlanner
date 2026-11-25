@@ -215,7 +215,7 @@ describe("readPlan", () => {
 
   it("COST_SELECT is the union of the private copies (dueDate included)", () => {
     expect(Object.keys(COST_SELECT).sort()).toEqual(
-      ["id", "costMinor", "paidMinor", "currency", "rateToHome", "paidAt", "dueDate", "ownerType", "ownerId", "label", "category", "settlement", "createdAt"].sort(),
+      ["id", "costMinor", "paidMinor", "currency", "rateToHome", "paidAt", "refundMinor", "refundedAt", "dueDate", "ownerType", "ownerId", "label", "category", "settlement", "createdAt"].sort(),
     );
   });
 

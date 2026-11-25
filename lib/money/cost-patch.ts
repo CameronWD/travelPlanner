@@ -14,10 +14,12 @@
  *
  * Pure: no Prisma, no zod (types only).
  */
-import type { ActionFailure } from "@/lib/action-result";
+import { formFail, type ActionFailure } from "@/lib/action-result";
 import type { CostRawInput } from "@/lib/validations/cost";
 import { paidFieldsFromRow } from "@/lib/money/cost-form-state";
 import { patched, type Patch } from "@/lib/patch";
+import { formatISODate } from "@/lib/dates";
+import { refundProblem, REFUND_MESSAGES } from "@/lib/money/refund";
 
 export type CostPatchRow = {
   costMinor: number;
@@ -30,6 +32,8 @@ export type CostPatchRow = {
   label: string | null;
   category: string | null;
   settlement: string;
+  refundMinor?: number | null;
+  refundedAt?: Date | string | null;
 };
 
 /** A Due date only belongs to an unpaid Cost paid before the trip (CONTEXT.md "Due date"). */
@@ -75,13 +79,47 @@ export function mergeCostPatch(current: CostPatchRow, patch: Patch<CostRawInput>
     dueDate: noDueDate ? undefined : patched(patch.dueDate, current.dueDate),
     settlement,
     ...paid,
+    ...refundAfter(patch, current),
   };
 }
 
-/** The owned-Cost columns an update loads to complete its inline Cost. */
-export const OWNED_COST_SELECT = { id: true, costMinor: true, currency: true, paidMinor: true, paidAt: true } as const;
+/** A patch's Refund, else the row's: a Refund survives every edit that does not speak of it. */
+function refundAfter(
+  patch: { refundMinor?: number | null; refundedAt?: string | Date | null },
+  row: { refundMinor?: number | null; refundedAt?: Date | string | null },
+): { refundMinor?: number | null; refundedAt?: string | null } {
+  const refundMinor = patched(patch.refundMinor, row.refundMinor ?? null);
+  const at = patch.refundedAt !== undefined ? patch.refundedAt : row.refundedAt;
+  const refundedAt = at == null ? null : formatISODate(new Date(at));
+  return {
+    ...(refundMinor != null ? { refundMinor } : {}),
+    ...(refundedAt != null && refundMinor != null ? { refundedAt } : {}),
+  };
+}
 
-export type OwnedCostRow = { id: string; costMinor: number; currency: string; paidMinor: number | null; paidAt: Date | null };
+/**
+ * The rule a write would break, given the Cost as it will be afterwards and
+ * the Refund it already holds. Un-paying a Cost that holds a Refund gets its
+ * own wording; everything else is `refundProblem`'s.
+ */
+export function refundGuard(
+  after: { paidMinor: number | null; paidAt: Date | string | null | undefined },
+  stored: { refundMinor?: number | null; refundedAt?: Date | string | null },
+): string | null {
+  if (stored.refundMinor == null) return null;
+  if (after.paidAt == null) return REFUND_MESSAGES.unpayBlocked;
+  return refundProblem({ ...after, refundMinor: stored.refundMinor, refundedAt: stored.refundedAt });
+}
+
+/** The owned-Cost columns an update loads to complete its inline Cost. */
+export const OWNED_COST_SELECT = {
+  id: true, costMinor: true, currency: true, paidMinor: true, paidAt: true, refundMinor: true, refundedAt: true,
+} as const;
+
+export type OwnedCostRow = {
+  id: string; costMinor: number; currency: string; paidMinor: number | null; paidAt: Date | null;
+  refundMinor?: number | null; refundedAt?: Date | null;
+};
 export type InlineCostPatch = {
   costMinor?: number | null;
   currency?: string | null;
@@ -124,10 +162,20 @@ export function completeInlineCost(patch: InlineCostPatch, owned: readonly Owned
   const costMinor = patch.costMinor ?? single?.costMinor;
   const currency = patch.currency ?? single?.currency;
   if (costMinor === undefined || currency === undefined) return BOTH_HALVES;
+  const paid = paidPairAfter(patch, single);
+  // The inline write never touches the Refund columns, so it must not leave the Cost breaking the Refund's rules.
+  if (single) {
+    if (single.refundMinor != null && currency !== single.currency) return formFail(REFUND_MESSAGES.currencyBlocked);
+    const problem = refundGuard(
+      { paidMinor: paid.paidMinor ?? single.paidMinor, paidAt: paid.paidAt ?? null },
+      single,
+    );
+    if (problem) return formFail(problem);
+  }
   return {
     costMinor,
     currency,
-    ...paidPairAfter(patch, single),
+    ...paid,
     ...(patch.settlement != null ? { settlement: patch.settlement } : {}),
   };
 }

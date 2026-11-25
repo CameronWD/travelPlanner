@@ -9,16 +9,20 @@ export interface ConfirmationSubject {
   photoAttachmentId?: string | null;
 }
 
+/** CONTEXT.md "Booking confirmation": any Attachment but the Item photo. */
+export function hasBookingConfirmation(attachmentIds: readonly string[], photoAttachmentId?: string | null): boolean {
+  return attachmentIds.some((id) => id !== photoAttachmentId);
+}
+
 export function needsBookingConfirmation(
   s: ConfirmationSubject,
   attachmentIds: readonly string[],
   today: string,
 ): boolean {
-  const filesBesidesPhoto = attachmentIds.filter((id) => id !== s.photoAttachmentId);
   return (
     s.bookingState === "BOOKED" &&
     !s.nothingToAttach &&
-    filesBesidesPhoto.length === 0 &&
+    !hasBookingConfirmation(attachmentIds, s.photoAttachmentId) &&
     (s.lastDay === null || s.lastDay >= today)
   );
 }

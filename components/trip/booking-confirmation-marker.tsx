@@ -15,7 +15,7 @@ export function BookingConfirmationMarker({ kind, id }: { kind: ConfirmationKind
       if (result.success) router.refresh();
       return result;
     },
-    done: () => ({ title: "Marked as nothing to attach" }),
+    done: () => ({ title: "Marked as no file needed" }),
   });
 
   async function markNothingToAttach() {
@@ -32,7 +32,7 @@ export function BookingConfirmationMarker({ kind, id }: { kind: ConfirmationKind
         onClick={markNothingToAttach}
         className="rounded-full border border-border px-2 py-0.5 font-semibold hover:bg-muted hover:text-foreground disabled:opacity-60"
       >
-        Nothing to attach
+        No file needed
       </button>
     </p>
   );

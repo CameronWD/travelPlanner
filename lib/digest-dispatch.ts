@@ -454,6 +454,8 @@ async function buildPaymentLines(args: {
         ...c,
         paidMinor: null,
         paidAt: null,
+        refundMinor: null,
+        refundedAt: null,
         category: null,
       })),
       exchangeRates,

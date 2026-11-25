@@ -27,6 +27,14 @@ export interface ReleaseNote {
 /** Newest first. Add new notes at the top. */
 export const RELEASE_NOTES: ReleaseNote[] = [
   {
+    publishedAt: "2026-11-25T01:52:00Z",
+    text: "Money: record a refund on anything you paid for, expected or received. A received refund comes off your spend.",
+  },
+  {
+    publishedAt: "2026-11-25T01:51:00Z",
+    text: "Deleting something you paid for now asks what happened to the money.",
+  },
+  {
     publishedAt: "2026-11-25T00:38:00Z",
     text: "A Transport can now hold its flight or train number, seat, gate and platform.",
   },

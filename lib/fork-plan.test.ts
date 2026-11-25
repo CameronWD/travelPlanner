@@ -33,6 +33,13 @@ it("keeps dates, pinned, accommodation and estimated cost; drops paid/actual", (
   expect(plan.costs[0].data.rateToHome).toBe(1.6);      // kept for conversion
 });
 
+it("drops a received Refund from the forked Cost", () => {
+  const refunded = { ...source.costs[0], refundMinor: 1000, refundedAt: new Date("2026-06-20T00:00:00Z") };
+  const plan = buildForkPlan({ ...source, costs: [refunded] });
+  expect(plan.costs[0].data.refundMinor).toBeNull();
+  expect(plan.costs[0].data.refundedAt).toBeNull();
+});
+
 it("preserves source ids for FK remapping", () => {
   const plan = buildForkPlan(source);
   expect(plan.stops[0].sourceId).toBe("s1");

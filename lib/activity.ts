@@ -84,7 +84,12 @@ const TRANSPORT_MODE_LABELS: Record<string, string> = {
  * Format function that can optionally receive the owning row — used so the
  * COST formatter can look up the currency from the same row.
  */
-type FormatFn = (value: unknown, row: Record<string, unknown>) => string;
+type FormatFn = (
+  value: unknown,
+  row: Record<string, unknown>,
+  /** The row this value belongs to, and which side of the change it is. */
+  side?: { own: Record<string, unknown>; which: "from" | "to" },
+) => string;
 
 interface FieldSpec {
   key: string;
@@ -294,6 +299,13 @@ const FIELD_SPECS: Record<ActivityEntityType, FieldSpec[]> = {
     { key: "currency", label: "Currency" },
     { key: "category", label: "Category", format: (v) => categoryFormat(v) },
     { key: "paidAt", label: "Paid", format: (v) => (v == null ? "not paid" : dateFormat((v instanceof Date ? formatISODate(v) : v))) },
+    { key: "refundMinor", label: "Refund", format: moneyFormat },
+    { key: "refundedAt", label: "Refund received", format: (v, _row, side) => {
+        if (v != null) return dateFormat(v instanceof Date ? formatISODate(v) : v);
+        if (side?.own.refundMinor != null) return "expected";
+        return side?.which === "to" ? "removed" : "";
+      },
+    },
   ],
   // NOTE carries an excerpt, not field diffs
   NOTE: [],
@@ -364,8 +376,8 @@ export function describeChanges(
     changes.push({
       field: spec.key,
       label: spec.label,
-      from: fmt(bVal, formatRow),
-      to: fmt(aVal, formatRow),
+      from: fmt(bVal, formatRow, { own: before, which: "from" }),
+      to: fmt(aVal, formatRow, { own: after, which: "to" }),
     });
   }
 

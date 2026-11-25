@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { REFUND_MESSAGES } from "@/lib/money/refund";
 import { completeInlineCost, mergeCostPatch, paidPairAfter, DUE_DATE_NOT_APPLICABLE, MORE_THAN_ONE_COST } from "./cost-patch";
 
 const paidRow = {
@@ -95,5 +96,42 @@ describe("completeInlineCost", () => {
   it("the form's unpaid save (paidAt: null) un-pays, keeping the amount as history", () => {
     expect(completeInlineCost({ costMinor: 9000, currency: "EUR", paidAt: null, settlement: "BEFORE" }, [paid]))
       .toEqual({ costMinor: 9000, currency: "EUR", settlement: "BEFORE" });
+  });
+});
+
+describe("Refund through the inline Cost", () => {
+  const single = { id: "k1", costMinor: 20000, currency: "EUR", paidMinor: 20000, paidAt: new Date("2026-04-01T00:00:00Z"), refundMinor: 5000, refundedAt: null };
+
+  it("an amount-only edit passes and never carries the refund columns", () => {
+    const r = completeInlineCost({ costMinor: 21000, currency: "EUR" }, [single]);
+    expect(r).toMatchObject({ costMinor: 21000, paidMinor: 20000, paidAt: "2026-04-01" });
+    expect(r).not.toHaveProperty("refundMinor");
+    expect(r).not.toHaveProperty("refundedAt");
+  });
+  it("un-paying a refunded Cost is refused with the unpay message", () => {
+    expect(completeInlineCost({ costMinor: 20000, currency: "EUR", paidAt: null }, [single])).toEqual(
+      { success: false, errors: { _: [REFUND_MESSAGES.unpayBlocked] } },
+    );
+  });
+  it("changing the currency of a refunded Cost is refused; repeating it is not", () => {
+    expect(completeInlineCost({ costMinor: 20000, currency: "USD" }, [single])).toEqual(
+      { success: false, errors: { _: [REFUND_MESSAGES.currencyBlocked] } },
+    );
+    expect(completeInlineCost({ costMinor: 20000, currency: "EUR" }, [single])).toMatchObject({ currency: "EUR" });
+  });
+  it("a paid amount below the Refund is refused", () => {
+    expect(completeInlineCost({ costMinor: 20000, currency: "EUR", paidMinor: 4000, paidAt: "2026-04-01" }, [single])).toEqual(
+      { success: false, errors: { _: [REFUND_MESSAGES.tooMuch] } },
+    );
+  });
+});
+
+describe("mergeCostPatch keeps a Refund", () => {
+  const refunded = { ...paidRow, refundMinor: 3000, refundedAt: new Date("2026-05-02T00:00:00Z") };
+  it("carries the row's Refund when the patch is silent, and lets null clear it", () => {
+    expect(mergeCostPatch(refunded, { category: "Tours" })).toMatchObject({ refundMinor: 3000, refundedAt: "2026-05-02" });
+    const cleared = mergeCostPatch(refunded, { refundMinor: null, refundedAt: null });
+    expect(cleared).not.toHaveProperty("refundMinor");
+    expect(cleared).not.toHaveProperty("refundedAt");
   });
 });

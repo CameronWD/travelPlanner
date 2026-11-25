@@ -821,7 +821,7 @@ describe("PhaseTravelling passes the real today to the Timeline", () => {
     attachmentFindManyMock.mockResolvedValue([]);
     buildItineraryMock.mockReturnValue([]);
     vi.mocked(itineraryMod.effectiveTodayISO).mockReturnValue("2999-01-01");
-    vi.mocked(spendMod.buildSpendSoFar).mockReturnValue({ costTotalMinor: 0, paidSoFarMinor: 0, paidCostMinor: 0, varianceMinor: 0, costRemainingMinor: 0, tripElapsedPct: 0 });
+    vi.mocked(spendMod.buildSpendSoFar).mockReturnValue({ costTotalMinor: 0, paidSoFarMinor: 0, paidCostMinor: 0, varianceMinor: 0, costRemainingMinor: 0, recordedCount: 0, tripElapsedPct: 0 });
     const item = { id: "i1", title: "Museum", category: "SIGHTSEEING", startTime: "10:00" };
     pickDayPlanMock.mockReturnValue({ ...EMPTY_DAY, dateISO: "2999-01-01", timedItems: [{ kind: "item", item }], stop: { id: "s", name: "Porto", country: "Portugal" } });
   });
@@ -862,7 +862,7 @@ describe("PhaseTravelling gives Today's plan an editor (spec D1)", () => {
     ]);
     loadSurpriseVisibilityMock.mockResolvedValueOnce({ ...hiddenVisibility({}), hiddenOwnerIds: ["i2"] });
     vi.mocked(itineraryMod.effectiveTodayISO).mockReturnValue(today);
-    vi.mocked(spendMod.buildSpendSoFar).mockReturnValue({ costTotalMinor: 0, paidSoFarMinor: 0, paidCostMinor: 0, varianceMinor: 0, costRemainingMinor: 0, tripElapsedPct: 0 });
+    vi.mocked(spendMod.buildSpendSoFar).mockReturnValue({ costTotalMinor: 0, paidSoFarMinor: 0, paidCostMinor: 0, varianceMinor: 0, costRemainingMinor: 0, recordedCount: 0, tripElapsedPct: 0 });
     pickDayPlanMock.mockReturnValue({ ...EMPTY_DAY, dateISO: today, timedItems: [{ kind: "item", item: { id: "i1", title: "Museum", category: "SIGHTSEEING", startTime: "10:00" } }], stop: { id: "s1", name: "Munich" } });
   }
 
@@ -924,6 +924,7 @@ describe("PhaseTravelling desktop layout (spec D)", () => {
       paidCostMinor: 400_000,
       varianceMinor: 20_000,
       costRemainingMinor: 690_000,
+      recordedCount: 5,
       tripElapsedPct: 14,
     });
     pickDayPlanMock.mockReturnValue({ ...EMPTY_DAY, stop: { id: "stop-1", name: "Ubud", country: "Indonesia" } });

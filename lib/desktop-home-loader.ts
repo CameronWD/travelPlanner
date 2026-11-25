@@ -65,6 +65,8 @@ const COST_SELECT = {
   currency: true,
   rateToHome: true,
   paidAt: true,
+  refundMinor: true,
+  refundedAt: true,
   dueDate: true,
   ownerType: true,
   ownerId: true,
@@ -132,7 +134,7 @@ export interface HomePlanningData {
   datedChapters: HomeChapter[];
   /** Rough (date-less) Chapters — 0 when Chapters are off. */
   undatedChapterCount: number;
-  budget: Pick<BudgetResult, "grandTotal">;
+  budget: Pick<BudgetResult, "grandTotal" | "costCount">;
   /** Unpaid costs with a due date, soonest first. */
   upcomingPayments: UpcomingPayment[];
   /** Every Next step, ranked — callers cap it (the phone card shows 4). */
