@@ -854,6 +854,33 @@ merge, so merge the branch with a merge commit.
 
 Rollback is redeploying the previous build. The columns can stay: nothing else reads them.
 
+## 4o. 2026-11-25 Refunds (`feat/refunds-2026-11-25`) — deploy order
+
+This branch carries one migration:
+
+- `prisma/migrations/20261125180000_cost_refund` — adds two nullable columns to `Cost`:
+  `refundMinor` (integer) and `refundedAt` (timestamp). Nothing is backfilled.
+
+Applying it under the old build is safe: the columns are new and nullable, so the code
+already running never touches them. The reverse is the risk, and it has two parts.
+
+Production must have run this migration before any other deployment that shares its
+database runs code from this branch. Beta and previews share the production database
+(§4d) and do not migrate, so until production has migrated, code that selects the new
+columns fails with P2022 on a beta build or a preview of this branch.
+
+Vercel runs `prisma migrate deploy` before `next build` on a production deploy
+(`vercel.json`). So deploying `main` with the whole branch in one go is safe: the
+migration applies first, then the build that reads the columns.
+
+To try the branch on beta before it reaches `main`, first deploy `main` with only the
+migration commit (the commit that adds the two columns), confirm the production build
+log shows `migrate deploy` applying `20261125180000_cost_refund` and the
+site is live, and only then push the branch to `beta`. This does not survive a squash
+merge, so merge the branch with a merge commit.
+
+Rollback is redeploying the previous build. The columns can stay: nothing else reads them.
+
 ## 5. GitHub Actions cron (reminder delivery)
 
 In the GitHub repo settings:
