@@ -27,6 +27,14 @@ export interface ReleaseNote {
 /** Newest first. Add new notes at the top. */
 export const RELEASE_NOTES: ReleaseNote[] = [
   {
+    publishedAt: "2026-11-25T00:38:00Z",
+    text: "A Transport can now hold its flight or train number, seat, gate and platform.",
+  },
+  {
+    publishedAt: "2026-11-25T00:37:00Z",
+    text: "The Plan shows travel as a proper row with arrival time and duration.",
+  },
+  {
     publishedAt: "2026-11-25T00:00:00Z",
     text: "Booking import: a booking printed in another language now lands on the right Stop. München finds Munich.",
   },
