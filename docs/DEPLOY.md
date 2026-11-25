@@ -826,6 +826,26 @@ run from this branch fails the same way, because it selects each note's pictures
 `beta`.** Do not push `main` and `beta` together, and do not let a preview of this
 branch run before `main` has deployed.
 
+## 4n. 2026-11-25 Travel details (`feat/travel-row-and-details-2026-11-25`) — deploy order
+
+This branch carries one migration:
+
+- `prisma/migrations/20261125120000_transport_travel_details` — adds seven nullable text
+  columns to `Transport`: `carrier`, `serviceNumber`, `seat`, `terminal`, `gate`, `coach`
+  and `platform`. Nothing is backfilled.
+
+Applying it under the old build is safe: the columns are new and nullable, so the code
+already running never touches them. The reverse is the risk. Only a production build runs
+`prisma migrate deploy` (`vercel.json`); beta and previews share the production
+database (§4d) and do not migrate. Until production has migrated, code that selects the
+new columns fails with P2022 on a beta build or a preview of this branch.
+
+**Deploy `main` first with the migration commit alone, confirm the production build log
+shows `migrate deploy` applying `20261125120000_transport_travel_details`, confirm the
+site is live, and only then push the code that reads the columns and `beta`.**
+
+Rollback is redeploying the previous build. The columns can stay: nothing else reads them.
+
 ## 5. GitHub Actions cron (reminder delivery)
 
 In the GitHub repo settings:

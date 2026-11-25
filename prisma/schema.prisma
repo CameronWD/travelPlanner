@@ -750,6 +750,13 @@ model Transport {
   arrIsHome      Boolean   @default(false) // arrives the trip's Home base
   reference      String?
   notes          String?
+  carrier        String?
+  serviceNumber  String?
+  seat           String?
+  terminal       String?
+  gate           String?
+  coach          String?
+  platform       String?
   sortOrder      Int       @default(0)
 
   // CONTEXT.md "Booking state" (spec 2026-10-17 R2) — lib/enum-values.ts
