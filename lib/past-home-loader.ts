@@ -27,7 +27,7 @@ import {
   type BudgetAccommodation,
   type BudgetTransport,
 } from "@/lib/money/budget";
-import { buildSpendSoFar, type SpendCost } from "@/lib/money/spend-so-far";
+import { buildSpendSoFar } from "@/lib/money/spend-so-far";
 import { paidPct } from "@/lib/money/summary-lines";
 import { chapterForStop } from "@/lib/chapters";
 import type { RouteMapStop } from "@/lib/route-map";
@@ -208,7 +208,7 @@ async function loadPastHomeUncached(
   // Fed the same FX-applied costs as the budget roll-up, so "Trip cost" and
   // "of X cost" can never disagree on a multi-currency trip.
   const spend = buildSpendSoFar({
-    costs: costsWithRates as SpendCost[],
+    costs: costsWithRates,
     homeCurrency,
     tripStart: startDate,
     tripEnd: endDate,

@@ -43,6 +43,16 @@ describe("buildSpendSoFar", () => {
     expect(res.paidCostMinor).toBe(25000);
     expect(res.varianceMinor).toBe(0);
     expect(res.costRemainingMinor).toBe(30000);
+    expect(res.recordedCount).toBe(4);
+  });
+
+  it("counts a Cost refunded in full as recorded even though the totals are zero", () => {
+    const res = buildSpendSoFar({
+      homeCurrency: "AUD",
+      costs: [cost({ costMinor: 40000, paidMinor: 40000, paidAt: new Date("2026-08-02"), refundMinor: 40000, refundedAt: new Date("2026-08-04") })],
+      tripStart: null, tripEnd: null, today: "2026-08-06",
+    });
+    expect([res.costTotalMinor, res.paidSoFarMinor, res.recordedCount]).toEqual([0, 0, 1]);
   });
 
   it("excludes missing-rate foreign costs and handles no dates", () => {

@@ -147,6 +147,8 @@ export interface BudgetResult {
   homeCurrency: string;
   /** Grand total in home minor units (missing-rate costs excluded). */
   grandTotal: BudgetTotals;
+  /** How many Costs are in the totals. A Cost refunded in full counts, so a zero total is not "nothing recorded". */
+  costCount: number;
   /** Per-category breakdown, sorted descending by estimated. */
   byCategory: BudgetByCategory[];
   /** Per-stop breakdown; null stopId = "Trip-wide / Other". */
@@ -241,8 +243,7 @@ export interface RawCostInput {
   id: string; costMinor: number; paidMinor: number | null; currency: string;
   rateToHome: number | null; ownerType: string; ownerId: string | null;
   label: string | null; category: string | null; paidAt: Date | string | null;
-  /** Optional so a caller whose select predates Refunds reads as no Refund. */
-  refundMinor?: number | null; refundedAt?: Date | null;
+  refundMinor: number | null; refundedAt: Date | null;
   settlement?: string;
 }
 
@@ -271,7 +272,7 @@ export function applyFxRatesToCosts({
     if (rateToHome === null && c.currency.toUpperCase() !== home) {
       rateToHome = rateMap.get(`${c.currency.toUpperCase()}:${home}`) ?? null;
     }
-    return { ...c, rateToHome, refundMinor: c.refundMinor ?? null, refundedAt: c.refundedAt ?? null } as BudgetCost;
+    return { ...c, rateToHome } as BudgetCost;
   });
 }
 
@@ -554,6 +555,7 @@ export function buildBudget({
   // ---------------------------------------------------------------------------
   // Process each cost
   // ---------------------------------------------------------------------------
+  let costCount = 0;
   for (const cost of costs) {
     // Surprise (ADR 0051): decided before any `continue` below, so a hidden
     // cost is reported in `surpriseCostIds` — and never leaks its real
@@ -570,6 +572,7 @@ export function buildBudget({
       continue;
     }
 
+    costCount += 1;
     const actualVal = paidHome ?? 0;
 
     // Grand total
@@ -692,6 +695,7 @@ export function buildBudget({
 
   return {
     homeCurrency,
+    costCount,
     grandTotal: {
       costTotalMinor: grandCost,
       paidTotalMinor: grandPaid,

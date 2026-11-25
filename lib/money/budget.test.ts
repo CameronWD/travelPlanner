@@ -1016,6 +1016,7 @@ describe("buildBudget — byChapter", () => {
       result.chapterReconciliation.otherCosts[k];
     expect(parts("costTotalMinor")).toBe(result.grandTotal.costTotalMinor);
     expect(parts("paidTotalMinor")).toBe(result.grandTotal.paidTotalMinor);
+    expect(result.costCount).toBe(7);
   });
 
   it("when chapters is omitted, byChapter is empty and all non-OTHER costs fall into ungrouped, OTHER into otherCosts", () => {
@@ -1054,7 +1055,7 @@ describe("applyFxRatesToCosts", () => {
   const raw = (over: Partial<Parameters<typeof applyFxRatesToCosts>[0]["costs"][number]> = {}) => ({
     id: "c1", costMinor: 1000, paidMinor: null, currency: "EUR",
     rateToHome: null, ownerType: "OTHER", ownerId: null, label: "x", category: null,
-    paidAt: null, ...over,
+    paidAt: null, refundMinor: null, refundedAt: null, ...over,
   });
   it("keeps an existing snapshot rateToHome untouched", () => {
     const [c] = applyFxRatesToCosts({ costs: [raw({ rateToHome: 1.7 })], exchangeRates: [{ base: "EUR", quote: "AUD", rate: 1.6 }], homeCurrency: "AUD" });

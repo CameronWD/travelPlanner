@@ -483,6 +483,7 @@ async function renderDesktopHome({
             href={tripPath(slug, "/budget")}
             hasCover={hasCover}
             costTotalMinor={planning.budget.grandTotal.costTotalMinor}
+            costCount={planning.budget.costCount}
             paidTotalMinor={planning.budget.grandTotal.paidTotalMinor}
             currency={trip.homeCurrency}
             nextPayment={

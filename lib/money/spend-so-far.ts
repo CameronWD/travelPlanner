@@ -22,6 +22,8 @@ export interface SpendSoFar {
   /** paidSoFar − paidEstimate; > 0 = over your estimates on what you've paid. */
   varianceMinor: number;
   costRemainingMinor: number;
+  /** Costs in costTotalMinor. A Cost refunded in full counts, so a zero total is not "nothing recorded". */
+  recordedCount: number;
   /** 0–100, or null when the trip has no/invalid dates. */
   tripElapsedPct: number | null;
 }
@@ -33,11 +35,12 @@ export function buildSpendSoFar(input: {
   tripEnd?: string | null;
   today: string;
 }): SpendSoFar {
-  let estimatedTotal = 0, paidSoFar = 0, paidEstimate = 0;
+  let estimatedTotal = 0, paidSoFar = 0, paidEstimate = 0, recordedCount = 0;
   for (const c of input.costs) {
     const { costHome, paidHome } = convertCostToHome(c, input.homeCurrency);
     if (costHome === null) continue; // missing rate — excluded everywhere
     estimatedTotal += costHome;
+    recordedCount += 1;
     if (c.paidAt != null) {
       if (c.paidMinor == null || paidHome === null) {
         // A paid Cost always carries a paid amount (costSchema enforces it), so
@@ -71,6 +74,7 @@ export function buildSpendSoFar(input: {
     paidCostMinor: paidEstimate,
     varianceMinor: paidSoFar - paidEstimate,
     costRemainingMinor: estimatedTotal - paidEstimate,
+    recordedCount,
     tripElapsedPct,
   };
 }

@@ -613,12 +613,12 @@ export async function getPromotionPreview(forkId: string): Promise<PromotionPrev
     db.transport.findMany({ where: realWhere, select: { ...PREVIEW_TRANSPORT_SELECT, reference: true } }),
     db.accommodation.findMany({ where: { ...realWhere, ...v.where.accommodation }, select: { ...PREVIEW_ACCOMMODATION_SELECT, confirmation: true } }),
     db.item.findMany({ where: { ...realWhere, ...PLAN_PLACEMENT_WHERE, ...v.where.item }, select: { ...PREVIEW_ITEM_SELECT, photoAttachmentId: true } }),
-    db.cost.findMany({ where: { ...realWhere, ...v.where.cost }, select: { id: true, costMinor: true, paidMinor: true, currency: true, rateToHome: true, ownerType: true, ownerId: true, label: true, category: true, paidAt: true } }),
+    db.cost.findMany({ where: { ...realWhere, ...v.where.cost }, select: { id: true, costMinor: true, paidMinor: true, currency: true, rateToHome: true, ownerType: true, ownerId: true, label: true, category: true, paidAt: true, refundMinor: true, refundedAt: true } }),
     db.stop.findMany({ where: forkWhere, select: PREVIEW_STOP_SELECT }),
     db.transport.findMany({ where: forkWhere, select: PREVIEW_TRANSPORT_SELECT }),
     db.accommodation.findMany({ where: { ...forkWhere, ...v.where.accommodation }, select: PREVIEW_ACCOMMODATION_SELECT }),
     db.item.findMany({ where: { ...forkWhere, ...PLAN_PLACEMENT_WHERE, ...v.where.item }, select: PREVIEW_ITEM_SELECT }),
-    db.cost.findMany({ where: { ...forkWhere, ...v.where.cost }, select: { id: true, costMinor: true, paidMinor: true, currency: true, rateToHome: true, ownerType: true, ownerId: true, label: true, category: true, paidAt: true } }),
+    db.cost.findMany({ where: { ...forkWhere, ...v.where.cost }, select: { id: true, costMinor: true, paidMinor: true, currency: true, rateToHome: true, ownerType: true, ownerId: true, label: true, category: true, paidAt: true, refundMinor: true, refundedAt: true } }),
   ]);
 
   // 3. Collect real-plan entity IDs for attachment lookup

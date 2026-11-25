@@ -1,19 +1,20 @@
 import { cn } from "@/lib/cn";
-import { refundLabel } from "@/lib/money/refund-label";
+import { refundTagText, type RefundTagCost } from "@/lib/money/refund-tag-text";
 
 export function RefundTag({
   cost,
+  format,
   className,
 }: {
-  cost: { refundMinor?: number | null; refundedAt?: Date | string | null; currency: string };
+  cost: RefundTagCost;
+  format?: (minor: number, currency: string) => string;
   className?: string;
 }) {
-  const label = refundLabel(cost);
-  if (!label) return null;
-  const received = cost.refundedAt != null;
+  const text = refundTagText(cost, format);
+  if (!text) return null;
   return (
-    <span data-refund-tag className={cn("text-xs font-semibold", received ? "text-teal-text" : "text-muted-foreground", className)}>
-      {label}
+    <span data-refund-tag className={cn("text-xs font-semibold", cost.refundedAt != null ? "text-teal-text" : "text-muted-foreground", className)}>
+      {text}
     </span>
   );
 }

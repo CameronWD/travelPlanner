@@ -10,7 +10,7 @@ import type { CostRow } from "@/lib/money/cost-row";
 
 function row(id: string, over: Partial<ToPayRow> = {}): ToPayRow {
   return {
-    id, label: `Thing ${id}`, ownerType: "OTHER", paid: true, legacy: false, costMinor: 20000, paidMinor: 20000, currency: "AUD",
+    id, label: `Thing ${id}`, ownerType: "OTHER", paid: true, paidOn: "2026-09-01", legacy: false, costMinor: 20000, paidMinor: 20000, currency: "AUD",
     foreign: false, originalMinor: 20000, homeMinor: 20000, refund: { minor: 5000, homeMinor: 5000, state: "expected", on: null },
     dueLine: "", dueTone: "paid", unpaidDueLine: "", unpaidDueTone: "none", ...over,
   };

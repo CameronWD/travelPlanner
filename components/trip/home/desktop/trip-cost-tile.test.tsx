@@ -11,6 +11,7 @@ function renderTile(overrides: Partial<Props> = {}) {
       href={"/trips/t1/budget" as Route}
       hasCover
       costTotalMinor={1_110_000}
+      costCount={4}
       paidTotalMinor={400_000}
       currency="AUD"
       nextPayment={{ amountMinor: 11_520, currency: "AUD", homeMinor: 11_520, label: "Kuta pool villa", dueDate: "2026-12-01" }}
@@ -45,8 +46,13 @@ describe("TripCostTile", () => {
     expect(screen.getByRole("progressbar", { name: "Paid" })).toBeInTheDocument();
   });
 
+  it("is not the empty state when every Cost was refunded in full", () => {
+    renderTile({ costTotalMinor: 0, costCount: 2, paidTotalMinor: 0, nextPayment: null });
+    expect(screen.queryByRole("link", { name: "Add your first cost" })).toBeNull();
+  });
+
   it("shows $0 and an 'Add your first cost' link, with no bar, when nothing is costed", () => {
-    renderTile({ costTotalMinor: 0, paidTotalMinor: 0, nextPayment: null });
+    renderTile({ costTotalMinor: 0, costCount: 0, paidTotalMinor: 0, nextPayment: null });
     expect(screen.getByText("$0")).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Add your first cost" })).toHaveAttribute("href", "/trips/t1/budget");
     expect(screen.queryByRole("progressbar")).toBeNull();

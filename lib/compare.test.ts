@@ -95,6 +95,8 @@ const makeCost = (
     label: string | null;
     category: string | null;
     paidAt: Date | string | null;
+    refundMinor: number | null;
+    refundedAt: Date | null;
   }> = {},
 ) => ({
   id,
@@ -107,6 +109,8 @@ const makeCost = (
   label: overrides.label ?? null,
   category: overrides.category ?? null,
   paidAt: overrides.paidAt ?? null,
+  refundMinor: overrides.refundMinor ?? null,
+  refundedAt: overrides.refundedAt ?? null,
 });
 
 const makeTrip = (overrides: Partial<{
@@ -660,6 +664,17 @@ describe("budgetHomeMinor", () => {
     };
     const m = computePlanMetrics(input);
     expect(m.budgetHomeMinor).toBe(8000);
+  });
+
+  it("a received Refund makes the budget lower by exactly the refund; an expected one changes nothing", () => {
+    const paid = { costMinor: 20000, paidMinor: 20000, paidAt: "2026-06-01", currency: "USD", rateToHome: 1, ownerType: "OTHER" as const };
+    const base = { ...emptyInput(), trip: makeTrip({ homeCurrency: "USD", startDate: "2026-07-01" }) };
+    const budget = (refund: { refundMinor: number | null; refundedAt: Date | null }) =>
+      computePlanMetrics({ ...base, costs: [makeCost("c1", { ...paid, ...refund })] }).budgetHomeMinor;
+    const none = budget({ refundMinor: null, refundedAt: null });
+    expect(none).toBe(20000);
+    expect(budget({ refundMinor: 5000, refundedAt: new Date("2026-06-10") })).toBe(none! - 5000);
+    expect(budget({ refundMinor: 5000, refundedAt: null })).toBe(none);
   });
 
   it("returns 0 (not null) for empty costs", () => {

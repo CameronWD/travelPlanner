@@ -73,7 +73,7 @@ export function CostSummary({ cost, homeCurrency, className }: CostSummaryProps)
           {shownStr}
           {isPaid && <span>paid</span>}
         </span>
-        {isPaid && <RefundTag cost={cost} />}
+        <RefundTag cost={cost} />
         {homeEquivStr && (
           <span className="text-muted-foreground/70">
             ≈&nbsp;{homeEquivStr}

@@ -11,6 +11,8 @@ export interface SpendSoFarTileProps {
   /** The Travelling Phase's own Spend so far numbers (lib/money/spend-so-far.ts). */
   paidSoFarMinor: number;
   costTotalMinor: number;
+  /** Costs in the total: a trip whose Costs are all refunded in full has a zero total but is not empty. */
+  recordedCount: number;
   /** paidSoFar − paidEstimate; > 0 = over the estimates on what's been paid. */
   varianceMinor: number;
   tripElapsedPct: number | null;
@@ -31,10 +33,11 @@ export function SpendSoFarTile({
   currency,
   paidSoFarMinor,
   costTotalMinor,
+  recordedCount,
   varianceMinor,
   tripElapsedPct,
 }: SpendSoFarTileProps) {
-  const noData = costTotalMinor === 0 && paidSoFarMinor === 0;
+  const noData = recordedCount === 0;
   const paid = formatMoneyAuto(paidSoFarMinor, currency);
 
   return (

@@ -1,7 +1,8 @@
 import { convertMinor } from "@/lib/money/money";
 import { daysBetween, formatDayLabel, formatDayMonth, formatISODate } from "@/lib/dates";
 import { isOnTrip } from "@/lib/enum-values";
-import { netCostMinor, netPaidMinor, refundState } from "@/lib/money/refund";
+import { shownCostMinor } from "@/lib/money/cost-row";
+import { refundState } from "@/lib/money/refund";
 
 const TO_PAY_SOON_DAYS = 14;
 
@@ -27,6 +28,8 @@ export interface ToPayRow {
   label: string;
   ownerType: string;
   paid: boolean;
+  /** YYYY-MM-DD the Cost was paid; null while unpaid. */
+  paidOn: string | null;
   legacy: boolean;
   costMinor: number;
   paidMinor: number | null;
@@ -67,15 +70,15 @@ export function mergeToPay(
   const rows = costs.map((c, index) => {
     const paid = c.paidAt != null;
     const legacy = !paid && c.paidMinor != null;
-    const originalMinor = paid ? (netPaidMinor(c) ?? netCostMinor(c)) : c.costMinor;
+    const originalMinor = shownCostMinor(c);
     const foreign = c.currency.toUpperCase() !== home;
     const toHome = (minor: number) =>
       !foreign ? minor : c.rateToHome != null ? convertMinor(minor, c.currency, home, c.rateToHome) : null;
     const homeMinor = toHome(originalMinor);
     const state = refundState(c);
     const refund: ToPayRow["refund"] =
-      paid && c.refundMinor != null && state !== "none"
-        ? { minor: c.refundMinor, homeMinor: toHome(c.refundMinor), state, on: c.refundedAt ? formatISODate(c.refundedAt) : null }
+      paid && state !== "none"
+        ? { minor: c.refundMinor!, homeMinor: toHome(c.refundMinor!), state, on: c.refundedAt ? formatISODate(c.refundedAt) : null }
         : null;
     const u = unpaidDue(c, today);
     const paidISO = paid ? formatISODate(c.paidAt!) : null;
@@ -89,6 +92,7 @@ export function mergeToPay(
       label: c.displayLabel,
       ownerType: c.ownerType,
       paid,
+      paidOn: paidISO,
       legacy,
       costMinor: c.costMinor,
       paidMinor: c.paidMinor,

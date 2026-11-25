@@ -82,7 +82,13 @@ export function ToPayRowView({
       {row.dueLine ? <p className={cn("text-xs font-semibold", TONE[row.dueTone])}>{row.dueLine}</p> : null}
       {row.refund ? (
         <RefundTag
-          cost={{ refundMinor: row.refund.minor, refundedAt: row.refund.on, currency: row.currency }}
+          cost={{
+            refundMinor: row.refund.homeMinor ?? row.refund.minor,
+            refundedAt: row.refund.on,
+            paidAt: row.paidOn,
+            currency: row.refund.homeMinor != null ? homeCurrency : row.currency,
+          }}
+          format={formatMoneyWhole}
           className="block"
         />
       ) : null}

@@ -97,7 +97,7 @@ export async function readMcpCosts(
   const today = tripTodayISO(stops, trip?.homeTimezone);
   // Raw rateToHome only, no ExchangeRate-table fallback — matches the Budget
   // page and get_budget (lib/money/budget-loader.ts loadBudget → buildBudgetFromRows).
-  const budgetCosts = rawCosts as unknown as BudgetCost[];
+  const budgetCosts: BudgetCost[] = rawCosts.map((c) => ({ ...c, ownerType: c.ownerType as BudgetCost["ownerType"] }));
 
   const { owners } = await loadOwners(
     tripId,

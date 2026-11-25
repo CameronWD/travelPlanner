@@ -14,8 +14,7 @@ export function SpendSoFarCard({ spend, homeCurrency, compact = false }: SpendSo
   const { costTotalMinor, paidSoFarMinor, varianceMinor, costRemainingMinor, tripElapsedPct } = spend;
 
   // Render a placeholder when there's no spend data at all
-  const noData = costTotalMinor === 0 && paidSoFarMinor === 0;
-  if (noData) {
+  if (spend.recordedCount === 0) {
     return compact ? null : (
       <EmptyState
         icon={Wallet}

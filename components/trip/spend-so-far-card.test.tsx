@@ -10,6 +10,7 @@ const spend = (o: Partial<SpendSoFar> = {}): SpendSoFar => ({
   varianceMinor: -5000,
   costRemainingMinor: 48000,
   tripElapsedPct: 40,
+  recordedCount: 3,
   ...o,
 });
 
@@ -26,9 +27,16 @@ describe("SpendSoFarCard compact (trip home, Task 10b)", () => {
     expect(card.textContent).not.toMatch(/per person|each owes|split/i);
   });
 
+  it("still shows the card when every Cost was refunded in full", () => {
+    const { container } = render(
+      <SpendSoFarCard compact spend={spend({ costTotalMinor: 0, paidSoFarMinor: 0, varianceMinor: 0, recordedCount: 2 })} homeCurrency="AUD" />,
+    );
+    expect(container.firstChild).not.toBeNull();
+  });
+
   it("renders nothing in compact mode when there is no spend data", () => {
     const { container } = render(
-      <SpendSoFarCard compact spend={spend({ costTotalMinor: 0, paidSoFarMinor: 0, varianceMinor: 0 })} homeCurrency="AUD" />,
+      <SpendSoFarCard compact spend={spend({ costTotalMinor: 0, paidSoFarMinor: 0, varianceMinor: 0, recordedCount: 0 })} homeCurrency="AUD" />,
     );
     expect(container.firstChild).toBeNull();
   });

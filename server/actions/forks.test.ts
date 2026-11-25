@@ -1510,6 +1510,17 @@ describe("getPromotionPreview", () => {
     });
   });
 
+  it("selects each side's Cost Refund columns, so the promotion budget is net like the compare page", async () => {
+    await getPromotionPreview("fork-9");
+
+    for (const forkId of [null, "fork-9"]) {
+      expect(costFindManyMock).toHaveBeenCalledWith(expect.objectContaining({
+        where: expect.objectContaining({ forkId }),
+        select: expect.objectContaining({ refundMinor: true, refundedAt: true }),
+      }));
+    }
+  });
+
   describe("loss list: PAID_COST", () => {
     it("includes a PAID_COST entry for each cost with paidAt !== null in the real plan", async () => {
       costFindManyMock.mockImplementation((args: { where: { forkId: string | null } }) => {

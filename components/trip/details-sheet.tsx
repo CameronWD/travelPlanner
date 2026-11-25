@@ -11,6 +11,7 @@ import type { DetailsView } from "@/lib/details-view";
 import { directionsFromHereUrl, mapsUrl } from "@/lib/map/maps";
 import type { LocalMode } from "@/lib/travel-times/hops";
 import { recordUsageAction } from "@/lib/usage/client";
+import { RefundTag } from "@/components/money/refund-tag";
 
 const LABEL = "text-[11px] font-extrabold uppercase tracking-[0.08em] text-muted-foreground";
 
@@ -191,9 +192,7 @@ export function DetailsSheet({
               <span className={view.cost.paid ? "text-teal-text" : "text-muted-foreground"}>
                 {view.cost.paid ? "Paid" : "Not paid yet"}
               </span>
-              {view.cost.refund ? (
-                <span data-refund-tag className="text-xs font-semibold text-muted-foreground">{view.cost.refund}</span>
-              ) : null}
+              {view.cost.refunds?.map((r, i) => <RefundTag key={i} cost={r} />)}
             </p>
           </Row>
         ) : null}

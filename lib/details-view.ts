@@ -2,7 +2,7 @@ import type { AttachmentView } from "@/lib/attachment-view";
 import type { LatLng } from "@/lib/geo";
 import { shownCostMinor, type CostRow } from "@/lib/money/cost-row";
 import { formatMoney } from "@/lib/money/money";
-import { refundLabel } from "@/lib/money/refund-label";
+import { refundTagText, type RefundTagCost } from "@/lib/money/refund-tag-text";
 import type {
   AccommodationCardAccommodation,
   DayEntryEditor,
@@ -34,7 +34,7 @@ export interface DetailsView {
   link: string | null;
   tryList: TryList | null;
   openingHours: string | null;
-  cost: { label: string; paid: boolean; refund?: string } | null;
+  cost: { label: string; paid: boolean; refunds?: RefundTagCost[] } | null;
 }
 
 export type DetailsContext = Partial<Pick<DayEntryEditor, "homeBaseName" | "homeTimezone">> & {
@@ -63,11 +63,13 @@ function costSummary(costs: CostRow[]): DetailsView["cost"] {
     const shown = shownCostMinor(c);
     byCurrency.set(c.currency, (byCurrency.get(c.currency) ?? 0) + shown);
   }
-  const refund = costs.map((c) => refundLabel(c)).filter((l) => l != null).join(" · ");
+  const refunds = costs
+    .map((c): RefundTagCost => ({ refundMinor: c.refundMinor, refundedAt: c.refundedAt, paidAt: c.paidAt, currency: c.currency }))
+    .filter((c) => refundTagText(c) != null);
   return {
     label: [...byCurrency].map(([currency, minor]) => formatMoney(minor, currency)).join(" + "),
     paid: costs.every((c) => c.paidAt),
-    ...(refund ? { refund } : {}),
+    ...(refunds.length > 0 ? { refunds } : {}),
   };
 }
 

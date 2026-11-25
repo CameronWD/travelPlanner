@@ -205,7 +205,7 @@ describe("details cost with a Refund", () => {
     expect(v.cost).toEqual({
       label: formatMoney(15000, "EUR"),
       paid: true,
-      refund: `Refunded ${formatMoney(5000, "EUR")}`,
+      refunds: [{ refundMinor: 5000, refundedAt: new Date("2026-11-09"), paidAt: new Date("2026-11-02"), currency: "EUR" }],
     });
   });
 });

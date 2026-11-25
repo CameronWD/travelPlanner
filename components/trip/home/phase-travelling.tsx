@@ -417,6 +417,7 @@ function TravellingDesktop({
           currency={model.homeCurrency}
           paidSoFarMinor={spend.paidSoFarMinor}
           costTotalMinor={spend.costTotalMinor}
+          recordedCount={spend.recordedCount}
           varianceMinor={spend.varianceMinor}
           tripElapsedPct={spend.tripElapsedPct}
         />
