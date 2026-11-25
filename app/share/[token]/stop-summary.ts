@@ -14,5 +14,6 @@ export function stopSummary({ stays, plans, includeAccommodation, includeDailyPl
     parts.push(rest.length > 0 ? `${first.name} +${rest.length}` : first.name);
   }
   if (includeDailyPlans && plans > 0) parts.push(`${plans} ${plans === 1 ? "plan" : "plans"}`);
-  return parts.length > 0 ? parts.join(" · ") : country || null;
+  if (country) parts.push(country);
+  return parts.length > 0 ? parts.join(" · ") : null;
 }

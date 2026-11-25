@@ -27,6 +27,10 @@ export interface ReleaseNote {
 /** Newest first. Add new notes at the top. */
 export const RELEASE_NOTES: ReleaseNote[] = [
   {
+    publishedAt: "2026-11-25T05:00:00Z",
+    text: "Shared links have one route list, with Home at each end, and Stops that stay open when you open another.",
+  },
+  {
     publishedAt: "2026-11-25T02:52:00Z",
     text: "Shared links show travel with its duration and flight or train number, the legs from and back home, and arrival in your own time.",
   },

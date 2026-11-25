@@ -80,9 +80,10 @@ export const viewport: Viewport = { themeColor: MAP_INK.light.paper };
 // ---------------------------------------------------------------------------
 // Desktop placement per stage. The DOM order is the mobile order
 // (shareSections, SHARE.md §1); lg:order-* rebuilds the two-column rows.
-// The left item that shares a row with the route list sticks (spec 2026-10-02
-// §F). The sticky box is an INNER wrapper of the grid cell, not the cell: a
-// sticky grid item is bounded by the whole grid (it rode over Day by day at
+// The left item that shares a row with the plain route list sticks (spec 2026-10-02
+// §F); that list now shows only where the merged route does not (all three
+// switches off, or no scheduled Stops). The sticky box is an INNER wrapper of the grid cell, not the cell: a
+// sticky grid item is bounded by the whole grid (it rode over The route at
 // the page end, LA-135), whereas the wrapper's containing block is the cell,
 // which stretches to its row — so the pin ends with the row. The wrapper is
 // still outside ShareReveal, so the reveal's transform cannot break it.
@@ -483,7 +484,7 @@ export default async function SharePage({
       }
     : null;
 
-  // ── Day by day ──
+  // ── The route ──
   const daysByStop = groupDaysByStop(itinerary, scheduled.map((s) => s.id));
   const dayStops: DayByDayStop[] = scheduled.map((s, i) => {
     const following = scheduled[i + 1];
@@ -506,6 +507,7 @@ export default async function SharePage({
       arriveDate: s.arriveDate,
       departDate: s.departDate,
       nights: nightsBetween(s.arriveDate, s.departDate),
+      country: s.country,
       status: statuses.get(s.id) ?? "future",
       days,
       summary: stopSummary({
@@ -518,6 +520,9 @@ export default async function SharePage({
       legAfter,
     };
   });
+  const roughStops = stops
+    .filter((s) => s.arriveDate === null || s.departDate === null)
+    .map((s) => ({ id: s.id, name: s.name, country: s.country, nights: s.nights }));
   const firstStop = scheduled[0];
   const lastStop = scheduled[scheduled.length - 1];
   const outbound = firstStop ? transports.find((t) => t.depIsHome && t.toStopId === firstStop.id) : undefined;
@@ -571,9 +576,10 @@ export default async function SharePage({
 
   const legPaths = await loadRouteLegPaths(scheduled, transports, homeMapPoint(trip));
 
+  const routeIsDays = scheduled.length > 0 && (scope.includeAccommodation || scope.includeTransport || scope.includeDailyPlans);
   const sections = shareSections(stage, {
     journal: journalHasCards,
-    days: scheduled.length > 0 && (scope.includeAccommodation || scope.includeTransport || scope.includeDailyPlans),
+    days: routeIsDays,
     next: stage === "during" && nextRow != null,
     map: mapStops.length > 0,
   });
@@ -655,7 +661,14 @@ export default async function SharePage({
           />
         );
       case "days":
-        return <DayByDay stops={dayStops} initialOpenId={initialOpenId} homeOut={homeOut} homeBack={homeBack} />;
+        return <DayByDay
+            stops={dayStops}
+            initialOpenId={initialOpenId}
+            homeOut={homeOut}
+            homeBack={homeBack}
+            homeName={homeMapPoint(trip)?.name ?? null}
+            roughStops={roughStops}
+          />;
       case "cta":
         return <ShareCta stage={stage} stopCount={stops.length} hrefs={hrefs} />;
     }
@@ -677,7 +690,7 @@ export default async function SharePage({
       <main className="mx-auto w-full max-w-page-wide overflow-x-clip px-4 pb-5 pt-2 sm:px-6 lg:px-12 lg:pt-8">
         <div className="grid grid-cols-1 gap-3.5 lg:grid-cols-[7fr_5fr] lg:gap-6">
           {sections.map((key, i) => (
-            <div key={key} data-share-section={key} className={cn("min-w-0", PLACEMENT[stage][key])}>
+            <div key={key} data-share-section={key} className={cn("min-w-0", PLACEMENT[stage][key], routeIsDays && key === "map" && stage !== "before" && "lg:col-span-2")}>
               <div className={cn(STICKY_SECTION[stage] === key ? STICK : undefined, key === "route" && "lg:h-full")}>
                 {/* MOTION.md S1: the hero drops in on its own; every section below
                     rises in as it scrolls into view, the two columns of a desktop

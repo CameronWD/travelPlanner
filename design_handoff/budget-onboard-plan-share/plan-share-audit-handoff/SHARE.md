@@ -18,11 +18,13 @@ Export `shareStage(phase): "before" | "during" | "after"` from `lib/share-view.t
 
 **Section order by stage** (sections hidden by the link's options are skipped):
 
-- **Before:** Hero → Map → Route → Day by day (open at the first stop) → CTA → footer
-- **During:** Hero → Right now → Next → How it's going (latest 2, on mobile) → Map → Route → Day by day (open at the current stop) → CTA → footer
-- **After:** Hero → Tally → How it went → Route → Map (desktop only) → Day by day (all folded) → "Use this route" CTA → footer
+- **Before:** Hero → Map → The route (open at the first stop) → CTA → footer
+- **During:** Hero → Right now → Next → How it's going (latest 2, on mobile) → Map → The route (open at the current stop) → CTA → footer
+- **After:** Hero → Tally → How it went → Map (desktop only) → The route (all folded) → "Use this route" CTA → footer
 
-The desktop layout (`share-desktop-during.png`) puts the hero and Right now side by side, and the map and route side by side, then Day by day with a sticky stop index. On desktop, Before and After use the same two-column rows, with the right column holding the route list, and the Tally in After.
+(Amended 2026-11-25: one route. "Route" and "Day by day" are one section, headed "The route", in the old Day by day slot. The old route list (§5) serves only links where the merged route does not render: accommodation, transport and daily plans all off (nothing to open), or no scheduled Stops. It keeps its old slot.)
+
+The desktop layout (`share-desktop-during.png`) puts the hero and Right now side by side, then the map and the route. With the route as the full-width section, During and After give the map the full row; Before keeps the hero and map in two columns. The route list's two-column slot (right column beside the map) now serves only those links.
 
 ---
 
@@ -93,7 +95,7 @@ This **replaces `ShareTodayCard`.** The card is `bg-card border-2 rounded-[28px]
   - It shows at most 5 rows, then "+2 more".
 - **Tonight** (only if `includeAccommodation` and `tonightsStay` returns one):
   - A `bg-sun border-2 rounded-[14px]` row with the `Moon` icon, the label "Tonight" and the stay name.
-  - The address is **not** shown here; it stays in Day by day, as today.
+  - The address is **not** shown here; it stays in The route (§7), as today.
 - **Next** (mobile, as a separate row under the card; on desktop it's folded into the sub line):
   - A dashed card row: "NEXT", the next stop's dot and name, and on the right the outgoing leg: "✈ Tue 15 · 10:05" (when `includeTransport`) or just the date.
 
@@ -109,7 +111,7 @@ This **replaces `ShareTodayCard`.** The card is `bg-card border-2 rounded-[28px]
 - **After:** all legs solid, no halo.
 - The home pin and the return leg are unchanged: `homeMapPoint`, `showReturn`.
 
-**Route list** (`bg-card border-2 rounded-3xl shadow-4 p-5`):
+**Route list** (§5; shown only where the merged route of §7 does not: all three switches off, or no scheduled Stops) (`bg-card border-2 rounded-3xl shadow-4 p-5`):
 - Head: "The route" (`font-display text-[22px]`), with a count on the right: "1 of 6 done" during, "All 6 ✓" after, nothing before.
 - **Rows:** at least 50px, `border-b-2 border-muted`, each with:
   - a 28px numbered dot in the stop colour
@@ -121,7 +123,7 @@ This **replaces `ShareTodayCard`.** The card is `bg-card border-2 rounded-[28px]
       - the current stop: "Here now", in `text-coral-text`, and the row gets a `bg-coral/20 rounded-xl` highlight
       - later stops: dates
     - **After:** "N nights"
-- Outbound transport and accommodation no longer show here; they live in Day by day. This makes the list shorter than today's.
+- Outbound transport and accommodation no longer show here; they live in The route (§7). This makes the list shorter than today's.
 
 ## 6. Tally (After only)
 
@@ -129,26 +131,26 @@ This **replaces `ShareTodayCard`.** The card is `bg-card border-2 rounded-[28px]
 - All three come from data already on the page: nights from `nightsBetween`, stops from `stops.length`, and countries from a `Set` of `stop.country`.
 - **Don't add distance or spend.** Money never appears on this page.
 
-## 7. Day by day
+## 7. The route (was Day by day)
 
-This replaces the grid of day cards. It's shown when any of `includeAccommodation`, `includeTransport` or `includeDailyPlans` is on, as today.
+This replaces the grid of day cards and, since 2026-11-25, the separate route list: it is the one list of Stops. It's shown when there are scheduled Stops and any of `includeAccommodation`, `includeTransport` or `includeDailyPlans` is on; with all three off, or with no scheduled Stops, the old route list (§5) shows instead, unchanged.
 
 **Desktop:** `grid-cols-[240px_minmax(0,1fr)] gap-6 items-start`.
 
 **Left, the stop index** (`sticky top-6`):
-- The H2 "Day by day" (28px), then one 40px row per stop: dot, name and compact dates.
+- The H2 "The route" (28px), then one 40px row per stop: dot, name and compact dates.
 - The current stop (or the one in view) is `bg-teal/15 border-2`.
 - Clicking a row scrolls to that stop's card. Reuse `scrollToId` from Plan.
 
 **Right, one block per stop,** in plan order:
 - **Folded stop** (past stops during the trip, all stops after it, and every stop except the first before it):
   - A row card: `bg-card border-2 rounded-[18px] px-4 py-3`, dashed for past stops.
-  - It contains a 28px numbered circle in the stop colour, the name (`font-display text-[17px]`) over a truncating summary line (the first stay by check-in with "+N", then "N plans", each only when the link includes accommodation or daily plans; else the country), and a right-hand cluster:
+  - It contains a 28px numbered circle in the stop colour, the name (`font-display text-[17px]`) over a truncating summary line (the first stay by check-in with "+N", then "N plans", each only when the link includes accommodation or daily plans), then the Stop's country as the last part (so with both off the line is just the country), and a right-hand cluster:
     - "✓ Done" (`text-teal-text`) for past stops, the compact dates for future ones
     - a nights chip in the stop colour ("4n")
   - Then a **Show ⌄** toggle, which is a client `<details>` or a small component.
 - **Open stop:** `bg-card border-2 rounded-[22px] shadow-4 overflow-hidden`.
-  - **Head band:** filled with the stop colour, `border-b-2 px-4 py-3`. It has a 28px white numbered dot, the name (`font-display text-[22px]`) and, on the right, "Thu 10 – Tue 15 Dec · 5 nights".
+  - **Head band:** filled with the stop colour, `border-b-2 px-4 py-3`. It has a 28px white numbered dot, the name (`font-display text-[22px]`) and, on the right, "Thu 10 – Tue 15 Dec · 5 nights · Italy" (the country last, when the Stop has one).
   - **Day rows** (`grid-cols-[110px_minmax(0,1fr)] gap-4 py-3 border-b-2 border-muted`):
     - The date is `text-base font-extrabold`. The current day gets a "TODAY" coral pill under the date and a `bg-sun/15` row tint.
     - The day title, if any, is `font-display text-[17px]` (only when `includeDailyPlans`).
@@ -156,9 +158,13 @@ This replaces the grid of day cards. It's shown when any of `includeAccommodatio
     - Accommodation check-in/out and transport rows appear as items with their own glyph, from the existing `buildItinerary`, which already interleaves them.
 - **Leg lines** between stop blocks (only when `includeTransport`): a plain row with the mode icon, the label ("Flight to Rome") and the times ("Tue 15 Dec · CDG 10:05 → FCO 12:15"). Never show the booking reference. (Amended 2026-11-25: the leg is the Plan's travel card (sun fill and sun shadow) on the Plan's connector line with the sun icon marker and stub, read-only, with no connector where there is no leg; the line adds the duration, a `+1`/`−1` after an arrival on another local date, and the flight or train number for a Flight or Train only; the legs from and back to the Home base are listed above the first and below the last stop block, each showing its Home end's time (read in the Trip's Home timezone, else the other end's zone) but never its place; a Home end's place is printed nowhere on the page (day rows and Right now say "{Mode} home"), and no timezone name reaches the browser. A leg with an arrival time also adds "arrives Sat 15:45 your time" in the viewer's device zone, and the Right now clock adds "· 15:45 for you", each only when it differs from the place's time. Carrier, seat, terminal, gate, coach, platform, reference, notes and Costs stay private.)
 
+**Home cards** (2026-11-25): where the page draws the leg from the Home base, a solid Home card laid out like a closed Stop card (same border, background, radius and padding), with the house in a 28px neutral circle where a Stop's number circle sits, then the Home base's name and "Home" in the muted style; it is not a Stop (no number, no Show control). The card sits above that leg, and likewise one sits below the leg back. The leg's connector starts at the bottom edge of the top card and ends at the top edge of the bottom one. No card without its leg, and none unless the page already shows the Home base on the route map (`homeMapPoint`). Only the name: no address, no timezone.
+
+**Stops with no dates** come last, after the Home-back leg and card, as plain solid cards: name, "Country · N nights" (nights when known) and "Dates to come". They have no Show control, no connector, and are not in the picker or the index.
+
 **Mobile:**
-- The stop index becomes a pill dropdown next to the H2 ("Paris ⌄"), which switches which stop is open.
-- Only one stop is open at a time.
+- The stop index becomes a pill dropdown next to the H2 ("Paris ⌄"), which opens (and scrolls to) the chosen stop.
+- Stops open independently: Show and Hide toggle only their own Stop, and the picker and the index open their target (and scroll to it) without closing the others. The picker pill names the most recently opened Stop. The Stop that starts open is unchanged.
 - The day rows stack: the date line first, then the items.
 
 Keep `data-testid="share-day"` on each day row and `aria-current="date"` on today.

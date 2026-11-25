@@ -19,8 +19,9 @@ export interface ShareRouteListProps {
 }
 
 /**
- * SHARE.md §5 — the route list. Outbound transport and accommodation no
- * longer show here; they live in Day by day. Money never appears.
+ * SHARE.md §5 — the plain route list. It shows only where the merged route
+ * (day-by-day.tsx) does not: all three switches off, or no scheduled Stops.
+ * Transport and accommodation never show here. Money never appears.
  */
 export function ShareRouteList({ stage, stops, className }: ShareRouteListProps) {
   const doneCount = stops.filter((s) => s.status === "past").length;
