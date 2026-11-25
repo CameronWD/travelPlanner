@@ -1533,3 +1533,31 @@ describe("Timeline — Transport row alignment", () => {
     expect(titleLine.className.split(/\s+/)).toEqual(expect.arrayContaining(["min-h-10", "max-md:min-h-8"]));
   });
 });
+
+describe("Timeline — Travel details", () => {
+  const dayWith = (transport: Record<string, unknown>, kind: "transport-departure" | "transport-arrival"): DayPlan => ({
+    dateISO: "2025-07-01",
+    stop: { id: "stop-1", name: "Tokyo", timezone: "Asia/Tokyo", arriveDate: "2025-07-01", departDate: "2025-07-03", sortOrder: 0 },
+    timedItems: [],
+    untimedItems: [],
+    transportEntries: [
+      { kind, transport: { id: "tr-1", bookingStateSet: false, mode: "FLIGHT", depPlace: "Brisbane", arrPlace: "Tokyo", ...transport }, arrivesSameDay: true } as never,
+    ],
+    accommodationEntries: [],
+  });
+
+  it("the departure row shows the line under from \u2192 to", () => {
+    const { container } = render(<Timeline day={dayWith({ serviceNumber: "LH 2456", seat: "32A" }, "transport-departure")} variant="day" />);
+    expect(container.querySelector("[data-travel-details]")).toHaveTextContent("LH 2456 \u00b7 Seat 32A");
+  });
+
+  it("the arrival row of the same transport shows none", () => {
+    const { container } = render(<Timeline day={dayWith({ serviceNumber: "LH 2456", seat: "32A" }, "transport-arrival")} variant="day" />);
+    expect(container.querySelector("[data-travel-details]")).toBeNull();
+  });
+
+  it("a transport with no details shows none", () => {
+    const { container } = render(<Timeline day={dayWith({}, "transport-departure")} variant="day" />);
+    expect(container.querySelector("[data-travel-details]")).toBeNull();
+  });
+});

@@ -68,6 +68,7 @@ import { groupStopsByChapter, sortGroupStops } from "@/lib/chapters";
 import { groupTransportsBySlot, HEAD_SLOT } from "@/lib/transport-anchor";
 import type { BookingState, TransportMode } from "@/lib/enum-values";
 import { TRANSPORT_MODE_META } from "@/lib/transport";
+import type { TransportDetails } from "@/lib/transport-details";
 import type { StopDayItem } from "@/lib/stop-days";
 import type { TravellerLike } from "@/lib/traveller";
 import type { CostRow } from "@/server/actions/costs";
@@ -132,7 +133,7 @@ export interface ItineraryStop extends StopCardStop {
   accommodations: AccommodationCardAccommodationWithCosts[];
 }
 
-export interface ItineraryTransport {
+export interface ItineraryTransport extends TransportDetails {
   id: string;
   mode: TransportMode;
   fromStopId?: string | null;

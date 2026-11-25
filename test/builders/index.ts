@@ -33,7 +33,9 @@ export type TransportRow = {
   id: string; tripId: string; forkId: string | null; mode: string; fromStopId: string | null; toStopId: string | null;
   anchorStopId: string | null; depPlace: string | null; arrPlace: string | null; depAt: Date | null; arrAt: Date | null;
   depLat: number | null; depLng: number | null; arrLat: number | null; arrLng: number | null; depPlaceId: string | null; arrPlaceId: string | null; depIsHome: boolean;
-  arrIsHome: boolean; reference: string | null; bookingState: BookingState; bookingStateSet: boolean; nothingToAttach: boolean; bookBy: string | null;
+  arrIsHome: boolean; reference: string | null;
+  carrier: string | null; serviceNumber: string | null; seat: string | null; terminal: string | null; gate: string | null; coach: string | null; platform: string | null;
+  bookingState: BookingState; bookingStateSet: boolean; nothingToAttach: boolean; bookBy: string | null;
   notes: string | null; sortOrder: number; createdAt: Date; updatedAt: Date;
 };
 export type StayRow = {
@@ -95,6 +97,7 @@ export function transport(o: Partial<TransportRow> = {}): TransportRow {
     id: "tr-1", tripId: "trip-1", forkId: null, mode: "TRAIN", fromStopId: "stop-1", toStopId: "stop-2", anchorStopId: "stop-1",
     depPlace: null, arrPlace: null, depAt: new Date("2026-11-04T09:00:00Z"), arrAt: new Date("2026-11-04T12:30:00Z"),
     depLat: null, depLng: null, arrLat: null, arrLng: null, depPlaceId: null, arrPlaceId: null, depIsHome: false, arrIsHome: false, reference: null,
+    carrier: null, serviceNumber: null, seat: null, terminal: null, gate: null, coach: null, platform: null,
     bookingState: "TO_BOOK", bookingStateSet: false, nothingToAttach: false, bookBy: null, notes: null, sortOrder: 0, createdAt: NOW, updatedAt: NOW, ...o,
   };
 }

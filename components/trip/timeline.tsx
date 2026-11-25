@@ -17,6 +17,7 @@ import { CATEGORIES, categoryClasses, type Category } from "@/lib/categories";
 import { groupByCategory } from "@/lib/group-by-category";
 import { EmptyState } from "@/components/ui/empty-state";
 import { TRANSPORT_MODE_META } from "@/lib/transport";
+import { transportDetailsLine } from "@/lib/transport-details";
 import {
   dayHasEntries,
   orderDayEntries,
@@ -390,6 +391,7 @@ function TransportRow({
   const Icon = meta?.icon;
 
   const isDep = entry.kind === "transport-departure";
+  const travelDetails = isDep ? transportDetailsLine(t.mode as TransportMode, t) : "";
   const depEntry = isDep ? (entry as TransportDepartureEntry) : null;
   const arrEntry = !isDep ? (entry as TransportArrivalEntry) : null;
 
@@ -441,6 +443,9 @@ function TransportRow({
           {fromLabel && toLabel && <ArrowRight className="size-3 shrink-0" aria-hidden="true" />}
           {toLabel && <span className="min-w-0 break-words">{toLabel}</span>}
         </div>
+      )}
+      {isDep && travelDetails && (
+        <p data-travel-details className="mt-0.5 text-xs font-medium text-muted-foreground break-words">{travelDetails}</p>
       )}
       {isDep && depEntry && !depEntry.arrivesSameDay && depEntry.arrivalDateISO && (
         <p className="mt-0.5 text-xs font-medium text-sun-text">Arrives {formatDayLabel(depEntry.arrivalDateISO)}</p>

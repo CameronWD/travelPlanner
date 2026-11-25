@@ -4,6 +4,7 @@ import { cn } from "@/lib/cn";
 import { TRANSPORT_MODE_META, durationMinutes, formatDuration } from "@/lib/transport";
 import { transportTimeDisplay, shortDate, dayDeltaSuffix } from "@/lib/time-display";
 import { endpointLabel } from "@/lib/home-base";
+import { transportDetailsLine } from "@/lib/transport-details";
 import { CostEditor } from "./cost-editor";
 import type { CostRow } from "@/server/actions/costs";
 import type { NoteView } from "./note-thread";
@@ -63,6 +64,7 @@ export function TransportCard({
   highlight,
 }: TransportCardProps) {
   const meta = TRANSPORT_MODE_META[t.mode];
+  const detailsLine = transportDetailsLine(t.mode, t);
   const Icon = meta.icon;
 
   const fromLabel = t.depIsHome ? (homeBaseName ?? "Home") : endpointLabel(t.fromStopName, t.depPlace);
@@ -123,6 +125,12 @@ export function TransportCard({
               data-testid="transport-subline"
             >
               {(fromLabel || toLabel) && <span {...highlightAttrs(highlight, "mode")}>{meta.label}</span>}
+              {detailsLine && (
+                <>
+                  {(fromLabel || toLabel) && <span aria-hidden="true">·</span>}
+                  <span {...highlightAttrs(highlight, "details")}>{detailsLine}</span>
+                </>
+              )}
               {t.reference && (
                 <>
                   <span aria-hidden="true">·</span>

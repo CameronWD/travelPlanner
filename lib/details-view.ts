@@ -16,6 +16,7 @@ import { openingHoursSummary, openingLine } from "@/lib/opening-hours-display";
 import { slotLabel } from "@/lib/slot-time";
 import { shortDate, transportTimeDisplay } from "@/lib/time-display";
 import { TRANSPORT_MODE_META } from "@/lib/transport";
+import { transportDetailsLine } from "@/lib/transport-details";
 import { safeWebHref } from "@/lib/url";
 
 export interface DetailsView {
@@ -23,6 +24,7 @@ export interface DetailsView {
   subtitle: string | null;
   times: Array<{ label: string; value: string }>;
   files: AttachmentView[];
+  travelDetails: string | null;
   reference: string | null;
   referenceLabel: "Reference" | "Confirmation";
   address: string | null;
@@ -75,7 +77,7 @@ function hoursText(hours: OpeningHours | null | undefined, date: string | null |
 
 function bare(title: string): DetailsView {
   return {
-    title, subtitle: null, times: [], files: [], reference: null, referenceLabel: "Reference", address: null, place: null,
+    title, subtitle: null, times: [], files: [], travelDetails: null, reference: null, referenceLabel: "Reference", address: null, place: null,
     notes: null, link: null, tryList: null, openingHours: null, cost: null,
   };
 }
@@ -98,6 +100,7 @@ export function transportDetails(t: TransportCardTransport, ctx: DetailsContext)
     subtitle: title === mode ? null : mode,
     times,
     files: ctx.attachments,
+    travelDetails: transportDetailsLine(t.mode, t) || null,
     reference: text(t.reference),
     notes: text(t.notes),
     cost: costSummary(ctx.costs),

@@ -177,6 +177,22 @@ describe("buildDayModel (card 3.M)", () => {
     expect(checkin.accommodation).toMatchObject({ bookingState: "TO_BOOK" });
   });
 
+  it("a day's Transport carries its Travel details to the Timeline", () => {
+    const m = buildDayModel(
+      rows({
+        transports: [{
+          id: "t-train", mode: "TRAIN", fromStopId: "s-paris", toStopId: "s-stras", depPlace: null, arrPlace: null,
+          depAt: new Date("2026-12-10T09:00:00Z"), arrAt: new Date("2026-12-10T12:00:00Z"), depLat: null, depLng: null, arrLat: null, arrLng: null,
+          depPlaceId: null, arrPlaceId: null, reference: null, notes: null, sortOrder: 0, anchorStopId: null, depIsHome: false, arrIsHome: false,
+          bookingState: "NONE", bookingStateSet: false, bookBy: null, gate: "B14", seat: "42",
+        }],
+      }),
+      "2026-12-10",
+    );
+    const dep = m.dayPlan!.transportEntries.find((e) => e.kind === "transport-departure")!;
+    expect(dep.transport).toMatchObject({ gate: "B14", seat: "42" });
+  });
+
   it("a day's Items carry their Slot time to the Timeline (R3)", () => {
     const model = buildDayModel(rows({ items: [item({ id: "i-slot", date: "2026-12-11", startTime: "11:45", slotTime: "12:00", arriveByMinutes: 15, refundable: false })] }), "2026-12-11");
     const entry = model.dayPlan!.timedItems.find((e) => e.item.id === "i-slot")!;

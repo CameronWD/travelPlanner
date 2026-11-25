@@ -3,6 +3,7 @@ import type { OpeningHours } from "@/lib/opening-hours";
 import type { SurpriseView } from "@/lib/surprise";
 import type { CostRow } from "@/lib/money/cost-row";
 import type { TryList } from "@/lib/try-list";
+import type { TransportDetails } from "@/lib/transport-details";
 import type { LocalMode } from "@/lib/travel-times/hops";
 
 /**
@@ -55,7 +56,7 @@ export interface ItemCardItem {
   surprise?: SurpriseView | null;
 }
 
-export interface TransportCardTransport {
+export interface TransportCardTransport extends TransportDetails {
   id: string;
   mode: TransportMode;
   fromStopId?: string | null;

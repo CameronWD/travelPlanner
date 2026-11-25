@@ -108,6 +108,12 @@ export function DetailsSheet({
           </div>
         ) : null}
 
+        {view.travelDetails ? (
+          <Row row="travel-details" label="Details">
+            <span className="min-w-0 break-words text-sm font-semibold">{view.travelDetails}</span>
+          </Row>
+        ) : null}
+
         {reference ? (
           <Row row="reference" label={view.referenceLabel}>
             <div className="flex items-center gap-2">
