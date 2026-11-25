@@ -30,8 +30,11 @@ describe("DayWeather", () => {
     expect(strip).toHaveAttribute("aria-expanded", "true");
     expect(screen.getByRole("region", { name: "Weather" })).toBeInTheDocument();
   });
-  it("renders nothing when the loader has no reading", async () => {
-    viewMock.mockResolvedValue(null);
-    expect(await DayWeather({ input, dateISO: "2026-12-12", today: "2026-12-01", placeName: "Strasbourg", size: "regular" })).toBeNull();
+  it("a no-forecast view still renders a card in the day's place", async () => {
+    viewMock.mockResolvedValue({ theme: { key: "no-forecast", condition: "No forecast right now" }, day: null, daylight: {}, nowLocal: null, forecastOpensOn: null, dateLabel: "Sat 12 Dec", placeName: "Strasbourg" });
+    const el = await DayWeather({ input, dateISO: "2026-12-12", today: "2026-12-01", placeName: "Strasbourg", size: "regular" });
+    expect(el).not.toBeNull();
+    render(el);
+    expect(screen.getByRole("region", { name: "Weather" })).toBeInTheDocument();
   });
 });

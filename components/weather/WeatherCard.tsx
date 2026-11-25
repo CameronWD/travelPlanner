@@ -37,10 +37,13 @@ export function WeatherCard({ size, dateLabel, placeName, theme, day, daylight, 
   const compact = size === "compact";
   const night = theme.key === "night";
   const tooFar = theme.key === "too-far";
+  const noForecast = theme.key === "no-forecast";
   const box = cn(
     "relative flex w-full flex-col overflow-hidden border-2",
     compact ? "h-[140px] rounded-[20px] p-[14px_16px]" : "h-[236px] rounded-3xl p-[20px_22px]",
-    tooFar
+    noForecast
+      ? cn("border-border bg-background text-foreground", compact ? "shadow-hard-2" : "shadow-hard-3")
+      : tooFar
       ? "border-dashed border-border bg-background text-foreground"
       : cn(themeFill(theme.key), night ? "border-border text-wx-night-text shadow-[5px_5px_0_var(--color-coral)]" : cn("island border-border", compact ? "shadow-hard-2" : "shadow-hard-3")),
     className,
@@ -60,6 +63,19 @@ export function WeatherCard({ size, dateLabel, placeName, theme, day, daylight, 
         </p>
         <div className="mt-auto flex flex-wrap gap-2">
           {daylight.sunrise && daylight.sunset ? <Chip>{`↑ ${daylight.sunrise} · ${daylight.sunset} ↓`}</Chip> : null}
+        </div>
+      </section>
+    );
+  }
+
+  if (noForecast) {
+    return (
+      <section aria-label="Weather" className={box}>
+        <h2 className="sr-only">Weather</h2>
+        {eyebrow}
+        <p data-testid="wx-no-forecast" className={cn("font-display font-extrabold leading-tight tracking-[-0.02em]", compact ? "mt-1 text-[17px]" : "mt-2 text-[20px]")}>No forecast right now</p>
+        <div className="relative mt-auto">
+          <DaylightArc {...daylight} now={nowLocal} size={size} />
         </div>
       </section>
     );

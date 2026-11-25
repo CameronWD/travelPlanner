@@ -76,7 +76,9 @@ export function buildShareRows(
         return {
           key: `transport-departure-${transport.id}`,
           time: depTimeLabel ?? null,
-          title: `${MODE_LABELS[transport.mode] ?? "Transport"}${transport.arrPlace ? ` to ${transport.arrPlace}` : ""}`,
+          title: transport.arrIsHome
+            ? `${MODE_LABELS[transport.mode] ?? "Transport"} home`
+            : `${MODE_LABELS[transport.mode] ?? "Transport"}${transport.arrPlace ? ` to ${transport.arrPlace}` : ""}`,
           sub: null,
           kind: "transport",
           category: null,
@@ -92,7 +94,7 @@ export function buildShareRows(
         return {
           key: `transport-arrival-${transport.id}`,
           time: arrTimeLabel ?? null,
-          title: `${MODE_LABELS[transport.mode] ?? "Transport"} arrives${transport.arrPlace ? ` at ${transport.arrPlace}` : ""}`,
+          title: `${MODE_LABELS[transport.mode] ?? "Transport"} arrives${transport.arrPlace && !transport.arrIsHome ? ` at ${transport.arrPlace}` : ""}`,
           sub: null,
           kind: "transport",
           category: null,

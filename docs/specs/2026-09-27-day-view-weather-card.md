@@ -122,14 +122,16 @@ card only.
 - Cache entries carry `fetchedAt`. On fetch failure with a cached entry, return
   it flagged `stale` with its age. That is the handoff's "Offline" state:
   cached theme fill, **no scene**, ink chip "Offline · updated 2h ago". Fetch
-  failure with no cache → `null` → the Day view renders no card and closes the
-  gap.
+  failure with no cache → the typical-for-the-month reading; if that fails too,
+  inside the window (today to 15 days out) the card keeps its footprint with
+  daylight and "No forecast right now" (amended 2026-11-25: the card never
+  disappears after its placeholder, so the Day plan does not jump).
 
 ### Theme priority (`getWeatherTheme`)
 
 Exactly WEATHER_CARD.md §3, with decision 4 above: stale → `offline`;
-beyond 16 days with typical data → theme from the typical code + chip
-"Typical for {Mon}"; beyond 16 days with no data → `too-far`; night (today
+beyond 15 days with typical data → theme from the typical code + chip
+"Typical for {Mon}"; beyond 15 days with no data → `too-far`; night (today
 only, `is_day = 0`, code 0–2); heat (max ≥ 35, code 0–2); wind (gusts ≥ 40,
 code 0–3); then the code table.
 

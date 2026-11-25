@@ -277,10 +277,15 @@ export function DayStrip({ tripId, dates, line, size }: { tripId: string; dates:
               }}
               className={cn(
                 "relative isolate flex shrink-0 flex-col items-center justify-center rounded-[14px] border-2 border-border text-foreground",
-                // Below lg the 200ms colour fade matches the highlight layer's fade.
-                // From lg the fill lights at once (ADR 0063) and the strip's glide is
-                // the only movement.
-                phone ? "transition-colors duration-200 ease-out" : "max-lg:transition-colors max-lg:duration-200 max-lg:ease-out",
+                // Below lg the 200ms colour fade matches the highlight layer's fade,
+                // and only on the day becoming lit: a day losing the highlight
+                // switches off at once, so a run of swipes never leaves two days
+                // part-way through a fade (spec 2026-11-25 section 2). From lg the
+                // fill lights at once (ADR 0063) and the strip's glide is the only
+                // movement.
+                isLit(d.iso)
+                  ? phone ? "transition-colors duration-200 ease-out" : "max-lg:transition-colors max-lg:duration-200 max-lg:ease-out"
+                  : "transition-none",
                 "motion-reduce:transition-none",
                 phone ? "h-[58px] w-12 snap-center" : "h-[62px] w-14 snap-start",
                 // The lit chip paints its own coral under the island ink: the
@@ -299,8 +304,8 @@ export function DayStrip({ tripId, dates, line, size }: { tripId: string; dates:
                 data-strip-highlight
                 aria-hidden="true"
                 className={cn(
-                  "island pointer-events-none absolute -inset-0.5 -z-10 rounded-[14px] border-2 border-border bg-coral shadow-hard-1 transition-opacity duration-200 ease-out motion-reduce:transition-none lg:hidden",
-                  isLit(d.iso) ? "opacity-100" : "opacity-0",
+                  "island pointer-events-none absolute -inset-0.5 -z-10 rounded-[14px] border-2 border-border bg-coral shadow-hard-1 motion-reduce:transition-none lg:hidden",
+                  isLit(d.iso) ? "opacity-100 transition-opacity duration-200 ease-out" : "opacity-0 transition-none",
                 )}
               />
               <span className="text-[11px] font-bold leading-none">{WEEKDAY[dt.getUTCDay()]}</span>

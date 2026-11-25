@@ -212,3 +212,71 @@ This replaces "A settle (drag, arrow, key or chip) shows that day's own header �
 the strip at once" in the 2026-11-19 amendment. A settle now finishes what the gesture
 already showed: the incoming header was on screen before the finger lifted. From `lg`
 nothing changes.
+
+## Amended 2026-11-25: the heading keeps its layer through a settle, and is clipped between the arrows
+
+Cam's screen recording (iPhone, Safari, live site over 5G; spec 2026-11-25 §3, §4) showed two
+things below `lg`:
+
+- **Mid-swipe, the heading text passed under the arrows.** The title and date travelled
+  sideways underneath the two arrow buttons, which held still.
+- **The heading went blank after a swipe.** Once the swipe landed, the eyebrow, title, date
+  and sub-line were empty for 0.5 to 1 s. The arrows, the strip and the new day's body were
+  all there.
+
+**The blank heading is not a state problem.** A Profiler probe of the carousel showed that a
+settle commits in one render, in the microtask after the settle. That one render carries the
+strip, the heading (the new day's, at rest) and the body together, both under `act` and with
+real scheduling. React 19.3 renders its Sync, InputContinuous and Default lanes together
+(`getHighestPriorityLanes`, `lanes & 42`), so no commit ever has an empty visible slot. A
+change to which state the heading reads would change nothing.
+
+**The hypothesis, unconfirmed.** The settle frame did all of these at once:
+
+- removed the outgoing panel;
+- took the incoming panel from absolute to static;
+- cleared the track's `translate3d`, tearing down its composited layer;
+- cleared the area's `clip-path`.
+
+We think WebKit skipped repainting the title block after the layer and the clips were torn
+down in the same frame as the panel swap, and repainted it only when something later touched
+the header.
+
+**A second lead.** The set that went blank (eyebrow, title, date, sub-line) is exactly what
+sits inside the header's `day-heading-text` ViewTransition. If the heading is still blank,
+check in Safari Web Inspector whether a view transition runs on the commit where the
+navigation lands.
+
+What changed, below `lg` only:
+
+- **The layer and the clips persist.**
+  - At rest the track keeps `translate3d(0, 0, 0)`, and the held arrows and top bar keep the
+    identity transform; neither property is cleared.
+  - Each title block keeps a clip that cuts nothing (`inset(-100vh -100vw -100vh -100vw)`)
+    rather than having it removed.
+  - The area keeps the same clip at rest as while moving: `inset(-1rem -0.75rem 0
+    -0.75rem)`. It reaches 1rem above the area, 0.75rem past each side, and none below.
+
+  A settle still swaps the panels, but inside a layer and clips that are not being destroyed.
+
+  What that area clip cuts at each width:
+
+  - **Below `md`**, the area is full-bleed and its sides are the screen's edges.
+  - **From `md` to `lg`**, the switcher pill and the bell sit flush with the area's sides. The
+    0.75rem leaves room for the bell's unread badge (8px out, about 10.5px at the top of its
+    pop), the 3px focus rings and the 3px hard shadow.
+  - **The bottom** is cut flush at every width. Nothing in the header reaches below it.
+  - **Mid-drag**, the 0.75rem strip past each side can show the edge of a heading moving
+    through it. The arrows, the switcher and the title blocks show nothing there: the
+    neighbour's arrows and switcher are hidden, and every title block is clipped between the
+    arrows. Only a holiday note long enough to reach that strip could.
+  - **Popovers** in the header are all portalled, so the clip never touches them.
+- **A moving heading is clipped between the arrows.** Each panel's title block is clipped at
+  the arrows' inner edges, measured once per gesture and per commit from layout offsets, which
+  the track's move does not affect. The text now leaves behind an arrow's edge instead of
+  passing under it. At rest the title blocks keep only the clip that cuts nothing, and the
+  arrows are never clipped.
+
+From `lg`, where the heading never moves, none of these properties is set, as before.
+
+Both fixes are unconfirmed until tried on a phone.

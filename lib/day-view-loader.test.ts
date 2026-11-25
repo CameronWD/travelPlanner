@@ -731,8 +731,19 @@ describe("getDayWeatherView", () => {
     expect(v?.theme.chip).toBe("Typical for Dec");
   });
 
-  it("returns null when the fetch failed inside the forecast window", async () => {
+  it("a failed fetch inside the forecast window is a no-forecast card with daylight, not null", async () => {
     getDayWeatherMock.mockResolvedValue(null);
-    expect(await getDayWeatherView({ ...base, dateISO: "2026-12-12", today: "2026-12-10" })).toBeNull();
+    const v = await getDayWeatherView({ ...base, dateISO: "2026-12-12", today: "2026-12-10" });
+    expect(v?.theme).toMatchObject({ key: "no-forecast", condition: "No forecast right now" });
+    expect(v?.day).toBeNull();
+    expect(v?.forecastOpensOn).toBeNull();
+    expect(v?.daylight.sunrise).toMatch(/^0[78]:\d{2}$/);
+    expect(v?.daylight.dayLengthMin).toBeGreaterThan(400);
+  });
+
+  it("day 16 with no data is too-far and day 15 is not", async () => {
+    getDayWeatherMock.mockResolvedValue(null);
+    expect((await getDayWeatherView({ ...base, dateISO: "2026-12-26", today: "2026-12-10" }))?.theme.key).toBe("too-far");
+    expect((await getDayWeatherView({ ...base, dateISO: "2026-12-25", today: "2026-12-10" }))?.theme.key).toBe("no-forecast");
   });
 });

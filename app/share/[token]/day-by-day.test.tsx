@@ -5,15 +5,17 @@ import userEvent from "@testing-library/user-event";
 const { scrollToId } = vi.hoisted(() => ({ scrollToId: vi.fn() }));
 vi.mock("@/lib/scroll-to", () => ({ scrollToId }));
 
+vi.mock("./viewer-time", () => ({ ViewerArrival: ({ instant }: { instant: string }) => <i data-testid="viewer-arrival">{instant}</i> }));
+
 import { DayByDay, type DayByDayStop } from "./day-by-day";
 import { MotionProvider } from "@/components/ui/motion-provider";
 
 const row = (title: string) => ({ key: title, time: "10:00", title, sub: null, kind: "item" as const, category: "SIGHTSEEING", mode: null, done: false });
 const stops: DayByDayStop[] = [
-  { id: "lon", name: "London", number: 1, sortOrder: 0, arriveDate: "2026-12-05", departDate: "2026-12-10", nights: 5, status: "past",
+  { id: "lon", name: "London", summary: "Ritz +1 · 3 plans", number: 1, sortOrder: 0, arriveDate: "2026-12-05", departDate: "2026-12-10", nights: 5, status: "past",
     days: [{ dateISO: "2026-12-05", isToday: false, title: null, rows: [row("Borough Market")] }],
-    legAfter: { mode: "TRAIN", label: "Train to Paris", line: "Thu 10 Dec · St Pancras 09:31 → Gare du Nord 12:47" } },
-  { id: "par", name: "Paris", number: 2, sortOrder: 1, arriveDate: "2026-12-10", departDate: "2026-12-15", nights: 5, status: "current",
+    legAfter: { mode: "TRAIN", label: "Train to Paris", when: "Thu 10 Dec · St Pancras 09:31 → Gare du Nord 12:47", number: null, arrivesAt: "2026-12-10T11:47:00.000Z", arrivesLocal: "2026-12-10 12:47" } },
+  { id: "par", name: "Paris", summary: null, number: 2, sortOrder: 1, arriveDate: "2026-12-10", departDate: "2026-12-15", nights: 5, status: "current",
     days: [
       { dateISO: "2026-12-11", isToday: false, title: null, rows: [row("Louvre")] },
       { dateISO: "2026-12-12", isToday: true, title: "Versailles day", rows: [row("Palace + gardens")] },
@@ -24,24 +26,98 @@ const stops: DayByDayStop[] = [
 describe("DayByDay (SHARE.md §7)", () => {
   beforeEach(() => scrollToId.mockClear());
 
+  it("draws a leg as the Plan's card on the connector line, with the sun marker, and adds nothing without Home legs", () => {
+    const { container } = render(<DayByDay stops={stops} initialOpenId="par" />);
+    const rows = container.querySelectorAll("[data-share-leg]");
+    expect(rows).toHaveLength(1);
+    expect(rows[0].querySelector("[data-connector]")).not.toBeNull();
+    expect(rows[0].querySelector("[data-station-dot]")!.className).toContain("bg-sun");
+    const card = rows[0].querySelector("[data-travel-row]") as HTMLElement;
+    expect(card.tagName).toBe("DIV");
+    expect(card).toHaveTextContent("Train to Paris");
+    expect(card).toHaveTextContent("St Pancras 09:31 → Gare du Nord 12:47");
+  });
+
+  it("lets the last Stop touch a Home-back leg, and gap it otherwise", () => {
+    const back = { mode: "FLIGHT" as const, label: "Flight home", when: "x", number: null, arrivesAt: null, arrivesLocal: null };
+    const withBack = render(<DayByDay stops={stops} initialOpenId="par" homeBack={back} />);
+    expect(withBack.container.querySelector("[data-share-stop='par']")!.className).not.toMatch(/mb-3/);
+    withBack.unmount();
+    const without = render(<DayByDay stops={stops} initialOpenId="par" />);
+    expect(without.container.querySelector("[data-share-stop='par']")!.className).not.toMatch(/mb-3/);
+  });
+
+  it("gives a Stop its gap only when no leg follows it and it is not last", () => {
+    const { container } = render(<DayByDay stops={[{ ...stops[0], legAfter: null }, stops[1]]} initialOpenId="par" />);
+    expect(container.querySelector("[data-share-stop='lon']")!.className).toMatch(/mb-3/);
+  });
+
+  it("adds the viewer's arrival only to a leg that has an arrival time", () => {
+    const homeOut = { mode: "FLIGHT" as const, label: "Flight to London", when: "Fri 4 Dec", number: null, arrivesAt: null, arrivesLocal: null };
+    render(<DayByDay stops={stops} initialOpenId="par" homeOut={homeOut} />);
+    expect(screen.getAllByTestId("viewer-arrival")).toHaveLength(1);
+  });
+
+  it("lists the Home legs above the first Stop and below the last", () => {
+    const homeOut = { mode: "FLIGHT" as const, label: "Flight to London", when: "Fri 4 Dec · QF 1", number: null, arrivesAt: null, arrivesLocal: null };
+    const homeBack = { mode: "FLIGHT" as const, label: "Flight home", when: "Tue 15 Dec · QF 2", number: null, arrivesAt: null, arrivesLocal: null };
+    const { container } = render(<DayByDay stops={stops} initialOpenId="par" homeOut={homeOut} homeBack={homeBack} />);
+    const rows = Array.from(container.querySelectorAll("[data-share-leg]"));
+    expect(rows).toHaveLength(3);
+    const first = container.querySelector("[data-share-stop='lon']") as HTMLElement;
+    const last = container.querySelector("[data-share-stop='par']") as HTMLElement;
+    expect(rows[0]).toHaveTextContent("Flight to London");
+    expect(rows[0].compareDocumentPosition(first) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(rows[2]).toHaveTextContent("Flight home");
+    expect(rows[2].compareDocumentPosition(last) & Node.DOCUMENT_POSITION_PRECEDING).toBeTruthy();
+  });
+
   it("opens the initial stop with its head band and day rows; others are folded", () => {
     render(<DayByDay stops={stops} initialOpenId="par" />);
     expect(screen.getByRole("heading", { name: "Day by day" })).toBeInTheDocument();
     expect(screen.getAllByTestId("share-day")).toHaveLength(2);
     expect(screen.getByText("Versailles day")).toBeInTheDocument();
     expect(screen.queryByText("Borough Market")).not.toBeInTheDocument();
-    expect(screen.getByText("1 day")).toBeInTheDocument();
   });
 
-  it("a folded Stop's name wraps on a phone and keeps its day count", () => {
-    const long = "A".repeat(40);
+  it("a closed card shows its number in the Stop's colour, summary, dates and nights chip", () => {
+    const { container } = render(<DayByDay stops={[{ ...stops[0], status: "future" }, stops[1]]} initialOpenId="par" />);
+    const folded = container.querySelector("[data-stop-folded='lon']") as HTMLElement;
+    const marker = within(folded).getByText("1");
+    expect(marker.className).toMatch(/rounded-full/);
+    expect(marker.className).toMatch(/size-7/);
+    expect(marker.className).toMatch(/bg-hue-/);
+    expect(within(folded).getByText("Ritz +1 · 3 plans")).toBeInTheDocument();
+    expect(within(folded).getByText("5n").className).toMatch(/bg-hue-/);
+    expect(within(folded).getAllByText(/5–10 Dec/).length).toBeGreaterThan(0);
+  });
+
+  it("a closed card with no summary draws no summary line", () => {
+    const { container } = render(<DayByDay stops={[stops[0], { ...stops[1], status: "future" }]} initialOpenId="lon" />);
+    const folded = container.querySelector("[data-stop-folded='par']") as HTMLElement;
+    expect(folded.querySelector("[data-stop-summary]")).toBeNull();
+  });
+
+  it("a folded Stop's name wraps at words only, never mid-word, and keeps its nights chip", () => {
+    const long = "Santa Maria della Salute";
     const { container } = render(<DayByDay stops={[{ ...stops[0], name: long, status: "future" }, stops[1]]} initialOpenId="par" />);
     const folded = container.querySelector("[data-stop-folded='lon']") as HTMLElement;
     const name = within(folded).getByText(long);
-    expect(name.classList.contains("truncate")).toBe(false);
-    expect(name.className).toMatch(/break-words/);
-    expect(within(folded).getByText("1 day")).toBeInTheDocument();
-    expect(within(folded).getAllByText(/5–10 Dec/).some((e) => /sm:hidden/.test(e.className))).toBe(true);
+    const tokens = name.className.split(/\s+/);
+    for (const banned of ["truncate", "break-words", "break-all", "[overflow-wrap:anywhere]"]) expect(tokens).not.toContain(banned);
+    expect(tokens).toContain("min-w-0");
+    expect(within(folded).getByText("5n")).toBeInTheDocument();
+  });
+
+  it("a folded Stop stacks on a phone: the summary may wrap, and the dates and chip share one row", () => {
+    const { container } = render(<DayByDay stops={[{ ...stops[0], status: "future" }, stops[1]]} initialOpenId="par" />);
+    const folded = container.querySelector("[data-stop-folded='lon']") as HTMLElement;
+    const summary = within(folded).getByText("Ritz +1 · 3 plans");
+    expect(summary.className.split(/\s+/)).not.toContain("truncate");
+    const dates = within(folded).getByText(/5–10 Dec/);
+    expect(dates.parentElement).toBe(within(folded).getByText("5n").parentElement);
+    expect(folded.className).toMatch(/\bgrid\b/);
+    expect(folded.className).toMatch(/sm:flex/);
   });
 
   it("an open Stop's name wraps on a phone with its dates on a muted line under it", () => {
@@ -73,7 +149,7 @@ describe("DayByDay (SHARE.md §7)", () => {
 
   it("Show opens a folded stop and folds the open one", async () => {
     render(<DayByDay stops={stops} initialOpenId="par" />, { wrapper: MotionProvider });
-    await userEvent.click(within(screen.getByText("1 day").closest("[data-stop-folded]") as HTMLElement).getByRole("button", { name: /show/i }));
+    await userEvent.click(within(screen.getByText("Ritz +1 · 3 plans").closest("[data-stop-folded]") as HTMLElement).getByRole("button", { name: /show/i }));
     expect(screen.getByText("Borough Market")).toBeInTheDocument();
     // The old stop folds away (MOTION.md S7), inert while it goes.
     expect(screen.getByText("Louvre").closest("[inert]")).not.toBeNull();
@@ -160,7 +236,7 @@ describe("DayByDay (SHARE.md §7)", () => {
     const longStops: DayByDayStop[] = [
       {
         id: "s1",
-        name: longName,
+        name: longName, summary: null,
         number: 1,
         sortOrder: 0,
         arriveDate: "2026-12-05",

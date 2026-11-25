@@ -1,10 +1,12 @@
-import { ArrowRight, Check } from "lucide-react";
+import { Check } from "lucide-react";
 import { cn } from "@/lib/cn";
 import { HUE_CLASSES } from "@/lib/hues";
 import { stopDotClass, stopHue } from "@/lib/stop-colours";
 import { formatDateRangeCompact, formatDayLabel, formatNights } from "@/lib/dates";
 import type { StopStatus } from "@/lib/share/view";
-import { MODE_ICONS, ShareRows, type ShareRowModel } from "./share-rows";
+import { ShareRows, type ShareRowModel } from "./share-rows";
+import type { ShareLeg } from "./share-leg";
+import { ShareTravelRow } from "./share-travel-row";
 import { DayByDayProvider, StopBlock, StopIndex, StopPicker } from "./day-by-day-client";
 
 interface DayByDayDay {
@@ -23,10 +25,12 @@ export interface DayByDayStop {
   arriveDate: string;
   departDate: string;
   nights: number;
+  /** The closed card's line under the name, built on the server from this link's switches. */
+  summary: string | null;
   status: StopStatus;
   days: DayByDayDay[];
   /** Transport from this stop to the next; null when includeTransport is off or none. */
-  legAfter: { mode: string; label: string; line: string } | null;
+  legAfter: ShareLeg | null;
 }
 
 /**
@@ -35,7 +39,17 @@ export interface DayByDayStop {
  * `initialOpenId` is computed on the server (current stop during, first
  * before, none after) so the first client render matches.
  */
-export function DayByDay({ stops, initialOpenId }: { stops: DayByDayStop[]; initialOpenId: string | null }) {
+export function DayByDay({
+  stops,
+  initialOpenId,
+  homeOut = null,
+  homeBack = null,
+}: {
+  stops: DayByDayStop[];
+  initialOpenId: string | null;
+  homeOut?: ShareLeg | null;
+  homeBack?: ShareLeg | null;
+}) {
   return (
     <section data-share-section-inner="days" aria-labelledby="days-heading">
       <DayByDayProvider initialOpenId={initialOpenId}>
@@ -60,9 +74,20 @@ export function DayByDay({ stops, initialOpenId }: { stops: DayByDayStop[]; init
               }))}
             />
           </div>
-          <ol className="mt-3 flex flex-col gap-3 lg:mt-0">
-            {stops.map((s) => (
-              <li key={s.id} id={`share-stop-${s.id}`} data-share-stop={s.id} className="relative scroll-mt-6">
+          <ol className="mt-3 flex flex-col lg:mt-0">
+            {homeOut && (
+              <li>
+                <ShareTravelRow {...homeOut} />
+              </li>
+            )}
+            {stops.map((s, i) => (
+              <li
+                key={s.id}
+                id={`share-stop-${s.id}`}
+                data-share-stop={s.id}
+                // The gap between Stops lives here, not on the list, so a leg's connector runs unbroken from card to card.
+                className={cn("relative scroll-mt-6", !s.legAfter && i < stops.length - 1 && "mb-3")}
+              >
                 <StopBlock
                   stopId={s.id}
                   name={s.name}
@@ -70,9 +95,14 @@ export function DayByDay({ stops, initialOpenId }: { stops: DayByDayStop[]; init
                   folded={<FoldedStop s={s} />}
                   open={<OpenStop s={s} />}
                 />
-                {s.legAfter && <LegLine leg={s.legAfter} />}
+                {s.legAfter && <ShareTravelRow {...s.legAfter} />}
               </li>
             ))}
+            {homeBack && (
+              <li>
+                <ShareTravelRow {...homeBack} />
+              </li>
+            )}
           </ol>
         </div>
       </DayByDayProvider>
@@ -80,33 +110,48 @@ export function DayByDay({ stops, initialOpenId }: { stops: DayByDayStop[]; init
   );
 }
 
+// Below sm the StopBlock grid is [circle][name][Show] over a summary row and a dates-and-chip row
+// that start under the name; from sm up the same children sit in one flex row.
 function FoldedStop({ s }: { s: DayByDayStop }) {
-  const n = s.days.length;
   return (
     <>
-      <span aria-hidden className={cn("size-3.5 shrink-0 rounded-full border-2 border-border", stopDotClass(s.sortOrder))} />
-      <span className="flex min-w-0 flex-1 flex-col sm:flex-row sm:items-baseline sm:gap-1.5">
-        <span className="break-words font-display text-[17px] font-extrabold sm:truncate">{s.name}</span>
-        <span className="whitespace-nowrap text-[13px] font-semibold text-muted-foreground sm:shrink-0 sm:font-display sm:text-[17px] sm:font-extrabold sm:text-foreground">
-          <span aria-hidden className="hidden sm:inline">
-            {"· "}
-          </span>
-          {`${n} ${n === 1 ? "day" : "days"}`}
-          {s.status !== "past" && (
-            <span className="sm:hidden">{` · ${formatDateRangeCompact(s.arriveDate, s.departDate)}`}</span>
-          )}
-        </span>
+      <span
+        aria-hidden
+        className={cn(
+          "flex size-7 shrink-0 items-center justify-center rounded-full border-2 border-border text-xs font-extrabold text-on-accent",
+          HUE_CLASSES[stopHue(s.sortOrder)].fill,
+        )}
+      >
+        {s.number}
       </span>
-      {s.status === "past" ? (
-        <span className="inline-flex shrink-0 items-center gap-1 whitespace-nowrap text-[13px] font-bold text-teal-text">
-          <Check aria-hidden className="size-3.5" />
-          Done
-        </span>
-      ) : (
-        <span className="hidden shrink-0 whitespace-nowrap text-[13px] font-bold tabular-nums sm:inline">
-          {formatDateRangeCompact(s.arriveDate, s.departDate)}
-        </span>
-      )}
+      <span className="contents sm:flex sm:min-w-0 sm:flex-1 sm:flex-col">
+        <span className="min-w-0 overflow-hidden text-ellipsis font-display text-[17px] font-extrabold leading-tight">{s.name}</span>
+        {s.summary && (
+          <span data-stop-summary className="col-span-2 col-start-2 line-clamp-2 min-w-0 text-[13px] font-semibold text-muted-foreground sm:col-auto sm:truncate">
+            {s.summary}
+          </span>
+        )}
+      </span>
+      <span className="col-span-2 col-start-2 flex items-center gap-2 sm:col-auto sm:shrink-0">
+        {s.status === "past" ? (
+          <span className="inline-flex items-center gap-1 whitespace-nowrap text-[13px] font-bold text-teal-text">
+            <Check aria-hidden className="size-3.5" />
+            Done
+          </span>
+        ) : (
+          <span className="whitespace-nowrap text-[13px] font-bold tabular-nums">{formatDateRangeCompact(s.arriveDate, s.departDate)}</span>
+        )}
+        {s.nights > 0 && (
+          <span
+            className={cn(
+              "whitespace-nowrap rounded-full border-2 border-border px-2 text-xs font-extrabold tabular-nums text-on-accent",
+              HUE_CLASSES[stopHue(s.sortOrder)].fill,
+            )}
+          >
+            {`${s.nights}n`}
+          </span>
+        )}
+      </span>
     </>
   );
 }
@@ -162,17 +207,5 @@ function OpenStop({ s }: { s: DayByDayStop }) {
         ))}
       </ol>
     </>
-  );
-}
-
-/** The leg to the next stop — label and times only, never the booking reference. */
-function LegLine({ leg }: { leg: NonNullable<DayByDayStop["legAfter"]> }) {
-  const Icon = MODE_ICONS[leg.mode] ?? ArrowRight;
-  return (
-    <div className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-0.5 px-4 py-2 text-sm">
-      <Icon aria-hidden className="size-4 shrink-0" />
-      <span className="break-words font-bold">{leg.label}</span>
-      <span className="text-[13px] font-medium tabular-nums text-muted-foreground">{leg.line}</span>
-    </div>
   );
 }

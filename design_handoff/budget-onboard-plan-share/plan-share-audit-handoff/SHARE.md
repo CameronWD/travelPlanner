@@ -72,6 +72,8 @@ The card is `bg-coral border-2 rounded-[28px] shadow-5`: `p-7 lg:p-8`, `min-h-80
 
 ## 4. Right now (During only)
 
+> Amended 2026-11-25: the clock adds "· HH:mm for you" when the viewer's zone differs; a leg into Home reads "Travelling home"; and the card never uses the Home timezone: before the first arrival and after the last departure it reads the adjacent Stop's zone.
+
 This **replaces `ShareTodayCard`.** The card is `bg-card border-2 rounded-[28px] shadow-5 p-6` on desktop, beside the hero (`grid-cols-[7fr_5fr]`); on mobile it's the full width under the hero.
 
 - **Head row:**
@@ -141,9 +143,9 @@ This replaces the grid of day cards. It's shown when any of `includeAccommodatio
 **Right, one block per stop,** in plan order:
 - **Folded stop** (past stops during the trip, all stops after it, and every stop except the first before it):
   - A row card: `bg-card border-2 rounded-[18px] px-4 py-3`, dashed for past stops.
-  - It contains the dot, "{Stop} · {n} days" (`font-display text-[17px]`), and a right-hand status:
-    - "✓ Done" (`text-teal-text`) for past stops
-    - the dates for future ones
+  - It contains a 28px numbered circle in the stop colour, the name (`font-display text-[17px]`) over a truncating summary line (the first stay by check-in with "+N", then "N plans", each only when the link includes accommodation or daily plans; else the country), and a right-hand cluster:
+    - "✓ Done" (`text-teal-text`) for past stops, the compact dates for future ones
+    - a nights chip in the stop colour ("4n")
   - Then a **Show ⌄** toggle, which is a client `<details>` or a small component.
 - **Open stop:** `bg-card border-2 rounded-[22px] shadow-4 overflow-hidden`.
   - **Head band:** filled with the stop colour, `border-b-2 px-4 py-3`. It has a 28px white numbered dot, the name (`font-display text-[22px]`) and, on the right, "Thu 10 – Tue 15 Dec · 5 nights".
@@ -152,7 +154,7 @@ This replaces the grid of day cards. It's shown when any of `includeAccommodatio
     - The day title, if any, is `font-display text-[17px]` (only when `includeDailyPlans`).
     - Then the items. Each is a 44px time column, a 12px category dot and the title (`text-[15px] font-bold`).
     - Accommodation check-in/out and transport rows appear as items with their own glyph, from the existing `buildItinerary`, which already interleaves them.
-- **Leg lines** between stop blocks (only when `includeTransport`): a plain row with the mode icon, the label ("Flight to Rome") and the times ("Tue 15 Dec · CDG 10:05 → FCO 12:15"). Never show the booking reference.
+- **Leg lines** between stop blocks (only when `includeTransport`): a plain row with the mode icon, the label ("Flight to Rome") and the times ("Tue 15 Dec · CDG 10:05 → FCO 12:15"). Never show the booking reference. (Amended 2026-11-25: the leg is the Plan's travel card (sun fill and sun shadow) on the Plan's connector line with the sun icon marker and stub, read-only, with no connector where there is no leg; the line adds the duration, a `+1`/`−1` after an arrival on another local date, and the flight or train number for a Flight or Train only; the legs from and back to the Home base are listed above the first and below the last stop block, each showing its Home end's time (read in the Trip's Home timezone, else the other end's zone) but never its place; a Home end's place is printed nowhere on the page (day rows and Right now say "{Mode} home"), and no timezone name reaches the browser. A leg with an arrival time also adds "arrives Sat 15:45 your time" in the viewer's device zone, and the Right now clock adds "· 15:45 for you", each only when it differs from the place's time. Carrier, seat, terminal, gate, coach, platform, reference, notes and Costs stay private.)
 
 **Mobile:**
 - The stop index becomes a pill dropdown next to the H2 ("Paris ⌄"), which switches which stop is open.

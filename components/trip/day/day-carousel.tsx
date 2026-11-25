@@ -591,7 +591,7 @@ export function DayCarousel({
           correction above keeps the body still, and an engine's own would
           move it again. */}
       <div ref={headerBox} className="[overflow-anchor:none]">
-        <DayHeadingTrack carousel={machine.api} view={view} panels={panels} header={(iso) => chromeFor(iso) ?? chromeFallback(iso)} />
+        <DayHeadingTrack carousel={machine.api} view={view} panels={panels} desktop={desktop} header={(iso) => chromeFor(iso) ?? chromeFallback(iso)} />
       </div>
       <div className="[overflow-anchor:none]">{chrome}</div>
       {/* Only the body runs a view transition; header and strip stay put. From
@@ -658,9 +658,22 @@ export function DayCarousel({
 // Not part of a day: the arrows and the top bar (switcher, Share, bell) hold still while the day's heading travels.
 const HELD_STILL = '[data-slot="day-arrow"], [data-slot="day-trip-switcher"]';
 
-// Clips the sides (the neighbour) and the bottom (the height between the two),
-// never the top: the bell's unread badge and the top bar's focus rings sit above the area's edge.
-const HEADING_CLIP = "inset(-1rem 0 0 0)";
+const TITLE_BLOCK = '[data-slot="day-title-block"]';
+
+// Clips the bottom (the height between the two headings) flush, and the sides
+// a little way out: from md to lg the bell and the switcher pill sit flush with
+// the area's sides, and the bell's unread badge (8px out, more as it pops), the
+// focus rings and the hard shadow must not be cut. The top is left a rem: the
+// badge and the top bar's rings reach above the area's edge.
+const HEADING_CLIP = "inset(-1rem -0.75rem 0 -0.75rem)";
+
+// Below lg the track, the area's clip, the held arrows and the title blocks keep
+// a transform or a clip at rest too: the identity, the same area clip, and a clip
+// that cuts nothing. WebKit left the heading blank after a settle that tore the
+// layer and the clips down in the frame that swapped the panels (ADR 0065,
+// amended 2026-11-25).
+const AT_REST = "translate3d(0, 0, 0)";
+const TITLE_AT_REST = "inset(-100vh -100vw -100vh -100vw)";
 
 /** Read once per gesture and per commit, so a frame of the gesture only writes. */
 interface HeadingMeasure {
@@ -668,19 +681,38 @@ interface HeadingMeasure {
   shown: number;
   toward: number | null;
   held: HTMLElement[];
+  /** The arrows' inner edges, from the track's left at rest; null without both arrows. */
+  gap: { left: number; right: number } | null;
+  /** Each panel's title block where layout puts it in the track, before any move. */
+  blocks: Array<{ el: HTMLElement; left: number; width: number }>;
 }
 
-function measureHeading(area: HTMLElement): HeadingMeasure {
+// Layout offsets, not rects: a commit mid-gesture measures with the track moved
+// and the arrows counter-moved, and offsets ignore both.
+function leftInTrack(el: HTMLElement, track: HTMLElement): number {
+  let x = 0;
+  for (let n: HTMLElement | null = el; n && n !== track; n = n.offsetParent as HTMLElement | null) x += n.offsetLeft;
+  return x;
+}
+
+function measureHeading(area: HTMLElement, track: HTMLElement): HeadingMeasure {
   const shown = area.querySelector<HTMLElement>("[data-day-heading-panel]:not([inert])");
   const toward = area.querySelector<HTMLElement>("[data-day-heading-panel][inert]");
-  return { width: area.offsetWidth, shown: shown?.offsetHeight ?? 0, toward: toward ? toward.offsetHeight : null, held: shown ? Array.from(shown.querySelectorAll<HTMLElement>(HELD_STILL)) : [] };
+  const arrows = shown ? Array.from(shown.querySelectorAll<HTMLElement>('[data-slot="day-arrow"]')) : [];
+  const first = arrows[0];
+  const last = arrows[arrows.length - 1];
+  const gap = arrows.length >= 2 ? { left: leftInTrack(first, track) + first.offsetWidth, right: leftInTrack(last, track) } : null;
+  const blocks = Array.from(area.querySelectorAll<HTMLElement>(TITLE_BLOCK)).map((el) => ({ el, left: leftInTrack(el, track), width: el.offsetWidth }));
+  return { width: area.offsetWidth, shown: shown?.offsetHeight ?? 0, toward: toward ? toward.offsetHeight : null, held: shown ? Array.from(shown.querySelectorAll<HTMLElement>(HELD_STILL)) : [], gap, blocks };
 }
 
-function restHeading(area: HTMLElement, track: HTMLElement) {
-  track.style.transform = "";
+function restHeading(area: HTMLElement, track: HTMLElement, desktop: boolean) {
+  const still = desktop ? "" : AT_REST;
+  track.style.transform = still;
   area.style.height = "";
-  area.style.clipPath = "";
-  for (const el of area.querySelectorAll<HTMLElement>(HELD_STILL)) el.style.transform = "";
+  area.style.clipPath = desktop ? "" : HEADING_CLIP;
+  for (const el of area.querySelectorAll<HTMLElement>(HELD_STILL)) el.style.transform = still;
+  for (const el of area.querySelectorAll<HTMLElement>(TITLE_BLOCK)) el.style.clipPath = desktop ? "" : TITLE_AT_REST;
 }
 
 function moveHeading(area: HTMLElement, track: HTMLElement, progress: number, lerp: boolean, m: HeadingMeasure) {
@@ -690,6 +722,16 @@ function moveHeading(area: HTMLElement, track: HTMLElement, progress: number, le
   const still = `translate3d(${progress * m.width}px, 0, 0)`;
   for (const el of m.held) el.style.transform = still;
   area.style.height = lerp && m.toward != null ? `${lerpHeight(m.shown, m.toward, progress)}px` : "";
+  // A moving title block is cut off at the arrows' inner edges, so its text leaves
+  // behind an arrow instead of passing under it. The arrows themselves are not clipped.
+  if (!m.gap) return;
+  const offset = -progress * m.width;
+  for (const b of m.blocks) {
+    const from = b.left + offset;
+    const left = Math.min(b.width, Math.max(0, m.gap.left - from));
+    const right = Math.min(b.width, Math.max(0, from + b.width - m.gap.right));
+    b.el.style.clipPath = `inset(-1rem ${right}px 0 ${left}px)`;
+  }
 }
 
 /**
@@ -701,9 +743,11 @@ function moveHeading(area: HTMLElement, track: HTMLElement, progress: number, le
  * to the DOM as progress arrives, from measures taken at the gesture's start
  * and on each commit; only a change of neighbour renders. A settle onto the
  * neighbour leaves the track where it is until the day in view changes, so
- * the outgoing heading never shows for a frame on the way.
+ * the outgoing heading never shows for a frame on the way. Below lg the track
+ * keeps its layer, the area its clip and the title blocks a clip that cuts
+ * nothing at rest (`AT_REST`); from lg, where nothing moves, none is set.
  */
-function DayHeadingTrack({ carousel, view, panels, header }: { carousel: DayCarouselApi; view: string; panels: DayPanel[]; header: (iso: string) => React.ReactNode }) {
+function DayHeadingTrack({ carousel, view, panels, desktop, header }: { carousel: DayCarouselApi; view: string; panels: DayPanel[]; desktop: boolean; header: (iso: string) => React.ReactNode }) {
   const area = React.useRef<HTMLDivElement>(null);
   const track = React.useRef<HTMLDivElement>(null);
   const panelsRef = React.useRef(panels);
@@ -715,6 +759,8 @@ function DayHeadingTrack({ carousel, view, panels, header }: { carousel: DayCaro
   // the header, the Traveller is reading the body: the height holds, and the
   // carousel's correction on the swap keeps the body still, as before.
   const lerp = React.useRef<boolean | null>(null);
+  // For the subscription's callbacks and cleanup, which outlive the render that set them.
+  const wide = React.useRef(desktop);
 
   React.useLayoutEffect(() => {
     panelsRef.current = panels;
@@ -738,13 +784,13 @@ function DayHeadingTrack({ carousel, view, panels, header }: { carousel: DayCaro
         if (Math.round(p) === 0) {
           lerp.current = null;
           measured.current = null;
-          restHeading(a, t);
+          restHeading(a, t, wide.current);
         }
         return;
       }
       if (lerp.current == null || measured.current == null) {
         lerp.current = a.getBoundingClientRect().top >= 0;
-        measured.current = measureHeading(a);
+        measured.current = measureHeading(a, t);
       }
       moveHeading(a, t, p, lerp.current, measured.current);
     });
@@ -755,7 +801,7 @@ function DayHeadingTrack({ carousel, view, panels, header }: { carousel: DayCaro
       measured.current = null;
       towardRef.current = null;
       setToward(null);
-      restHeading(a, t);
+      restHeading(a, t, wide.current);
     };
   }, [carousel]);
 
@@ -764,10 +810,11 @@ function DayHeadingTrack({ carousel, view, panels, header }: { carousel: DayCaro
   React.useLayoutEffect(() => {
     const a = area.current;
     const t = track.current;
+    wide.current = desktop;
     lerp.current = null;
     measured.current = null;
-    if (a && t) restHeading(a, t);
-  }, [view]);
+    if (a && t) restHeading(a, t, desktop);
+  }, [view, desktop]);
 
   // Every commit mid-gesture (a neighbour come or gone, a header filled in)
   // re-measures, and places the track before it paints.
@@ -775,7 +822,7 @@ function DayHeadingTrack({ carousel, view, panels, header }: { carousel: DayCaro
     const a = area.current;
     const t = track.current;
     if (!a || !t || lerp.current == null) return;
-    measured.current = measureHeading(a);
+    measured.current = measureHeading(a, t);
     moveHeading(a, t, progress.current, lerp.current, measured.current);
   });
 

@@ -5,6 +5,7 @@ const deg = (n: number) => `${Math.round(n)}°`;
 
 export function weatherStripSummary(theme: WeatherTheme, day: DayWeather | null): string {
   if (theme.key === "too-far") return "Too far out for a forecast";
+  if (theme.key === "no-forecast") return theme.condition;
   const high = day?.highC;
   const low = day?.lowC;
   const range =

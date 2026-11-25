@@ -27,7 +27,10 @@ export interface DayWeather {
   stale: boolean;
 }
 
-export const FORECAST_WINDOW_DAYS = 16;
+/** Today plus 15 days: the service refuses day 16. Keep in step with `forecastOpensOn`. */
+export const FORECAST_WINDOW_DAYS = 15;
+/** A typical reading standing in for a failed forecast: short, so the real forecast replaces it soon. */
+const FALLBACK_TTL_MS = 60_000;
 const FORECAST_TTL_MS = 3600 * 1000;
 const TYPICAL_TTL_MS = 86400 * 1000;
 
@@ -116,6 +119,53 @@ function parseDaily(j: OpenMeteoResponse, source: DayWeather["source"], fetchedA
   };
 }
 
+async function readForecast(lat: number, lng: number, dateISO: string, withCurrent: boolean | undefined, nowMs: number): Promise<DayWeather | null> {
+  try {
+    const u = new URL("https://api.open-meteo.com/v1/forecast");
+    u.searchParams.set("latitude", String(lat));
+    u.searchParams.set("longitude", String(lng));
+    u.searchParams.set(
+      "daily",
+      "temperature_2m_max,temperature_2m_min,weathercode,precipitation_probability_max,wind_gusts_10m_max,uv_index_max,snowfall_sum",
+    );
+    u.searchParams.set("start_date", dateISO);
+    u.searchParams.set("end_date", dateISO);
+    u.searchParams.set("timezone", "UTC");
+    if (withCurrent) {
+      u.searchParams.set("current", "temperature_2m,is_day");
+    }
+    const res = await fetch(u.toString(), { next: { revalidate: 3600 } } as RequestInit);
+    if (!res.ok) return null;
+    const v = parseDaily(await res.json(), "forecast", nowMs);
+    // The service answers a day it has no data for with empty values.
+    return v.highC == null && v.lowC == null ? null : v;
+  } catch {
+    return null; // best-effort; never throw
+  }
+}
+
+async function readTypical(lat: number, lng: number, dateISO: string, nowMs: number): Promise<DayWeather | null> {
+  try {
+    // "Typical": same calendar date, previous year, from the archive API.
+    // If the target date is Feb 29 (leap day), fall back to Feb 28 in the prior year.
+    const d = parseISODate(dateISO);
+    const month = d.getUTCMonth() + 1;
+    const day = d.getUTCMonth() === 1 && d.getUTCDate() === 29 ? 28 : d.getUTCDate();
+    const prevYear = `${d.getUTCFullYear() - 1}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
+    const u = new URL("https://archive-api.open-meteo.com/v1/archive");
+    u.searchParams.set("latitude", String(lat));
+    u.searchParams.set("longitude", String(lng));
+    u.searchParams.set("daily", "temperature_2m_max,temperature_2m_min,weathercode,wind_gusts_10m_max,snowfall_sum");
+    u.searchParams.set("start_date", prevYear);
+    u.searchParams.set("end_date", prevYear);
+    u.searchParams.set("timezone", "UTC");
+    const res = await fetch(u.toString(), { next: { revalidate: 86400 } } as RequestInit);
+    return res.ok ? parseDaily(await res.json(), "typical", nowMs) : null;
+  } catch {
+    return null;
+  }
+}
+
 export async function getDayWeather(args: {
   lat: number;
   lng: number;
@@ -137,54 +187,17 @@ export async function getDayWeather(args: {
 
   const out = daysBetween(today, dateISO); // dateISO - today, in days
   const isForecast = out >= 0 && out <= FORECAST_WINDOW_DAYS;
-  const ttlMs = isForecast ? FORECAST_TTL_MS : TYPICAL_TTL_MS;
 
   let value: DayWeather | null = null;
-  try {
-    if (isForecast) {
-      const u = new URL("https://api.open-meteo.com/v1/forecast");
-      u.searchParams.set("latitude", String(lat));
-      u.searchParams.set("longitude", String(lng));
-      u.searchParams.set(
-        "daily",
-        "temperature_2m_max,temperature_2m_min,weathercode,precipitation_probability_max,wind_gusts_10m_max,uv_index_max,snowfall_sum",
-      );
-      u.searchParams.set("start_date", dateISO);
-      u.searchParams.set("end_date", dateISO);
-      u.searchParams.set("timezone", "UTC");
-      if (withCurrent) {
-        u.searchParams.set("current", "temperature_2m,is_day");
-      }
-      const res = await fetch(u.toString(), { next: { revalidate: 3600 } } as RequestInit);
-      if (res.ok) {
-        const j = await res.json();
-        value = parseDaily(j, "forecast", nowMs);
-      }
-    } else {
-      // "Typical": same calendar date, previous year, from the archive API.
-      // If the target date is Feb 29 (leap day), fall back to Feb 28 in the prior year.
-      const d = parseISODate(dateISO);
-      const month = d.getUTCMonth() + 1;
-      const day = d.getUTCMonth() === 1 && d.getUTCDate() === 29 ? 28 : d.getUTCDate();
-      const prevYear = `${d.getUTCFullYear() - 1}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
-      const u = new URL("https://archive-api.open-meteo.com/v1/archive");
-      u.searchParams.set("latitude", String(lat));
-      u.searchParams.set("longitude", String(lng));
-      u.searchParams.set(
-        "daily",
-        "temperature_2m_max,temperature_2m_min,weathercode,wind_gusts_10m_max,snowfall_sum",
-      );
-      u.searchParams.set("start_date", prevYear);
-      u.searchParams.set("end_date", prevYear);
-      u.searchParams.set("timezone", "UTC");
-      const res = await fetch(u.toString(), { next: { revalidate: 86400 } } as RequestInit);
-      if (res.ok) {
-        const j = await res.json();
-        value = parseDaily(j, "typical", nowMs);
-      }
+  let ttlMs = isForecast ? FORECAST_TTL_MS : TYPICAL_TTL_MS;
+  if (isForecast) {
+    value = await readForecast(lat, lng, dateISO, withCurrent, nowMs);
+    if (value == null && !(entry?.value?.source === "forecast")) {
+      value = await readTypical(lat, lng, dateISO, nowMs);
+      ttlMs = FALLBACK_TTL_MS;
     }
-  } catch {
-    value = null; // best-effort; never throw
+  } else {
+    value = await readTypical(lat, lng, dateISO, nowMs);
   }
 
   if (value != null) {

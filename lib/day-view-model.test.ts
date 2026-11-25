@@ -1,5 +1,7 @@
 import { describe, it, expect } from "vitest";
 import type { TripPhase } from "@/lib/trip-phase";
+import { FORECAST_WINDOW_DAYS } from "@/lib/weather";
+import { addDays, formatDayLabel } from "@/lib/dates";
 import { dayHeading, dayEyebrow, daySubLine, nightOfStay, tripDays, dotsFor, stopLine, planCountLabel, dayIdeasRows, forecastOpensOn, buildDayModel, buildDayEntryEditor, buildEditorBase, type DayRows } from "@/lib/day-view-model";
 
 const T = { start: "2026-12-04", end: "2027-01-08" };
@@ -120,6 +122,10 @@ describe("dayIdeasRows (spec decision 5)", () => {
 });
 
 it("forecastOpensOn is 15 days before", () => expect(forecastOpensOn("2027-01-02")).toBe("Fri 18 Dec"));
+it("forecastOpensOn is the forecast window before the day, so one number rules", () => {
+  expect(FORECAST_WINDOW_DAYS).toBe(15);
+  expect(forecastOpensOn("2027-01-02")).toBe(formatDayLabel(addDays("2027-01-02", -FORECAST_WINDOW_DAYS)));
+});
 
 describe("buildDayModel (card 3.M)", () => {
   const stop = (o: Partial<DayRows["stops"][number]> & { id: string; name: string; arriveDate: string; departDate: string; sortOrder: number }) => ({

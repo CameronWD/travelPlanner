@@ -2,6 +2,7 @@ import { Moon } from "lucide-react";
 import { cn } from "@/lib/cn";
 import { tzAbbrev, formatDayLabel, formatWeekday } from "@/lib/dates";
 import { LocalClock } from "./local-clock";
+import { ViewerNow } from "./viewer-time";
 import { MODE_LABELS, MODE_ICONS, ShareRows, type ShareRowModel } from "./share-rows";
 
 // ---------------------------------------------------------------------------
@@ -21,7 +22,7 @@ export type RightNowPlace =
       dayTitle: string | null;
       next: { name: string; weekday: string } | null;
     }
-  | { kind: "leg"; toName: string; mode: string; landsAt: string | null }
+  | { kind: "leg"; toName: string; toHome?: boolean; mode: string; landsAt: string | null }
   | { kind: "none" };
 
 export interface RightNowProps {
@@ -48,13 +49,16 @@ export function RightNowCard({ timeZone, localDateISO, nowHHMM, place, rows, day
     >
       <div className="flex items-baseline justify-between gap-3">
         <p className="text-[11px] font-extrabold uppercase tracking-[0.08em]">Right now</p>
-        <p className="whitespace-nowrap text-[13px] font-bold tabular-nums">
+        <p className="flex flex-wrap justify-end gap-x-1.5 text-[13px] font-bold tabular-nums">
+          <span className="whitespace-nowrap">
           <span>{formatWeekday(localDateISO)}</span>
           <span className="hidden lg:inline">{` ${formatDayLabel(localDateISO).split(" ").slice(1).join(" ")}`}</span>
           {" · "}
           <LocalClock timeZone={timeZone} initial={nowHHMM} />
           {" "}
           {tzAbbrev(timeZone, localDateISO)}
+          </span>
+          <ViewerNow timeZone={timeZone} />
         </p>
       </div>
 
@@ -63,7 +67,7 @@ export function RightNowCard({ timeZone, localDateISO, nowHHMM, place, rows, day
         className="mt-2 font-display text-[34px] font-extrabold leading-none tracking-[-0.04em] lg:text-[40px]"
       >
         {place.kind === "stop" && `In ${place.name}`}
-        {place.kind === "leg" && `Travelling to ${place.toName}`}
+        {place.kind === "leg" && (place.toHome ? "Travelling home" : `Travelling to ${place.toName}`)}
         {place.kind === "none" && "On the move"}
       </h2>
 

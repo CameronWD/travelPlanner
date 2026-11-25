@@ -4,7 +4,7 @@ import userEvent from "@testing-library/user-event";
 import { Plane } from "lucide-react";
 vi.mock("next/navigation", () => ({ useRouter: () => ({ refresh: vi.fn() }) }));
 vi.mock("@/server/actions/booking-confirmation", () => ({ setNothingToAttach: vi.fn() }));
-import { LegPill, LegRow } from "./leg-pill";
+import { LegCard, LegPill, LegRow } from "./leg-pill";
 
 const FLIGHT = { icon: Plane, label: "Flight CDG → FCO", sub: "Tue 15 Dec 10:05", missing: false, accessibleName: "Flight from Paris to Rome, Tuesday 15 December 10:05. Edit.", arrival: "", detail: "" };
 const MISSING = { icon: null, label: "How are you getting to Florence?", sub: "Add", missing: true, accessibleName: "Add transport from Rome to Florence", arrival: "", detail: "" };
@@ -269,5 +269,32 @@ describe("LegPill Booking state (spec 2026-10-17 R2)", () => {
       render(<LegPill label={FLIGHT} onClick={vi.fn()} compact attached bookingState="TO_BOOK" />);
       expect(screen.getByRole("button", { name: `${FLIGHT.accessibleName} To book. File attached.` }).querySelector("svg.lucide-paperclip")).not.toBeNull();
     });
+  });
+});
+
+describe("LegCard", () => {
+  const WITH_DETAIL = { ...FLIGHT, arrival: "→ 12:15", detail: "ICE 9572" };
+
+  it("is the pill's card with nothing to press", () => {
+    render(<><LegPill label={WITH_DETAIL} onClick={() => {}} compact /><LegCard label={WITH_DETAIL} compact footer={<i>arrives Sat 15:45 your time</i>} /></>);
+    const pill = screen.getByRole("button") as HTMLElement;
+    const card = document.querySelectorAll("[data-travel-row]")[1] as HTMLElement;
+    expect(card.tagName).toBe("DIV");
+    expect(screen.getAllByRole("button")).toHaveLength(1);
+    for (const c of ["bg-sun/30", "rounded-2xl", "shadow-[3px_3px_0_hsl(var(--sun))]"]) {
+      expect(pill.className).toContain(c);
+      expect(card.className).toContain(c);
+    }
+    for (const c of ["pressable", "tap-target", "group", "active:"]) expect(card.className).not.toContain(c);
+    expect(card).toHaveTextContent("Flight CDG → FCO");
+    expect(card.querySelector("[data-travel-line='when']")).toHaveTextContent("Tue 15 Dec 10:05 → 12:15");
+    expect(card.querySelector("[data-travel-line='detail']")).toHaveTextContent("ICE 9572");
+    expect(card.querySelector("[data-travel-line='footer']")).toHaveTextContent("arrives Sat 15:45 your time");
+  });
+
+  it("gets the marker and stub on the line like a pill", () => {
+    const { container } = render(<LegRow kind="legs" compact><LegCard label={FLIGHT} compact /></LegRow>);
+    expect(container.querySelector("[data-station-dot]")!.className).toContain("bg-sun");
+    expect(container.querySelector("[data-station-stub]")).not.toBeNull();
   });
 });

@@ -161,12 +161,43 @@ describe("DayStrip", () => {
       expect(layer).toHaveAttribute("aria-hidden", "true");
       expect(layer.style.transform).toBe("");
       expect(layer.className).not.toContain("transition-transform");
-      expect(layer.className).toContain("transition-opacity");
       expect(layer.className).toContain("motion-reduce:transition-none");
     }
     expect(nav.querySelector("nav > [data-strip-highlight]")).toBeNull();
     const links = within(nav).getAllByRole("link");
     links.forEach((link, i) => expect(lit(link)).toBe(i === 3));
+  });
+  it("only the day becoming lit fades: the lit layer and chip carry the transition, every other day has none (spec 2026-11-25 section 2)", () => {
+    render(<DayStrip tripId="t1" dates={dates} line={segments} size="phone" />);
+    const links = within(screen.getByRole("navigation", { name: "Days" })).getAllByRole("link");
+    links.forEach((link, i) => {
+      const layer = link.querySelector("[data-strip-highlight]")!.className.split(/\s+/);
+      const chip = link.className.split(/\s+/);
+      if (i === 3) {
+        expect(layer).toEqual(expect.arrayContaining(["opacity-100", "transition-opacity"]));
+        expect(layer).not.toContain("transition-none");
+        expect(chip).toContain("transition-colors");
+      } else {
+        expect(layer).toEqual(expect.arrayContaining(["opacity-0", "transition-none"]));
+        expect(layer).not.toContain("transition-opacity");
+        expect(chip).not.toContain("transition-colors");
+        expect(chip).toContain("transition-none");
+      }
+    });
+  });
+  it("after two quick changes of the day in view exactly one day carries the lit classes", () => {
+    let inView = "2026-12-12";
+    let tell: (iso: string) => void = () => {};
+    const api = fakeCarousel({ current: () => inView, subscribeDay: (cb) => { tell = cb; return () => {}; } });
+    render(<NavigationPendingProvider><DayCarouselContext.Provider value={api}><DayStrip tripId="t1" dates={dates} line={segments} size="phone" /></DayCarouselContext.Provider></NavigationPendingProvider>);
+    const links = within(screen.getByRole("navigation", { name: "Days" })).getAllByRole("link");
+    for (const next of ["2026-12-13", "2026-12-11"]) act(() => { inView = next; tell(next); });
+    const fading = links.filter((l) => l.querySelector("[data-strip-highlight]")!.className.split(/\s+/).includes("transition-opacity"));
+    const coloured = links.filter((l) => l.className.split(/\s+/).includes("bg-coral"));
+    expect(fading).toEqual([links[2]]);
+    expect(coloured).toEqual([links[2]]);
+    expect(links.filter((l) => l.className.split(/\s+/).includes("transition-colors"))).toEqual([links[2]]);
+    expect(links.filter((l) => lit(l))).toEqual([links[2]]);
   });
   it("tags chips before the current day as day-back and after it as day-forward", () => {
     render(<DayStrip tripId="t1" dates={dates} line={{ homeStart: null, homeEnd: null, segments: [] }} size="desktop" />);

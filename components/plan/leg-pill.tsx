@@ -138,7 +138,6 @@ export function LegPill({ label, onClick, compact, bookingState, bookBy, attache
       </button>
     );
   }
-  const when = [label.sub, label.arrival].filter(Boolean).join(" ");
   return (
     <button
       type="button"
@@ -146,31 +145,68 @@ export function LegPill({ label, onClick, compact, bookingState, bookBy, attache
       onClick={onClick}
       data-travel-row
       className={cn(
-        "group tap-target pressable flex min-w-0 max-w-full items-start gap-2.5 rounded-2xl border-2 border-border bg-sun/30 dark:bg-sun/15 text-left max-md:w-full",
+        "group tap-target pressable",
+        TRAVEL_ROW_BASE,
         compact
           ? "px-4 py-3 shadow-[3px_3px_0_hsl(var(--sun))] active:shadow-[1px_1px_0_hsl(var(--sun))]!"
           : "px-5 py-3.5 shadow-[4px_4px_0_hsl(var(--sun))] active:shadow-[1px_1px_0_hsl(var(--sun))]!",
       )}
     >
-      <span className="flex min-w-0 flex-1 flex-col gap-0.5">
-        <span className={cn("flex min-w-0 items-center gap-2 font-bold", compact ? "text-xs" : "text-[13px]")}>
-          <span className="min-w-0 truncate">{label.label}</span>
-          {attached ? <Paperclip className="size-3.5 shrink-0 text-muted-foreground" aria-hidden /> : null}
-          <BookingStateBadge state={bookingState} bookBy={bookBy} compact hidden className="ml-auto text-xs" />
-        </span>
-        {when ? <span data-travel-line="when" className="text-xs font-semibold tabular-nums text-foreground">{when}</span> : null}
-        {label.detail ? <span data-travel-line="detail" className="break-words text-xs font-medium text-muted-foreground">
-            {(() => {
-              const parts = label.detail.split(" · ");
-              return parts.map((part, i) => (
-                <React.Fragment key={i}>
-                  {i > 0 ? " " : null}
-                  <span className="inline-block max-w-full">{i < parts.length - 1 ? `${part} ·` : part}</span>
-                </React.Fragment>
-              ));
-            })()}
-          </span> : null}
-      </span>
+      <TravelRowText label={label} compact={compact} bookingState={bookingState} bookBy={bookBy} attached={attached} />
     </button>
+  );
+}
+
+const TRAVEL_ROW_BASE = "flex min-w-0 max-w-full items-start gap-2.5 rounded-2xl border-2 border-border bg-sun/30 dark:bg-sun/15 text-left max-md:w-full";
+
+function TravelRowText({
+  label,
+  compact,
+  bookingState,
+  bookBy,
+  attached,
+  footer,
+}: {
+  label: LegLabel;
+  compact?: boolean;
+  bookingState?: BookingState | null;
+  bookBy?: string | null;
+  attached?: boolean;
+  footer?: React.ReactNode;
+}) {
+  const when = [label.sub, label.arrival].filter(Boolean).join(" ");
+  return (
+    <span className="flex min-w-0 flex-1 flex-col gap-0.5">
+      <span className={cn("flex min-w-0 items-center gap-2 font-bold", compact ? "text-xs" : "text-[13px]")}>
+        <span className="min-w-0 truncate">{label.label}</span>
+        {attached ? <Paperclip className="size-3.5 shrink-0 text-muted-foreground" aria-hidden /> : null}
+        <BookingStateBadge state={bookingState} bookBy={bookBy} compact hidden className="ml-auto text-xs" />
+      </span>
+      {when ? <span data-travel-line="when" className="text-xs font-semibold tabular-nums text-foreground">{when}</span> : null}
+      {label.detail ? <span data-travel-line="detail" className="break-words text-xs font-medium text-muted-foreground">
+          {(() => {
+            const parts = label.detail.split(" · ");
+            return parts.map((part, i) => (
+              <React.Fragment key={i}>
+                {i > 0 ? " " : null}
+                <span className="inline-block max-w-full">{i < parts.length - 1 ? `${part} ·` : part}</span>
+              </React.Fragment>
+            ));
+          })()}
+        </span> : null}
+      {footer ? <span data-travel-line="footer" className="break-words text-xs font-medium text-muted-foreground">{footer}</span> : null}
+    </span>
+  );
+}
+
+/** A leg's card with nothing to press: the Plan's travel row, read-only (the shared view). */
+export function LegCard({ label, compact, footer }: { label: LegLabel; compact?: boolean; footer?: React.ReactNode }) {
+  return (
+    <div
+      data-travel-row
+      className={cn(TRAVEL_ROW_BASE, compact ? "px-4 py-3 shadow-[3px_3px_0_hsl(var(--sun))]" : "px-5 py-3.5 shadow-[4px_4px_0_hsl(var(--sun))]")}
+    >
+      <TravelRowText label={label} compact={compact} footer={footer} />
+    </div>
   );
 }

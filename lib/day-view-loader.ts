@@ -539,7 +539,7 @@ export async function getDayWeatherView(i: {
   dateISO: string;
   today: string;
   placeName: string;
-}): Promise<DayWeatherView | null> {
+}): Promise<DayWeatherView> {
   const { lat, lng, timezone, dateISO, today, placeName } = i;
   const dateLabel = formatDayLabel(dateISO);
   const daysOut = daysBetween(today, dateISO);
@@ -548,7 +548,6 @@ export async function getDayWeatherView(i: {
   const day = await getDayWeather({ lat, lng, dateISO, today, withCurrent: isToday });
   // formatDayLabel is "Sat 12 Dec" — the month is its third word.
   const theme = getWeatherTheme({ day, daysOut, isToday, monthShort: dateLabel.split(" ")[2] });
-  if (!theme) return null;
 
   // Sunrise/sunset come from lib/daylight.ts (NOAA, offline — ADR 0015), in the Stop's zone.
   const dl = daylight(lat, lng, dateISO);
