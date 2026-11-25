@@ -110,6 +110,8 @@ export function DayByDay({
   );
 }
 
+// Below sm the StopBlock grid is [circle][name][Show] over a summary row and a dates-and-chip row
+// that start under the name; from sm up the same children sit in one flex row.
 function FoldedStop({ s }: { s: DayByDayStop }) {
   return (
     <>
@@ -122,16 +124,15 @@ function FoldedStop({ s }: { s: DayByDayStop }) {
       >
         {s.number}
       </span>
-      <span className="flex min-w-0 flex-1 flex-col">
-        <span className="break-words font-display text-[17px] font-extrabold leading-tight">{s.name}</span>
+      <span className="contents sm:flex sm:min-w-0 sm:flex-1 sm:flex-col">
+        <span className="min-w-0 overflow-hidden text-ellipsis font-display text-[17px] font-extrabold leading-tight">{s.name}</span>
         {s.summary && (
-          <span data-stop-summary className="truncate text-[13px] font-semibold text-muted-foreground">
+          <span data-stop-summary className="col-span-2 col-start-2 line-clamp-2 min-w-0 text-[13px] font-semibold text-muted-foreground sm:col-auto sm:truncate">
             {s.summary}
           </span>
         )}
       </span>
-      {/* Stacked on a phone (dates over chip) so the card stays two lines tall beside the Show control. */}
-      <span className="flex shrink-0 flex-col items-end gap-1 sm:flex-row sm:items-center sm:gap-2">
+      <span className="col-span-2 col-start-2 flex items-center gap-2 sm:col-auto sm:shrink-0">
         {s.status === "past" ? (
           <span className="inline-flex items-center gap-1 whitespace-nowrap text-[13px] font-bold text-teal-text">
             <Check aria-hidden className="size-3.5" />

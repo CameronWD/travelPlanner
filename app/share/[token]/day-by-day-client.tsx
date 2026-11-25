@@ -162,7 +162,7 @@ export function StopBlock({
           {...motionProps}
           data-stop-folded={stopId}
           className={cn(
-            "flex items-center gap-3 overflow-hidden rounded-[18px] border-2 border-border bg-card px-4 py-3",
+            "grid grid-cols-[28px_minmax(0,1fr)_auto] items-center gap-x-3 gap-y-1 overflow-hidden rounded-[18px] border-2 border-border bg-card px-4 py-3 sm:flex sm:gap-3",
             dashed && "border-dashed",
           )}
         >
@@ -172,7 +172,7 @@ export function StopBlock({
             aria-expanded="false"
             aria-label={`Show ${name}`}
             onClick={() => setOpenId(stopId)}
-            className="pressable inline-flex h-9 shrink-0 items-center gap-1 whitespace-nowrap rounded-full px-2 text-[13px] font-bold tap-target"
+            className="pressable col-start-3 row-start-1 inline-flex h-9 shrink-0 items-center gap-1 whitespace-nowrap rounded-full px-2 text-[13px] font-bold tap-target sm:col-auto sm:row-auto"
           >
             Show
             <Chevron open={false} />

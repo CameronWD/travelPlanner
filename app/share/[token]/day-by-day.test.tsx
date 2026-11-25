@@ -73,7 +73,7 @@ describe("DayByDay (SHARE.md §7)", () => {
     expect(marker.className).toMatch(/rounded-full/);
     expect(marker.className).toMatch(/size-7/);
     expect(marker.className).toMatch(/bg-hue-/);
-    expect(within(folded).getByText("Ritz +1 · 3 plans").className).toMatch(/truncate/);
+    expect(within(folded).getByText("Ritz +1 · 3 plans")).toBeInTheDocument();
     expect(within(folded).getByText("5n").className).toMatch(/bg-hue-/);
     expect(within(folded).getAllByText(/5–10 Dec/).length).toBeGreaterThan(0);
   });
@@ -84,14 +84,26 @@ describe("DayByDay (SHARE.md §7)", () => {
     expect(folded.querySelector("[data-stop-summary]")).toBeNull();
   });
 
-  it("a folded Stop's name wraps on a phone and keeps its nights chip", () => {
-    const long = "A".repeat(40);
+  it("a folded Stop's name wraps at words only, never mid-word, and keeps its nights chip", () => {
+    const long = "Santa Maria della Salute";
     const { container } = render(<DayByDay stops={[{ ...stops[0], name: long, status: "future" }, stops[1]]} initialOpenId="par" />);
     const folded = container.querySelector("[data-stop-folded='lon']") as HTMLElement;
     const name = within(folded).getByText(long);
-    expect(name.classList.contains("truncate")).toBe(false);
-    expect(name.className).toMatch(/break-words/);
+    const tokens = name.className.split(/\s+/);
+    for (const banned of ["truncate", "break-words", "break-all", "[overflow-wrap:anywhere]"]) expect(tokens).not.toContain(banned);
+    expect(tokens).toContain("min-w-0");
     expect(within(folded).getByText("5n")).toBeInTheDocument();
+  });
+
+  it("a folded Stop stacks on a phone: the summary may wrap, and the dates and chip share one row", () => {
+    const { container } = render(<DayByDay stops={[{ ...stops[0], status: "future" }, stops[1]]} initialOpenId="par" />);
+    const folded = container.querySelector("[data-stop-folded='lon']") as HTMLElement;
+    const summary = within(folded).getByText("Ritz +1 · 3 plans");
+    expect(summary.className.split(/\s+/)).not.toContain("truncate");
+    const dates = within(folded).getByText(/5–10 Dec/);
+    expect(dates.parentElement).toBe(within(folded).getByText("5n").parentElement);
+    expect(folded.className).toMatch(/\bgrid\b/);
+    expect(folded.className).toMatch(/sm:flex/);
   });
 
   it("an open Stop's name wraps on a phone with its dates on a muted line under it", () => {
