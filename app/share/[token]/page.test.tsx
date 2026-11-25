@@ -79,6 +79,12 @@ vi.mock("@/lib/surprise-visibility", async (importOriginal) => ({
   loadSurpriseVisibility: loadSurpriseVisibilityMock,
 }));
 
+const { dayByDaySpy } = vi.hoisted(() => ({ dayByDaySpy: vi.fn() }));
+vi.mock("./day-by-day", async (orig) => {
+  const actual = await orig<typeof import("./day-by-day")>();
+  return { ...actual, DayByDay: (props: Parameters<typeof actual.DayByDay>[0]) => { dayByDaySpy(props); return actual.DayByDay(props); } };
+});
+
 vi.mock("@/components/usage/usage-share-opened", () => ({ UsageShareOpened: () => <i data-testid="usage-share-opened" /> }));
 import SharePage, { dynamic, metadata } from "./page";
 import { SHARE_FOOTER_COPY } from "./share-cta";
@@ -907,6 +913,15 @@ describe("SharePage — travel legs", () => {
     expect(text).toContain("ICE 9572");
     expect(text).toContain("6h 49m");
     for (const secret of ["SEAT-14C", "GATE-B22", "CARRIER-X"]) expect(text).not.toContain(secret);
+  });
+
+  it("hands the client only mode, label, line, arrivesAt and arrZone for a leg", async () => {
+    transportFindManyMock.mockResolvedValue([
+      { ...BASE, ...withSeatAndGate, id: "tr1", mode: "TRAIN", fromStopId: "s1", toStopId: "s2", depAt: new Date("2020-12-08T05:51:00Z"), arrAt: new Date("2020-12-08T12:40:00Z"), serviceNumber: "ICE 1" },
+    ]);
+    await renderPage();
+    const { stops } = dayByDaySpy.mock.calls[0][0];
+    expect(Object.keys(stops[0].legAfter).sort()).toEqual(["arrZone", "arrivesAt", "label", "line", "mode"]);
   });
 
   it("lists no leg at all, Home legs included, when the link leaves transport out", async () => {

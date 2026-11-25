@@ -6,6 +6,7 @@ import { formatDateRangeCompact, formatDayLabel, formatNights } from "@/lib/date
 import type { StopStatus } from "@/lib/share/view";
 import { MODE_ICONS, ShareRows, type ShareRowModel } from "./share-rows";
 import type { ShareLeg } from "./share-leg";
+import { ViewerArrival } from "./viewer-time";
 import { DayByDayProvider, StopBlock, StopIndex, StopPicker } from "./day-by-day-client";
 
 interface DayByDayDay {
@@ -190,12 +191,15 @@ function OpenStop({ s }: { s: DayByDayStop }) {
 function LegLine({ leg }: { leg: ShareLeg }) {
   const Icon = MODE_ICONS[leg.mode] ?? ArrowRight;
   return (
-    <div data-share-leg className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-0.5 px-4 py-2 text-sm">
+    <div data-share-leg className="flex min-w-0 items-start gap-3 px-4 py-2 text-sm">
       <span aria-hidden className="island flex size-7 shrink-0 items-center justify-center rounded-full bg-sun text-on-accent">
         <Icon className="size-4" />
       </span>
-      <span className="break-words font-bold">{leg.label}</span>
-      <span className="text-[13px] font-medium tabular-nums text-muted-foreground">{leg.line}</span>
+      <span className="flex min-w-0 flex-col gap-0.5 self-center">
+        <span className="break-words font-bold">{leg.label}</span>
+        <span className="text-[13px] font-medium tabular-nums text-muted-foreground">{leg.line}</span>
+        {leg.arrivesAt && <ViewerArrival arrivesAt={leg.arrivesAt} arrZone={leg.arrZone} />}
+      </span>
     </div>
   );
 }

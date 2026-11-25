@@ -2,6 +2,7 @@ import { Moon } from "lucide-react";
 import { cn } from "@/lib/cn";
 import { tzAbbrev, formatDayLabel, formatWeekday } from "@/lib/dates";
 import { LocalClock } from "./local-clock";
+import { ViewerNow } from "./viewer-time";
 import { MODE_LABELS, MODE_ICONS, ShareRows, type ShareRowModel } from "./share-rows";
 
 // ---------------------------------------------------------------------------
@@ -55,6 +56,7 @@ export function RightNowCard({ timeZone, localDateISO, nowHHMM, place, rows, day
           <LocalClock timeZone={timeZone} initial={nowHHMM} />
           {" "}
           {tzAbbrev(timeZone, localDateISO)}
+          <ViewerNow timeZone={timeZone} />
         </p>
       </div>
 

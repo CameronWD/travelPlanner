@@ -29,6 +29,8 @@ describe("buildShareLeg", () => {
       mode: "TRAIN",
       label: "Train to Strasbourg",
       line: "Thu 10 Dec · Munich Hbf 06:51 → Strasbourg 10:40 · 3h 49m · ICE 9572",
+      arrivesAt: "2026-12-10T09:40:00.000Z",
+      arrZone: "Europe/Berlin",
     });
   });
 
@@ -101,5 +103,12 @@ describe("buildShareLeg", () => {
     const back = buildShareLeg({ ...t, depPlace: "Denpasar (DPS)", arrPlace: "1 Home Rd" }, zones, "x", { hideArrPlace: true }).line;
     expect(back).not.toContain("Home Rd");
     expect(back).toContain("Denpasar (DPS) 17:50 \u2192 22:15");
+  });
+
+  it("carries the arrival instant and its zone for the viewer's own time", () => {
+    const withArrival = buildShareLeg({ ...base, depAt: new Date("2026-12-10T05:51:00Z"), arrAt: new Date("2026-12-10T09:40:00Z") }, BERLIN, "x");
+    expect(withArrival.arrivesAt).toBe("2026-12-10T09:40:00.000Z");
+    expect(withArrival.arrZone).toBe("Europe/Berlin");
+    expect(buildShareLeg(base, BERLIN, "x").arrivesAt).toBeNull();
   });
 });

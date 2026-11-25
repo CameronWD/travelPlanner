@@ -16,6 +16,9 @@ export interface ShareLeg {
   mode: TransportMode;
   label: string;
   line: string;
+  /** ISO instant of the arrival and its end's zone: public facts, already shown as a local time. */
+  arrivesAt: string | null;
+  arrZone: string;
 }
 
 /** The only Travel detail a public link carries, and only for a mode people follow by its number. */
@@ -43,5 +46,5 @@ export function buildShareLeg(
   const line = [dep ? formatDayLabel(dep.dateISO) : null, route || null, minutes ? formatDuration(minutes) : null, number || null]
     .filter(Boolean)
     .join(" · ");
-  return { mode: t.mode, label, line };
+  return { mode: t.mode, label, line, arrivesAt: t.arrAt ? new Date(t.arrAt).toISOString() : null, arrZone: zones.arr };
 }
