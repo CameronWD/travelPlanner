@@ -171,6 +171,8 @@ describe("DayByDay (SHARE.md §7)", () => {
     expect(screen.getByRole("button", { name: "Hide London" })).toHaveAttribute("aria-expanded", "true");
     expect(screen.getByRole("button", { name: "Hide Paris" })).toHaveAttribute("aria-expanded", "true");
     await userEvent.click(screen.getByRole("button", { name: "Hide London" }));
+    // The closing card folds away (MOTION.md S7), inert while it goes.
+    expect(screen.getByText("Borough Market").closest("[inert]")).not.toBeNull();
     await waitFor(() => expect(screen.queryByText("Borough Market")).not.toBeInTheDocument());
     expect(screen.getByText("Louvre")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Show London" })).toHaveAttribute("aria-expanded", "false");

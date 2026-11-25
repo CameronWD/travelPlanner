@@ -80,9 +80,10 @@ export const viewport: Viewport = { themeColor: MAP_INK.light.paper };
 // ---------------------------------------------------------------------------
 // Desktop placement per stage. The DOM order is the mobile order
 // (shareSections, SHARE.md §1); lg:order-* rebuilds the two-column rows.
-// The left item that shares a row with the route list sticks (spec 2026-10-02
-// §F). The sticky box is an INNER wrapper of the grid cell, not the cell: a
-// sticky grid item is bounded by the whole grid (it rode over Day by day at
+// The left item that shares a row with the plain route list sticks (spec 2026-10-02
+// §F); that list now shows only where the merged route does not (all three
+// switches off, or no scheduled Stops). The sticky box is an INNER wrapper of the grid cell, not the cell: a
+// sticky grid item is bounded by the whole grid (it rode over The route at
 // the page end, LA-135), whereas the wrapper's containing block is the cell,
 // which stretches to its row — so the pin ends with the row. The wrapper is
 // still outside ShareReveal, so the reveal's transform cannot break it.
