@@ -40,6 +40,13 @@ export interface TransportPreview {
   /** A Proposal's Booking state is a choice when it has one (components/trip/booking-state-field.tsx seedFromProposal). */
   bookingStateSet: boolean;
   notes: string | null;
+  carrier: string | null;
+  serviceNumber: string | null;
+  seat: string | null;
+  terminal: string | null;
+  gate: string | null;
+  coach: string | null;
+  platform: string | null;
   sortOrder: number;
   fromStopName: string | null;
   toStopName: string | null;
@@ -74,6 +81,13 @@ export function transportPreview(
       reference: input.reference ?? null,
       bookingStateSet: input.bookingState !== undefined,
       notes: input.notes ?? null,
+      carrier: input.carrier ?? null,
+      serviceNumber: input.serviceNumber ?? null,
+      seat: input.seat ?? null,
+      terminal: input.terminal ?? null,
+      gate: input.gate ?? null,
+      coach: input.coach ?? null,
+      platform: input.platform ?? null,
       sortOrder: 0,
       fromStopName: from?.name ?? null,
       toStopName: to?.name ?? null,

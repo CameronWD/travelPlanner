@@ -47,14 +47,14 @@ export interface BuildResult {
 /** Claude's uncertainFields name → the card field it highlights. */
 const UNCERTAIN_TO_HIGHLIGHT: Record<string, string> = {
   mode: "mode",
-  carrier: "notes",
-  serviceNumber: "notes",
+  carrier: "details",
+  serviceNumber: "details",
   reference: "reference",
   depPlace: "depPlace",
   depTime: "depAt",
   arrPlace: "arrPlace",
   arrTime: "arrAt",
-  seat: "notes",
+  seat: "details",
   travelClass: "notes",
   name: "name",
   address: "address",
@@ -440,13 +440,14 @@ export function buildProposals(extraction: BookingExtraction, ctx: MatchContext)
       }
     }
 
-    // Seat, class and a non-flight carrier go into Notes (a flight number already names its airline).
-    const carrier = mode === "FLIGHT" && t.serviceNumber ? null : t.carrier;
-    const notes = [carrier, t.serviceNumber, t.seat ? `Seat ${t.seat.trim()}` : null, t.travelClass]
-      .map((s) => s?.trim())
-      .filter(Boolean)
-      .join(" · ");
-    if (notes) input.notes = notes;
+    const carrier = trimmed(t.carrier);
+    if (carrier) input.carrier = carrier;
+    const serviceNumber = trimmed(t.serviceNumber);
+    if (serviceNumber) input.serviceNumber = serviceNumber;
+    const seat = trimmed(t.seat);
+    if (seat) input.seat = seat;
+    const travelClass = trimmed(t.travelClass);
+    if (travelClass) input.notes = travelClass;
     const reference = trimmed(t.reference);
     if (reference) input.reference = reference;
     Object.assign(input, costFields(d.src.cost, extraction.bookedOn, ctx.today, b.doubleCheck));

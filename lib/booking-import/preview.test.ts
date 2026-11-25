@@ -30,6 +30,11 @@ describe("Booking import preview", () => {
     expect(transport.toStopName).toBe("Lisbon");
   });
 
+  it("carries the carrier, service number and seat to the card", () => {
+    const { transport } = transportPreview({ mode: "FLIGHT", carrier: "Skylark Air", serviceNumber: "SK101", seat: "32A" }, new Map(), null);
+    expect(transport).toMatchObject({ carrier: "Skylark Air", serviceNumber: "SK101", seat: "32A", terminal: null });
+  });
+
   it("uses an end's zone hint when it has no Stop, and the Home hint when Home has no zone", () => {
     const { transport, homeTimezone } = transportPreview(
       { mode: "FLIGHT", depIsHome: true, depTimezone: "Australia/Sydney", depAt: "2026-12-01T10:00", arrPlace: "Singapore Changi (SIN)", arrTimezone: "Asia/Singapore", arrAt: "2026-12-01T16:00" },

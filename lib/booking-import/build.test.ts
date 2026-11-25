@@ -62,7 +62,10 @@ describe("buildProposals: the sample booking", () => {
         toStopId: "s-lis",
         arrPlace: "Lisbon (LIS)",
         arrAt: "2026-12-02T07:15",
-        notes: "SK101 · Seat 32A · Economy",
+        notes: "Economy",
+        carrier: "Skylark Air",
+        serviceNumber: "SK101",
+        seat: "32A",
         reference: "QX7P2M",
         bookingState: "BOOKED",
         costMinor: 214_000,
@@ -362,7 +365,7 @@ describe("buildProposals: things to do, car hire, gaps", () => {
     expect(p.input).toEqual({ title: "Pena Palace entry", category: "OTHER", stopId: "s-lis", date: "2026-12-04", startTime: "09:30", endTime: "11:00", address: "Pena Palace, Estrada da Pena", booking: "PENA-1", bookingState: "BOOKED" });
   });
 
-  it("car hire is a CAR Transport from pickup to drop-off with the hire company in Notes", () => {
+  it("car hire is a CAR Transport from pickup to drop-off with the hire company as a Travel detail", () => {
     const car: ExtractedProposal = {
       ...OUTBOUND,
       cost: null,
@@ -373,7 +376,8 @@ describe("buildProposals: things to do, car hire, gaps", () => {
         arr: { place: null, city: "Porto", cityEnglish: null, cityLocal: null, country: "Portugal", localDateTime: "2026-12-08T18:00" },
       },
     };
-    expect(byId(buildProposals(report(car), CTX).proposals, "p1").input).toMatchObject({ mode: "CAR", fromStopId: "s-lis", depPlace: "Hertz Lisbon Airport", toStopId: "s-opo", notes: "Hertz", reference: "H-778" });
+    expect(byId(buildProposals(report(car), CTX).proposals, "p1").input).toMatchObject({ mode: "CAR", fromStopId: "s-lis", depPlace: "Hertz Lisbon Airport", toStopId: "s-opo", carrier: "Hertz", reference: "H-778" });
+    expect(byId(buildProposals(report(car), CTX).proposals, "p1").input).not.toHaveProperty("notes");
   });
 
   it("a departure with only a date is missing its time and says so", () => {
@@ -425,6 +429,12 @@ describe("buildProposals: things to do, car hire, gaps", () => {
     const p = byId(buildProposals(report(item({ startTime: "10:00", endTime: "12:00", slotTime: "10:00" })), CTX).proposals, "p1");
     expect(p.input).not.toHaveProperty("startTime");
     expect(p.input).toMatchObject({ endTime: "12:00", slotTime: "10:00" });
+  });
+
+  it("an uncertain seat highlights the details line and an uncertain class the notes", () => {
+    const flight = (uncertainFields: string[]): ExtractedProposal => ({ ...OUTBOUND, uncertainFields });
+    expect(byId(buildProposals(report(flight(["seat"])), CTX).proposals, "p1").highlight).toEqual(["details"]);
+    expect(byId(buildProposals(report(flight(["travelClass"])), CTX).proposals, "p1").highlight).toEqual(["notes"]);
   });
 
   it("an uncertain slot highlights the slot on the card", () => {
