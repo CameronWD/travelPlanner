@@ -378,9 +378,9 @@ function stickySections(c: HTMLElement) {
 }
 
 describe("SharePage — stages (SHARE.md §1)", () => {
-  it("before: hero → map → route → days → cta", async () => {
+  it("before: hero → map → days → cta (one route section)", async () => {
     const { container } = await renderStage("before");
-    expect(sectionOrder(container)).toEqual(["hero", "map", "route", "days", "cta"]);
+    expect(sectionOrder(container)).toEqual(["hero", "map", "days", "cta"]);
     // Spec 2026-10-02 §F: the left item beside the route list sticks on desktop.
     const sticky = stickySections(container);
     expect(sticky.map((s) => s.key)).toEqual(["hero"]);
@@ -390,8 +390,8 @@ describe("SharePage — stages (SHARE.md §1)", () => {
     expect(container.querySelector("[data-stop-open]")!.getAttribute("data-stop-open")).toBe("s1");
   });
 
-  it("before: the map sits in column 1 under the hero while the route list spans both rows beside them", async () => {
-    const { container } = await renderStage("before");
+  it("before, with every switch off: the map sits in column 1 under the hero while the route list spans both rows beside them", async () => {
+    const { container } = await renderStage("before", { includeAccommodation: false, includeTransport: false, includeDailyPlans: false });
     const cell = (key: string) => container.querySelector<HTMLElement>(`[data-share-section='${key}']`)!;
     expect(cell("map").className).toContain("lg:order-3");
     expect(cell("map").className).not.toContain("lg:col-span-2");
@@ -400,24 +400,23 @@ describe("SharePage — stages (SHARE.md §1)", () => {
     expect(cell("route").querySelector("[data-slot='share-route']")!.className).toContain("lg:h-full");
   });
 
-  it("during: hero → right-now → next → journal → map → route → days → cta", async () => {
+  it("during: hero → right-now → next → journal → map → days → cta", async () => {
     const { container } = await renderStage("during");
-    expect(sectionOrder(container)).toEqual(["hero", "right-now", "next", "journal", "map", "route", "days", "cta"]);
+    expect(sectionOrder(container)).toEqual(["hero", "right-now", "next", "journal", "map", "days", "cta"]);
     // Spec 2026-10-02 §F: the left item beside the route list sticks on desktop.
     const sticky = stickySections(container);
     expect(sticky.map((s) => s.key)).toEqual(["map"]);
     expect(sticky[0].classes).toEqual(expect.arrayContaining(["lg:sticky", "lg:top-6"]));
     expect(screen.getByText("Right now")).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "In Munich" })).toBeInTheDocument();
-    // Day by day opens at the current stop, the route list tags it.
+    // The route opens at the current stop.
     expect(container.querySelector("[data-stop-open]")!.getAttribute("data-stop-open")).toBe("s1");
-    expect(screen.getByText("Here now")).toBeInTheDocument();
     expect(container.querySelector("[data-slot='share-next']")).toHaveTextContent("London");
   });
 
-  it("after: hero → tally → journal → route → map → days → cta, with Use this route", async () => {
+  it("after: hero → tally → journal → map → days → cta, with Use this route", async () => {
     const { container } = await renderStage("after");
-    expect(sectionOrder(container)).toEqual(["hero", "tally", "journal", "route", "map", "days", "cta"]);
+    expect(sectionOrder(container)).toEqual(["hero", "tally", "journal", "map", "days", "cta"]);
     // Spec 2026-10-02 §F: the left item beside the route list sticks on desktop.
     const sticky = stickySections(container);
     expect(sticky.map((s) => s.key)).toEqual(["map"]);
@@ -429,13 +428,28 @@ describe("SharePage — stages (SHARE.md §1)", () => {
     expect(container.querySelector("[data-stop-open]")).toBeNull();
   });
 
-  it("hides Day by day when all three itinerary dials are off", async () => {
+  it("with all three itinerary dials off, the old route list stands alone: no opening Stop cards", async () => {
     const { container } = await renderStage("before", {
       includeAccommodation: false,
       includeTransport: false,
       includeDailyPlans: false,
     });
-    expect(sectionOrder(container)).not.toContain("days");
+    expect(sectionOrder(container)).toEqual(["hero", "map", "route", "cta"]);
+    expect(screen.getAllByRole("heading", { name: "The route" })).toHaveLength(1);
+    expect(container.querySelector("[data-slot='share-route']")).not.toBeNull();
+    expect(container.querySelector("[aria-expanded]")).toBeNull();
+  });
+
+  it("with the route showing its Stops, there is one \"The route\" heading and each Stop appears once", async () => {
+    const { container } = await renderStage("before");
+    expect(screen.getAllByRole("heading", { name: "The route" })).toHaveLength(1);
+    expect(container.querySelector("[data-slot='share-route']")).toBeNull();
+    const cards = Array.from(container.querySelectorAll("[data-share-stop]"));
+    expect(cards).toHaveLength(2);
+    expect(cards[0]).toHaveTextContent("Munich");
+    expect(cards[1]).toHaveTextContent("London");
+    expect(container.querySelectorAll("[data-share-section='days'] li[data-share-stop='s1']")).toHaveLength(1);
+    expect(container.querySelector("[data-share-section='route']")).toBeNull();
   });
 
   it("hides the journal section when includeJournal is off", async () => {
@@ -1067,6 +1081,69 @@ describe("SharePage — travel legs", () => {
       expect(rightNowSpy).toHaveBeenCalled();
       expect(rightNowSpy.mock.calls.at(-1)![0].timeZone).toBe("Europe/Berlin");
       expectNoHomeZone(container);
+    });
+  });
+
+  describe("one route, Home at each end", () => {
+    const HOME = { homeName: "Gold Coast", homeLat: -28, homeLng: 153.4, homeTimezone: "Australia/Sydney" };
+    const beforeWith = (over: Record<string, unknown> = {}, tripOver: Record<string, unknown> = HOME) => {
+      shareFindFirstMock.mockResolvedValue({ ...share({ startDate: "2099-12-06", endDate: "2099-12-09", ...tripOver } as never), ...over });
+      stopFindManyMock.mockResolvedValue(STAGE_TRIPS.before.stops);
+      transportFindManyMock.mockResolvedValue(HOME_LEGS);
+    };
+    const homeCards = (c: HTMLElement) => Array.from(c.querySelectorAll<HTMLElement>("[data-share-home]"));
+
+    it("draws a Home card above the outbound leg and below the return leg, naming only the Home base", async () => {
+      beforeWith();
+      const { container } = await renderPage();
+      const cards = homeCards(container);
+      expect(cards).toHaveLength(2);
+      const rows = legs(container);
+      expect(cards[0].compareDocumentPosition(rows[0]) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+      expect(cards[1].compareDocumentPosition(rows[1]) & Node.DOCUMENT_POSITION_PRECEDING).toBeTruthy();
+      for (const c of cards) {
+        expect(c).toHaveTextContent("Gold Coast");
+        expect(c).toHaveTextContent("Home");
+        expect(c.textContent).not.toMatch(/Example St|Home Rd/);
+      }
+      expect(JSON.stringify(dayByDaySpy.mock.calls[0][0])).not.toContain("Australia/Sydney");
+      expect(container.innerHTML).not.toContain("Australia/Sydney");
+    });
+
+    it("draws no Home card when the link leaves transport out", async () => {
+      beforeWith({ includeTransport: false });
+      const { container } = await renderPage();
+      expect(homeCards(container)).toHaveLength(0);
+    });
+
+    it("keeps the legs but draws no Home card when the Home base has no point on the map", async () => {
+      beforeWith({}, { homeName: "Gold Coast", homeLat: null, homeLng: null, homeTimezone: "Australia/Sydney" });
+      const { container } = await renderPage();
+      expect(legs(container)).toHaveLength(2);
+      expect(homeCards(container)).toHaveLength(0);
+      expect(container.textContent).not.toContain("Gold Coast");
+    });
+
+    it("lists a Stop with no dates once, after the scheduled Stops, as a plain card", async () => {
+      beforeWith();
+      stopFindManyMock.mockResolvedValue([
+        ...STAGE_TRIPS.before.stops,
+        { id: "s3", name: "Bali", country: "Indonesia", lat: null, lng: null, timezone: "Asia/Makassar", arriveDate: null, departDate: null, nights: 4, sortOrder: 2 },
+      ]);
+      const { container } = await renderPage();
+      const rough = container.querySelector("[data-share-rough='s3']") as HTMLElement;
+      expect(rough).toHaveTextContent("Bali");
+      expect(rough).toHaveTextContent("Indonesia · 4 nights");
+      expect(rough).toHaveTextContent("Dates to come");
+      expect(rough.querySelector("button")).toBeNull();
+      const lastScheduled = container.querySelector("[data-share-stop='s2']")!;
+      expect(lastScheduled.compareDocumentPosition(rough) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+      expect(container.querySelectorAll("[data-share-section='days'] [data-share-rough]")).toHaveLength(1);
+    });
+
+    it("ends a closed card's summary with the Stop's country", async () => {
+      await renderStage("before");
+      expect(summariesOf()).toContain("Platzl Hotel · 1 plan · Germany");
     });
   });
 

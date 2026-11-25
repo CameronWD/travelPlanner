@@ -1,4 +1,4 @@
-import { Check } from "lucide-react";
+import { Check, House } from "lucide-react";
 import { cn } from "@/lib/cn";
 import { HUE_CLASSES } from "@/lib/hues";
 import { stopDotClass, stopHue } from "@/lib/stop-colours";
@@ -25,6 +25,7 @@ export interface DayByDayStop {
   arriveDate: string;
   departDate: string;
   nights: number;
+  country?: string | null;
   /** The closed card's line under the name, built on the server from this link's switches. */
   summary: string | null;
   status: StopStatus;
@@ -33,8 +34,16 @@ export interface DayByDayStop {
   legAfter: ShareLeg | null;
 }
 
+/** A Stop with no dates yet: listed at the end, plain, with nothing to open. */
+export interface RoughStop {
+  id: string;
+  name: string;
+  country: string | null;
+  nights: number | null;
+}
+
 /**
- * SHARE.md §7 — Day by day. Server-rendered; only the fold / picker state is
+ * SHARE.md §7 — The route. Server-rendered; only the fold / picker state is
  * client-side, and the client pieces receive view models, never rows.
  * `initialOpenId` is computed on the server (current stop during, first
  * before, none after) so the first client render matches.
@@ -44,23 +53,28 @@ export function DayByDay({
   initialOpenId,
   homeOut = null,
   homeBack = null,
+  homeName = null,
+  roughStops = [],
 }: {
   stops: DayByDayStop[];
   initialOpenId: string | null;
   homeOut?: ShareLeg | null;
   homeBack?: ShareLeg | null;
+  /** The Home base's name, only when the page already shows it on the map; no name, no Home card. */
+  homeName?: string | null;
+  roughStops?: RoughStop[];
 }) {
   return (
-    <section data-share-section-inner="days" aria-labelledby="days-heading">
+    <section data-share-section-inner="days" aria-labelledby="route-heading">
       <DayByDayProvider initialOpenId={initialOpenId}>
         <div className="lg:grid lg:grid-cols-[240px_minmax(0,1fr)] lg:items-start lg:gap-6">
           <div className="lg:sticky lg:top-6">
             <div className="flex items-center justify-between gap-3">
               <h2
-                id="days-heading"
+                id="route-heading"
                 className="font-display text-2xl font-extrabold tracking-[-0.03em] lg:text-[28px]"
               >
-                Day by day
+                The route
               </h2>
               <StopPicker className="lg:hidden" stops={stops.map((s) => ({ id: s.id, name: s.name }))} />
             </div>
@@ -76,9 +90,16 @@ export function DayByDay({
           </div>
           <ol className="mt-3 flex flex-col lg:mt-0">
             {homeOut && (
-              <li>
-                <ShareTravelRow {...homeOut} />
-              </li>
+              <>
+                {homeName && (
+                  <li>
+                    <HomeCard name={homeName} />
+                  </li>
+                )}
+                <li>
+                  <ShareTravelRow {...homeOut} />
+                </li>
+              </>
             )}
             {stops.map((s, i) => (
               <li
@@ -99,14 +120,51 @@ export function DayByDay({
               </li>
             ))}
             {homeBack && (
-              <li>
-                <ShareTravelRow {...homeBack} />
-              </li>
+              <>
+                <li>
+                  <ShareTravelRow {...homeBack} />
+                </li>
+                {homeName && (
+                  <li>
+                    <HomeCard name={homeName} />
+                  </li>
+                )}
+              </>
             )}
+            {roughStops.map((r) => (
+              <li key={r.id} data-share-rough={r.id} className="mt-3">
+                <RoughCard stop={r} />
+              </li>
+            ))}
           </ol>
         </div>
       </DayByDayProvider>
     </section>
+  );
+}
+
+// The leg's connector (centre x=32) meets this card's edge: the house sits on the same axis,
+// 2px border + 22px padding puts its 16px box at 24..40.
+function HomeCard({ name }: { name: string }) {
+  return (
+    <div data-share-home className="flex h-11 items-center gap-2.5 rounded-[14px] border-2 border-dashed border-border bg-background pl-[22px] pr-3.5">
+      <House aria-hidden className="size-4 shrink-0" />
+      <span className="min-w-0 truncate text-sm font-bold">{name}</span>
+      <span className="shrink-0 text-[13px] font-semibold text-muted-foreground">Home</span>
+    </div>
+  );
+}
+
+function RoughCard({ stop }: { stop: RoughStop }) {
+  const sub = [stop.country, stop.nights != null ? formatNights(stop.nights) : null].filter(Boolean).join(" · ");
+  return (
+    <div className="flex flex-wrap items-center gap-x-3 gap-y-1 rounded-[18px] border-2 border-border bg-card px-4 py-3 sm:flex-nowrap">
+      <div className="min-w-0 flex-1">
+        <p className="break-words font-display text-[17px] font-extrabold leading-tight">{stop.name}</p>
+        {sub && <p className="text-[13px] font-semibold text-muted-foreground">{sub}</p>}
+      </div>
+      <span className="shrink-0 whitespace-nowrap text-[13px] font-bold">Dates to come</span>
+    </div>
   );
 }
 
@@ -173,6 +231,7 @@ function OpenStop({ s }: { s: DayByDayStop }) {
           <h3 className="break-words font-display text-[22px] font-extrabold sm:min-w-0 sm:flex-1 sm:truncate">{s.name}</h3>
           <span className="text-[13px] font-semibold tabular-nums text-muted-foreground sm:shrink-0 sm:whitespace-nowrap sm:font-bold sm:text-foreground">
             {formatDayLabel(s.arriveDate)} – {formatDayLabel(s.departDate)} · {formatNights(s.nights)}
+            {s.country ? ` · ${s.country}` : ""}
           </span>
         </div>
       </div>

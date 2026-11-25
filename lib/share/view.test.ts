@@ -203,13 +203,13 @@ describe("groupDaysByStop", () => {
 describe("shareSections (SHARE.md §1 order)", () => {
   const all = { journal: true, days: true, next: true, map: true };
   it("before", () => {
-    expect(shareSections("before", all)).toEqual(["hero", "map", "route", "days", "cta"]);
+    expect(shareSections("before", all)).toEqual(["hero", "map", "days", "cta"]);
   });
   it("during", () => {
-    expect(shareSections("during", all)).toEqual(["hero", "right-now", "next", "journal", "map", "route", "days", "cta"]);
+    expect(shareSections("during", all)).toEqual(["hero", "right-now", "next", "journal", "map", "days", "cta"]);
   });
   it("after", () => {
-    expect(shareSections("after", all)).toEqual(["hero", "tally", "journal", "route", "map", "days", "cta"]);
+    expect(shareSections("after", all)).toEqual(["hero", "tally", "journal", "map", "days", "cta"]);
   });
   it("skips what the link or the data hides", () => {
     expect(shareSections("during", { journal: false, days: false, next: false, map: false }))

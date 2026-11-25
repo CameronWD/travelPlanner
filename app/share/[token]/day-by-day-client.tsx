@@ -15,16 +15,17 @@ import {
 import { scrollToId } from "@/lib/scroll-to";
 import { cn } from "@/lib/cn";
 
-/** How the open stop last changed: a Show/Hide toggle folds (P2); a jump cross-fades (S7). */
+/** How a stop last opened or closed: a Show/Hide toggle folds (P2); a jump cross-fades (S7). */
 type OpenVia = "toggle" | "jump";
 
 interface DayByDayState {
-  openId: string | null;
+  /** In the order they were opened, so the last is the most recent. */
+  openIds: readonly string[];
   via: OpenVia;
-  setOpenId: (id: string | null) => void;
+  toggle: (id: string) => void;
   activeId: string | null;
   setActiveId: (id: string | null) => void;
-  /** Open a stop and scroll to it once the swap has committed. */
+  /** Open a stop (leaving the others as they are) and scroll to it once it has committed. */
   jumpTo: (id: string) => void;
 }
 
@@ -36,9 +37,12 @@ function useDayByDay(): DayByDayState {
   return ctx;
 }
 
-/** Holds the one open stop (every width) and the stop in view for the index. */
+/** Holds the set of open stops (every width) and the stop in view for the index. */
 export function DayByDayProvider({ initialOpenId, children }: { initialOpenId: string | null; children: ReactNode }) {
-  const [open, setOpen] = useState<{ id: string | null; via: OpenVia }>({ id: initialOpenId, via: "toggle" });
+  const [open, setOpen] = useState<{ ids: readonly string[]; via: OpenVia }>({
+    ids: initialOpenId ? [initialOpenId] : [],
+    via: "toggle",
+  });
   const [activeId, setActiveId] = useState<string | null>(null);
   // An object, not the id, so jumping to the same stop twice scrolls twice.
   const [scrollTarget, setScrollTarget] = useState<{ id: string } | null>(null);
@@ -49,22 +53,21 @@ export function DayByDayProvider({ initialOpenId, children }: { initialOpenId: s
     reducedRef.current = reduced;
   }, [reduced]);
 
-  // Scroll after commit: the previously open stop folding above the target
-  // moves it, so measuring before the swap lands short.
+  // Scroll after commit, so the target is measured with the page as it will stay.
   useEffect(() => {
     if (scrollTarget) scrollToId(`share-stop-${scrollTarget.id}`, { reduced: !!reducedRef.current });
   }, [scrollTarget]);
 
-  const setOpenId = (id: string | null) => setOpen({ id, via: "toggle" });
-  // A jump swaps the open stop without animating heights, so the scroll
-  // below measures the page as it will stay.
+  const toggle = (id: string) =>
+    setOpen((prev) => ({ ids: prev.ids.includes(id) ? prev.ids.filter((x) => x !== id) : [...prev.ids, id], via: "toggle" }));
+  // A jump swaps without animating heights, so the scroll below measures the page as it will stay.
   const jumpTo = (id: string) => {
-    setOpen({ id, via: "jump" });
+    setOpen((prev) => ({ ids: prev.ids.includes(id) ? prev.ids : [...prev.ids, id], via: "jump" }));
     setScrollTarget({ id });
   };
 
   return (
-    <DayByDayContext.Provider value={{ openId: open.id, via: open.via, setOpenId, activeId, setActiveId, jumpTo }}>
+    <DayByDayContext.Provider value={{ openIds: open.ids, via: open.via, toggle, activeId, setActiveId, jumpTo }}>
       {children}
     </DayByDayContext.Provider>
   );
@@ -130,9 +133,9 @@ export function StopBlock({
   folded: ReactNode;
   open: ReactNode;
 }) {
-  const { openId, via, setOpenId } = useDayByDay();
+  const { openIds, via, toggle } = useDayByDay();
   const variants = useFoldVariants();
-  const isOpen = openId === stopId;
+  const isOpen = openIds.includes(stopId);
   const motionProps = { variants, custom: via, initial: "hidden", animate: "shown", exit: "gone" } as const;
 
   return (
@@ -149,7 +152,7 @@ export function StopBlock({
             type="button"
             aria-expanded="true"
             aria-label={`Hide ${name}`}
-            onClick={() => setOpenId(null)}
+            onClick={() => toggle(stopId)}
             className="pressable absolute right-3 top-3 inline-flex h-9 items-center gap-1 rounded-full border-2 border-border bg-card px-3 text-[13px] font-bold tap-target"
           >
             Hide
@@ -171,7 +174,7 @@ export function StopBlock({
             type="button"
             aria-expanded="false"
             aria-label={`Show ${name}`}
-            onClick={() => setOpenId(stopId)}
+            onClick={() => toggle(stopId)}
             className="pressable col-start-3 row-start-1 inline-flex h-9 shrink-0 items-center gap-1 whitespace-nowrap rounded-full px-2 text-[13px] font-bold tap-target sm:col-auto sm:row-auto"
           >
             Show
@@ -190,8 +193,8 @@ export function StopIndex({
   stops: { id: string; name: string; dotClass: string; dates: string }[];
   className?: string;
 }) {
-  const { openId, activeId, setActiveId, jumpTo } = useDayByDay();
-  const active = activeId ?? openId;
+  const { openIds, activeId, setActiveId, jumpTo } = useDayByDay();
+  const active = activeId ?? openIds.at(-1) ?? null;
   const { t } = useMotionTiming();
 
   useEffect(() => {
@@ -242,8 +245,8 @@ export function StopIndex({
 }
 
 export function StopPicker({ stops, className }: { stops: { id: string; name: string }[]; className?: string }) {
-  const { openId, jumpTo } = useDayByDay();
-  const openName = stops.find((s) => s.id === openId)?.name;
+  const { openIds, jumpTo } = useDayByDay();
+  const openName = stops.find((s) => s.id === openIds.at(-1))?.name;
 
   return (
     <div className={className}>

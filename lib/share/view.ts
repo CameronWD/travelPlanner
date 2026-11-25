@@ -212,12 +212,16 @@ const ORDER: Record<ShareStage, ShareSection[]> = {
   after: ["hero", "tally", "journal", "route", "map", "days", "cta"],
 };
 
-/** Mobile DOM order per stage (SHARE.md §1); desktop reorders with lg:order-*. */
+/**
+ * Mobile DOM order per stage (SHARE.md §1); desktop reorders with lg:order-*.
+ * One route: the day-by-day section is the route when it shows, so the plain
+ * route list stands in only when it does not.
+ */
 export function shareSections(
   stage: ShareStage,
   has: { journal: boolean; days: boolean; next: boolean; map: boolean },
 ): ShareSection[] {
   return ORDER[stage].filter(
-    (s) => (s !== "journal" || has.journal) && (s !== "days" || has.days) && (s !== "next" || has.next) && (s !== "map" || has.map),
+    (s) => (s !== "journal" || has.journal) && (s !== "days" || has.days) && (s !== "route" || !has.days) && (s !== "next" || has.next) && (s !== "map" || has.map),
   );
 }
