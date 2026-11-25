@@ -42,6 +42,7 @@ import { deleteAttachment } from "@/server/actions/attachments";
 
 import { ItemFormDialog, AddItemButton } from "./item-form-dialog";
 import type { ItemCardItem } from "./item-card";
+import type { CostRow } from "@/lib/money/cost-row";
 import { nearestPositionedAncestor } from "@/test/helpers/containing-block";
 import { reminderItem } from "@/test/helpers/reminder-item";
 
@@ -820,6 +821,21 @@ describe("ItemFormDialog", () => {
     await user.click(within(confirmDialog).getByRole("button", { name: /^delete$/i }));
     expect(deleteItem).toHaveBeenCalledWith("item-99");
     expect(onOpenChange).toHaveBeenCalledWith(false);
+  });
+
+  it("asks what happened to the money for a paid item and sends the answer", async () => {
+    const user = userEvent.setup();
+    const paid = { id: "c-paid", costMinor: 23521, paidMinor: 23521, currency: "AUD", rateToHome: null, paidAt: new Date("2026-11-01"), dueDate: null, ownerType: "ITEM", ownerId: "item-99", label: "Fare", category: null, settlement: "BEFORE" };
+    render(<ItemFormDialog {...baseProps} item={existingItem} costs={[paid as CostRow]} />);
+    await user.click(screen.getByRole("button", { name: /^delete$/i }));
+    const dialog = await screen.findByRole("dialog", { name: /delete “museum visit”\?/i });
+    await user.click(within(dialog).getByRole("radio", { name: /^Refunded/ }));
+    await user.click(within(dialog).getByRole("button", { name: /^delete$/i }));
+    await waitFor(() =>
+      expect(deleteItem).toHaveBeenCalledWith("item-99", [
+        { costId: "c-paid", refundMinor: 23521, refundedAt: expect.stringMatching(/^\d{4}-\d{2}-\d{2}$/) },
+      ]),
+    );
   });
 
   it("does nothing when the confirmation is cancelled", async () => {

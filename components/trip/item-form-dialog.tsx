@@ -24,6 +24,8 @@ import { CATEGORIES, type Category } from "@/lib/categories";
 import { CategoryPill } from "./category-pill";
 import { FormError } from "@/components/ui/form-error";
 import { useConfirm } from "@/components/ui/confirm-dialog";
+import { useDeletePaid, paidCostsForDelete } from "@/components/money/delete-paid-dialog";
+import type { DeleteRefundAnswer } from "@/lib/money/delete-refund";
 import { toastRefused, toastRejected, formError } from "@/components/ui/action-failure";
 import { createItem, updateItem, deleteItem } from "@/server/actions/items";
 import { setItemPhoto, removeItemPhoto } from "@/server/actions/item-photo";
@@ -716,6 +718,7 @@ function ItemForm({
   });
 
   const { confirm, dialog: confirmDialog } = useConfirm();
+  const { ask: askDeletePaid, dialog: deletePaidDialog } = useDeletePaid();
   const [deleting, setDeleting] = React.useState(false);
   const [deleteError, setDeleteError] = React.useState<string | null>(null);
 
@@ -723,17 +726,26 @@ function ItemForm({
 
   async function handleDelete() {
     if (!item) return;
-    const ok = await confirm({
-      title: `Delete “${item.title}”?`,
-      description: "This can’t be undone.",
-      confirmLabel: "Delete",
-      destructive: true,
-    });
-    if (!ok) return;
+    const title = `Delete “${item.title}”?`;
+    const paid = paidCostsForDelete(costs);
+    let refunds: DeleteRefundAnswer[] | undefined;
+    if (paid.length > 0) {
+      const answer = await askDeletePaid({ title, costs: paid });
+      if (!answer.confirmed) return;
+      refunds = answer.refunds;
+    } else {
+      const ok = await confirm({
+        title,
+        description: "This can’t be undone.",
+        confirmLabel: "Delete",
+        destructive: true,
+      });
+      if (!ok) return;
+    }
     setDeleting(true);
     setDeleteError(null);
     try {
-      const result = await deleteItem(item.id);
+      const result = refunds ? await deleteItem(item.id, refunds) : await deleteItem(item.id);
       if (result.success) {
         onSaved?.();
         onClose();
@@ -1123,6 +1135,7 @@ function ItemForm({
         </Button>
       </DialogFooter>
       {confirmDialog}
+      {deletePaidDialog}
     </form>
   );
 }

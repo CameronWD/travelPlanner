@@ -1938,6 +1938,38 @@ describe("optimistic transport delete", () => {
     });
     expect(desktop().getByRole("button", { name: /^Flight from Sydney to Paris/ })).toBeInTheDocument();
   });
+
+  it("asks what happened to the money for a paid transport and sends the answer", async () => {
+    const user = userEvent.setup();
+    const stopA = makeStop({ id: "s-a", name: "Sydney", sortOrder: 0 });
+    const stopB = makeStop({ id: "s-b", name: "Paris", sortOrder: 1 });
+    const paid = { id: "c-paid", costMinor: 23521, paidMinor: 23521, currency: "AUD", rateToHome: null, paidAt: new Date("2026-11-01"), dueDate: null, ownerType: "TRANSPORT", ownerId: "tr-opt-1", label: "Fare", category: null, settlement: "BEFORE" };
+    renderPlan(<ItineraryManager {...baseProps} initialStops={[stopA, stopB]} initialTransports={[makeTransportBetweenStops("s-a", "s-b", { costs: [paid] })]} />);
+
+    await user.click(desktop().getByRole("button", { name: /^Flight from Sydney to Paris/ }));
+    await user.click(await screen.findByRole("button", { name: "Delete leg" }));
+    await user.click(await screen.findByRole("radio", { name: /^Refunded/ }));
+    await user.click(screen.getByRole("button", { name: "Delete" }));
+
+    await waitFor(() =>
+      expect(deleteTransport).toHaveBeenCalledWith("tr-opt-1", [
+        { costId: "c-paid", refundMinor: 23521, refundedAt: expect.stringMatching(/^\d{4}-\d{2}-\d{2}$/) },
+      ]),
+    );
+  });
+
+  it("keeps the plain confirmation when nothing was paid", async () => {
+    const user = userEvent.setup();
+    const stopA = makeStop({ id: "s-a", name: "Sydney", sortOrder: 0 });
+    const stopB = makeStop({ id: "s-b", name: "Paris", sortOrder: 1 });
+    renderPlan(<ItineraryManager {...baseProps} initialStops={[stopA, stopB]} initialTransports={[makeTransportBetweenStops("s-a", "s-b")]} />);
+
+    await user.click(desktop().getByRole("button", { name: /^Flight from Sydney to Paris/ }));
+    await user.click(await screen.findByRole("button", { name: "Delete leg" }));
+    expect(screen.queryByRole("radio")).not.toBeInTheDocument();
+    await user.click(await screen.findByRole("button", { name: "Delete" }));
+    await waitFor(() => expect(deleteTransport).toHaveBeenCalledWith("tr-opt-1"));
+  });
 });
 
 // ---------------------------------------------------------------------------
@@ -3207,6 +3239,35 @@ describe("no silent failures in the plan editor (spec 2026-10-06 §E)", () => {
     await waitFor(() =>
       expect(toast).toHaveBeenCalledWith(expect.objectContaining({ variant: "destructive", title: "That stay was already removed." })),
     );
+  });
+
+  it("asks what happened to the money for a paid stay and sends the answer", async () => {
+    const paid = { id: "c-paid", costMinor: 23521, paidMinor: 23521, currency: "AUD", rateToHome: null, paidAt: new Date("2026-11-01"), dueDate: null, ownerType: "ACCOMMODATION", ownerId: "acc-1", label: "Fare", category: null, settlement: "BEFORE" };
+    const stay = makeStop({
+      id: "s1", name: "Rome", arriveDate: "2026-07-10", departDate: "2026-07-13",
+      accommodations: [{ ...ROME_STAY.accommodations[0], costs: [paid] }],
+    });
+    const user = userEvent.setup();
+    renderPlan(<ItineraryManager {...baseProps} initialStops={[stay]} />, ["s1"]);
+    await user.click(within(desktop().getByTestId("stay-phone")).getByRole("button", { name: "Hotel Roma" }));
+    const sheet = await screen.findByRole("dialog", { name: "Staying in Rome" });
+    await user.click(within(sheet).getByRole("button", { name: "Delete Hotel Roma" }));
+    await user.click(await screen.findByRole("radio", { name: /Refund expected/ }));
+    await user.click(screen.getByRole("button", { name: "Delete" }));
+    await waitFor(() =>
+      expect(deleteAccommodation).toHaveBeenCalledWith("acc-1", [{ costId: "c-paid", refundMinor: 23521, refundedAt: null }]),
+    );
+  });
+
+  it("keeps the plain confirmation for a stay nothing was paid on", async () => {
+    const user = userEvent.setup();
+    renderPlan(<ItineraryManager {...baseProps} initialStops={[ROME_STAY]} />, ["s1"]);
+    await user.click(within(desktop().getByTestId("stay-phone")).getByRole("button", { name: "Hotel Roma" }));
+    const sheet = await screen.findByRole("dialog", { name: "Staying in Rome" });
+    await user.click(within(sheet).getByRole("button", { name: "Delete Hotel Roma" }));
+    expect(screen.queryByRole("radio")).not.toBeInTheDocument();
+    await user.click(await screen.findByRole("button", { name: "Delete" }));
+    await waitFor(() => expect(deleteAccommodation).toHaveBeenCalledWith("acc-1"));
   });
 
   // Card 2.H: these three ignored a `success: false` answer and said nothing.
