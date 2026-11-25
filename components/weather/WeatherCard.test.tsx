@@ -140,6 +140,19 @@ describe("WeatherCard — every theme at both sizes (WEATHER_CARD §7, behaviour
     expect(screen.getByText(/Too far out for a forecast\. The real forecast starts on Fri 18 Dec, 15 days before\./)).toBeInTheDocument();
     expect(screen.getByText("↑ 08:12 · 16:33 ↓")).toBeInTheDocument();
   });
+  it("no forecast: the normal footprint with daylight and the words, no dashes and no scene", () => {
+    for (const size of ["regular", "compact"] as const) {
+      const { container } = card(null, size, {}, { daysOut: 5 });
+      const el = article();
+      expect(el.className).toContain(size === "regular" ? "h-[236px]" : "h-[140px]");
+      expect(el.querySelector("[data-scene]")).toBeNull();
+      expect(screen.getByText("No forecast right now")).toBeInTheDocument();
+      expect(container.textContent).not.toContain("—");
+      expect(container.textContent).not.toContain("Overcast");
+      expect(screen.getByText(/08:12/)).toBeInTheDocument();
+      cleanup();
+    }
+  });
   it("high/low read as one accessible phrase", () => {
     card(wx({ code: 3 }));
     expect(screen.getByText("9°")).toBeInTheDocument();

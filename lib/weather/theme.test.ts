@@ -35,16 +35,20 @@ describe("overrides, in priority order (§3.1–3.5)", () => {
     const t = getWeatherTheme({ ...base, day: wx({ code: 3, stale: true }) })!;
     expect(t).toMatchObject({ key: "overcast", scene: null, offline: "Offline · updated 2h ago", chip: null });
   });
-  it("beyond 16 days with no reading → too-far", () => {
+  it("beyond 15 days with no reading → too-far", () => {
     const t = getWeatherTheme({ ...base, daysOut: 40, day: null })!;
     expect(t).toMatchObject({ key: "too-far", scene: null, condition: "", chip: null });
   });
-  it("beyond 16 days with a typical reading → themed card with the typical chip", () => {
+  it("beyond 15 days with a typical reading → themed card with the typical chip", () => {
     const t = getWeatherTheme({ ...base, daysOut: 40, day: wx({ source: "typical", code: 3 }) })!;
     expect(t).toMatchObject({ key: "overcast", typical: true, chip: "Typical for Dec" });
   });
-  it("inside the window with no reading → null (no card)", () => {
-    expect(getWeatherTheme({ ...base, day: null })).toBeNull();
+  it("inside the window with no reading → the no-forecast card, never null", () => {
+    expect(getWeatherTheme({ ...base, day: null })).toMatchObject({ key: "no-forecast", scene: null, condition: "No forecast right now", chip: null, typical: false });
+  });
+  it("day 15 with no reading is still inside the window; day 16 is too far", () => {
+    expect(getWeatherTheme({ ...base, daysOut: 15, day: null })!.key).toBe("no-forecast");
+    expect(getWeatherTheme({ ...base, daysOut: 16, day: null })!.key).toBe("too-far");
   });
   it("night: today only, is_day 0, code 0–2", () => {
     const night = wx({ code: 1, current: { tempC: -2, isDay: false } });

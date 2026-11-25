@@ -235,4 +235,89 @@ describe("getDayWeather — extended reading (handoff WEATHER_CARD §1)", () => 
     const { getDayWeather } = await import("@/lib/weather");
     expect(await getDayWeather({ lat: 41.9, lng: 12.5, dateISO: "2026-07-08", today: "2026-06-29" })).toBeNull();
   });
+  describe("forecast window and typical fallback", () => {
+    const today = "2026-06-29";
+    const archivePayload = makePayload(21, 11, 3);
+    const hosts = () => (global.fetch as ReturnType<typeof vi.fn>).mock.calls.map((c) => new URL(c[0]).host);
+    const routed = (forecast: () => unknown) =>
+      vi.fn().mockImplementation(async (url: string) => {
+        if (new URL(url).host === "archive-api.open-meteo.com") return { ok: true, json: async () => archivePayload };
+        return forecast();
+      });
+
+    it("day 15 is requested from the forecast service", async () => {
+      global.fetch = makeFetchOk(makePayload(20, 10, 1));
+      const { getDayWeather } = await import("./weather");
+      const r = await getDayWeather({ lat: 10.1, lng: 10.1, dateISO: "2026-07-14", today });
+      expect(hosts()).toEqual(["api.open-meteo.com"]);
+      expect(r!.source).toBe("forecast");
+    });
+
+    it("day 16 skips the forecast service and reads the typical value", async () => {
+      global.fetch = makeFetchOk(archivePayload);
+      const { getDayWeather } = await import("./weather");
+      const r = await getDayWeather({ lat: 10.2, lng: 10.2, dateISO: "2026-07-15", today });
+      expect(hosts()).toEqual(["archive-api.open-meteo.com"]);
+      expect(r).toMatchObject({ source: "typical", highC: 21 });
+    });
+
+    it("a non-OK forecast falls back to the typical reading", async () => {
+      global.fetch = routed(() => ({ ok: false }));
+      const { getDayWeather } = await import("./weather");
+      const r = await getDayWeather({ lat: 10.3, lng: 10.3, dateISO: "2026-07-09", today });
+      expect(hosts()).toEqual(["api.open-meteo.com", "archive-api.open-meteo.com"]);
+      expect(r).toMatchObject({ source: "typical", highC: 21, lowC: 11, stale: false });
+    });
+
+    it("a forecast with no max and no min temperature falls back to typical", async () => {
+      global.fetch = routed(() => ({ ok: true, json: async () => ({ daily: { temperature_2m_max: [null], temperature_2m_min: [null], weathercode: [null] } }) }));
+      const { getDayWeather } = await import("./weather");
+      const r = await getDayWeather({ lat: 10.4, lng: 10.4, dateISO: "2026-07-14", today });
+      expect(r).toMatchObject({ source: "typical", highC: 21 });
+    });
+
+    it("a forecast that throws falls back to typical", async () => {
+      global.fetch = routed(() => {
+        throw new Error("offline");
+      });
+      const { getDayWeather } = await import("./weather");
+      expect((await getDayWeather({ lat: 10.5, lng: 10.5, dateISO: "2026-07-09", today }))!.source).toBe("typical");
+    });
+
+    it("a fallback reading does not outlive the forecast: the next call after a minute tries the forecast again", async () => {
+      let t = 5_000_000;
+      const args = { lat: 10.6, lng: 10.6, dateISO: "2026-07-09", today, now: () => t };
+      global.fetch = routed(() => ({ ok: false }));
+      const { getDayWeather } = await import("./weather");
+      expect((await getDayWeather(args))!.source).toBe("typical");
+      global.fetch = routed(() => ({ ok: true, json: async () => makePayload(25, 15, 0) }));
+      t += 61_000;
+      expect(await getDayWeather(args)).toMatchObject({ source: "forecast", highC: 25 });
+    });
+
+    it("serves a stale cached forecast rather than a typical reading when the refetch fails", async () => {
+      let t = 6_000_000;
+      const args = { lat: 10.7, lng: 10.7, dateISO: "2026-07-09", today, now: () => t };
+      global.fetch = makeFetchOk(makePayload(25, 15, 0));
+      const { getDayWeather } = await import("./weather");
+      await getDayWeather(args);
+      t += 2 * 3600 * 1000;
+      global.fetch = routed(() => ({ ok: false }));
+      expect(await getDayWeather(args)).toMatchObject({ source: "forecast", highC: 25, stale: true });
+    });
+
+    it("both sources failing gives null, cached for a minute only", async () => {
+      let t = 7_000_000;
+      const args = { lat: 10.8, lng: 10.8, dateISO: "2026-07-04", today, now: () => t };
+      global.fetch = vi.fn().mockResolvedValue({ ok: false });
+      const { getDayWeather } = await import("./weather");
+      expect(await getDayWeather(args)).toBeNull();
+      expect(global.fetch).toHaveBeenCalledTimes(2);
+      await getDayWeather(args);
+      expect(global.fetch).toHaveBeenCalledTimes(2);
+      t += 61_000;
+      await getDayWeather(args);
+      expect(global.fetch).toHaveBeenCalledTimes(4);
+    });
+  });
 });

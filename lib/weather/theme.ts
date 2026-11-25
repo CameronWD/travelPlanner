@@ -1,7 +1,7 @@
 import { FORECAST_WINDOW_DAYS, type DayWeather } from "@/lib/weather";
 
 export type SceneKey = "sunny" | "partly" | "overcast" | "fog" | "rain" | "snow" | "storm" | "wind" | "heat" | "night";
-export type ThemeKey = SceneKey | "too-far";
+export type ThemeKey = SceneKey | "too-far" | "no-forecast";
 
 export interface WeatherTheme { key: ThemeKey; scene: SceneKey | null; condition: string; chip: string | null; offline: string | null; typical: boolean }
 export interface ThemeInput { day: DayWeather | null; daysOut: number; isToday: boolean; monthShort: string; now?: () => number }
@@ -52,13 +52,13 @@ function themedChip(scene: SceneKey, day: DayWeather): string | null {
   }
 }
 
-export function getWeatherTheme(input: ThemeInput): WeatherTheme | null {
+export function getWeatherTheme(input: ThemeInput): WeatherTheme {
   const { day, daysOut, isToday, monthShort } = input;
   const nowMs = (input.now ?? Date.now)();
   if (!day) {
     return daysOut > FORECAST_WINDOW_DAYS
       ? { key: "too-far", scene: null, condition: "", chip: null, offline: null, typical: false }
-      : null;
+      : { key: "no-forecast", scene: null, condition: "No forecast right now", chip: null, offline: null, typical: false };
   }
   const typical = day.source === "typical";
   const code = day.code;
@@ -79,7 +79,7 @@ export function getWeatherTheme(input: ThemeInput): WeatherTheme | null {
 
 const FILL: Record<ThemeKey, string> = {
   sunny: "bg-wx-sunny", partly: "bg-wx-partly", overcast: "bg-wx-overcast", fog: "bg-wx-fog", rain: "bg-wx-rain",
-  snow: "bg-wx-snow", storm: "bg-wx-storm", wind: "bg-wx-wind", heat: "bg-wx-heat", night: "bg-wx-night", "too-far": "bg-background",
+  snow: "bg-wx-snow", storm: "bg-wx-storm", wind: "bg-wx-wind", heat: "bg-wx-heat", night: "bg-wx-night", "too-far": "bg-background", "no-forecast": "bg-background",
 };
 export function themeFill(key: ThemeKey): string { return FILL[key]; }
 

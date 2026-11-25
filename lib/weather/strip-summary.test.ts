@@ -7,6 +7,9 @@ const theme = (key: string, condition: string) => ({ key, condition }) as unknow
 const day = (highC: number | null, lowC: number | null) => ({ highC, lowC }) as DayWeather;
 
 describe("weatherStripSummary", () => {
+  it("says there is no forecast when there is no reading", () => {
+    expect(weatherStripSummary(theme("no-forecast", "No forecast right now"), null)).toBe("No forecast right now");
+  });
   it("is the high, low and condition on one line", () => {
     expect(weatherStripSummary(theme("rain", "Rain"), day(15.2, 8.6))).toBe("15° / 9° · Rain");
   });

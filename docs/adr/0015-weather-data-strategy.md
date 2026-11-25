@@ -10,6 +10,6 @@ Open-Meteo supplies weather for the day view — live forecast for dates within 
 
 ## Consequences
 
-- Weather is best-effort: any fetch failure returns null and the card renders only daylight. Results are cached in memory for the process lifetime (forecast: 1 h revalidation; typical: 24 h).
+- Weather is best-effort: a failed forecast falls back to the typical-for-the-month reading, and when both fail inside the forecast window (today to 15 days out) the card holds its place with daylight and "No forecast right now" (amended 2026-11-25; the card never disappears after its placeholder). Results are cached in memory for the process lifetime (forecast: 1 h revalidation; typical: 24 h).
 - Temperatures are °C only; no unit toggle.
 - Open-Meteo data is licensed CC-BY — attribution ("Weather by Open-Meteo") is required wherever weather data is displayed.
