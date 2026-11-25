@@ -147,7 +147,9 @@ export function LegPill({ label, onClick, compact, bookingState, bookBy, attache
       data-travel-row
       className={cn(
         "group tap-target pressable flex min-w-0 max-w-full items-start gap-2.5 rounded-2xl border-2 border-border bg-sun/15 text-left max-md:w-full",
-        compact ? "px-2.5 py-2" : "px-3 py-2.5",
+        compact
+          ? "px-4 py-3 shadow-[3px_3px_0_hsl(var(--sun))] active:shadow-[1px_1px_0_hsl(var(--sun))]!"
+          : "px-5 py-3.5 shadow-[4px_4px_0_hsl(var(--sun))] active:shadow-[1px_1px_0_hsl(var(--sun))]!",
       )}
     >
       <span className="flex min-w-0 flex-1 flex-col gap-0.5">
