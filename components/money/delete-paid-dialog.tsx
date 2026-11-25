@@ -43,7 +43,7 @@ export interface DeletePaidOptions {
 
 export interface DeletePaidResult {
   confirmed: boolean;
-  refunds: DeleteRefundAnswer[];
+  refunds?: DeleteRefundAnswer[];
 }
 
 type Mode = "none" | "expected" | "received";
@@ -72,31 +72,34 @@ function DeletePaidBody({
   const total = costs.reduce((sum, c) => sum + c.paidMinor, 0);
   const single = costs.length === 1;
 
+  // With several Costs, an empty or zero amount means nothing came back on that one.
   const parsed = costs.map((c) => {
-    const minor = parseAmountToMinor(amounts[c.id] ?? "", c.currency);
-    const problem = refundProblem({
-      paidMinor: c.paidMinor,
-      paidAt: "paid",
-      refundMinor: minor ?? 0,
-      refundedAt: null,
-    });
-    return { cost: c, minor, problem };
+    const raw = amounts[c.id] ?? "";
+    const minor = parseAmountToMinor(raw, c.currency);
+    const left = !single && (raw.trim() === "" || minor === 0);
+    const problem = left
+      ? null
+      : refundProblem({ paidMinor: c.paidMinor, paidAt: "paid", refundMinor: minor ?? 0, refundedAt: null });
+    return { cost: c, minor, left, problem };
   });
   const asking = mode !== "none";
   const problems = asking ? parsed.filter((p) => p.problem) : [];
-  const blocked = problems.length > 0 || (mode === "received" && !date);
+  const answered = parsed.filter((p) => !p.left);
+  const noneEntered = asking && !single && answered.length === 0;
+  const blocked = problems.length > 0 || noneEntered || (mode === "received" && !date);
+  const alertText = problems[0]?.problem ?? (noneEntered ? "Enter the refund amount" : null);
 
   function confirm() {
     if (blocked) return;
     onDone({
       confirmed: true,
       refunds: asking
-        ? parsed.map((p) => ({
+        ? answered.map((p) => ({
             costId: p.cost.id,
             refundMinor: p.minor as number,
             refundedAt: mode === "received" ? date : null,
           }))
-        : [],
+        : undefined,
     });
   }
 
@@ -174,9 +177,12 @@ function DeletePaidBody({
               <Input type="date" required value={date} onChange={(e) => setDate(e.target.value)} />
             </Field>
           )}
-          {problems.length > 0 && (
+          {!single && (
+            <p className="text-xs text-muted-foreground">Leave an amount empty if nothing came back on it.</p>
+          )}
+          {alertText && (
             <p role="alert" className="text-sm font-medium text-destructive">
-              {problems[0].problem}
+              {alertText}
             </p>
           )}
         </div>
@@ -200,7 +206,7 @@ interface State {
   resolver: ((value: DeletePaidResult) => void) | null;
 }
 
-const CANCELLED: DeletePaidResult = { confirmed: false, refunds: [] };
+const CANCELLED: DeletePaidResult = { confirmed: false };
 
 export function useDeletePaid(): {
   ask: (opts: DeletePaidOptions) => Promise<DeletePaidResult>;

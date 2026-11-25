@@ -35,7 +35,7 @@ describe("useDeletePaid", () => {
     expect(screen.getByText(/You’ve paid \$235\.21 for this\. What happened to the money\?/)).toBeInTheDocument();
     expect(screen.getByRole("radio", { name: /Not refunded/ })).toBeChecked();
     await userEvent.click(screen.getByRole("button", { name: "Delete" }));
-    await waitFor(() => expect(onResult).toHaveBeenCalledWith({ confirmed: true, refunds: [] }));
+    await waitFor(() => expect(onResult).toHaveBeenCalledWith({ confirmed: true, refunds: undefined }));
   });
 
   it("Refunded shows the prefilled amount and a date, and resolves a received refund", async () => {
@@ -78,7 +78,7 @@ describe("useDeletePaid", () => {
   it("Cancel resolves unconfirmed", async () => {
     const onResult = await open();
     await userEvent.click(screen.getByRole("button", { name: "Cancel" }));
-    await waitFor(() => expect(onResult).toHaveBeenCalledWith({ confirmed: false, refunds: [] }));
+    await waitFor(() => expect(onResult).toHaveBeenCalledWith({ confirmed: false }));
   });
 
   it("two paid Costs get two labelled amount inputs", async () => {
@@ -86,5 +86,85 @@ describe("useDeletePaid", () => {
     await userEvent.click(screen.getByRole("radio", { name: /Refund expected/ }));
     expect(screen.getByLabelText(/Refund amount: Room/)).toHaveValue("100.00");
     expect(screen.getByLabelText(/Refund amount: Breakfast/)).toHaveValue("25.00");
+  });
+
+  it("with several Costs, an empty amount leaves that Cost out", async () => {
+    const onResult = await open(two);
+    await userEvent.click(screen.getByRole("radio", { name: /^Refunded/ }));
+    expect(screen.getByText("Leave an amount empty if nothing came back on it.")).toBeInTheDocument();
+    await userEvent.clear(screen.getByLabelText(/Refund amount: Breakfast/));
+    await userEvent.click(screen.getByRole("button", { name: "Delete" }));
+    await waitFor(() =>
+      expect(onResult).toHaveBeenCalledWith({
+        confirmed: true,
+        refunds: [{ costId: "c1", refundMinor: 10000, refundedAt: todayLocalISO() }],
+      }),
+    );
+  });
+
+  it("with several Costs, all amounts empty blocks Delete", async () => {
+    await open(two);
+    await userEvent.click(screen.getByRole("radio", { name: /Refund expected/ }));
+    await userEvent.clear(screen.getByLabelText(/Refund amount: Room/));
+    await userEvent.type(screen.getByLabelText(/Refund amount: Breakfast/), "{Control>}a{/Control}0");
+    expect(screen.getByRole("alert")).toHaveTextContent("Enter the refund amount");
+    expect(screen.getByRole("button", { name: "Delete" })).toBeDisabled();
+  });
+
+  it("with several Costs, one over its paid amount blocks Delete", async () => {
+    await open(two);
+    await userEvent.click(screen.getByRole("radio", { name: /Refund expected/ }));
+    const input = screen.getByLabelText(/Refund amount: Breakfast/);
+    await userEvent.clear(input);
+    await userEvent.type(input, "30");
+    expect(screen.getByRole("alert")).toHaveTextContent("A refund can’t be more than what was paid.");
+    expect(screen.getByRole("button", { name: "Delete" })).toBeDisabled();
+  });
+
+  it("with one Cost, an empty amount still blocks Delete", async () => {
+    await open();
+    await userEvent.click(screen.getByRole("radio", { name: /Refund expected/ }));
+    await userEvent.clear(screen.getByLabelText("Refund amount"));
+    expect(screen.getByRole("button", { name: "Delete" })).toBeDisabled();
+  });
+
+  it("mixed currencies list each Cost with its own amount and no total", async () => {
+    await open([
+      { id: "c1", label: "Room", paidMinor: 10000, currency: "AUD" },
+      { id: "c2", label: "Tour", paidMinor: 5000, currency: "JPY" },
+    ]);
+    expect(screen.getByText("You’ve paid for this. What happened to the money?")).toBeInTheDocument();
+    expect(screen.getByText(/Room: \$100\.00/)).toBeInTheDocument();
+    expect(screen.getByText(/Tour: .*5,000/)).toBeInTheDocument();
+  });
+
+  it("a zero-decimal currency sends the typed amount as is", async () => {
+    const onResult = await open([{ id: "c1", label: "Tour", paidMinor: 8000, currency: "JPY" }]);
+    await userEvent.click(screen.getByRole("radio", { name: /Refund expected/ }));
+    const input = screen.getByLabelText("Refund amount");
+    await userEvent.clear(input);
+    await userEvent.type(input, "5000");
+    await userEvent.click(screen.getByRole("button", { name: "Delete" }));
+    await waitFor(() =>
+      expect(onResult).toHaveBeenCalledWith({
+        confirmed: true,
+        refunds: [{ costId: "c1", refundMinor: 5000, refundedAt: null }],
+      }),
+    );
+  });
+
+  it("reads a trailing comma as the decimal point in a two-decimal currency", async () => {
+    const onResult = await open();
+    await userEvent.click(screen.getByRole("radio", { name: /Refund expected/ }));
+    const input = screen.getByLabelText("Refund amount");
+    await userEvent.clear(input);
+    await userEvent.type(input, "12,50");
+    await userEvent.click(screen.getByRole("button", { name: "Delete" }));
+    await waitFor(() =>
+      expect(onResult).toHaveBeenCalledWith({
+        confirmed: true,
+        refunds: [{ costId: "c1", refundMinor: 1250, refundedAt: null }],
+      }),
+    );
   });
 });
