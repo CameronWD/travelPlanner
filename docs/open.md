@@ -36,6 +36,7 @@ Paths marked A: are under `docs/archive/`.
 - **RV-02** More than 50 Reviews cannot be paged (`HISTORY_LIMIT = 50`, `lib/review-reads.ts`). A: `open-follow-ups.md`
 - **BI-01** The Booking import's 10 MB limit is about 4 MB on Vercel; fix is a presigned R2 upload. A: `follow-ups/2026-10-14-booking-import.md`
 - **BI-02** The Booking import rate limit is per server instance (`server/actions/booking-import.ts` ~30); count `AiUsage` rows instead. A: `follow-ups/2026-10-14-booking-import.md`
+- **Booking import, city names** (2026-11-25) A shorter English name widens the 4-letter containment match: "Frankfurt am Main" reported as "Frankfurt" lands on a Stop called "Frankfurt (Oder)" in the same country (`lib/booking-import/match.ts`, `sameCity`). A booking in a nearby town (a hotel in Kehl for the Strasbourg Stop, Malpensa for Como) still proposes or picks by name, not by distance. A place whose printed country is not recognised folds into a lone same-named proposed Stop as if no country were printed (`lib/booking-import/build.ts`).
 - **Trips list masking** "Now in ..." on the Trips list uses raw Stop names with no Surprise masking (`lib/trips/trips-page-loader.ts`); pre-existing.
 - **MCP link string** MCP Item create and update accept an unvalidated link string (`lib/mcp/tools/plan-write.ts` 118, 136); the render-time guard `safeWebHref` covers display.
 - **Surprise Reminders** `unscheduleItem`'s placed-copy delete and fork promote do not clean up a Surprise's Reminders (`deleteStop` does).
@@ -92,3 +93,4 @@ From the Google maps and extras specs: a compliance refresh cron, Places phone /
 
 - **Usage tracking** (Cam, 2026-11-18) To see what gets used before simplifying: first-party counts of sections opened and actions used per Traveller per day, a trend table on /admin, no third-party tracker. Check what is already recorded first.
 - **Mystery destination** (Cam, 2026-11-18) A Surprise that also hides the Stop's name and the Transport's destination; the map, weather, Calendar band, timezone, Digest and tickets would all need handling.
+- **Flight delay alerts** (Cam, 2026-11-25) A push when a flight's time, gate or terminal changes or it is cancelled. Needs a real Flight number on a Transport, a flight-status provider (several have free tiers; limits unverified) and a scheduled check in the hours before departure. Not before January.

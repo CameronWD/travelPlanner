@@ -1,6 +1,7 @@
 /**
  * What Claude reports about a booking (spec 2026-10-14 "Extraction schema").
- * Claude reports, code decides: every value is as printed, or null. Sent as
+ * Claude reports, code decides: every value is as printed, or null, except
+ * cityEnglish and cityLocal, which Claude supplies rather than reads. Sent as
  * the structured-output schema (zodOutputFormat) and re-validated with
  * safeParse before any Proposal is built (lib/booking-import/extract.ts).
  * Server only: zod never reaches the browser.
@@ -14,6 +15,8 @@ const text = z.string().nullable();
 const EndSchema = z.object({
   place: text, // station, airport, pier or pickup point as printed
   city: text,
+  cityEnglish: text, // the city's usual English name; supplied, not read
+  cityLocal: text, // its name in the main language of its country; null when unsure
   country: text,
   localDateTime: text, // "YYYY-MM-DDTHH:mm", the local wall time printed for this place
 });
@@ -33,6 +36,8 @@ const AccommodationSchema = z.object({
   name: text,
   address: text,
   city: text,
+  cityEnglish: text, // the city's usual English name; supplied, not read
+  cityLocal: text, // its name in the main language of its country; null when unsure
   country: text,
   checkIn: text,
   checkOut: text,
@@ -50,6 +55,8 @@ const ItemSchema = z.object({
   place: text,
   address: text,
   city: text,
+  cityEnglish: text, // the city's usual English name; supplied, not read
+  cityLocal: text, // its name in the main language of its country; null when unsure
   country: text,
   booking: text,
   slotTime: text, // "HH:mm": the time the ticket or reservation is for

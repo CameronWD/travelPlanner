@@ -16,6 +16,7 @@ const CTX: MatchContext = {
   existing: NO_EXISTING,
   today: "2026-10-14",
 };
+const end2 = (place: string, city: string, cityEnglish: string | null, localDateTime: string) => ({ place, city, cityEnglish, cityLocal: null, country: "Portugal", localDateTime });
 const report = (...proposals: ExtractedProposal[]): BookingExtraction => ({ isBooking: true, notBookingReason: null, bookedOn: null, proposals });
 const byId = (ps: Proposal[], id: string) => ps.find((p) => p.clientId === id)!;
 const item = (over: Partial<NonNullable<ExtractedProposal["item"]>>, cost: ExtractedProposal["cost"] = null): ExtractedProposal => ({
@@ -25,7 +26,7 @@ const item = (over: Partial<NonNullable<ExtractedProposal["item"]>>, cost: Extra
   uncertainFields: [],
   transport: null,
   accommodation: null,
-  item: { title: "Ticket", category: "SIGHTSEEING", date: "2026-12-04", startTime: null, endTime: null, place: null, address: null, city: "Lisbon", country: "Portugal", booking: null, slotTime: null, arriveByMinutes: null, refundable: null, ...over },
+  item: { title: "Ticket", category: "SIGHTSEEING", date: "2026-12-04", startTime: null, endTime: null, place: null, address: null, city: "Lisbon", cityEnglish: null, cityLocal: null, country: "Portugal", booking: null, slotTime: null, arriveByMinutes: null, refundable: null, ...over },
   cost,
 });
 
@@ -93,8 +94,8 @@ describe("buildProposals: the sample booking", () => {
       doubleCheck: [],
       transport: {
         ...OUTBOUND.transport!,
-        dep: { place: "Lisbon (LIS)", city: "Lisbon", country: "Portugal", localDateTime: "2026-12-05T09:00" },
-        arr: { place: "Porto (OPO)", city: "Porto", country: "Portugal", localDateTime: "2026-12-20" },
+        dep: { place: "Lisbon (LIS)", city: "Lisbon", cityEnglish: null, cityLocal: null, country: "Portugal", localDateTime: "2026-12-05T09:00" },
+        arr: { place: "Porto (OPO)", city: "Porto", cityEnglish: null, cityLocal: null, country: "Portugal", localDateTime: "2026-12-20" },
       },
     };
     const p = byId(buildProposals(report(arrivesLate), CTX).proposals, "p1");
@@ -136,7 +137,7 @@ describe("buildProposals: Review Focus", () => {
   });
 
   it("a connection airport stays free text with its own zone, and no Stop is proposed for it (Review Focus 2)", () => {
-    const sin = { place: "Singapore Changi (SIN)", city: "Singapore", country: "Singapore" };
+    const sin = { place: "Singapore Changi (SIN)", city: "Singapore", cityEnglish: null, cityLocal: null, country: "Singapore" };
     const leg1: ExtractedProposal = { ...OUTBOUND, transport: { ...OUTBOUND.transport!, arr: { ...sin, localDateTime: "2026-12-01T16:00" } } };
     const leg2: ExtractedProposal = { ...OUTBOUND, cost: null, transport: { ...OUTBOUND.transport!, serviceNumber: "SK7", dep: { ...sin, localDateTime: "2026-12-01T23:30" } } };
     const { proposals } = buildProposals(report(leg1, leg2), CTX);
@@ -159,9 +160,88 @@ describe("buildProposals: Review Focus", () => {
   });
 
   it("a city match beats a same-country Stop whose dates overlap (Review Focus 4)", () => {
-    const portoStay: ExtractedProposal = { ...STAY, accommodation: { ...STAY.accommodation!, city: "Porto", checkIn: "2026-12-03", checkOut: "2026-12-05" } };
+    const portoStay: ExtractedProposal = { ...STAY, accommodation: { ...STAY.accommodation!, city: "Porto", cityEnglish: "Porto", cityLocal: null, checkIn: "2026-12-03", checkOut: "2026-12-05" } };
     const { proposals } = buildProposals(report(portoStay), CTX);
     expect(byId(proposals, "p1").input).toMatchObject({ stopId: "s-opo" });
+  });
+});
+
+describe("buildProposals: city names in other languages", () => {
+  const lisboaStay = { ...STAY, accommodation: { ...STAY.accommodation!, city: "Lisboa", cityEnglish: "Lisbon", cityLocal: "Lisboa" } };
+
+  it("a flight printing Lisbon and a hotel printing Lisboa propose one Stop, named Lisbon, and both hang on it", () => {
+    const { proposals } = buildProposals({ ...SAMPLE_EXTRACTION, proposals: [OUTBOUND, RETURN, lisboaStay] }, { ...CTX, stops: [] });
+    const stops = proposals.filter((p) => p.kind === "stop");
+    expect(stops.map((s) => s.input.name)).toEqual(["Lisbon"]);
+    const flight = proposals.find((p) => p.kind === "transport")!;
+    const stay = proposals.find((p) => p.kind === "accommodation")!;
+    expect(stay.input.stopId).toBe(flight.input.toStopId);
+  });
+
+  it("a hotel printing Lisboa lands on the existing Lisbon Stop, which keeps its name", () => {
+    const { proposals } = buildProposals({ ...SAMPLE_EXTRACTION, proposals: [lisboaStay] }, CTX);
+    expect(proposals.filter((p) => p.kind === "stop")).toEqual([]);
+    expect(proposals.find((p) => p.kind === "accommodation")!.input.stopId).toBe("s-lis");
+  });
+
+  it("an unplaced end keeps the station as printed", () => {
+    const muc = { place: "München Hbf", city: "München", cityEnglish: "Munich", cityLocal: "München", country: "Germany" };
+    const leg1: ExtractedProposal = { ...OUTBOUND, transport: { ...OUTBOUND.transport!, arr: { ...muc, localDateTime: "2026-12-04T07:00" } } };
+    const leg2: ExtractedProposal = {
+      ...OUTBOUND,
+      cost: null,
+      transport: { ...OUTBOUND.transport!, serviceNumber: "SK7", mode: "TRAIN", dep: { ...muc, localDateTime: "2026-12-04T09:00" }, arr: { ...NO_END, city: "Lisbon", cityEnglish: "Lisbon", country: "Portugal", localDateTime: "2026-12-04T20:00" } },
+    };
+    const { proposals } = buildProposals(report(leg1, leg2), { ...CTX, stops: [] });
+    expect(proposals.some((p) => p.kind === "stop" && p.input.name === "Munich")).toBe(false);
+    expect(byId(proposals, "p2").input).toMatchObject({ depPlace: "München Hbf" });
+    expect(byId(proposals, "p2").input).not.toHaveProperty("fromStopId");
+  });
+
+  it("a connection through a city printed two ways is still a layover (Review Focus 5)", () => {
+    const leg1: ExtractedProposal = { ...OUTBOUND, transport: { ...OUTBOUND.transport!, arr: end2("Lisboa Airport", "Lisboa", "Lisbon", "2026-12-02T07:15") } };
+    const leg2: ExtractedProposal = {
+      ...OUTBOUND,
+      cost: null,
+      transport: { ...OUTBOUND.transport!, serviceNumber: "SK7", dep: end2("Lisbon Airport", "Lisbon", null, "2026-12-02T09:00"), arr: { ...NO_END, place: "Porto Airport", city: "Porto", cityEnglish: "Porto", country: "Portugal", localDateTime: "2026-12-02T10:00" } },
+    };
+    const { proposals } = buildProposals(report(leg1, leg2), { ...CTX, stops: [] });
+    expect(proposals.some((p) => p.kind === "stop" && p.input.name === "Lisbon")).toBe(false);
+    expect(byId(proposals, "p1").input).toMatchObject({ arrPlace: "Lisboa Airport" });
+    expect(byId(proposals, "p2").input).toMatchObject({ depPlace: "Lisbon Airport" });
+    expect(byId(proposals, "p1").input).not.toHaveProperty("toStopId");
+    expect(byId(proposals, "p2").input).not.toHaveProperty("fromStopId");
+  });
+
+  describe("a place with no printed country", () => {
+    const noCountry = (country: string | null = null): ExtractedProposal => ({
+      ...OUTBOUND,
+      cost: null,
+      transport: { ...OUTBOUND.transport!, arr: { place: "Lisbon (LIS)", city: "Lisbon", cityEnglish: "Lisbon", cityLocal: null, country, localDateTime: "2026-12-02T07:15" } },
+    });
+    const noReturn: ExtractedProposal = { ...OUTBOUND, cost: null, transport: { ...OUTBOUND.transport!, serviceNumber: "SK9", arr: { ...NO_END, city: "Brisbane", cityEnglish: "Brisbane", country: "Australia", localDateTime: "2026-12-01T20:00" } } };
+    const check = (order: ExtractedProposal[]) => {
+      const { proposals } = buildProposals(report(...order), { ...CTX, stops: [] });
+      const stops = proposals.filter((p) => p.kind === "stop");
+      expect(stops).toHaveLength(1);
+      expect(stops[0].input).toMatchObject({ name: "Lisbon", countryCode: "pt", arriveDate: "2026-12-02", departDate: "2026-12-08" });
+      const flight = proposals.find((p) => p.kind === "transport")!;
+      const stay = proposals.find((p) => p.kind === "accommodation")!;
+      expect(flight.input.toStopId).toBe(stay.input.stopId);
+    };
+
+    it("joins the same-named proposed Stop that has one, flight first", () => {
+      check([noCountry(), lisboaStay]);
+    });
+    it("joins it with the hotel first", () => {
+      check([lisboaStay, noCountry()]);
+    });
+    it("stays its own Stop when two same-named proposed Stops have a country", () => {
+      const us = item({ city: "Lisbon", cityEnglish: "Lisbon", country: "United States" });
+      const pt = item({ city: "Lisbon", cityEnglish: "Lisbon", country: "Portugal", title: "Tram" });
+      const { proposals } = buildProposals(report(noCountry(), noReturn, us, pt), { ...CTX, stops: [] });
+      expect(proposals.filter((p) => p.kind === "stop").map((s) => s.input.countryCode ?? null).sort()).toEqual([null, "pt", "us"]);
+    });
   });
 });
 
@@ -289,8 +369,8 @@ describe("buildProposals: things to do, car hire, gaps", () => {
       doubleCheck: [],
       transport: {
         mode: "CAR", carrier: "Hertz", serviceNumber: null, reference: "H-778", seat: null, travelClass: null,
-        dep: { place: "Hertz Lisbon Airport", city: "Lisbon", country: "Portugal", localDateTime: "2026-12-08T10:00" },
-        arr: { place: null, city: "Porto", country: "Portugal", localDateTime: "2026-12-08T18:00" },
+        dep: { place: "Hertz Lisbon Airport", city: "Lisbon", cityEnglish: null, cityLocal: null, country: "Portugal", localDateTime: "2026-12-08T10:00" },
+        arr: { place: null, city: "Porto", cityEnglish: null, cityLocal: null, country: "Portugal", localDateTime: "2026-12-08T18:00" },
       },
     };
     expect(byId(buildProposals(report(car), CTX).proposals, "p1").input).toMatchObject({ mode: "CAR", fromStopId: "s-lis", depPlace: "Hertz Lisbon Airport", toStopId: "s-opo", notes: "Hertz", reference: "H-778" });
@@ -363,13 +443,13 @@ describe("buildProposals: Surprise", () => {
 
 describe("buildProposals: fix round 1 findings", () => {
   it("a connection city a Stay in this import covers is not just a connection: both legs link to its proposed Stop (finding 1a)", () => {
-    const sin = { place: "Singapore Changi (SIN)", city: "Singapore", country: "Singapore" };
+    const sin = { place: "Singapore Changi (SIN)", city: "Singapore", cityEnglish: null, cityLocal: null, country: "Singapore" };
     const leg1: ExtractedProposal = { ...OUTBOUND, transport: { ...OUTBOUND.transport!, arr: { ...sin, localDateTime: "2026-12-01T22:00" } } };
     const leg2: ExtractedProposal = { ...OUTBOUND, cost: null, transport: { ...OUTBOUND.transport!, serviceNumber: "SK7", dep: { ...sin, localDateTime: "2026-12-02T09:00" } } };
     const stay: ExtractedProposal = {
       ...STAY,
       cost: null,
-      accommodation: { ...STAY.accommodation!, name: "Changi Transit Hotel", city: "Singapore", country: "Singapore", checkIn: "2026-12-01", checkOut: "2026-12-02" },
+      accommodation: { ...STAY.accommodation!, name: "Changi Transit Hotel", city: "Singapore", cityEnglish: "Singapore", cityLocal: null, country: "Singapore", checkIn: "2026-12-01", checkOut: "2026-12-02" },
     };
     const { proposals } = buildProposals(report(leg1, leg2, stay), CTX);
     const stops = proposals.filter((p) => p.kind === "stop");
@@ -383,7 +463,7 @@ describe("buildProposals: fix round 1 findings", () => {
   it("a connection city that is already a Stop links both legs to it, even under 24h apart (finding 1b)", () => {
     const SINGAPORE: MatchStop = { id: "s-sin", name: "Singapore", country: "Singapore", countryCode: "sg", timezone: "Asia/Singapore", arriveDate: "2026-12-01", departDate: "2026-12-02", sortOrder: 0 };
     const ctx: MatchContext = { ...CTX, stops: [...CTX.stops, SINGAPORE] };
-    const sin = { place: "Singapore Changi (SIN)", city: "Singapore", country: "Singapore" };
+    const sin = { place: "Singapore Changi (SIN)", city: "Singapore", cityEnglish: null, cityLocal: null, country: "Singapore" };
     const leg1: ExtractedProposal = { ...OUTBOUND, transport: { ...OUTBOUND.transport!, arr: { ...sin, localDateTime: "2026-12-01T22:00" } } };
     const leg2: ExtractedProposal = { ...OUTBOUND, cost: null, transport: { ...OUTBOUND.transport!, serviceNumber: "SK7", dep: { ...sin, localDateTime: "2026-12-02T09:00" } } };
     const { proposals } = buildProposals(report(leg1, leg2), ctx);

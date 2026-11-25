@@ -27,6 +27,10 @@ export interface ReleaseNote {
 /** Newest first. Add new notes at the top. */
 export const RELEASE_NOTES: ReleaseNote[] = [
   {
+    publishedAt: "2026-11-25T00:00:00Z",
+    text: "Booking import: a booking printed in another language now lands on the right Stop. München finds Munich.",
+  },
+  {
     publishedAt: "2026-11-24T22:50:00Z",
     text: "Pages refresh when you reopen Teepee. Typing 12,50 now counts as twelve fifty, and Sign-in links last a day.",
   },

@@ -1,6 +1,12 @@
 import type { BookingExtraction, ExtractedProposal } from "@/lib/booking-import/schema";
 
-const end = (place: string, city: string, country: string, localDateTime: string | null) => ({ place, city, country, localDateTime });
+const end = (
+  place: string,
+  city: string,
+  country: string,
+  localDateTime: string | null,
+  names: { cityEnglish?: string | null; cityLocal?: string | null } = {},
+) => ({ place, city, cityEnglish: names.cityEnglish === undefined ? city : names.cityEnglish, cityLocal: names.cityLocal ?? null, country, localDateTime });
 
 export const OUTBOUND: ExtractedProposal = {
   kind: "transport",
@@ -45,6 +51,8 @@ export const STAY: ExtractedProposal = {
     name: "Casa do Rio Lisboa",
     address: "Rua Ficticia 12, 1100-000 Lisboa",
     city: "Lisbon",
+    cityEnglish: "Lisbon",
+    cityLocal: "Lisboa",
     country: "Portugal",
     checkIn: "2026-12-02",
     checkOut: "2026-12-08",
@@ -64,4 +72,4 @@ export const SAMPLE_EXTRACTION: BookingExtraction = {
 };
 
 /** An empty end, for building variants in tests. */
-export const NO_END = { place: null, city: null, country: null, localDateTime: null };
+export const NO_END = { place: null, city: null, cityEnglish: null, cityLocal: null, country: null, localDateTime: null };

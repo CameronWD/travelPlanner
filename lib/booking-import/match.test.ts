@@ -8,7 +8,8 @@ const CTX = { home: HOME, stops: [LISBON, PORTO] };
 const END = { allowHome: true, allowNew: true, anyStopOnDate: false };
 const STAY = { allowHome: false, allowNew: true, anyStopOnDate: false };
 const ITEM = { allowHome: false, allowNew: true, anyStopOnDate: true };
-const q = (city: string | null, country: string | null, place: string | null = null) => ({ city, country, place });
+const q = (city: string | null, country: string | null, place: string | null = null) => ({ city, cityEnglish: null, cityLocal: null, country, place });
+const q2 = (city: string | null, cityEnglish: string | null, cityLocal: string | null, country: string | null, place: string | null = null) => ({ city, cityEnglish, cityLocal, country, place });
 
 describe("sameCity", () => {
   it("finds a Stop's name inside an airport or station name, ignoring accents and case", () => {
@@ -26,6 +27,9 @@ describe("countryCodeOf", () => {
     expect(countryCodeOf("PT")).toBe("pt");
     expect(countryCodeOf("United Kingdom")).toBe("gb");
     expect(countryCodeOf("UK")).toBe("gb");
+    expect(countryCodeOf("Germany")).toBe("de");
+    expect(countryCodeOf("Serbia")).toBe("rs");
+    expect(countryCodeOf("France")).toBe("fr");
     expect(countryCodeOf("Atlantis")).toBeNull();
     expect(countryCodeOf(null)).toBeNull();
   });
@@ -96,5 +100,38 @@ describe("outsideStay", () => {
     expect(outsideStay(LISBON, "2026-12-15")).toBe(true);
     expect(outsideStay(LISBON, "2026-12-08")).toBe(false);
     expect(outsideStay(LISBON, null)).toBe(false);
+  });
+});
+
+describe("resolvePlace: city names in other languages", () => {
+  it("a city printed in the local language finds the Stop named in English", () => {
+    expect(resolvePlace(q2("Lisboa", "Lisbon", "Lisboa", "Portugal"), { from: "2026-12-03", to: null }, CTX, STAY)).toEqual({ kind: "stop", stop: LISBON });
+  });
+  it("a city printed in English finds the Stop named in the local language (Review Focus 2)", () => {
+    const MUNCHEN: MatchStop = { ...LISBON, id: "s-muc", name: "München", country: "Germany", countryCode: "de", timezone: "Europe/Berlin" };
+    expect(resolvePlace(q2("Munich", "Munich", "München", "Germany"), { from: "2026-12-03", to: null }, { home: HOME, stops: [MUNCHEN] }, STAY)).toEqual({ kind: "stop", stop: MUNCHEN });
+  });
+  it("Home matches on the English name", () => {
+    const home: MatchHome = { name: "Vienna", countryCode: "at", timezone: "Europe/Vienna" };
+    expect(resolvePlace(q2("Wien", "Vienna", "Wien", "Austria"), { from: null, to: null }, { home, stops: [] }, END)).toEqual({ kind: "home" });
+  });
+  it("a new Stop takes the English name and key", () => {
+    expect(resolvePlace(q2("München", "Munich", "München", "Germany"), { from: "2026-12-03", to: null }, CTX, STAY)).toEqual({ kind: "new", key: "munich|de", name: "Munich", country: "Germany", countryCode: "de" });
+  });
+  it("with no English name the printed city is used (Review Focus 1), and a blank one counts as none (Review Focus 3)", () => {
+    expect(resolvePlace(q2("München", null, null, "Germany"), { from: "2026-12-03", to: null }, CTX, STAY)).toMatchObject({ kind: "new", key: "munchen|de", name: "München" });
+    expect(resolvePlace(q2("München", "  ", null, "Germany"), { from: "2026-12-03", to: null }, CTX, STAY)).toMatchObject({ kind: "new", name: "München" });
+  });
+  it("the same English name in another country is still another place (Review Focus 4)", () => {
+    expect(resolvePlace(q2("Lisbon", "Lisbon", null, "United States"), { from: "2026-12-03", to: null }, CTX, STAY)).toMatchObject({ kind: "new", key: "lisbon|us" });
+  });
+  it("an English name alone never invents a city the booking did not print", () => {
+    const withEnglish = q2(null, "Lisbon", null, "Portugal");
+    const without = q2(null, null, null, "Portugal");
+    const covering = { from: "2026-12-03", to: null };
+    expect(resolvePlace(withEnglish, covering, CTX, STAY)).toEqual(resolvePlace(without, covering, CTX, STAY));
+    const empty = { home: HOME, stops: [] };
+    expect(resolvePlace(withEnglish, covering, empty, STAY)).toEqual(resolvePlace(without, covering, empty, STAY));
+    expect(resolvePlace(withEnglish, covering, empty, STAY)).toEqual({ kind: "none" });
   });
 });

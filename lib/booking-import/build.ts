@@ -11,7 +11,7 @@ import { decimalsFor, parseAmountToMinor } from "@/lib/money/money";
 import { MAX_ARRIVE_BY_MINUTES } from "@/lib/slot-time";
 import { stopTimezone, timezoneForCountryOrNull } from "@/lib/tz";
 import { findDuplicate, type ExistingBookings } from "./duplicates";
-import { countryCodeOf, outsideStay, resolvePlace, sameCity, type MatchHome, type MatchStop, type PlaceMatch, type PlaceQuery } from "./match";
+import { cityNameOf, countryCodeOf, outsideStay, resolvePlace, sameCity, type MatchHome, type MatchStop, type PlaceMatch, type PlaceQuery } from "./match";
 import { BOOKING_IMPORT_MESSAGES as M } from "./messages";
 import type { BookingExtraction, ExtractedCost, ExtractedEnd, ExtractedProposal } from "./schema";
 import {
@@ -190,7 +190,7 @@ type Draft = TransportDraft | StayDraft | ItemDraft;
 function endDraft(e: ExtractedEnd): EndDraft {
   const { date, wall } = normDateTime(e.localDateTime);
   return {
-    query: { city: trimmed(e.city) ?? null, country: trimmed(e.country) ?? null, place: trimmed(e.place) ?? null },
+    query: { city: trimmed(e.city) ?? null, cityEnglish: trimmed(e.cityEnglish) ?? null, cityLocal: trimmed(e.cityLocal) ?? null, country: trimmed(e.country) ?? null, place: trimmed(e.place) ?? null },
     date,
     wall,
     layover: false,
@@ -212,14 +212,14 @@ function toDraft(src: ExtractedProposal): Draft | null {
     const checkIn = normDate(a.checkIn);
     const checkOut = normDate(a.checkOut);
     if (!name || !checkIn || !checkOut || checkOut < checkIn) return null;
-    const query = { city: trimmed(a.city) ?? null, country: trimmed(a.country) ?? null, place: null };
+    const query = { city: trimmed(a.city) ?? null, cityEnglish: trimmed(a.cityEnglish) ?? null, cityLocal: trimmed(a.cityLocal) ?? null, country: trimmed(a.country) ?? null, place: null };
     return { kind: "accommodation", src, name, checkIn, checkOut, query, match: NONE };
   }
   if (src.kind === "item" && src.item) {
     const i = src.item;
     const title = trimmed(i.title) ?? trimmed(i.place);
     if (!title) return null;
-    const query = { city: trimmed(i.city) ?? null, country: trimmed(i.country) ?? null, place: null };
+    const query = { city: trimmed(i.city) ?? null, cityEnglish: trimmed(i.cityEnglish) ?? null, cityLocal: trimmed(i.cityLocal) ?? null, country: trimmed(i.country) ?? null, place: null };
     return { kind: "item", src, title, date: normDate(i.date), query, match: NONE };
   }
   return null;
@@ -228,7 +228,7 @@ function toDraft(src: ExtractedProposal): Draft | null {
 /** True when a Stay in this same report covers `city` on `date`: not a mere connection, a place the Traveller stops. */
 function stayCoversCity(drafts: Draft[], city: string | null, date: string | null): boolean {
   if (!city || !date) return false;
-  return drafts.some((d) => d.kind === "accommodation" && sameCity(city, d.query.city) && date >= d.checkIn && date <= d.checkOut);
+  return drafts.some((d) => d.kind === "accommodation" && sameCity(city, cityNameOf(d.query)) && date >= d.checkIn && date <= d.checkOut);
 }
 
 /**
@@ -241,7 +241,7 @@ function markLayovers(drafts: Draft[]): void {
   const legs = drafts
     .filter((d): d is TransportDraft => d.kind === "transport" && Boolean(d.dep.wall && d.arr.wall))
     .sort((a, b) => a.dep.wall!.localeCompare(b.dep.wall!));
-  const hub = (e: EndDraft) => e.query.city ?? e.query.place;
+  const hub = (e: EndDraft) => cityNameOf(e.query) ?? e.query.place;
   for (let i = 0; i + 1 < legs.length; i++) {
     const a = legs[i];
     const b = legs[i + 1];
@@ -281,9 +281,9 @@ export function buildProposals(extraction: BookingExtraction, ctx: MatchContext)
         end.match = resolvePlace(end.query, { from: end.date, to: end.date }, ctx, end.layover ? LAYOVER_END : TRANSPORT_END);
       }
     } else if (d.kind === "accommodation") {
-      d.match = resolvePlace(d.query, { from: d.checkIn, to: d.checkOut }, ctx, { allowHome: false, allowNew: true, anyStopOnDate: !d.query.city });
+      d.match = resolvePlace(d.query, { from: d.checkIn, to: d.checkOut }, ctx, { allowHome: false, allowNew: true, anyStopOnDate: !cityNameOf(d.query) });
     } else {
-      const placed = Boolean(d.query.city || d.query.country || d.date);
+      const placed = Boolean(cityNameOf(d.query) || d.query.country || d.date);
       d.match = placed
         ? resolvePlace(d.query, { from: d.date, to: d.date }, ctx, { allowHome: false, allowNew: Boolean(d.date), anyStopOnDate: true })
         : NONE;
@@ -308,6 +308,20 @@ export function buildProposals(extraction: BookingExtraction, ctx: MatchContext)
     else need(d.match, [d.date], d.src.confidence);
   }
 
+  // A place with no printed country is no disagreement with a same-named one that has a country (BI-14): it joins that Stop when exactly one exists.
+  const folded = new Map<string, string>();
+  const nameOfKey = (key: string) => key.slice(0, key.lastIndexOf("|"));
+  for (const [key, s] of [...pending.entries()]) {
+    if (s.countryCode) continue;
+    const same = [...pending.entries()].filter(([k, o]) => o.countryCode && nameOfKey(k) === nameOfKey(key));
+    if (same.length !== 1) continue;
+    const [target, survivor] = same[0];
+    survivor.dates.push(...s.dates);
+    survivor.confidences.push(...s.confidences);
+    pending.delete(key);
+    folded.set(key, target);
+  }
+
   const stopClientIds = new Map<string, string>();
   const stopProposals: StopProposal[] = [...pending.entries()]
     .filter(([, s]) => s.dates.length > 0)
@@ -319,6 +333,7 @@ export function buildProposals(extraction: BookingExtraction, ctx: MatchContext)
     .map(({ key, s, arriveDate, departDate }, i) => {
       const clientId = `s${i + 1}`;
       stopClientIds.set(key, clientId);
+      for (const [from, to] of folded) if (to === key) stopClientIds.set(from, clientId);
       const timezone = stopTimezone({ countryCode: s.countryCode, country: s.country });
       const proposal: StopProposal = {
         clientId,
