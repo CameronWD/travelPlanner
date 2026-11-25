@@ -63,6 +63,7 @@ import { loadAccommodationForMcp, loadTransportForMcp } from "../reads/entities"
 import { loadCostForMcp } from "../reads/costs";
 import { requireRealPlanRow, requireRealPlanRows, type RealPlanKind } from "../real-plan";
 import { homeContradictionError } from "@/lib/transport-patch";
+import { TRANSPORT_DETAIL_KEYS, TRANSPORT_DETAIL_MAX, type TransportDetailKey } from "@/lib/transport-details";
 import { TRANSPORT_MODE_MEANING, SETTLEMENT_MEANING, describeValues } from "../vocab";
 import { isoDate, hhmm } from "@/lib/validations/primitives";
 import { bookingCreateShape, bookingPatchFrom, bookingPatchShape } from "../booking-state-fields";
@@ -125,6 +126,27 @@ const accommodationPatchShape = {
  * "YYYY-MM-DDTHH:mm" the action interprets in the endpoint Stop's timezone. */
 const transportDatetime = z.string().trim().min(1, "Give a date and time");
 
+const TRANSPORT_DETAIL_DESCRIPTIONS = {
+  carrier: "Airline, train or bus operator, or car hire company",
+  serviceNumber: "Flight or train number, e.g. LH 2456",
+  seat: "Seat, e.g. 32A",
+  terminal: "Airport terminal (flights)",
+  gate: "Gate (flights)",
+  coach: "Coach or carriage (trains)",
+  platform: "Platform (trains)",
+} as const satisfies Record<TransportDetailKey, string>;
+
+const transportDetailCreateShape = Object.fromEntries(
+  TRANSPORT_DETAIL_KEYS.map((k) => [k, z.string().trim().max(TRANSPORT_DETAIL_MAX).optional().describe(TRANSPORT_DETAIL_DESCRIPTIONS[k])]),
+) as Record<TransportDetailKey, z.ZodOptional<z.ZodString>>;
+
+const transportDetailPatchShape = Object.fromEntries(
+  TRANSPORT_DETAIL_KEYS.map((k) => [
+    k,
+    z.string().trim().max(TRANSPORT_DETAIL_MAX).nullable().optional().describe(`${TRANSPORT_DETAIL_DESCRIPTIONS[k]}. null or "" clears it.`),
+  ]),
+) as Record<TransportDetailKey, z.ZodOptional<z.ZodNullable<z.ZodString>>>;
+
 const transportCreateShape = {
   mode: describedTransportMode,
   fromStopId: z.string().optional(),
@@ -137,6 +159,7 @@ const transportCreateShape = {
   depAt: transportDatetime,
   arrAt: transportDatetime,
   reference: z.string().trim().optional(),
+  ...transportDetailCreateShape,
   notes: z.string().trim().optional(),
   ...bookingCreateShape,
   ...inlineCostCreateShape,
@@ -162,6 +185,7 @@ const transportPatchShape = {
   depAt: transportDatetime.optional(),
   arrAt: transportDatetime.optional(),
   reference: z.string().trim().optional(),
+  ...transportDetailPatchShape,
   notes: z.string().trim().optional(),
   ...bookingPatchShape,
   ...inlineCostCreateShape,
@@ -323,6 +347,7 @@ export function registerBookingsWriteTools(server: McpServer): void {
         `Adds a Transport leg to a trip. depAt/arrAt are a date and time, e.g. "2026-07-01T08:00". ` +
         "Give fromStopId and depPlace together to link a Stop and name the exact departure point (e.g. a station); same for toStopId/arrPlace. " +
         "Home takes no point: depIsHome/arrIsHome can't be true together with fromStopId/toStopId or depPlace/arrPlace. " +
+        "Travel details (carrier, serviceNumber, seat, terminal, gate, coach, platform) are optional; a detail that does not apply to the Transport's mode is kept but not shown. " +
         MONEY_NOTE,
       inputSchema: { tripId: z.string(), ...transportCreateShape },
     },
@@ -358,6 +383,7 @@ export function registerBookingsWriteTools(server: McpServer): void {
         "fromStopId clears the old point unless you pass depPlace too. fromStopId \"\" unlinks the Stop. Home takes no " +
         "point. The same applies to toStopId/arrPlace. " +
         "A leg not bought yet is bookingState TO_BOOK; give bookBy for the day to book it by. " +
+        "Travel details (carrier, serviceNumber, seat, terminal, gate, coach, platform) are optional; a detail that does not apply to the Transport's mode is kept but not shown. " +
         `${MONEY_NOTE} To change paid status or settlement on an owned Cost, use update_cost/mark_cost_paid/mark_cost_unpaid once it exists.`,
       inputSchema: { transportId: z.string(), ...transportPatchShape },
     },

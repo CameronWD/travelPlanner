@@ -12,6 +12,7 @@
  */
 
 import { creationAnchor } from "@/lib/transport-anchor";
+import type { TransportDetails } from "@/lib/transport-details";
 import { untickAll } from "@/lib/try-list";
 import { parseTryList, serializeTryList } from "@/lib/validations/try-list";
 import { defaultBookingState, transportBookingSubject } from "@/lib/booking-state";
@@ -82,7 +83,7 @@ interface DuplicateSourceItem {
   surpriseRevealedAt?: Date | null;
 }
 
-interface DuplicateSourceTransport {
+interface DuplicateSourceTransport extends TransportDetails {
   fromStopId: string | null;
   toStopId: string | null;
   /** The leg's explicit slot, when it has one (lib/transport-anchor). */
@@ -158,6 +159,8 @@ export interface DuplicatePlan {
     sourceAnchorStopId: string | null;
     data: {
       mode: string; depPlace: string | null; arrPlace: string | null; depAt: null; arrAt: null; reference: null; notes: null;
+      // Travel details are per-booking, like the reference.
+      carrier: null; serviceNumber: null; seat: null; terminal: null; gate: null; coach: null; platform: null;
       depLat: number | null; depLng: number | null; arrLat: number | null; arrLng: number | null;
       depPlaceId: string | null; arrPlaceId: string | null;
       depCountryCode: string | null; depRegion: string | null; arrCountryCode: string | null; arrRegion: string | null; sortOrder: number;
@@ -257,6 +260,7 @@ export function buildDuplicatePlan(source: DuplicateSource, newName: string, dup
         depAt: null,
         arrAt: null,
         reference: null,
+        carrier: null, serviceNumber: null, seat: null, terminal: null, gate: null, coach: null, platform: null,
         notes: null,
         depLat: t.depLat,
         depLng: t.depLng,

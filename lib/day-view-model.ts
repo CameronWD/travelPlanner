@@ -13,6 +13,7 @@ import type { OpeningHours } from "@/lib/opening-hours";
 import type { TryList } from "@/lib/try-list";
 import type { CostRow } from "@/lib/money/cost-row";
 import type { DayEntryEditor } from "@/lib/plan-entity-views";
+import { pickTransportDetails, type TransportDetails } from "@/lib/transport-details";
 import type { TripPhase } from "@/lib/trip-phase";
 
 export function dayHeading(dateISO: string, tripStart: string, tripEnd: string): string {
@@ -182,7 +183,7 @@ interface DayItemRow {
   /** CONTEXT.md "Try list"; null = none. */
   tryList: TryList | null;
 }
-interface DayTransportRow {
+interface DayTransportRow extends TransportDetails {
   id: string; mode: string; fromStopId: string | null; toStopId: string | null; depPlace: string | null; arrPlace: string | null;
   depAt: Date | null; arrAt: Date | null; depLat: number | null; depLng: number | null; arrLat: number | null; arrLng: number | null;
   depPlaceId: string | null; arrPlaceId: string | null;
@@ -316,6 +317,7 @@ function deriveTrip(rows: DayRows): TripDerived {
         depPlace: t.depPlace, arrPlace: t.arrPlace, depAt: t.depAt, arrAt: t.arrAt,
         reference: t.reference, notes: t.notes, depIsHome: t.depIsHome, arrIsHome: t.arrIsHome,
         bookingState: t.bookingState, bookingStateSet: t.bookingStateSet, nothingToAttach: t.nothingToAttach, bookBy: t.bookBy,
+        ...pickTransportDetails(t),
       })),
       // Every stay (TB-10): a day's check-in/out entries never depend on which day was asked for.
       accommodations: rows.accommodations.map((a) => ({

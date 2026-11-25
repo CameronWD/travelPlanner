@@ -31,7 +31,7 @@ const SOURCE: DuplicateSource = {
   transports: [
     { fromStopId: "s1", toStopId: "s2", mode: "TRAIN", depPlace: "Roma Termini", arrPlace: "Firenze",
       depAt: new Date("2026-08-04T08:00:00Z"), arrAt: new Date("2026-08-04T09:30:00Z"),
-      reference: "FR9521", notes: "platform 5", depLat: 41.9, depLng: 12.5, arrLat: 43.7, arrLng: 11.2 },
+      reference: "FR9521", notes: "platform 5", carrier: "Trenitalia", seat: "11A", depLat: 41.9, depLng: 12.5, arrLat: 43.7, arrLng: 11.2 },
   ],
   checklistItems: [
     { kind: "PRETRIP", text: "Renew passport", dueDate: "2026-07-01", ownerId: null },
@@ -174,6 +174,7 @@ describe("buildDuplicatePlan", () => {
     expect(t.data).toEqual({
       mode: "TRAIN", depPlace: "Roma Termini", arrPlace: "Firenze",
       depAt: null, arrAt: null, reference: null, notes: null,
+      carrier: null, serviceNumber: null, seat: null, terminal: null, gate: null, coach: null, platform: null,
       depLat: 41.9, depLng: 12.5, arrLat: 43.7, arrLng: 11.2, depPlaceId: null, arrPlaceId: null,
       depCountryCode: null, depRegion: null, arrCountryCode: null, arrRegion: null, sortOrder: 0,
       bookingState: "TO_BOOK", bookingStateSet: false,

@@ -16,6 +16,13 @@ describe("mergeTransportEdit", () => {
   });
 });
 
+describe("mergeTransportEdit on Travel details", () => {
+  it("keeps the edited seat and the service number", () => {
+    const prev = { mode: "FLIGHT" as const, serviceNumber: "SK101", seat: "32A" };
+    expect(mergeTransportEdit(prev, { ...prev, seat: "30C" })).toEqual({ ...prev, seat: "30C" });
+  });
+});
+
 describe("mergeTransportEdit on a Stop end (final review #1)", () => {
   const prev = { mode: "FLIGHT" as const, fromStopId: "s-syd", toStopId: "s-rough", arrPlace: "Lisbon (LIS)", arrTimezone: "Europe/Lisbon", arrAt: "2026-07-02T07:15" };
   it("keeps the hint while the Stop is unchanged, even when the place within it or the time is edited", () => {

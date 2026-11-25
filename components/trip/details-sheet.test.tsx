@@ -19,6 +19,7 @@ const full: DetailsView = {
       url: "/api/attachments/f1", uploadedById: "u1", createdAt: new Date("2026-11-01T00:00:00Z"),
     },
   ],
+  travelDetails: "ICE 9572 · Seat 42",
   reference: "ABC123",
   referenceLabel: "Reference",
   address: "Marienplatz 1",
@@ -34,7 +35,7 @@ const full: DetailsView = {
 };
 
 const bare: DetailsView = {
-  title: "Tower", subtitle: null, times: [], files: [], reference: null, referenceLabel: "Reference", address: null, place: null,
+  title: "Tower", subtitle: null, times: [], files: [], travelDetails: null, reference: null, referenceLabel: "Reference", address: null, place: null,
   notes: null, link: null, tryList: null, openingHours: null, cost: null,
 };
 
@@ -56,7 +57,7 @@ describe("DetailsSheet", () => {
     const dialog = renderSheet(full);
     const rows = [...dialog.querySelectorAll("[data-row]")].map((el) => el.getAttribute("data-row"));
     expect(rows).toEqual([
-      "title", "times", "files", "reference", "address", "notes", "link", "try-list", "opening-hours", "cost", "edit",
+      "title", "times", "files", "travel-details", "reference", "address", "notes", "link", "try-list", "opening-hours", "cost", "edit",
     ]);
     expect(within(dialog).getByRole("heading", { name: "Paris → Munich" })).toBeInTheDocument();
     expect(dialog).toHaveTextContent("Train");
@@ -68,6 +69,13 @@ describe("DetailsSheet", () => {
     expect(dialog).toHaveTextContent("Paid");
     expect(within(dialog).getByText("Pretzel")).toBeInTheDocument();
     expect(within(dialog).getByText("Weisswurst")).toBeInTheDocument();
+  });
+
+  it("the Details row is absent when there are no Travel details", () => {
+    const dialog = renderSheet({ ...full, travelDetails: null });
+    const rows = [...dialog.querySelectorAll("[data-row]")].map((el) => el.getAttribute("data-row"));
+    expect(rows).not.toContain("travel-details");
+    expect(rows).toContain("reference");
   });
 
   it("each file is a full-width row linking to the file", () => {

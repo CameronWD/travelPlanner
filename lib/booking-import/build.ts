@@ -9,6 +9,7 @@ import { CURRENCY_CODES } from "@/lib/money/currencies";
 import { formatDayLabel } from "@/lib/dates";
 import { decimalsFor, parseAmountToMinor } from "@/lib/money/money";
 import { MAX_ARRIVE_BY_MINUTES } from "@/lib/slot-time";
+import { TRANSPORT_DETAIL_MAX } from "@/lib/transport-details";
 import { stopTimezone, timezoneForCountryOrNull } from "@/lib/tz";
 import { findDuplicate, type ExistingBookings } from "./duplicates";
 import { cityNameOf, countryCodeOf, outsideStay, resolvePlace, sameCity, type MatchHome, type MatchStop, type PlaceMatch, type PlaceQuery } from "./match";
@@ -47,14 +48,14 @@ export interface BuildResult {
 /** Claude's uncertainFields name → the card field it highlights. */
 const UNCERTAIN_TO_HIGHLIGHT: Record<string, string> = {
   mode: "mode",
-  carrier: "notes",
-  serviceNumber: "notes",
+  carrier: "details",
+  serviceNumber: "details",
   reference: "reference",
   depPlace: "depPlace",
   depTime: "depAt",
   arrPlace: "arrPlace",
   arrTime: "arrAt",
-  seat: "notes",
+  seat: "details",
   travelClass: "notes",
   name: "name",
   address: "address",
@@ -440,12 +441,25 @@ export function buildProposals(extraction: BookingExtraction, ctx: MatchContext)
       }
     }
 
-    // Seat, class and a non-flight carrier go into Notes (a flight number already names its airline).
-    const carrier = mode === "FLIGHT" && t.serviceNumber ? null : t.carrier;
-    const notes = [carrier, t.serviceNumber, t.seat ? `Seat ${t.seat.trim()}` : null, t.travelClass]
-      .map((s) => s?.trim())
-      .filter(Boolean)
-      .join(" · ");
+    // A value over the Travel details limit would fail confirming; it goes to Notes instead.
+    const overflow: string[] = [];
+    const carrier = trimmed(t.carrier);
+    if (carrier) {
+      if (carrier.length <= TRANSPORT_DETAIL_MAX) input.carrier = carrier;
+      else overflow.push(carrier);
+    }
+    const serviceNumber = trimmed(t.serviceNumber);
+    if (serviceNumber) {
+      if (serviceNumber.length <= TRANSPORT_DETAIL_MAX) input.serviceNumber = serviceNumber;
+      else overflow.push(serviceNumber);
+    }
+    const seat = trimmed(t.seat);
+    if (seat) {
+      if (seat.length <= TRANSPORT_DETAIL_MAX) input.seat = seat;
+      else overflow.push(`Seat ${seat}`);
+    }
+    const travelClass = trimmed(t.travelClass);
+    const notes = [...overflow, ...(travelClass ? [travelClass] : [])].join(" · ");
     if (notes) input.notes = notes;
     const reference = trimmed(t.reference);
     if (reference) input.reference = reference;

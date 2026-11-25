@@ -18,6 +18,7 @@ import { effectiveBookingState, transportBookingSubject } from "@/lib/booking-st
 import { isOnTrip } from "@/lib/enum-values";
 import { orderPlanStops } from "@/lib/plan-order";
 import { creationAnchor } from "@/lib/transport-anchor";
+import { pickTransportDetails, type TransportDetails } from "@/lib/transport-details";
 
 /**
  * Soft cap on the number of forks (what-if variants) per trip. Single source of
@@ -64,7 +65,7 @@ interface ForkSourceStop {
   surpriseRevealedAt?: Date | null;
 }
 
-interface ForkSourceTransport {
+interface ForkSourceTransport extends TransportDetails {
   id: string;
   fromStopId: string | null;
   toStopId: string | null;
@@ -251,6 +252,7 @@ export interface ForkPlan {
       arrCountryCode: string | null;
       arrRegion: string | null;
       reference: string | null;
+      carrier: string | null; serviceNumber: string | null; seat: string | null; terminal: string | null; gate: string | null; coach: string | null; platform: string | null;
       notes: string | null;
       sortOrder: number;
       bookingState: string;
@@ -368,7 +370,7 @@ export function buildForkPlan(source: ForkSource): ForkPlan {
         depLat: t.depLat, depLng: t.depLng, arrLat: t.arrLat, arrLng: t.arrLng,
         depPlaceId: t.depPlaceId ?? null, arrPlaceId: t.arrPlaceId ?? null,
         depCountryCode: t.depCountryCode ?? null, depRegion: t.depRegion ?? null, arrCountryCode: t.arrCountryCode ?? null, arrRegion: t.arrRegion ?? null,
-        reference: t.reference, notes: t.notes, sortOrder: t.sortOrder,
+        reference: t.reference, ...pickTransportDetails(t), notes: t.notes, sortOrder: t.sortOrder,
         bookingState: effectiveBookingState(transportBookingSubject(t.mode), t, t.reference), bookingStateSet: t.bookingStateSet ?? false, bookBy: t.bookBy ?? null, nothingToAttach: t.nothingToAttach ?? false,
       },
     })),

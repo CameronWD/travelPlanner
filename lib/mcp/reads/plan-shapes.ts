@@ -8,7 +8,8 @@
  */
 import { buildStopDays, groupScheduledItemsByStop, type StopDayItem } from "@/lib/stop-days";
 import { transportTimeDisplay } from "@/lib/time-display";
-import type { BookingState } from "@/lib/enum-values";
+import { transportDetailFields, type TransportDetailKey } from "@/lib/transport-details";
+import type { BookingState, TransportMode } from "@/lib/enum-values";
 import type { OpeningHours } from "@/lib/opening-hours";
 import { withOpeningHours } from "@/lib/opening-hours-stored";
 import { parseOpeningHours } from "@/lib/validations/opening-hours";
@@ -209,6 +210,13 @@ export interface McpTransport {
   /** arr calendar date minus dep calendar date, each in its own zone; 0 same day. */
   dayDelta: number;
   reference: string | null;
+  carrier: string | null;
+  serviceNumber: string | null;
+  seat: string | null;
+  terminal: string | null;
+  gate: string | null;
+  coach: string | null;
+  platform: string | null;
   notes: string | null;
   /** CONTEXT.md "Booking state": NONE (no booking needed), TO_BOOK or BOOKED. Booked is not paid (that's the Cost). */
   bookingState: BookingState;
@@ -289,7 +297,8 @@ export const MCP_DATED_ITEM_SELECT = { ...MCP_THING_TO_DO_SELECT, date: true } a
 
 export const MCP_TRANSPORT_SELECT = {
   id: true, mode: true, fromStopId: true, toStopId: true, depIsHome: true, arrIsHome: true,
-  depPlace: true, arrPlace: true, depAt: true, arrAt: true, reference: true, notes: true,
+  depPlace: true, arrPlace: true, depAt: true, arrAt: true, reference: true,
+  carrier: true, serviceNumber: true, seat: true, terminal: true, gate: true, coach: true, platform: true, notes: true,
   bookingState: true, bookBy: true, nothingToAttach: true,
 } as const;
 
@@ -334,7 +343,9 @@ export interface McpItemRow {
 
 export interface McpTransportRow {
   id: string; mode: string; fromStopId: string | null; toStopId: string | null; depIsHome: boolean; arrIsHome: boolean;
-  depPlace: string | null; arrPlace: string | null; depAt: Date | null; arrAt: Date | null; reference: string | null; notes: string | null;
+  depPlace: string | null; arrPlace: string | null; depAt: Date | null; arrAt: Date | null; reference: string | null;
+  carrier: string | null; serviceNumber: string | null; seat: string | null; terminal: string | null; gate: string | null; coach: string | null; platform: string | null;
+  notes: string | null;
   bookingState: string; bookBy: string | null; nothingToAttach: boolean;
 }
 
@@ -533,13 +544,17 @@ export function toMcpTransport(
     toTimezone: t.toStopId ? ctx.tzById.get(t.toStopId) ?? null : null,
     depIsHome: t.depIsHome, arrIsHome: t.arrIsHome, homeTimezone: ctx.homeTimezone,
   });
+  const shownKeys = new Set<TransportDetailKey>(transportDetailFields(t.mode as TransportMode).map((f) => f.key));
+  const detail = (key: TransportDetailKey): string | null => (shownKeys.has(key) ? t[key] : null);
   return {
     id: t.id, mode: t.mode,
     from: endpoint(t.fromStopId, t.depIsHome), to: endpoint(t.toStopId, t.arrIsHome),
     depPlace: t.depPlace, arrPlace: t.arrPlace,
     depAt: t.depAt ? t.depAt.toISOString() : null, arrAt: t.arrAt ? t.arrAt.toISOString() : null,
     departs: local(t.depAt, shown.dep), arrives: local(t.arrAt, shown.arr), dayDelta: shown.dayDelta,
-    reference: t.reference, notes: t.notes,
+    reference: t.reference,
+    carrier: detail("carrier"), serviceNumber: detail("serviceNumber"), seat: detail("seat"), terminal: detail("terminal"), gate: detail("gate"), coach: detail("coach"), platform: detail("platform"),
+    notes: t.notes,
     bookingState: t.bookingState as BookingState, bookBy: t.bookBy,
     nothingToAttach: t.nothingToAttach, needsBookingConfirmation: ctx.needsConfirmation.has(t.id),
     files: ctx.filesFor("TRANSPORT", t.id),

@@ -113,6 +113,7 @@ describe("loadTripPlanForMcp", () => {
         depAt: new Date("2025-12-31T22:00:00Z"),
         arrAt: new Date("2026-01-01T10:00:00Z"),
         reference: "QF1",
+        carrier: "Qantas", serviceNumber: null, seat: null, terminal: null, gate: null, coach: null, platform: null,
         notes: null,
       },
     ]);
@@ -291,6 +292,7 @@ describe("loadTripPlanForMcp", () => {
         },
         dayDelta: 0,
         reference: "QF1",
+        carrier: "Qantas", serviceNumber: null, seat: null, terminal: null, gate: null, coach: null, platform: null,
         notes: null,
         needsBookingConfirmation: false,
         files: [],
@@ -300,8 +302,8 @@ describe("loadTripPlanForMcp", () => {
 
   it("marks a Booked leg that needs a Booking confirmation, from one loader call per read", async () => {
     transportFindMany.mockResolvedValue([
-      { id: "t-fileless", mode: "TRAIN", fromStopId: "stopA", toStopId: null, depIsHome: false, arrIsHome: false, depPlace: null, arrPlace: null, depAt: null, arrAt: null, reference: null, notes: null, bookingState: "BOOKED", bookBy: null, nothingToAttach: false },
-      { id: "t-filed", mode: "TRAIN", fromStopId: "stopA", toStopId: null, depIsHome: false, arrIsHome: false, depPlace: null, arrPlace: null, depAt: null, arrAt: null, reference: null, notes: null, bookingState: "BOOKED", bookBy: null, nothingToAttach: true },
+      { id: "t-fileless", mode: "TRAIN", fromStopId: "stopA", toStopId: null, depIsHome: false, arrIsHome: false, depPlace: null, arrPlace: null, depAt: null, arrAt: null, reference: null, carrier: null, serviceNumber: null, seat: null, terminal: null, gate: null, coach: null, platform: null, notes: null, bookingState: "BOOKED", bookBy: null, nothingToAttach: false },
+      { id: "t-filed", mode: "TRAIN", fromStopId: "stopA", toStopId: null, depIsHome: false, arrIsHome: false, depPlace: null, arrPlace: null, depAt: null, arrAt: null, reference: null, carrier: null, serviceNumber: null, seat: null, terminal: null, gate: null, coach: null, platform: null, notes: null, bookingState: "BOOKED", bookBy: null, nothingToAttach: true },
     ]);
     loadNeedsConfirmation.mockResolvedValue(new Set(["t-fileless"]));
     const plan = await loadTripPlanForMcp(TRIP_ID);

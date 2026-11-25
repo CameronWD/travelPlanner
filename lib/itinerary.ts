@@ -13,6 +13,7 @@ import type { SurpriseView } from "@/lib/surprise";
 import type { BookingState } from "@/lib/enum-values";
 import type { OpeningHours } from "@/lib/opening-hours";
 import type { TryList } from "@/lib/try-list";
+import type { TransportDetails } from "@/lib/transport-details";
 
 // ---------------------------------------------------------------------------
 // Minimal input shapes
@@ -67,7 +68,7 @@ export interface ItineraryItem {
   tryList?: TryList | null;
 }
 
-export interface ItineraryTransport {
+export interface ItineraryTransport extends TransportDetails {
   id: string;
   mode: string;
   fromStopId?: string | null;

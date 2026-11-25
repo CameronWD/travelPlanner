@@ -66,11 +66,11 @@ export const SAMPLE_PLAN: McpTripPlan = {
       depAt: "2026-10-31T23:00:00.000Z", arrAt: "2026-11-01T08:30:00.000Z",
       departs: { at: "2026-10-31T23:00:00.000Z", localTime: "10:00", localDate: "2026-11-01", zone: "AEDT" },
       arrives: { at: "2026-11-01T08:30:00.000Z", localTime: "17:30", localDate: "2026-11-01", zone: "JST" },
-      dayDelta: 0, reference: "QF-ABC123", notes: null, bookingState: "BOOKED", bookBy: null, nothingToAttach: false, needsBookingConfirmation: false, files: [],
+      dayDelta: 0, reference: "QF-ABC123", carrier: null, serviceNumber: null, seat: null, terminal: null, gate: null, coach: null, platform: null, notes: null, bookingState: "BOOKED", bookBy: null, nothingToAttach: false, needsBookingConfirmation: false, files: [],
     },
     {
       id: "train", mode: "TRAIN", from: { stopId: "kyoto", name: "Kyoto" }, to: { stopId: "secret", name: "Hakone" }, depPlace: "Kyoto Station", arrPlace: "Odawara",
-      depAt: null, arrAt: null, departs: null, arrives: null, dayDelta: 0, reference: null, notes: null, bookingState: "TO_BOOK", bookBy: null, nothingToAttach: false, needsBookingConfirmation: false, files: [],
+      depAt: null, arrAt: null, departs: null, arrives: null, dayDelta: 0, reference: null, carrier: null, serviceNumber: null, seat: null, terminal: null, gate: null, coach: null, platform: null, notes: null, bookingState: "TO_BOOK", bookBy: null, nothingToAttach: false, needsBookingConfirmation: false, files: [],
     },
   ],
   chapters: [],

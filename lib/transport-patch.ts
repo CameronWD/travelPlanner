@@ -21,9 +21,10 @@
 import type { ActionFailure } from "@/lib/action-result";
 import type { TransportInput } from "@/lib/validations/transport";
 import { patched, type Patch } from "@/lib/patch";
+import { TRANSPORT_DETAIL_KEYS, type TransportDetails } from "@/lib/transport-details";
 
 export type TransportPatch = Patch<TransportInput>;
-export type TransportPatchRow = {
+export type TransportPatchRow = TransportDetails & {
   mode: string;
   fromStopId: string | null;
   toStopId: string | null;
@@ -114,5 +115,6 @@ export function mergeTransportPatch(current: TransportPatchRow, patch: Transport
     arrAt: patched(patch.arrAt, current.arrAt),
     reference: patched(patch.reference, current.reference),
     notes: patched(patch.notes, current.notes),
+    ...Object.fromEntries(TRANSPORT_DETAIL_KEYS.map((k) => [k, patched(patch[k], current[k])])),
   };
 }

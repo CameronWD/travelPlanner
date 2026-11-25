@@ -192,7 +192,7 @@ describe("P7 schedule an idea", () => {
 
 describe("P8 leg pill add", () => {
   it("the missing pill's Add label nudges on hover", () => {
-    const missing = { icon: null, label: "How are you getting to Florence?", sub: "Add", missing: true, accessibleName: "Add transport" };
+    const missing = { icon: null, label: "How are you getting to Florence?", sub: "Add", missing: true, accessibleName: "Add transport", arrival: "", detail: "" };
     render(<LegPill label={missing} onClick={vi.fn()} />);
     const pill = screen.getByRole("button", { name: "Add transport" });
     expect(pill.className).toMatch(/(^|\s)group(\s|$)/);
@@ -200,7 +200,7 @@ describe("P8 leg pill add", () => {
   });
 
   it("a real leg's pill has no Add label to nudge", () => {
-    const flight = { icon: Plane, label: "Flight", sub: "Tue 15 Dec", missing: false, accessibleName: "Flight" };
+    const flight = { icon: Plane, label: "Flight", sub: "Tue 15 Dec", missing: false, accessibleName: "Flight", arrival: "", detail: "" };
     render(<LegPill label={flight} onClick={vi.fn()} />);
     expect(screen.getByRole("button", { name: "Flight" }).querySelector('[class*="group-hover:translate-x"]')).toBeNull();
   });

@@ -308,6 +308,16 @@ describe("bookings write tools", () => {
     expect(call[1]).toEqual(expect.objectContaining({ mode: "FLIGHT", depAt: "2026-05-01T08:00", arrAt: "2026-05-01T10:00" }));
   });
 
+  it("add_transport forwards Travel details", async () => {
+    createTransport.mockResolvedValue({ success: true });
+    const c = await connectTestClient();
+    await c.callTool({
+      name: "add_transport",
+      arguments: { tripId: TRIP_ID, mode: "FLIGHT", depAt: "2026-05-01T08:00", arrAt: "2026-05-01T10:00", serviceNumber: "LH 2456", seat: "32A" },
+    });
+    expect(createTransport.mock.calls[0][1]).toEqual(expect.objectContaining({ serviceNumber: "LH 2456", seat: "32A" }));
+  });
+
   it("add_transport forwards fromStopId and depPlace together", async () => {
     createTransport.mockResolvedValue({ success: true });
     const c = await connectTestClient();
@@ -446,6 +456,15 @@ describe("bookings write tools", () => {
   });
 
   describe("update_transport (PATCH)", () => {
+    it("passes a Travel detail, and null to clear one", async () => {
+      updateTransport.mockResolvedValue({ success: true });
+      const c = await connectTestClient();
+      await c.callTool({ name: "update_transport", arguments: { transportId: TRANSPORT_ID, gate: "B14" } });
+      expect(updateTransport).toHaveBeenLastCalledWith(TRANSPORT_ID, { gate: "B14" });
+      await c.callTool({ name: "update_transport", arguments: { transportId: TRANSPORT_ID, seat: null } });
+      expect(updateTransport).toHaveBeenLastCalledWith(TRANSPORT_ID, { seat: null });
+    });
+
     // The endpoint merge is lib/transport-patch.ts's (its tests); the inline Cost and the held row are the action's.
     it("checks the Transport and any named Stops are real-plan, then forwards only the fields passed", async () => {
       updateTransport.mockResolvedValue({ success: true });

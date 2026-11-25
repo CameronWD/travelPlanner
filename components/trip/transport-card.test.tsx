@@ -43,6 +43,17 @@ describe("TransportCard timezone labels + cross-zone marker", () => {
   });
 });
 
+describe("TransportCard Travel details", () => {
+  it("shows the one-line summary in the subline", () => {
+    render(
+      <TransportCard
+        transport={{ ...base, mode: "FLIGHT", depPlace: "Brisbane", arrPlace: "Tokyo", serviceNumber: "LH 2456", seat: "32A" }}
+      />,
+    );
+    expect(screen.getByTestId("transport-subline")).toHaveTextContent("LH 2456 \u00b7 Seat 32A");
+  });
+});
+
 describe("TransportCard drive estimate", () => {
   it("shows the drive estimate when present and there are no real times", () => {
     render(

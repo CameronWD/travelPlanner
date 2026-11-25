@@ -363,6 +363,20 @@ describe("createTransport", () => {
     expect(revalidateTripMock).toHaveBeenCalledWith("trip-1", "plan", "money");
   });
 
+  it("passes a Travel detail to the create", async () => {
+    transportFindFirstMock.mockResolvedValue(null);
+    transportCreateMock.mockResolvedValue({ id: "t-d" });
+    await createTransport("trip-1", { ...VALID_INPUT, serviceNumber: "LH 2456" });
+    expect(transportCreateMock).toHaveBeenCalledWith({ data: expect.objectContaining({ serviceNumber: "LH 2456", seat: null }) });
+  });
+
+  it("stores a blank Travel detail as null", async () => {
+    transportFindFirstMock.mockResolvedValue(null);
+    transportCreateMock.mockResolvedValue({ id: "t-b" });
+    await createTransport("trip-1", { ...VALID_INPUT, seat: "" });
+    expect(transportCreateMock).toHaveBeenCalledWith({ data: expect.objectContaining({ seat: null }) });
+  });
+
   it("a drive (CAR) with no reference is created No booking needed; with one, Booked; a chosen state is kept (I4)", async () => {
     transportFindFirstMock.mockResolvedValue(null);
     transportCreateMock.mockResolvedValue({ id: "t-car" });
@@ -1261,6 +1275,18 @@ describe("updateTransport (PATCH, ADR 0075)", () => {
       depAt: new Date("2026-05-04T08:00:00Z"), arrAt: new Date("2026-05-04T11:00:00Z"), reference: "FR 9514",
     }) });
     expect(transportFindUniqueMock).toHaveBeenCalledTimes(2); // guard + held row; auditedUpdate does not re-read
+  });
+
+  it("a Travel details patch writes the one it names and keeps the others", async () => {
+    transportFindUniqueMock.mockResolvedValue({ ...row, seat: "32A" });
+    await updateTransport("t1", { gate: "B14" });
+    expect(transportUpdateMock).toHaveBeenCalledWith({ where: { id: "t1" }, data: expect.objectContaining({ gate: "B14", seat: "32A" }) });
+  });
+
+  it("a blank Travel detail in a patch clears it", async () => {
+    transportFindUniqueMock.mockResolvedValue({ ...row, gate: "B14" });
+    await updateTransport("t1", { gate: "" });
+    expect(transportUpdateMock).toHaveBeenCalledWith({ where: { id: "t1" }, data: expect.objectContaining({ gate: null }) });
   });
 
   it("an unchanged point calls no lookup and keeps its place", async () => {

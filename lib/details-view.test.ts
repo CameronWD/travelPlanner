@@ -22,7 +22,7 @@ function cost(over: Partial<CostRow> = {}): CostRow {
 const ctx: DetailsContext = { attachments: [], costs: [] };
 
 const EMPTY: Omit<DetailsView, "title"> = {
-  subtitle: null, times: [], files: [], reference: null, referenceLabel: "Reference", address: null, place: null,
+  subtitle: null, times: [], files: [], travelDetails: null, reference: null, referenceLabel: "Reference", address: null, place: null,
   notes: null, link: null, tryList: null, openingHours: null, cost: null,
 };
 
@@ -67,6 +67,12 @@ describe("transportDetails", () => {
       { label: "Departs", value: `5 Dec 10:00 ${zoneLabel("Australia/Brisbane", "2026-12-05")}` },
       { label: "Arrives", value: `5 Dec 19:00 ${zoneLabel("Asia/Tokyo", "2026-12-05")}` },
     ]);
+  });
+
+  it("Travel details become one line; none gives null", () => {
+    const base = { id: "t1", mode: "TRAIN" as const, bookingStateSet: false, sortOrder: 0 };
+    expect(transportDetails({ ...base, serviceNumber: "ICE 9572", seat: "42" }, ctx).travelDetails).toBe("ICE 9572 · Seat 42");
+    expect(transportDetails(base, ctx).travelDetails).toBeNull();
   });
 
   it("no ends and no times: the mode is the title, nothing else", () => {
@@ -136,6 +142,7 @@ describe("itemDetails", () => {
         { label: "Ticket", value: "Slot 10:30 · be there 10:15" },
       ],
       files: [file],
+      travelDetails: null,
       reference: "TK-9",
       referenceLabel: "Reference",
       address: "Marienplatz 1",

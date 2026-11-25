@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { TRANSPORT_DETAIL_KEYS, TRANSPORT_DETAIL_MAX, type TransportDetailKey } from "@/lib/transport-details";
 import { TRANSPORT_MODES, bookingStateSchema, costSettlementSchema } from "@/lib/enums";
 import { bookBySchema } from "@/lib/validations/planning";
 import { CURRENCY_CODES } from "@/lib/money/currencies";
@@ -77,6 +78,7 @@ export const transportSchema = z.object({
 
   /** Booking / ticket reference (flight number, train code, …). */
   reference: z.string().trim().optional(),
+  ...Object.fromEntries(TRANSPORT_DETAIL_KEYS.map((k) => [k, z.string().trim().max(TRANSPORT_DETAIL_MAX).optional()])) as Record<TransportDetailKey, z.ZodOptional<z.ZodString>>,
   /** CONTEXT.md "Booking state". Omitted = derived from `reference` (create) or kept (update). A To book leg is how a tentative journey lives in the plan. */
   bookingState: bookingStateSchema.optional(),
   /** The day it should be booked by; only while To book (lib/booking-state-patch.ts refuses it otherwise). */

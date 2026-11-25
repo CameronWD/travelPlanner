@@ -23,7 +23,7 @@ describe("legLabel", () => {
       STOPS,
     );
     expect(l).toMatchObject({ icon: Plane, label: "Flight CDG → FCO", sub: "Tue 15 Dec 10:05", missing: false });
-    expect(l.accessibleName).toBe("Flight from Paris to Rome, Tuesday 15 December 10:05. Edit.");
+    expect(l.accessibleName).toBe("Flight from Paris to Rome, Tuesday 15 December 10:05. Arrives 12:10. Edit.");
   });
 
   it("timed with no places: falls back to the stop names", () => {
@@ -105,6 +105,51 @@ describe("legLabel", () => {
   });
 });
 
+describe("legLabel arrival and detail", () => {
+  const train = { mode: "TRAIN" as const, fromStopId: "r", toStopId: "f", depAt: new Date("2026-12-22T08:28:00Z"), arrAt: new Date("2026-12-22T12:05:00Z") };
+  const flight = (arrAt: string) => ({ mode: "FLIGHT" as const, fromStopId: "p", toStopId: "r", depAt: new Date("2026-12-15T22:00:00Z"), arrAt: new Date(arrAt) });
+
+  it("a same-day train gives the arrival time and the duration", () => {
+    expect(legLabel(train, STOPS).arrival).toBe("→ 13:05 · 3h 37m");
+  });
+  it("an arrival on a later local day gets +N", () => {
+    const next = legLabel(flight("2026-12-16T01:00:00Z"), STOPS).arrival;
+    expect(next.startsWith("→ ")).toBe(true);
+    expect(next).toContain(" +1 · ");
+    expect(legLabel(flight("2026-12-17T01:00:00Z"), STOPS).arrival).toContain(" +2 · ");
+  });
+  it("an arrival on an earlier local day gets a signed minus", () => {
+    const AUCKLAND = { id: "a", name: "Auckland", timezone: "Pacific/Auckland", arriveDate: null, departDate: null };
+    const HONOLULU = { id: "h", name: "Honolulu", timezone: "Pacific/Honolulu", arriveDate: null, departDate: null };
+    const t = { mode: "FLIGHT" as const, fromStopId: "a", toStopId: "h", depAt: new Date("2026-12-15T12:00:00Z"), arrAt: new Date("2026-12-15T22:00:00Z") };
+    const l = legLabel(t, [AUCKLAND, HONOLULU]);
+    expect(l.arrival).toContain(" −1 · ");
+    expect(l.accessibleName).toContain(" Arrives 12:00 −1.");
+  });
+  it("the day difference is local-date, not UTC-date", () => {
+    const HONOLULU = { id: "h", name: "Honolulu", timezone: "Pacific/Honolulu", arriveDate: null, departDate: null };
+    const AUCKLAND = { id: "a", name: "Auckland", timezone: "Pacific/Auckland", arriveDate: null, departDate: null };
+    const t = { mode: "FLIGHT" as const, fromStopId: "h", toStopId: "a", depAt: new Date("2026-12-15T10:00:00Z"), arrAt: new Date("2026-12-15T20:00:00Z") };
+    expect(legLabel(t, [HONOLULU, AUCKLAND]).arrival).toContain(" +1 · ");
+    expect(legLabel({ ...t, depAt: new Date("2026-12-15T09:00:00Z") }, [HONOLULU, AUCKLAND]).arrival).toContain(" +2 · ");
+  });
+  it("the accessible name speaks the arrival and the detail", () => {
+    const l = legLabel({ ...train, serviceNumber: "ICE 9572", seat: "42" }, STOPS);
+    expect(l.accessibleName).toBe("Train from Rome to Florence, Tuesday 22 December 09:28. Arrives 13:05. ICE 9572 · Seat 42. Edit.");
+  });
+  it("no arrival time, no arrival line", () => {
+    expect(legLabel({ ...train, arrAt: null }, STOPS).arrival).toBe("");
+  });
+  it("an arrival that is not after the departure leaves the duration off", () => {
+    expect(legLabel({ ...train, arrAt: train.depAt }, STOPS).arrival).toBe("→ 09:28");
+  });
+  it("detail joins the Travel details and the reference", () => {
+    expect(legLabel({ ...train, serviceNumber: "ICE 9572", coach: "7", seat: "42", reference: "QX7P2M" }, STOPS).detail).toBe("ICE 9572 · Coach 7 · Seat 42 · QX7P2M");
+    expect(legLabel({ ...train, reference: " QX7P2M " }, STOPS).detail).toBe("QX7P2M");
+    expect(legLabel(train, STOPS).detail).toBe("");
+  });
+});
+
 describe("missingLegLabel", () => {
   it("asks how you're getting to the next stop", () => {
     expect(missingLegLabel({ name: "Rome" }, { name: "Florence" })).toEqual({
@@ -113,6 +158,8 @@ describe("missingLegLabel", () => {
       sub: "Add",
       missing: true,
       accessibleName: "Add transport from Rome to Florence",
+      arrival: "",
+      detail: "",
     });
   });
 });

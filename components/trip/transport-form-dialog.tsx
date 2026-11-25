@@ -54,6 +54,12 @@ import { transportClearable } from "@/lib/transport-clearable";
 import { BookingStateField, seedFromProposal, useBookingStateField } from "./booking-state-field";
 import { NothingToAttachSwitch } from "./nothing-to-attach-switch";
 import { transportBookingSubject } from "@/lib/booking-state";
+import {
+  TRANSPORT_DETAIL_KEYS,
+  TRANSPORT_DETAIL_MAX,
+  transportDetailFields,
+  type TransportDetailKey,
+} from "@/lib/transport-details";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -486,6 +492,11 @@ function TransportForm({
     proposed?.arrAt ? proposed.arrAt : instantToWallTimeInput(transport?.arrAt, initialZones.arrTz),
   );
   const [reference, setReference] = React.useState(transport?.reference ?? proposed?.reference ?? "");
+  // Values of fields the current mode hides stay here and are still sent: toPatch clears what is absent.
+  const [details, setDetails] = React.useState<Record<TransportDetailKey, string>>(() => {
+    const seed = transport ?? proposed;
+    return Object.fromEntries(TRANSPORT_DETAIL_KEYS.map((k) => [k, seed?.[k] ?? ""])) as Record<TransportDetailKey, string>;
+  });
   const bookingField = useBookingStateField(transportBookingSubject(mode), transport ?? seedFromProposal(proposed), reference);
   const [nothingToAttach, setNothingToAttach] = React.useState(transport?.nothingToAttach ?? false);
   const [notesText, setNotesText] = React.useState(transport?.notes ?? proposed?.notes ?? "");
@@ -507,7 +518,7 @@ function TransportForm({
   );
 
   // UI-only state (showTimes, selectedAt, showCost) is not input.
-  useFormDirty({ mode, fromValue, toValue, depPoint, arrPoint, pickedSlot, depAt, arrAt, reference, bookingState: bookingField.dirtyValues, notesText, cost: cost.dirtyValues });
+  useFormDirty({ mode, fromValue, toValue, depPoint, arrPoint, pickedSlot, depAt, arrAt, reference, details, bookingState: bookingField.dirtyValues, notesText, cost: cost.dirtyValues });
 
   // The would-be create/update input, exactly as typed.
   function buildInput() {
@@ -552,6 +563,7 @@ function TransportForm({
       depAt: depAt || undefined,
       arrAt: arrAt || undefined,
       reference: reference.trim() || undefined,
+      ...Object.fromEntries(TRANSPORT_DETAIL_KEYS.map((k) => [k, details[k].trim() || undefined])) as Record<TransportDetailKey, string | undefined>,
       ...bookingField.payload(),
       notes: notesText.trim() || undefined,
       // A proposed Stop id must never become an anchor: confirmProposal computes it.
@@ -608,6 +620,7 @@ function TransportForm({
   // itself), so it's wired back in via the `form` attribute instead of DOM
   // containment.
   const formId = React.useId();
+  const detailsHeadingId = React.useId();
 
   const showLeavesArrives = mode !== "CAR" || Boolean(depAt) || Boolean(arrAt) || showTimes;
 
@@ -846,6 +859,22 @@ function TransportForm({
             Departure is on or after arrival. Double-check these times.
           </Badge>
         )}
+
+        <div data-group="travel-details" role="group" aria-labelledby={detailsHeadingId} className="space-y-2">
+          <h3 id={detailsHeadingId} className="text-[11px] font-semibold text-muted-foreground">Travel details</h3>
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+            {transportDetailFields(mode as TransportMode).map((f) => (
+              <Field key={f.key} label={f.label} error={errors[f.key]?.[0]}>
+                <Input
+                  value={details[f.key]}
+                  onChange={(e) => setDetails((d) => ({ ...d, [f.key]: e.target.value }))}
+                  maxLength={TRANSPORT_DETAIL_MAX}
+                  disabled={isPending}
+                />
+              </Field>
+            ))}
+          </div>
+        </div>
 
         {/* Booking ref + Position in plan — paired from sm (spec 2026-10-05 §D).
             Position: edit mode only, and not for a Home base bookend (it sits
