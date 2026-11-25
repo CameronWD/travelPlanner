@@ -308,6 +308,20 @@ export function buildProposals(extraction: BookingExtraction, ctx: MatchContext)
     else need(d.match, [d.date], d.src.confidence);
   }
 
+  // A place with no printed country is no disagreement with a same-named one that has a country (BI-14): it joins that Stop when exactly one exists.
+  const folded = new Map<string, string>();
+  const nameOfKey = (key: string) => key.slice(0, key.lastIndexOf("|"));
+  for (const [key, s] of [...pending.entries()]) {
+    if (s.countryCode) continue;
+    const same = [...pending.entries()].filter(([k, o]) => o.countryCode && nameOfKey(k) === nameOfKey(key));
+    if (same.length !== 1) continue;
+    const [target, survivor] = same[0];
+    survivor.dates.push(...s.dates);
+    survivor.confidences.push(...s.confidences);
+    pending.delete(key);
+    folded.set(key, target);
+  }
+
   const stopClientIds = new Map<string, string>();
   const stopProposals: StopProposal[] = [...pending.entries()]
     .filter(([, s]) => s.dates.length > 0)
@@ -319,6 +333,7 @@ export function buildProposals(extraction: BookingExtraction, ctx: MatchContext)
     .map(({ key, s, arriveDate, departDate }, i) => {
       const clientId = `s${i + 1}`;
       stopClientIds.set(key, clientId);
+      for (const [from, to] of folded) if (to === key) stopClientIds.set(from, clientId);
       const timezone = stopTimezone({ countryCode: s.countryCode, country: s.country });
       const proposal: StopProposal = {
         clientId,

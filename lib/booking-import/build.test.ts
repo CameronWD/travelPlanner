@@ -186,9 +186,16 @@ describe("buildProposals: city names in other languages", () => {
 
   it("an unplaced end keeps the station as printed", () => {
     const muc = { place: "München Hbf", city: "München", cityEnglish: "Munich", cityLocal: "München", country: "Germany" };
-    const train: ExtractedProposal = { ...OUTBOUND, cost: null, transport: { ...OUTBOUND.transport!, mode: "TRAIN", dep: { ...muc, localDateTime: "2026-12-04T09:00" }, arr: { ...NO_END, city: "Lisbon", cityEnglish: "Lisbon", country: "Portugal", localDateTime: "2026-12-04T20:00" } } };
-    const { proposals } = buildProposals(report(train), { ...CTX, stops: [] });
-    expect(byId(proposals, "p1").input).toMatchObject({ depPlace: "München Hbf" });
+    const leg1: ExtractedProposal = { ...OUTBOUND, transport: { ...OUTBOUND.transport!, arr: { ...muc, localDateTime: "2026-12-04T07:00" } } };
+    const leg2: ExtractedProposal = {
+      ...OUTBOUND,
+      cost: null,
+      transport: { ...OUTBOUND.transport!, serviceNumber: "SK7", mode: "TRAIN", dep: { ...muc, localDateTime: "2026-12-04T09:00" }, arr: { ...NO_END, city: "Lisbon", cityEnglish: "Lisbon", country: "Portugal", localDateTime: "2026-12-04T20:00" } },
+    };
+    const { proposals } = buildProposals(report(leg1, leg2), { ...CTX, stops: [] });
+    expect(proposals.some((p) => p.kind === "stop" && p.input.name === "Munich")).toBe(false);
+    expect(byId(proposals, "p2").input).toMatchObject({ depPlace: "München Hbf" });
+    expect(byId(proposals, "p2").input).not.toHaveProperty("fromStopId");
   });
 
   it("a connection through a city printed two ways is still a layover (Review Focus 5)", () => {
@@ -202,6 +209,39 @@ describe("buildProposals: city names in other languages", () => {
     expect(proposals.some((p) => p.kind === "stop" && p.input.name === "Lisbon")).toBe(false);
     expect(byId(proposals, "p1").input).toMatchObject({ arrPlace: "Lisboa Airport" });
     expect(byId(proposals, "p2").input).toMatchObject({ depPlace: "Lisbon Airport" });
+    expect(byId(proposals, "p1").input).not.toHaveProperty("toStopId");
+    expect(byId(proposals, "p2").input).not.toHaveProperty("fromStopId");
+  });
+
+  describe("a place with no printed country", () => {
+    const noCountry = (country: string | null = null): ExtractedProposal => ({
+      ...OUTBOUND,
+      cost: null,
+      transport: { ...OUTBOUND.transport!, arr: { place: "Lisbon (LIS)", city: "Lisbon", cityEnglish: "Lisbon", cityLocal: null, country, localDateTime: "2026-12-02T07:15" } },
+    });
+    const noReturn: ExtractedProposal = { ...OUTBOUND, cost: null, transport: { ...OUTBOUND.transport!, serviceNumber: "SK9", arr: { ...NO_END, city: "Brisbane", cityEnglish: "Brisbane", country: "Australia", localDateTime: "2026-12-01T20:00" } } };
+    const check = (order: ExtractedProposal[]) => {
+      const { proposals } = buildProposals(report(...order), { ...CTX, stops: [] });
+      const stops = proposals.filter((p) => p.kind === "stop");
+      expect(stops).toHaveLength(1);
+      expect(stops[0].input).toMatchObject({ name: "Lisbon", countryCode: "pt", arriveDate: "2026-12-02", departDate: "2026-12-08" });
+      const flight = proposals.find((p) => p.kind === "transport")!;
+      const stay = proposals.find((p) => p.kind === "accommodation")!;
+      expect(flight.input.toStopId).toBe(stay.input.stopId);
+    };
+
+    it("joins the same-named proposed Stop that has one, flight first", () => {
+      check([noCountry(), lisboaStay]);
+    });
+    it("joins it with the hotel first", () => {
+      check([lisboaStay, noCountry()]);
+    });
+    it("stays its own Stop when two same-named proposed Stops have a country", () => {
+      const us = item({ city: "Lisbon", cityEnglish: "Lisbon", country: "United States" });
+      const pt = item({ city: "Lisbon", cityEnglish: "Lisbon", country: "Portugal", title: "Tram" });
+      const { proposals } = buildProposals(report(noCountry(), noReturn, us, pt), { ...CTX, stops: [] });
+      expect(proposals.filter((p) => p.kind === "stop").map((s) => s.input.countryCode ?? null).sort()).toEqual([null, "pt", "us"]);
+    });
   });
 });
 

@@ -27,6 +27,9 @@ describe("countryCodeOf", () => {
     expect(countryCodeOf("PT")).toBe("pt");
     expect(countryCodeOf("United Kingdom")).toBe("gb");
     expect(countryCodeOf("UK")).toBe("gb");
+    expect(countryCodeOf("Germany")).toBe("de");
+    expect(countryCodeOf("Serbia")).toBe("rs");
+    expect(countryCodeOf("France")).toBe("fr");
     expect(countryCodeOf("Atlantis")).toBeNull();
     expect(countryCodeOf(null)).toBeNull();
   });
@@ -121,5 +124,14 @@ describe("resolvePlace: city names in other languages", () => {
   });
   it("the same English name in another country is still another place (Review Focus 4)", () => {
     expect(resolvePlace(q2("Lisbon", "Lisbon", null, "United States"), { from: "2026-12-03", to: null }, CTX, STAY)).toMatchObject({ kind: "new", key: "lisbon|us" });
+  });
+  it("an English name alone never invents a city the booking did not print", () => {
+    const withEnglish = q2(null, "Lisbon", null, "Portugal");
+    const without = q2(null, null, null, "Portugal");
+    const covering = { from: "2026-12-03", to: null };
+    expect(resolvePlace(withEnglish, covering, CTX, STAY)).toEqual(resolvePlace(without, covering, CTX, STAY));
+    const empty = { home: HOME, stops: [] };
+    expect(resolvePlace(withEnglish, covering, empty, STAY)).toEqual(resolvePlace(without, covering, empty, STAY));
+    expect(resolvePlace(withEnglish, covering, empty, STAY)).toEqual({ kind: "none" });
   });
 });

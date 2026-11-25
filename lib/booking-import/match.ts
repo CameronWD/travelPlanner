@@ -115,9 +115,11 @@ export function countryCodeOf(value: string | null | undefined): string | null {
   return countryNames().get(key) ?? null;
 }
 
-/** The name a new Stop or a presence test uses: the English name when Claude gave one, else the city as printed. */
+/** The name a new Stop or a presence test uses: the English name when Claude gave one, else the city as printed. No printed city means no name: an English name alone is Claude's guess, not the booking's. */
 export function cityNameOf(q: PlaceQuery): string | null {
-  return q.cityEnglish?.trim() || q.city?.trim() || null;
+  const printed = q.city?.trim();
+  if (!printed) return null;
+  return q.cityEnglish?.trim() || printed;
 }
 
 /** True when any name the booking gives for the place (printed city, English, local, airport or station) names `stopName`. */
