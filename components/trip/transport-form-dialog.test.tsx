@@ -2103,3 +2103,89 @@ describe("TransportFormDialog: footer buttons", () => {
     expect(updateTransport).not.toHaveBeenCalled();
   });
 });
+
+describe("TransportFormDialog: Travel details", () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  const detailLabels = ["Airline", "Flight number", "Operator", "Train number", "Coach", "Seat", "Terminal", "Gate", "Platform", "Hire company"];
+  const shown = () => detailLabels.filter((l) => screen.queryByLabelText(new RegExp(`^${l}$`)) !== null);
+
+  it("shows a mode's fields and swaps them when the mode changes", async () => {
+    const user = userEvent.setup();
+    render(<TransportFormDialog {...baseProps} />);
+    expect(shown()).toEqual(["Airline", "Flight number", "Seat", "Terminal", "Gate"]);
+    await user.click(screen.getByRole("radio", { name: "Train" }));
+    expect(shown()).toEqual(["Operator", "Train number", "Coach", "Seat", "Platform"]);
+    await user.click(screen.getByRole("radio", { name: "Car" }));
+    expect(shown()).toEqual(["Hire company"]);
+  });
+
+  it("sits in its own group between the times and the booking pair", () => {
+    render(<TransportFormDialog {...baseProps} />);
+    const group = document.querySelector('[data-group="travel-details"]')!;
+    expect(group).toHaveTextContent("Travel details");
+    expect(group).toContainElement(screen.getByLabelText("Airline"));
+    const booking = document.querySelector('[data-pair="booking"]')!;
+    expect(group.compareDocumentPosition(booking) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(screen.getByLabelText("Airline")).toHaveAttribute("maxlength", "60");
+  });
+
+  it("creating a Train sends the typed Train number and Seat", async () => {
+    const user = userEvent.setup();
+    render(<TransportFormDialog {...baseProps} />);
+    await user.click(screen.getByRole("radio", { name: "Train" }));
+    await user.type(screen.getByLabelText("Train number"), "ICE 9572");
+    await user.type(screen.getByLabelText("Seat"), "42");
+    await user.click(screen.getByRole("button", { name: "Add train" }));
+    expect(createTransport).toHaveBeenCalledWith(
+      "trip-1",
+      expect.objectContaining({ serviceNumber: "ICE 9572", seat: "42" }),
+      undefined,
+    );
+  });
+
+  it("emptying a shown field on an edit clears it", async () => {
+    const user = userEvent.setup();
+    render(<TransportFormDialog {...baseProps} transport={{ ...existingTransport, seat: "42" }} />);
+    await user.clear(screen.getByLabelText("Seat"));
+    await user.click(screen.getByRole("button", { name: "Save" }));
+    expect(updateTransport).toHaveBeenCalledWith("transport-99", expect.objectContaining({ seat: null }));
+  });
+
+  it("a value the current mode hides is kept, not cleared, on save", async () => {
+    const user = userEvent.setup();
+    render(<TransportFormDialog {...baseProps} transport={{ ...existingTransport, mode: "FLIGHT", gate: "B14" }} />);
+    await user.click(screen.getByRole("radio", { name: "Train" }));
+    expect(screen.queryByLabelText("Gate")).toBeNull();
+    await user.click(screen.getByRole("button", { name: "Save" }));
+    expect(updateTransport).toHaveBeenCalledWith("transport-99", expect.objectContaining({ gate: "B14" }));
+  });
+
+  it("typing in a details field makes the form dirty", async () => {
+    const user = userEvent.setup();
+    const onOpenChange = vi.fn();
+    render(<TransportFormDialog {...baseProps} onOpenChange={onOpenChange} />);
+    await user.type(screen.getByLabelText("Airline"), "BA");
+    await user.keyboard("{Escape}");
+    expect(onOpenChange).not.toHaveBeenCalledWith(false);
+    expect(screen.getByText("Discard changes?")).toBeInTheDocument();
+  });
+
+  it("a Proposal seeds the details and sends them through the draft and the confirm", async () => {
+    const user = userEvent.setup();
+    const onSubmitOverride = vi.fn().mockResolvedValue({ success: true });
+    const onDraftChange = vi.fn();
+    render(
+      <TransportFormDialog
+        tripId="t" stops={STOPS} open onOpenChange={vi.fn()}
+        initialValues={{ mode: "FLIGHT", carrier: "Qantas", gate: "B14" }}
+        onDraftChange={onDraftChange}
+        onSubmitOverride={onSubmitOverride}
+      />,
+    );
+    expect(screen.getByLabelText("Airline")).toHaveValue("Qantas");
+    expect(onDraftChange).toHaveBeenLastCalledWith(expect.objectContaining({ carrier: "Qantas", gate: "B14" }));
+    await user.click(screen.getByRole("button", { name: "Confirm" }));
+    expect(onSubmitOverride).toHaveBeenCalledWith(expect.objectContaining({ carrier: "Qantas", gate: "B14" }));
+  });
+});
