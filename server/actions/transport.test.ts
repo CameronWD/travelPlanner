@@ -1822,7 +1822,7 @@ describe("deleteTransport with refund answers", () => {
 
     const result = await deleteTransport("t-1", [{ costId: "not-mine", refundMinor: 100, refundedAt: null }]);
 
-    expect(result).toEqual({ success: false, errors: { _: ["That cost isn't part of this."] } });
+    expect(result).toEqual({ success: false, errors: { _: [REFUND_MESSAGES.notThisThing] } });
     expect(transportDeleteMock).not.toHaveBeenCalled();
     expect(costUpdateMock).not.toHaveBeenCalled();
     expect(costDeleteManyMock).not.toHaveBeenCalled();
@@ -1853,6 +1853,7 @@ describe("deleteTransport with refund answers", () => {
         ownerType: "OTHER",
         ownerId: null,
         label: "BA490 (cancelled)",
+        costMinor: 20000,
         refundMinor: 15000,
         refundedAt: new Date("2026-07-02"),
       },

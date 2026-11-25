@@ -213,6 +213,7 @@ export async function updateCost(
     { refundMinor: merged.refundMinor, refundedAt: merged.refundedAt },
   );
   if (refundBreak) return formFail(refundBreak);
+  if (merged.refundMinor != null && merged.currency !== before.currency) return formFail(REFUND_MESSAGES.currencyBlocked);
   const parsed = costSchema.safeParse(merged);
   if (!parsed.success) {
     return validationResult(parsed.error);

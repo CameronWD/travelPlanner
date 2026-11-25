@@ -2,8 +2,8 @@ import { z } from "zod";
 import { isoDate } from "@/lib/validations/primitives";
 import type { DeleteRefundAnswer } from "@/lib/money/delete-refund";
 
-export const REFUND_NOTE =
-  "Money is in minor units. A Refund is only for a paid Cost and never more than was paid. Omit receivedOn for a refund that has been promised but has not arrived.";
+export const REFUND_RULES_NOTE = "Money is in minor units. A Refund is only for a paid Cost and never more than was paid.";
+export const REFUND_NOTE = `${REFUND_RULES_NOTE} Omit receivedOn for a refund that has been promised but has not arrived.`;
 
 export const refundsShape = z
   .array(z.object({ costId: z.string(), refundMinor: z.number().int().min(1), receivedOn: isoDate.nullable().optional() }))

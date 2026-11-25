@@ -165,6 +165,7 @@ export function completeInlineCost(patch: InlineCostPatch, owned: readonly Owned
   const paid = paidPairAfter(patch, single);
   // The inline write never touches the Refund columns, so it must not leave the Cost breaking the Refund's rules.
   if (single) {
+    if (single.refundMinor != null && currency !== single.currency) return formFail(REFUND_MESSAGES.currencyBlocked);
     const problem = refundGuard(
       { paidMinor: paid.paidMinor ?? single.paidMinor, paidAt: paid.paidAt ?? null },
       single,

@@ -63,7 +63,7 @@ describe("deleteOwnedCostsTx", () => {
         tripId: "trip-1",
         OR: [{ ownerType: "ACCOMMODATION", ownerId: { in: ["acc-1"] } }],
       },
-      select: { id: true, paidMinor: true, paidAt: true, label: true, ownerType: true, ownerId: true },
+      select: { id: true, paidMinor: true, paidAt: true, refundMinor: true, label: true, ownerType: true, ownerId: true },
     });
     const empty = await deleteOwnedCostsTx(tx, "trip-1", []);
     expect(empty).toEqual({ deleted: 0, converted: 0 });
@@ -81,6 +81,7 @@ describe("deleteOwnedCostsTx", () => {
           ownerType: "OTHER",
           ownerId: null,
           label: "Hotel Lisboa (cancelled)",
+          costMinor: 20000,
           refundMinor: 15000,
           refundedAt: new Date("2026-07-02"),
         },
@@ -92,7 +93,7 @@ describe("deleteOwnedCostsTx", () => {
       await deleteOwnedCostsTx(tx, "trip-1", [owner], [{ costId: "c2", refundMinor: 15000, refundedAt: null }]);
       expect(update).toHaveBeenCalledWith({
         where: { id: "c2" },
-        data: { ownerType: "OTHER", ownerId: null, label: "Hotel Lisboa (cancelled)", refundMinor: 15000, refundedAt: null },
+        data: { ownerType: "OTHER", ownerId: null, label: "Hotel Lisboa (cancelled)", costMinor: 20000, refundMinor: 15000, refundedAt: null },
       });
     });
 
@@ -105,12 +106,34 @@ describe("deleteOwnedCostsTx", () => {
       });
     });
 
-    it("leaves a refund already on the cost alone when no answer names it", async () => {
+    it("leaves a refund already on the cost alone, labels it (cancelled) and counts only what was paid", async () => {
       const { tx, update } = makeTx([{ ...paid, refundMinor: 5000, refundedAt: null }]);
       await deleteOwnedCostsTx(tx, "trip-1", [owner], []);
       const data = update.mock.calls[0][0].data;
       expect(data).not.toHaveProperty("refundMinor");
       expect(data).not.toHaveProperty("refundedAt");
+      expect(data.label).toBe("Hotel Lisboa (cancelled)");
+      expect(data.costMinor).toBe(20000);
+    });
+
+    it("a converted cost with no answer and no refund gets no costMinor", async () => {
+      const { tx, update } = makeTx([paid]);
+      await deleteOwnedCostsTx(tx, "trip-1", [owner], []);
+      expect(update.mock.calls[0][0].data).not.toHaveProperty("costMinor");
+    });
+
+    it("an answer sets costMinor to what was paid, even when that is more than the cost was", async () => {
+      const { tx, update } = makeTx([{ ...paid, paidMinor: 226400 }]);
+      await deleteOwnedCostsTx(tx, "trip-1", [owner], [{ costId: "c2", refundMinor: 100000, refundedAt: "2026-07-02" }]);
+      expect(update.mock.calls[0][0].data.costMinor).toBe(226400);
+    });
+
+    it("a partly paid cost fully refunded counts only the deposit", async () => {
+      const { tx, update } = makeTx([{ ...paid, paidMinor: 50000 }]);
+      await deleteOwnedCostsTx(tx, "trip-1", [owner], [{ costId: "c2", refundMinor: 50000, refundedAt: "2026-07-02" }]);
+      const data = update.mock.calls[0][0].data;
+      expect(data.costMinor).toBe(50000);
+      expect(data.refundMinor).toBe(50000);
     });
 
     it("still deletes the owner's unpaid costs", async () => {
@@ -150,7 +173,7 @@ describe("deleteRefundsProblemTx", () => {
 
   it("refuses a cost that is not this owner's", async () => {
     const { promise } = run([paid], [{ costId: "not-mine", refundMinor: 100, refundedAt: null }]);
-    expect(await promise).toBe("That cost isn't part of this.");
+    expect(await promise).toBe(REFUND_MESSAGES.notThisThing);
   });
 
   it("refuses more than was paid", async () => {
@@ -168,11 +191,11 @@ describe("deleteRefundsProblemTx", () => {
       { costId: "c2", refundMinor: 100, refundedAt: null },
       { costId: "c2", refundMinor: 200, refundedAt: null },
     ]);
-    expect(await promise).toBe("Each cost can only have one refund.");
+    expect(await promise).toBe(REFUND_MESSAGES.duplicateAnswer);
   });
 
   it("refuses a date that is not a date", async () => {
     const { promise } = run([paid], [{ costId: "c2", refundMinor: 100, refundedAt: "soon" }]);
-    expect(await promise).toBe("Enter when it arrived.");
+    expect(await promise).toBe(REFUND_MESSAGES.dateNeeded);
   });
 });

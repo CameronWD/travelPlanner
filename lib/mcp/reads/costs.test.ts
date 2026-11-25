@@ -159,6 +159,18 @@ describe("loadCostsForMcp", () => {
     expect(plain.net).toEqual({ minor: 1000, formatted: "10.00" });
   });
 
+  it("net is the shown number: paid less a received Refund on a paid Cost, the cost amount while unpaid", async () => {
+    costFindMany.mockResolvedValue([
+      baseCost({ id: "over", currency: "AUD", costMinor: 220000, paidMinor: 226400, paidAt: new Date("2026-11-20T00:00:00Z"), refundMinor: 100000, refundedAt: new Date("2026-11-25T00:00:00Z") }),
+      baseCost({ id: "part", currency: "AUD", costMinor: 200000, paidMinor: 50000, paidAt: new Date("2026-11-20T00:00:00Z") }),
+      baseCost({ id: "open", currency: "AUD", costMinor: 7000 }),
+    ]);
+    const { costs } = await loadCostsForMcp(TRIP_ID, {});
+    expect(costs.find((c) => c.id === "over")!.net.minor).toBe(126400);
+    expect(costs.find((c) => c.id === "part")!.net.minor).toBe(50000);
+    expect(costs.find((c) => c.id === "open")!.net.minor).toBe(7000);
+  });
+
   it("names owners; a cost whose owner is gone reads (removed)", async () => {
     costFindMany.mockResolvedValue([
       baseCost({ id: "c-item", ownerType: "ITEM", ownerId: "item-gone", currency: "AUD" }),

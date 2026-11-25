@@ -113,6 +113,12 @@ describe("Refund through the inline Cost", () => {
       { success: false, errors: { _: [REFUND_MESSAGES.unpayBlocked] } },
     );
   });
+  it("changing the currency of a refunded Cost is refused; repeating it is not", () => {
+    expect(completeInlineCost({ costMinor: 20000, currency: "USD" }, [single])).toEqual(
+      { success: false, errors: { _: [REFUND_MESSAGES.currencyBlocked] } },
+    );
+    expect(completeInlineCost({ costMinor: 20000, currency: "EUR" }, [single])).toMatchObject({ currency: "EUR" });
+  });
   it("a paid amount below the Refund is refused", () => {
     expect(completeInlineCost({ costMinor: 20000, currency: "EUR", paidMinor: 4000, paidAt: "2026-04-01" }, [single])).toEqual(
       { success: false, errors: { _: [REFUND_MESSAGES.tooMuch] } },

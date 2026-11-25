@@ -40,6 +40,10 @@ export const REFUND_MESSAGES = {
   unpayBlocked: "Remove the refund before marking this unpaid.",
   dateNeedsAmount: "A refund date needs a refund amount.",
   tooSmall: "A refund must be more than zero.",
+  currencyBlocked: "Remove the refund before changing the currency.",
+  duplicateAnswer: "Each cost can only have one refund.",
+  dateNeeded: "Enter when it arrived.",
+  notThisThing: "That cost isn’t part of this.",
 };
 
 /** The rule a Cost breaks, or null. Checks: a Refund needs a paid Cost; 1 ≤ refundMinor ≤ paidMinor; refundedAt needs refundMinor. */

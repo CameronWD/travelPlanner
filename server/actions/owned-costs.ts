@@ -1,6 +1,6 @@
 import type { Prisma } from "@prisma/client";
 import type { DeleteRefundAnswer } from "@/lib/money/delete-refund";
-import { refundProblem } from "@/lib/money/refund";
+import { refundProblem, REFUND_MESSAGES } from "@/lib/money/refund";
 import { refundedAtStringSchema } from "@/lib/validations/cost";
 
 export type DeletedCostOwner = {
@@ -28,7 +28,7 @@ export async function deleteRefundsProblemTx(
 ): Promise<string | null> {
   if (!refunds || refunds.length === 0) return null;
   const ids = refunds.map((r) => r.costId);
-  if (new Set(ids).size !== ids.length) return "Each cost can only have one refund.";
+  if (new Set(ids).size !== ids.length) return REFUND_MESSAGES.duplicateAnswer;
 
   const costs = await tx.cost.findMany({
     where: { tripId, ownerType: owner.type, ownerId: owner.id, id: { in: ids } },
@@ -37,9 +37,9 @@ export async function deleteRefundsProblemTx(
   const byId = new Map(costs.map((c) => [c.id, c]));
   for (const answer of refunds) {
     const cost = byId.get(answer.costId);
-    if (!cost) return "That cost isn't part of this.";
+    if (!cost) return REFUND_MESSAGES.notThisThing;
     const refundedAt = answerDate(answer.refundedAt);
-    if (refundedAt === undefined) return "Enter when it arrived.";
+    if (refundedAt === undefined) return REFUND_MESSAGES.dateNeeded;
     const problem = refundProblem({ ...cost, refundMinor: answer.refundMinor, refundedAt });
     if (problem) return problem;
   }
@@ -74,7 +74,7 @@ export async function deleteOwnedCostsTx(
         ownerId: { in: list.map((o) => o.id) },
       })),
     },
-    select: { id: true, paidMinor: true, paidAt: true, label: true, ownerType: true, ownerId: true },
+    select: { id: true, paidMinor: true, paidAt: true, refundMinor: true, label: true, ownerType: true, ownerId: true },
   });
   if (costs.length === 0) return { deleted: 0, converted: 0 };
 
@@ -89,6 +89,9 @@ export async function deleteOwnedCostsTx(
     }
     const answer = refunds.find((r) => r.costId === cost.id);
     const base = cost.label ?? ownerLabel.get(`${cost.ownerType}:${cost.ownerId}`) ?? "Deleted";
+    // A cancelled thing counts only the money that left; an unanswered, Refund-less Cost is unchanged.
+    const cancelled = answer !== undefined || cost.refundMinor != null;
+    const onlyWhatWasPaid = cancelled && cost.paidAt != null && cost.paidMinor != null ? { costMinor: cost.paidMinor } : {};
     await tx.cost.update({
       where: { id: cost.id },
       data: answer
@@ -96,10 +99,16 @@ export async function deleteOwnedCostsTx(
             ownerType: "OTHER",
             ownerId: null,
             label: `${base} (cancelled)`,
+            ...onlyWhatWasPaid,
             refundMinor: answer.refundMinor,
             refundedAt: answerDate(answer.refundedAt),
           }
-        : { ownerType: "OTHER", ownerId: null, label: `${base} (deleted)` },
+        : {
+            ownerType: "OTHER",
+            ownerId: null,
+            label: `${base} (${cancelled ? "cancelled" : "deleted"})`,
+            ...onlyWhatWasPaid,
+          },
     });
     converted++;
   }

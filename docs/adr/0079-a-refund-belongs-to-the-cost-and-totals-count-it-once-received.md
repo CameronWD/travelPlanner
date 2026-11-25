@@ -39,6 +39,10 @@ question is where it lives and when it changes a total.
 ## Consequences
 
 - One Refund per Cost.
+- The currency of a Cost is frozen while it holds a Refund, because the Refund's amount is in
+  that currency.
+- The "Refunded" group, in the To pay card and the All costs sheet, holds any Cost with a
+  received Refund whose shown amount is zero.
 - The Refund is converted at the Cost's snapshotted rate, so it cannot differ from the
   Cost's own rate.
 - The inline cost row inside the Transport, Accommodation and Item forms cannot edit a

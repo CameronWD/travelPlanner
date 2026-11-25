@@ -66,7 +66,7 @@ import { homeContradictionError } from "@/lib/transport-patch";
 import { TRANSPORT_DETAIL_KEYS, TRANSPORT_DETAIL_MAX, type TransportDetailKey } from "@/lib/transport-details";
 import { TRANSPORT_MODE_MEANING, SETTLEMENT_MEANING, describeValues } from "../vocab";
 import { isoDate, hhmm } from "@/lib/validations/primitives";
-import { REFUND_NOTE, refundsShape, deleteRefundArgs } from "../refund-fields";
+import { REFUND_NOTE, REFUND_RULES_NOTE, refundsShape, deleteRefundArgs } from "../refund-fields";
 import { bookingCreateShape, bookingPatchFrom, bookingPatchShape } from "../booking-state-fields";
 
 const currencySchema = z.enum(CURRENCY_CODES as [string, ...string[]]);
@@ -553,7 +553,7 @@ export function registerBookingsWriteTools(server: McpServer): void {
     "mark_refund_received",
     {
       title: "Mark refund received",
-      description: `Marks a Cost's expected Refund as received. ${REFUND_NOTE} receivedOn is the date it arrived, YYYY-MM-DD.`,
+      description: `Marks a Cost's expected Refund as received. ${REFUND_RULES_NOTE} receivedOn is the date it arrived, YYYY-MM-DD.`,
       inputSchema: { costId: z.string(), receivedOn: isoDate },
     },
     ({ costId, receivedOn }) =>

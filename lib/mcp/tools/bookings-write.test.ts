@@ -646,6 +646,13 @@ describe("bookings write tools", () => {
       expect(clearRefund).toHaveBeenLastCalledWith(COST_ID);
     });
 
+    it("mark_refund_received does not tell the model to omit receivedOn, which it requires", async () => {
+      const c = await connectTestClient();
+      const tools = (await c.listTools()).tools;
+      expect(tools.find((t) => t.name === "mark_refund_received")!.description).not.toMatch(/Omit receivedOn/);
+      expect(tools.find((t) => t.name === "record_refund")!.description).toMatch(/Omit receivedOn/);
+    });
+
     it("a refused refund comes back as a tool error carrying the action's message", async () => {
       recordRefund.mockResolvedValue({ success: false, errors: { refundMinor: ["A refund can\u2019t be more than what was paid."] } });
       const c = await connectTestClient();

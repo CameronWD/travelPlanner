@@ -465,6 +465,22 @@ describe("updateCost", () => {
     });
   });
 
+  it("refuses a currency change on a Cost that holds a Refund, and writes nothing", async () => {
+    costFindUniqueMock.mockResolvedValue({ id: "cost-1", tripId: "trip-1", currency: "AUD", paidMinor: 20000, paidAt: new Date("2026-06-01"), refundMinor: 5000, refundedAt: null });
+    const result = await updateCost("cost-1", { currency: "EUR" });
+    expect(result).toEqual({ success: false, errors: { _: [REFUND_MESSAGES.currencyBlocked] } });
+    expect(costUpdateMock).not.toHaveBeenCalled();
+  });
+
+  it("lets a refunded Cost repeat its own currency", async () => {
+    costFindUniqueMock.mockResolvedValue({ id: "cost-1", tripId: "trip-1", currency: "AUD", costMinor: 20000, paidMinor: 20000, paidAt: new Date("2026-06-01"), refundMinor: 5000, refundedAt: null, ownerType: "OTHER", ownerId: null, label: "Insurance", settlement: "BEFORE" });
+    tripFindUniqueMock.mockResolvedValue({ homeCurrency: "AUD" });
+    resolveRateForTripMock.mockResolvedValue({ rate: 1, persist: null });
+    costUpdateMock.mockResolvedValue({});
+    const result = await updateCost("cost-1", { currency: "AUD" });
+    expect(result.success).toBe(true);
+  });
+
   it("access-checks via requireCostAccess → requireTripAccess", async () => {
     costFindUniqueMock.mockResolvedValue({ id: "cost-1", tripId: "trip-5" });
     transportFindUniqueMock.mockResolvedValue({ tripId: "trip-5" });

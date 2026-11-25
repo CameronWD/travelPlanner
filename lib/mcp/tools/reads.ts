@@ -343,7 +343,7 @@ export function registerReadTools(server: McpServer): void {
     {
       title: "List costs",
       description:
-        "Lists the trip's individual Costs on the real plan: amount in its own currency and in the home currency (null when no exchange rate is known), paid or unpaid with due date, Before you go or On the trip, and what it belongs to. unpaidOnly keeps unpaid Costs; dueWithinDays keeps unpaid Costs due within that many days (overdue included). Soonest due first.",
+        "Lists the trip's individual Costs on the real plan: amount in its own currency and in the home currency (null when no exchange rate is known), paid or unpaid with due date, Before you go or On the trip, and what it belongs to. On a Cost, amount is its cost amount and paid is what was paid, both before any Refund; refund is the Refund; net is what it has actually cost so far (paid less a received Refund, or the cost amount while unpaid); home is the cost amount less a received Refund, in the Home currency. unpaidOnly keeps unpaid Costs; dueWithinDays keeps unpaid Costs due within that many days (overdue included). Soonest due first.",
       inputSchema: {
         tripId: z.string(),
         unpaidOnly: z.boolean().optional(),
