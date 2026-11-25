@@ -169,6 +169,18 @@ describe("describeChanges COST", () => {
     expect(changes[0].to).toBe("not paid");
   });
 
+  it("describes a Refund being recorded, then received", () => {
+    const recorded = describeChanges("COST", { currency: "AUD", refundMinor: null }, { currency: "AUD", refundMinor: 5000 });
+    expect(recorded).toHaveLength(1);
+    expect(recorded[0].label).toBe("Refund");
+    expect(recorded[0].to).toContain("50.00");
+    const received = describeChanges("COST", { refundMinor: 5000, refundedAt: null }, { refundMinor: 5000, refundedAt: new Date("2026-12-01T00:00:00Z") });
+    expect(received).toHaveLength(1);
+    expect(received[0].label).toBe("Refund received");
+    expect(received[0].from).toBe("expected");
+    expect(received[0].to).toBe("Tue 1 Dec 2026");
+  });
+
   it("describes marking a cost paid", () => {
     const changes = describeChanges("COST", { paidAt: null }, { paidAt: new Date("2026-08-14T00:00:00Z") });
     expect(changes).toHaveLength(1);

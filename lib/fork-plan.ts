@@ -330,6 +330,8 @@ export interface ForkPlan {
       currency: string;
       rateToHome: number | null;
       paidAt: null;
+      refundMinor: null;
+      refundedAt: null;
       ownerType: string;
       ownerId: null;
       label: string | null;
@@ -406,7 +408,7 @@ export function buildForkPlan(source: ForkSource): ForkPlan {
       sourceOwnerType: c.ownerType, sourceOwnerId: c.ownerId,
       data: {
         costMinor: c.costMinor, paidMinor: null, currency: c.currency, rateToHome: c.rateToHome,
-        paidAt: null, ownerType: c.ownerType, ownerId: null /* remapped in tx */, label: c.label, category: c.category,
+        paidAt: null, refundMinor: null, refundedAt: null, ownerType: c.ownerType, ownerId: null /* remapped in tx */, label: c.label, category: c.category,
         settlement: isOnTrip(c.settlement) ? "ON_TRIP" : "BEFORE",
       },
     })),

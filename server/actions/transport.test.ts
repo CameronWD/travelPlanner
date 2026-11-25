@@ -1780,3 +1780,34 @@ describe("Transport ends know their country and Region", () => {
     expect(transportCreateMock).toHaveBeenLastCalledWith({ data: expect.objectContaining({ arrIsHome: true, arrCountryCode: null, arrRegion: null }) });
   });
 });
+
+describe("updateTransport: a Refund on the inline Cost", () => {
+  const refundedCost = {
+    id: "rc1", costMinor: 20000, currency: "EUR", paidMinor: 20000, paidAt: new Date("2026-04-01T00:00:00Z"),
+    refundMinor: 5000, refundedAt: null,
+  };
+  beforeEach(() => {
+    transportFindUniqueMock
+      .mockResolvedValueOnce({ id: "tr1", tripId: "trip-1", forkId: null })
+      .mockResolvedValueOnce({ id: "tr1", mode: "FLIGHT" });
+    transportUpdateMock.mockResolvedValue({ id: "tr1", mode: "FLIGHT" });
+    costFindManyMock.mockResolvedValue([refundedCost]);
+    tripFindUniqueMock.mockResolvedValue({ homeCurrency: "AUD" });
+    resolveRateForTripMock.mockResolvedValue({ rate: 1, persist: null });
+  });
+
+  it("un-paying it fails the save with the unpay message and writes neither the Transport nor the Cost", async () => {
+    const r = await updateTransport("tr1", { mode: "FLIGHT", costMinor: 20000, currency: "EUR", paidAt: null });
+    expect(r).toEqual({ success: false, errors: { _: ["Remove the refund before marking this unpaid."] } });
+    expect(transportUpdateMock).not.toHaveBeenCalled();
+    expect(costUpdateMock).not.toHaveBeenCalled();
+  });
+
+  it("an amount-only edit leaves the refund columns out of the Cost write", async () => {
+    const r = await updateTransport("tr1", { mode: "FLIGHT", costMinor: 21000, currency: "EUR" });
+    expect(r.success).toBe(true);
+    const data = costUpdateMock.mock.calls[0][0].data;
+    expect(data).not.toHaveProperty("refundMinor");
+    expect(data).not.toHaveProperty("refundedAt");
+  });
+});

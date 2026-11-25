@@ -3,7 +3,7 @@
 import { db } from "@/lib/db";
 import { requireTripAccess, requirePlanAccess, requireRowAccess } from "@/lib/guards";
 import { resolveRateForTrip, persistRate } from "@/lib/money/fx";
-import { costSchema, paidAtStringSchema, MAX_AMOUNT_MINOR, type CostRawInput } from "@/lib/validations/cost";
+import { costSchema, paidAtStringSchema, refundedAtStringSchema, MAX_AMOUNT_MINOR, type CostRawInput } from "@/lib/validations/cost";
 import type { Cost } from "@prisma/client";
 import { auditedUpdate, recordPlanActivity, recordUpdate } from "@/lib/activity-guard";
 import { requireOutsideSurprise, type SurpriseRoot } from "@/lib/surprise-guard";
@@ -13,7 +13,8 @@ import { type ActionResult, validationResult, formFail } from "@/lib/action-resu
 import { revalidateTrip } from "@/lib/revalidate";
 import { WHAT_IF_PLANS_HIDDEN } from "@/lib/what-if";
 import { notFound } from "next/navigation";
-import { mergeCostPatch } from "@/lib/money/cost-patch";
+import { mergeCostPatch, refundGuard } from "@/lib/money/cost-patch";
+import { refundProblem, refundState, REFUND_MESSAGES } from "@/lib/money/refund";
 import { type Patch } from "@/lib/patch";
 
 // ---------------------------------------------------------------------------
@@ -163,6 +164,8 @@ export async function createCost(
         currency: data.currency,
         rateToHome: resolved.rate,
         paidAt: data.paidAt ?? null,
+        refundMinor: data.refundMinor ?? null,
+        refundedAt: data.refundedAt ?? null,
         dueDate: data.dueDate ?? null,
         ownerType: data.ownerType,
         ownerId: data.ownerId ?? null,
@@ -196,6 +199,8 @@ export async function updateCost(
 
   const merged = mergeCostPatch(before, patch);
   if ("success" in merged) return merged;
+  // Un-paying a Cost that holds a Refund is its own message; the schema words the rest.
+  if (merged.refundMinor != null && merged.paidAt === undefined) return formFail(REFUND_MESSAGES.unpayBlocked);
   const parsed = costSchema.safeParse(merged);
   if (!parsed.success) {
     return validationResult(parsed.error);
@@ -231,6 +236,8 @@ export async function updateCost(
         currency: data.currency,
         rateToHome: resolved.rate,
         paidAt: data.paidAt ?? null,
+        refundMinor: data.refundMinor ?? null,
+        refundedAt: data.refundedAt ?? null,
         dueDate: data.dueDate ?? null,
         ownerType: data.ownerType,
         ownerId: data.ownerId ?? null,
@@ -290,7 +297,7 @@ export async function markCostPaid(
 ): Promise<CostActionResult> {
   const cost = await db.cost.findUnique({
     where: { id: costId },
-    select: { id: true, tripId: true, forkId: true, ownerType: true, ownerId: true },
+    select: { id: true, tripId: true, forkId: true, ownerType: true, ownerId: true, refundMinor: true, refundedAt: true },
   });
   if (!cost || (WHAT_IF_PLANS_HIDDEN && cost.forkId)) return formFail("Cost not found");
   const { user } = await requireTripAccess(cost.tripId);
@@ -309,6 +316,9 @@ export async function markCostPaid(
     return { success: false, errors: { paidAt: ["Enter when you paid"] } };
   }
 
+  const problem = refundGuard({ paidMinor, paidAt: parsedDate.data }, cost);
+  if (problem) return formFail(problem);
+
   await auditedUpdate(
     "COST",
     db.cost,
@@ -324,13 +334,75 @@ export async function markCostPaid(
 export async function markCostUnpaid(costId: string): Promise<CostActionResult> {
   const cost = await db.cost.findUnique({
     where: { id: costId },
-    select: { id: true, tripId: true, forkId: true, ownerType: true, ownerId: true },
+    select: { id: true, tripId: true, forkId: true, ownerType: true, ownerId: true, refundMinor: true },
   });
   if (!cost || (WHAT_IF_PLANS_HIDDEN && cost.forkId)) return formFail("Cost not found");
   const { user } = await requireTripAccess(cost.tripId);
   await requireOutsideSurprise(user.id, { costOwner: cost });
 
+  if (cost.refundMinor != null) return formFail(REFUND_MESSAGES.unpayBlocked);
+
   await auditedUpdate("COST", db.cost, costId, { paidAt: null }, cost.forkId ?? null);
+  revalidateTrip(cost.tripId, "money");
+  return { success: true };
+}
+
+async function loadRefundable(costId: string) {
+  const cost = await db.cost.findUnique({
+    where: { id: costId },
+    select: { id: true, tripId: true, forkId: true, ownerType: true, ownerId: true, paidMinor: true, paidAt: true, refundMinor: true, refundedAt: true },
+  });
+  if (!cost || (WHAT_IF_PLANS_HIDDEN && cost.forkId)) return null;
+  const { user } = await requireTripAccess(cost.tripId);
+  await requireOutsideSurprise(user.id, { costOwner: cost });
+  return cost;
+}
+
+/** Record a Refund on a paid Cost: `refundedAt` "YYYY-MM-DD" = received, null = expected. */
+export async function recordRefund(
+  costId: string,
+  refundMinor: number,
+  refundedAt: string | null,
+): Promise<CostActionResult> {
+  const cost = await loadRefundable(costId);
+  if (!cost) return formFail("Cost not found");
+
+  let received: Date | null = null;
+  if (refundedAt !== null) {
+    const parsedDate = refundedAtStringSchema.safeParse(refundedAt);
+    if (!parsedDate.success) return { success: false, errors: { refundedAt: ["Enter when it arrived"] } };
+    received = new Date(parsedDate.data);
+  }
+  if (!Number.isInteger(refundMinor) || refundMinor > MAX_AMOUNT_MINOR) {
+    return { success: false, errors: { refundMinor: ["Enter the refund amount"] } };
+  }
+  const problem = refundProblem({ ...cost, refundMinor, refundedAt: received });
+  if (problem) return formFail(problem);
+
+  await auditedUpdate("COST", db.cost, costId, { refundMinor, refundedAt: received }, cost.forkId ?? null);
+  revalidateTrip(cost.tripId, "money");
+  return { success: true };
+}
+
+/** The money for an expected Refund has arrived. */
+export async function markRefundReceived(costId: string, refundedAt: string): Promise<CostActionResult> {
+  const cost = await loadRefundable(costId);
+  if (!cost) return formFail("Cost not found");
+  if (refundState(cost) === "none") return formFail("There is no refund to mark received.");
+
+  const parsedDate = refundedAtStringSchema.safeParse(refundedAt);
+  if (!parsedDate.success) return { success: false, errors: { refundedAt: ["Enter when it arrived"] } };
+
+  await auditedUpdate("COST", db.cost, costId, { refundedAt: new Date(parsedDate.data) }, cost.forkId ?? null);
+  revalidateTrip(cost.tripId, "money");
+  return { success: true };
+}
+
+export async function clearRefund(costId: string): Promise<CostActionResult> {
+  const cost = await loadRefundable(costId);
+  if (!cost) return formFail("Cost not found");
+
+  await auditedUpdate("COST", db.cost, costId, { refundMinor: null, refundedAt: null }, cost.forkId ?? null);
   revalidateTrip(cost.tripId, "money");
   return { success: true };
 }

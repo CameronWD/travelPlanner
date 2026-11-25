@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { costSchema, paidAtStringSchema } from "./cost";
+import { REFUND_MESSAGES } from "@/lib/money/refund";
 
 // ---------------------------------------------------------------------------
 // Valid cases
@@ -369,5 +370,28 @@ describe("costSchema paid invariant", () => {
     // stays legal — only the reverse is nonsense.
     const result = costSchema.safeParse({ ...base, paidMinor: 34000 });
     expect(result.success).toBe(true);
+  });
+});
+
+describe("costSchema — Refund", () => {
+  const paid = { costMinor: 20000, paidMinor: 20000, paidAt: "2026-06-01", currency: "AUD", ownerType: "OTHER" as const, label: "Pass" };
+
+  it("accepts a Refund equal to what was paid, expected or received", () => {
+    expect(costSchema.safeParse({ ...paid, refundMinor: 20000 }).success).toBe(true);
+    const received = costSchema.safeParse({ ...paid, refundMinor: 5000, refundedAt: "2026-07-01" });
+    expect(received.success).toBe(true);
+    if (received.success) expect(received.data.refundedAt).toEqual(new Date("2026-07-01"));
+  });
+
+  it("refuses a Refund over what was paid", () => {
+    const r = costSchema.safeParse({ ...paid, refundMinor: 20001 });
+    expect(r.success).toBe(false);
+    if (!r.success) expect(r.error.issues.map((i) => i.message)).toContain(REFUND_MESSAGES.tooMuch);
+  });
+
+  it("refuses a Refund on an unpaid Cost", () => {
+    const r = costSchema.safeParse({ costMinor: 20000, currency: "AUD", ownerType: "OTHER", label: "Pass", refundMinor: 100 });
+    expect(r.success).toBe(false);
+    if (!r.success) expect(r.error.issues.map((i) => i.message)).toContain(REFUND_MESSAGES.notPaid);
   });
 });
