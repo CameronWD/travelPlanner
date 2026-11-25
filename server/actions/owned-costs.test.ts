@@ -31,7 +31,7 @@ describe("deleteOwnedCostsTx", () => {
     expect(result).toEqual({ deleted: 0, converted: 1 });
     expect(update).toHaveBeenCalledWith({
       where: { id: "c2" },
-      data: { ownerType: "OTHER", ownerId: null, label: "Hotel Lisboa (deleted)" },
+      data: { ownerType: "OTHER", ownerId: null, label: "Hotel Lisboa (deleted)", costMinor: 8000 },
     });
   });
 
@@ -102,7 +102,7 @@ describe("deleteOwnedCostsTx", () => {
       await deleteOwnedCostsTx(tx, "trip-1", [owner], [{ costId: "other", refundMinor: 1, refundedAt: null }]);
       expect(update).toHaveBeenCalledWith({
         where: { id: "c2" },
-        data: { ownerType: "OTHER", ownerId: null, label: "Hotel Lisboa (deleted)" },
+        data: { ownerType: "OTHER", ownerId: null, label: "Hotel Lisboa (deleted)", costMinor: 20000 },
       });
     });
 
@@ -116,8 +116,23 @@ describe("deleteOwnedCostsTx", () => {
       expect(data.costMinor).toBe(20000);
     });
 
-    it("a converted cost with no answer and no refund gets no costMinor", async () => {
-      const { tx, update } = makeTx([paid]);
+    it("a strictly paid cost with no answer and no refund counts only what was paid", async () => {
+      const { tx, update } = makeTx([{ ...paid, paidMinor: 50000 }]);
+      await deleteOwnedCostsTx(tx, "trip-1", [owner], []);
+      expect(update).toHaveBeenCalledWith({
+        where: { id: "c2" },
+        data: { ownerType: "OTHER", ownerId: null, label: "Hotel Lisboa (deleted)", costMinor: 50000 },
+      });
+    });
+
+    it("an overpaid cost with no answer counts what was paid", async () => {
+      const { tx, update } = makeTx([{ ...paid, paidMinor: 226400 }]);
+      await deleteOwnedCostsTx(tx, "trip-1", [owner], []);
+      expect(update.mock.calls[0][0].data.costMinor).toBe(226400);
+    });
+
+    it("an ever-paid cost that is not strictly paid gets no costMinor", async () => {
+      const { tx, update } = makeTx([{ ...paid, paidAt: null }]);
       await deleteOwnedCostsTx(tx, "trip-1", [owner], []);
       expect(update.mock.calls[0][0].data).not.toHaveProperty("costMinor");
     });

@@ -89,9 +89,9 @@ export async function deleteOwnedCostsTx(
     }
     const answer = refunds.find((r) => r.costId === cost.id);
     const base = cost.label ?? ownerLabel.get(`${cost.ownerType}:${cost.ownerId}`) ?? "Deleted";
-    // A cancelled thing counts only the money that left; an unanswered, Refund-less Cost is unchanged.
+    // The thing no longer exists, so a paid Cost counts only the money that left.
+    const onlyWhatWasPaid = cost.paidAt != null && cost.paidMinor != null ? { costMinor: cost.paidMinor } : {};
     const cancelled = answer !== undefined || cost.refundMinor != null;
-    const onlyWhatWasPaid = cancelled && cost.paidAt != null && cost.paidMinor != null ? { costMinor: cost.paidMinor } : {};
     await tx.cost.update({
       where: { id: cost.id },
       data: answer

@@ -127,7 +127,7 @@ _Avoid_: Payment date (that's **paidAt**, when it actually happened), deadline, 
 _Avoid_: Payment type, timing, phase (reserved for the Trip's **Phase**), pre-paid/post-paid
 
 **Other cost**:
-A standalone Cost not attached to any timeline thing — travel insurance, visas, eSIM, spending-money buffers. Still rolls into the budget. Also where a **paid** Cost lands when its owner is deleted: deleting an Accommodation, Item or Transport deletes that thing's *unpaid* Costs (estimates for a thing that no longer exists) but converts its paid Costs into an Other cost labelled after the deleted owner (and carrying a **Refund** when the Traveller says the money came back or will) — money that actually left the account never vanishes from **Spend so far**.
+A standalone Cost not attached to any timeline thing — travel insurance, visas, eSIM, spending-money buffers. Still rolls into the budget. Also where a **paid** Cost lands when its owner is deleted: deleting an Accommodation, Item or Transport deletes that thing's *unpaid* Costs (estimates for a thing that no longer exists) but converts its paid Costs into an Other cost labelled after the deleted owner, counted at what was paid (and carrying a **Refund** when the Traveller says the money came back or will) — money that actually left the account never vanishes from **Spend so far**.
 _Avoid_: Misc, extra
 
 **Budget**:

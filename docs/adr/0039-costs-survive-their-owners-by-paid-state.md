@@ -48,6 +48,6 @@ A converted paid Cost may carry a Refund, given by the Traveller when they delet
 owner (expected, or received on a date). Such a Cost is labelled "<owner or cost label>
 (cancelled)" instead of "(deleted)". The Traveller who says the money was not refunded
 gets today's behaviour unchanged.
-A paid Cost converted with a Refund (given at delete, or already on it) is labelled
-"(cancelled)" and its cost amount becomes its paid amount, so a cancelled, refunded thing
-counts only the money that left. A Cost converted with no Refund is unchanged.
+A converted paid Cost keeps only what was paid, in every case: its cost amount becomes its
+paid amount, because the thing no longer exists and only the money that left counts. It is
+labelled "(cancelled)" when it carries a Refund (given at delete, or already on it).
