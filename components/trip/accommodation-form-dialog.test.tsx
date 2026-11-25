@@ -924,35 +924,44 @@ describe("AccommodationFormDialog address search", () => {
   });
 });
 
-describe("AccommodationFormDialog: Nothing to attach switch", () => {
+describe("AccommodationFormDialog: No ticket or file needed tick box", () => {
   beforeEach(() => vi.clearAllMocks());
   const booked = { ...existingAccommodation, bookingState: "BOOKED" as const, bookingStateSet: true };
+  const file = {
+    id: "att-9",
+    filename: "ticket.pdf",
+    mime: "application/pdf",
+    size: 1000,
+    url: "/api/attachments/att-9",
+    uploadedById: "user-1",
+    createdAt: new Date("2026-07-01"),
+  };
 
   it("shows on an existing thing that is Booked, with its stored value", () => {
     render(<AccommodationFormDialog {...baseProps} accommodation={{ ...booked, nothingToAttach: true }} />);
-    expect(screen.getByRole("switch", { name: "Nothing to attach" })).toHaveAttribute("aria-checked", "true");
+    expect(screen.getByRole("checkbox", { name: "No ticket or file needed" })).toBeChecked();
   });
 
   it("is absent on a What-if (Fork) plan, where it could only fail", () => {
     render(<AccommodationFormDialog {...baseProps} accommodation={booked} forkId="fork-1" />);
-    expect(screen.queryByRole("switch", { name: "Nothing to attach" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("checkbox", { name: "No ticket or file needed" })).not.toBeInTheDocument();
   });
 
   it("hides while the form's state is To book, and is never on a new thing", async () => {
     const user = userEvent.setup();
     const { unmount } = render(<AccommodationFormDialog {...baseProps} accommodation={booked} />);
     await user.click(screen.getByRole("radio", { name: "To book" }));
-    expect(screen.queryByRole("switch", { name: "Nothing to attach" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("checkbox", { name: "No ticket or file needed" })).not.toBeInTheDocument();
     unmount();
     render(<AccommodationFormDialog {...baseProps} />);
     await user.click(screen.getByRole("radio", { name: "Booked" }));
-    expect(screen.queryByRole("switch", { name: "Nothing to attach" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("checkbox", { name: "No ticket or file needed" })).not.toBeInTheDocument();
   });
 
   it("toggling saves through its own action and is not part of the form's patch", async () => {
     const user = userEvent.setup();
     render(<AccommodationFormDialog {...baseProps} accommodation={booked} />);
-    await user.click(screen.getByRole("switch", { name: "Nothing to attach" }));
+    await user.click(screen.getByRole("checkbox", { name: "No ticket or file needed" }));
     await waitFor(() => expect(setNothingToAttach).toHaveBeenCalledWith("ACCOMMODATION", booked.id, true));
     await user.click(screen.getByRole("button", { name: /save changes/i }));
     expect(vi.mocked(updateAccommodation).mock.calls.at(-1)!.some((a) => JSON.stringify(a).includes("nothingToAttach"))).toBe(false);
@@ -961,10 +970,26 @@ describe("AccommodationFormDialog: Nothing to attach switch", () => {
   it("keeps a toggled value when the state is flipped away from Booked and back", async () => {
     const user = userEvent.setup();
     render(<AccommodationFormDialog {...baseProps} accommodation={booked} />);
-    await user.click(screen.getByRole("switch", { name: "Nothing to attach" }));
+    await user.click(screen.getByRole("checkbox", { name: "No ticket or file needed" }));
     await waitFor(() => expect(setNothingToAttach).toHaveBeenCalled());
     await user.click(screen.getByRole("radio", { name: "To book" }));
     await user.click(screen.getByRole("radio", { name: "Booked" }));
-    expect(screen.getByRole("switch", { name: "Nothing to attach" })).toHaveAttribute("aria-checked", "true");
+    expect(screen.getByRole("checkbox", { name: "No ticket or file needed" })).toBeChecked();
+  });
+
+  it("is absent on a Booked thing that already has a file", () => {
+    render(<AccommodationFormDialog {...baseProps} accommodation={booked} attachments={[file]} />);
+    expect(screen.queryByRole("checkbox", { name: "No ticket or file needed" })).not.toBeInTheDocument();
+  });
+
+  it("stays on a Booked thing with a file once ticked, so it can be unticked", () => {
+    render(<AccommodationFormDialog {...baseProps} accommodation={{ ...booked, nothingToAttach: true }} attachments={[file]} />);
+    expect(screen.getByRole("checkbox", { name: "No ticket or file needed" })).toBeChecked();
+  });
+
+  it("is absent on a thing that is To book, and there is no switch", () => {
+    render(<AccommodationFormDialog {...baseProps} accommodation={{ ...booked, bookingState: "TO_BOOK" as const }} />);
+    expect(screen.queryByRole("checkbox", { name: "No ticket or file needed" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("switch")).not.toBeInTheDocument();
   });
 });

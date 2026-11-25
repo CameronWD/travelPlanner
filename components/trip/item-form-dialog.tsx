@@ -41,6 +41,7 @@ import { fail, type ActionResult } from "@/lib/action-result";
 import { toPatch } from "@/lib/patch";
 import { BookingStateField, seedFromProposal, useBookingStateField } from "./booking-state-field";
 import { NothingToAttachSwitch } from "./nothing-to-attach-switch";
+import { hasBookingConfirmation } from "@/lib/booking-confirmation";
 import { OpeningHoursEditor } from "@/components/trip/opening-hours-editor";
 import type { OpeningHours } from "@/lib/opening-hours";
 import { TryListEditor, draftFromTryList, tryListPayload } from "@/components/trip/try-list-editor";
@@ -1001,9 +1002,6 @@ function ItemForm({
 
       {/* Booking state (CONTEXT.md): a reference implies Booked until the Traveller picks. */}
       <BookingStateField field={bookingField} errors={errors} disabled={isPending} className="sm:col-span-2" />
-      {!forkId && item?.id && bookingField.shown === "BOOKED" && (
-        <NothingToAttachSwitch kind="ITEM" id={item.id} value={nothingToAttach} onChange={setNothingToAttach} className="sm:col-span-2" />
-      )}
 
       {/* Notes */}
       <Field label="Notes" error={errors.notes?.[0]} className="sm:col-span-2">
@@ -1089,6 +1087,9 @@ function ItemForm({
           </p>
         )}
       </Field>
+      {!forkId && item?.id && bookingField.shown === "BOOKED" && (nothingToAttach || !hasBookingConfirmation((attachments ?? []).map((a) => a.id), attachments?.find((a) => a.url === item.photoUrl)?.id)) && (
+        <NothingToAttachSwitch kind="ITEM" id={item.id} value={nothingToAttach} onChange={setNothingToAttach} className="sm:col-span-2" />
+      )}
 
       {isEdit && item && (reminders || onAddReminder) && (
         <Field label="Reminders" className="sm:col-span-2">

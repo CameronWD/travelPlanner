@@ -88,7 +88,7 @@ describe("TonightCard (spec 2026-09-29 D1)", () => {
     render(<TonightCard tripId="t1" tonight={bare} isLastDay={false} stopId="s1" size="desktop" />);
     expect(toggle()).toHaveAttribute("aria-expanded", "false");
     expect(screen.queryByText("No booking confirmation attached")).toBeNull();
-    expect(screen.queryByRole("button", { name: "Nothing to attach" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "No file needed" })).toBeNull();
   });
 
   it("says nothing about a confirmation when none is needed, and shows the reference in the expanded body", () => {

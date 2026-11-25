@@ -1439,7 +1439,7 @@ describe("Timeline: booking confirmation marker", () => {
       render(<Timeline day={dayPlanWithCheckin} variant="day" editor={editor} />);
     }
     expect(screen.queryByText(MARKER)).toBeNull();
-    expect(screen.queryByRole("button", { name: "Nothing to attach" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "No file needed" })).toBeNull();
   });
 });
 

@@ -53,6 +53,7 @@ import { toPatch } from "@/lib/patch";
 import { transportClearable } from "@/lib/transport-clearable";
 import { BookingStateField, seedFromProposal, useBookingStateField } from "./booking-state-field";
 import { NothingToAttachSwitch } from "./nothing-to-attach-switch";
+import { hasBookingConfirmation } from "@/lib/booking-confirmation";
 import { transportBookingSubject } from "@/lib/booking-state";
 import {
   TRANSPORT_DETAIL_KEYS,
@@ -912,9 +913,6 @@ function TransportForm({
 
         {/* Booking state (CONTEXT.md): a tentative leg is To book; a typed reference implies Booked until the Traveller picks. */}
         <BookingStateField field={bookingField} errors={errors} disabled={isPending} />
-        {!forkId && transport?.id && bookingField.shown === "BOOKED" && (
-          <NothingToAttachSwitch kind="TRANSPORT" id={transport.id} value={nothingToAttach} onChange={setNothingToAttach} />
-        )}
 
         {/* Cost — collapsed behind "+ Add cost" unless a cost already exists */}
         <div className="flex flex-col gap-2">
@@ -967,6 +965,9 @@ function TransportForm({
             </p>
           )}
         </Field>
+        {!forkId && transport?.id && bookingField.shown === "BOOKED" && (nothingToAttach || !hasBookingConfirmation((attachments ?? []).map((a) => a.id))) && (
+          <NothingToAttachSwitch kind="TRANSPORT" id={transport.id} value={nothingToAttach} onChange={setNothingToAttach} />
+        )}
 
         {isEdit && transport && (reminders || onAddReminder) && (
           <Field label="Reminders">

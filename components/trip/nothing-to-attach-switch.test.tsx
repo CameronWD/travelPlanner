@@ -21,28 +21,28 @@ function Harness({ kind = "ITEM", id = "i1", value }: { kind?: "ITEM" | "TRANSPO
 describe("NothingToAttachSwitch", () => {
   beforeEach(() => vi.clearAllMocks());
 
-  it("is a labelled switch reflecting the stored value", () => {
+  it("is a labelled tick box reflecting the stored value", () => {
     render(<Harness kind="ITEM" id="i1" value={true} />);
-    expect(screen.getByRole("switch", { name: "Nothing to attach" })).toHaveAttribute("aria-checked", "true");
+    expect(screen.getByRole("checkbox", { name: "No ticket or file needed" })).toBeChecked();
   });
 
   it("saves the toggled value at once, then refreshes", async () => {
     render(<Harness kind="TRANSPORT" id="t1" value={false} />);
-    await userEvent.click(screen.getByRole("switch", { name: "Nothing to attach" }));
+    await userEvent.click(screen.getByRole("checkbox", { name: "No ticket or file needed" }));
     await waitFor(() => expect(refreshMock).toHaveBeenCalled());
     expect(setNothingToAttach).toHaveBeenCalledWith("TRANSPORT", "t1", true);
   });
 
   it("switching it off saves false", async () => {
     render(<Harness kind="ACCOMMODATION" id="a1" value={true} />);
-    await userEvent.click(screen.getByRole("switch", { name: "Nothing to attach" }));
+    await userEvent.click(screen.getByRole("checkbox", { name: "No ticket or file needed" }));
     await waitFor(() => expect(setNothingToAttach).toHaveBeenCalledWith("ACCOMMODATION", "a1", false));
   });
 
   it("shows the server's reason and does not refresh when it refuses", async () => {
     vi.mocked(setNothingToAttach).mockResolvedValueOnce({ success: false, errors: { _: ["Not allowed."] } });
     render(<Harness kind="ITEM" id="i1" value={false} />);
-    await userEvent.click(screen.getByRole("switch", { name: "Nothing to attach" }));
+    await userEvent.click(screen.getByRole("checkbox", { name: "No ticket or file needed" }));
     expect(await screen.findByText("Not allowed.")).toBeInTheDocument();
     expect(refreshMock).not.toHaveBeenCalled();
   });

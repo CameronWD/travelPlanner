@@ -53,7 +53,7 @@ describe("DaySection booking confirmation marker", () => {
   it("never shows the missing-confirmation note on a row", () => {
     renderDay();
     expect(screen.queryByText("No booking confirmation attached")).toBeNull();
-    expect(screen.queryByRole("button", { name: "Nothing to attach" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "No file needed" })).toBeNull();
   });
 });
 

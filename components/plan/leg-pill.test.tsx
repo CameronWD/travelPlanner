@@ -244,7 +244,7 @@ describe("LegPill Booking state (spec 2026-10-17 R2)", () => {
   it("never shows the missing-confirmation note, booked or not", () => {
     render(<LegPill label={FLIGHT} onClick={vi.fn()} bookingState="BOOKED" />);
     expect(screen.queryByText("No booking confirmation attached")).toBeNull();
-    expect(screen.queryByRole("button", { name: "Nothing to attach" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "No file needed" })).toBeNull();
   });
 
   it("renders the pill alone, with no wrapper stacked around it", () => {
