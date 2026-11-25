@@ -915,13 +915,13 @@ describe("SharePage — travel legs", () => {
     for (const secret of ["SEAT-14C", "GATE-B22", "CARRIER-X"]) expect(text).not.toContain(secret);
   });
 
-  it("hands the client only mode, label, line, arrivesAt and arrivesLocal for a leg", async () => {
+  it("hands the client only mode, label, when, number, arrivesAt and arrivesLocal for a leg", async () => {
     transportFindManyMock.mockResolvedValue([
       { ...BASE, ...withSeatAndGate, id: "tr1", mode: "TRAIN", fromStopId: "s1", toStopId: "s2", depAt: new Date("2020-12-08T05:51:00Z"), arrAt: new Date("2020-12-08T12:40:00Z"), serviceNumber: "ICE 1" },
     ]);
     await renderPage();
     const { stops } = dayByDaySpy.mock.calls[0][0];
-    expect(Object.keys(stops[0].legAfter).sort()).toEqual(["arrivesAt", "arrivesLocal", "label", "line", "mode"]);
+    expect(Object.keys(stops[0].legAfter).sort()).toEqual(["arrivesAt", "arrivesLocal", "label", "mode", "number", "when"]);
   });
 
   it("lists no leg at all, Home legs included, when the link leaves transport out", async () => {

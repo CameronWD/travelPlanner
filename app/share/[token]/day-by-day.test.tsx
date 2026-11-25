@@ -14,7 +14,7 @@ const row = (title: string) => ({ key: title, time: "10:00", title, sub: null, k
 const stops: DayByDayStop[] = [
   { id: "lon", name: "London", number: 1, sortOrder: 0, arriveDate: "2026-12-05", departDate: "2026-12-10", nights: 5, status: "past",
     days: [{ dateISO: "2026-12-05", isToday: false, title: null, rows: [row("Borough Market")] }],
-    legAfter: { mode: "TRAIN", label: "Train to Paris", line: "Thu 10 Dec · St Pancras 09:31 → Gare du Nord 12:47", arrivesAt: "2026-12-10T11:47:00.000Z", arrivesLocal: "2026-12-10 12:47" } },
+    legAfter: { mode: "TRAIN", label: "Train to Paris", when: "Thu 10 Dec · St Pancras 09:31 → Gare du Nord 12:47", number: null, arrivesAt: "2026-12-10T11:47:00.000Z", arrivesLocal: "2026-12-10 12:47" } },
   { id: "par", name: "Paris", number: 2, sortOrder: 1, arriveDate: "2026-12-10", departDate: "2026-12-15", nights: 5, status: "current",
     days: [
       { dateISO: "2026-12-11", isToday: false, title: null, rows: [row("Louvre")] },
@@ -26,25 +26,27 @@ const stops: DayByDayStop[] = [
 describe("DayByDay (SHARE.md §7)", () => {
   beforeEach(() => scrollToId.mockClear());
 
-  it("draws a leg in a sun tile and tags it, and adds nothing without Home legs", () => {
+  it("draws a leg as the Plan's card on the connector line, with the sun marker, and adds nothing without Home legs", () => {
     const { container } = render(<DayByDay stops={stops} initialOpenId="par" />);
     const rows = container.querySelectorAll("[data-share-leg]");
     expect(rows).toHaveLength(1);
-    const tile = rows[0].querySelector("span[aria-hidden]") as HTMLElement;
-    expect(tile.className).toMatch(/rounded-full/);
-    expect(tile.className).toMatch(/bg-sun/);
-    expect(tile.querySelector("svg")).not.toBeNull();
+    expect(rows[0].querySelector("[data-connector]")).not.toBeNull();
+    expect(rows[0].querySelector("[data-station-dot]")!.className).toContain("bg-sun");
+    const card = rows[0].querySelector("[data-travel-row]") as HTMLElement;
+    expect(card.tagName).toBe("DIV");
+    expect(card).toHaveTextContent("Train to Paris");
+    expect(card).toHaveTextContent("St Pancras 09:31 → Gare du Nord 12:47");
   });
 
   it("adds the viewer's arrival only to a leg that has an arrival time", () => {
-    const homeOut = { mode: "FLIGHT" as const, label: "Flight to London", line: "Fri 4 Dec", arrivesAt: null, arrivesLocal: null };
+    const homeOut = { mode: "FLIGHT" as const, label: "Flight to London", when: "Fri 4 Dec", number: null, arrivesAt: null, arrivesLocal: null };
     render(<DayByDay stops={stops} initialOpenId="par" homeOut={homeOut} />);
     expect(screen.getAllByTestId("viewer-arrival")).toHaveLength(1);
   });
 
   it("lists the Home legs above the first Stop and below the last", () => {
-    const homeOut = { mode: "FLIGHT" as const, label: "Flight to London", line: "Fri 4 Dec · QF 1", arrivesAt: null, arrivesLocal: null };
-    const homeBack = { mode: "FLIGHT" as const, label: "Flight home", line: "Tue 15 Dec · QF 2", arrivesAt: null, arrivesLocal: null };
+    const homeOut = { mode: "FLIGHT" as const, label: "Flight to London", when: "Fri 4 Dec · QF 1", number: null, arrivesAt: null, arrivesLocal: null };
+    const homeBack = { mode: "FLIGHT" as const, label: "Flight home", when: "Tue 15 Dec · QF 2", number: null, arrivesAt: null, arrivesLocal: null };
     const { container } = render(<DayByDay stops={stops} initialOpenId="par" homeOut={homeOut} homeBack={homeBack} />);
     const rows = Array.from(container.querySelectorAll("[data-share-leg]"));
     expect(rows).toHaveLength(3);

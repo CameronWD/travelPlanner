@@ -16,7 +16,10 @@ export interface ShareLegInput {
 export interface ShareLeg {
   mode: TransportMode;
   label: string;
-  line: string;
+  /** The day, the route with its times and day marker, and the duration. */
+  when: string;
+  /** The flight or train number, for those two modes only. */
+  number: string | null;
   /**
    * The arrival instant and its local date and time as one string, for the
    * viewer's own-time check. Never a zone name: a Home end's zone is the Trip's
@@ -48,8 +51,8 @@ export function buildShareLeg(
   const route = from && to ? `${from} → ${to}${plus}` : from || to;
   const minutes = durationMinutes(t.depAt, t.arrAt);
   const number = NUMBERED.includes(t.mode) ? t.serviceNumber?.trim() : null;
-  const line = [dep ? formatDayLabel(dep.dateISO) : null, route || null, minutes ? formatDuration(minutes) : null, number || null]
+  const when = [dep ? formatDayLabel(dep.dateISO) : null, route || null, minutes ? formatDuration(minutes) : null]
     .filter(Boolean)
     .join(" · ");
-  return { mode: t.mode, label, line, arrivesAt: t.arrAt ? new Date(t.arrAt).toISOString() : null, arrivesLocal: t.arrAt ? wallClock(new Date(t.arrAt), zones.arr) : null };
+  return { mode: t.mode, label, when, number: number || null, arrivesAt: t.arrAt ? new Date(t.arrAt).toISOString() : null, arrivesLocal: t.arrAt ? wallClock(new Date(t.arrAt), zones.arr) : null };
 }

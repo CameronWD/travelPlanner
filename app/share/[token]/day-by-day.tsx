@@ -1,12 +1,12 @@
-import { ArrowRight, Check } from "lucide-react";
+import { Check } from "lucide-react";
 import { cn } from "@/lib/cn";
 import { HUE_CLASSES } from "@/lib/hues";
 import { stopDotClass, stopHue } from "@/lib/stop-colours";
 import { formatDateRangeCompact, formatDayLabel, formatNights } from "@/lib/dates";
 import type { StopStatus } from "@/lib/share/view";
-import { MODE_ICONS, ShareRows, type ShareRowModel } from "./share-rows";
+import { ShareRows, type ShareRowModel } from "./share-rows";
 import type { ShareLeg } from "./share-leg";
-import { ViewerArrival } from "./viewer-time";
+import { ShareTravelRow } from "./share-travel-row";
 import { DayByDayProvider, StopBlock, StopIndex, StopPicker } from "./day-by-day-client";
 
 interface DayByDayDay {
@@ -72,14 +72,20 @@ export function DayByDay({
               }))}
             />
           </div>
-          <ol className="mt-3 flex flex-col gap-3 lg:mt-0">
+          <ol className="mt-3 flex flex-col lg:mt-0">
             {homeOut && (
               <li>
-                <LegLine leg={homeOut} />
+                <ShareTravelRow {...homeOut} />
               </li>
             )}
-            {stops.map((s) => (
-              <li key={s.id} id={`share-stop-${s.id}`} data-share-stop={s.id} className="relative scroll-mt-6">
+            {stops.map((s, i) => (
+              <li
+                key={s.id}
+                id={`share-stop-${s.id}`}
+                data-share-stop={s.id}
+                // The gap between Stops lives here, not on the list, so a leg's connector runs unbroken from card to card.
+                className={cn("relative scroll-mt-6", !s.legAfter && (i < stops.length - 1 || homeBack) && "mb-3")}
+              >
                 <StopBlock
                   stopId={s.id}
                   name={s.name}
@@ -87,12 +93,12 @@ export function DayByDay({
                   folded={<FoldedStop s={s} />}
                   open={<OpenStop s={s} />}
                 />
-                {s.legAfter && <LegLine leg={s.legAfter} />}
+                {s.legAfter && <ShareTravelRow {...s.legAfter} />}
               </li>
             ))}
             {homeBack && (
-              <li className="-mt-3">
-                <LegLine leg={homeBack} />
+              <li>
+                <ShareTravelRow {...homeBack} />
               </li>
             )}
           </ol>
@@ -184,22 +190,5 @@ function OpenStop({ s }: { s: DayByDayStop }) {
         ))}
       </ol>
     </>
-  );
-}
-
-/** A leg between Stops, or to or from the Home base — label, times and the flight or train number only. */
-function LegLine({ leg }: { leg: ShareLeg }) {
-  const Icon = MODE_ICONS[leg.mode] ?? ArrowRight;
-  return (
-    <div data-share-leg className="flex min-w-0 items-start gap-3 px-4 py-2 text-sm">
-      <span aria-hidden className="island flex size-7 shrink-0 items-center justify-center rounded-full bg-sun text-on-accent">
-        <Icon className="size-4" />
-      </span>
-      <span className="flex min-w-0 flex-col gap-0.5 self-center">
-        <span className="break-words font-bold">{leg.label}</span>
-        <span className="text-[13px] font-medium tabular-nums text-muted-foreground">{leg.line}</span>
-        {leg.arrivesAt && leg.arrivesLocal && <ViewerArrival instant={leg.arrivesAt} placeLocal={leg.arrivesLocal} />}
-      </span>
-    </div>
   );
 }
