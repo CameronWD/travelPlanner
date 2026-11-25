@@ -209,6 +209,13 @@ export interface McpTransport {
   /** arr calendar date minus dep calendar date, each in its own zone; 0 same day. */
   dayDelta: number;
   reference: string | null;
+  carrier: string | null;
+  serviceNumber: string | null;
+  seat: string | null;
+  terminal: string | null;
+  gate: string | null;
+  coach: string | null;
+  platform: string | null;
   notes: string | null;
   /** CONTEXT.md "Booking state": NONE (no booking needed), TO_BOOK or BOOKED. Booked is not paid (that's the Cost). */
   bookingState: BookingState;
@@ -289,7 +296,8 @@ export const MCP_DATED_ITEM_SELECT = { ...MCP_THING_TO_DO_SELECT, date: true } a
 
 export const MCP_TRANSPORT_SELECT = {
   id: true, mode: true, fromStopId: true, toStopId: true, depIsHome: true, arrIsHome: true,
-  depPlace: true, arrPlace: true, depAt: true, arrAt: true, reference: true, notes: true,
+  depPlace: true, arrPlace: true, depAt: true, arrAt: true, reference: true,
+  carrier: true, serviceNumber: true, seat: true, terminal: true, gate: true, coach: true, platform: true, notes: true,
   bookingState: true, bookBy: true, nothingToAttach: true,
 } as const;
 
@@ -334,7 +342,9 @@ export interface McpItemRow {
 
 export interface McpTransportRow {
   id: string; mode: string; fromStopId: string | null; toStopId: string | null; depIsHome: boolean; arrIsHome: boolean;
-  depPlace: string | null; arrPlace: string | null; depAt: Date | null; arrAt: Date | null; reference: string | null; notes: string | null;
+  depPlace: string | null; arrPlace: string | null; depAt: Date | null; arrAt: Date | null; reference: string | null;
+  carrier: string | null; serviceNumber: string | null; seat: string | null; terminal: string | null; gate: string | null; coach: string | null; platform: string | null;
+  notes: string | null;
   bookingState: string; bookBy: string | null; nothingToAttach: boolean;
 }
 
@@ -539,7 +549,9 @@ export function toMcpTransport(
     depPlace: t.depPlace, arrPlace: t.arrPlace,
     depAt: t.depAt ? t.depAt.toISOString() : null, arrAt: t.arrAt ? t.arrAt.toISOString() : null,
     departs: local(t.depAt, shown.dep), arrives: local(t.arrAt, shown.arr), dayDelta: shown.dayDelta,
-    reference: t.reference, notes: t.notes,
+    reference: t.reference,
+    carrier: t.carrier, serviceNumber: t.serviceNumber, seat: t.seat, terminal: t.terminal, gate: t.gate, coach: t.coach, platform: t.platform,
+    notes: t.notes,
     bookingState: t.bookingState as BookingState, bookBy: t.bookBy,
     nothingToAttach: t.nothingToAttach, needsBookingConfirmation: ctx.needsConfirmation.has(t.id),
     files: ctx.filesFor("TRANSPORT", t.id),
