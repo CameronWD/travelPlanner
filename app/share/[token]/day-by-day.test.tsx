@@ -287,7 +287,7 @@ describe("DayByDay (SHARE.md §7)", () => {
     const homeBack = { mode: "FLIGHT" as const, label: "Flight home", when: "Tue 15 Dec", number: null, arrivesAt: null, arrivesLocal: null };
     const homes = (c: HTMLElement) => Array.from(c.querySelectorAll<HTMLElement>("[data-share-home]"));
 
-    it("puts a dashed Home card above the outbound leg and another below the return leg", () => {
+    it("puts a solid Home card above the outbound leg and another below the return leg", () => {
       const { container } = render(<DayByDay stops={stops} initialOpenId="par" homeOut={homeOut} homeBack={homeBack} homeName="Gold Coast" />);
       const [top, bottom] = homes(container);
       expect(homes(container)).toHaveLength(2);
@@ -295,7 +295,10 @@ describe("DayByDay (SHARE.md §7)", () => {
         expect(card).toHaveTextContent("Gold Coast");
         expect(card).toHaveTextContent("Home");
         expect(card.querySelector("svg")).not.toBeNull();
-        expect(card.className).toMatch(/border-dashed/);
+        expect(card.className).not.toMatch(/border-dashed/);
+        expect(card.className).toMatch(/rounded-\[18px\].*border-2 border-border bg-card px-4/);
+        expect(card.querySelector("span.size-7")!.className).toMatch(/rounded-full border-2 border-border bg-background/);
+        expect(card.querySelector("button")).toBeNull();
       }
       const legs = Array.from(container.querySelectorAll("[data-share-leg]"));
       expect(top.compareDocumentPosition(legs[0]) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();

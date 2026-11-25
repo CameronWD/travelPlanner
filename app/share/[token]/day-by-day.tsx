@@ -143,13 +143,15 @@ export function DayByDay({
   );
 }
 
-// The leg's connector (centre x=32) meets this card's edge: the house sits on the same axis,
-// 2px border + 22px padding puts its 16px box at 24..40.
+// Laid out like a closed Stop card (px-4 + border 2 puts the 28px circle at x=18..46), so the leg's
+// connector (centre x=32) runs through the centre of the house circle as it does through a Stop's number.
 function HomeCard({ name }: { name: string }) {
   return (
-    <div data-share-home className="flex h-11 items-center gap-2.5 rounded-[14px] border-2 border-dashed border-border bg-background pl-[22px] pr-3.5">
-      <House aria-hidden className="size-4 shrink-0" />
-      <span className="min-w-0 truncate text-sm font-bold">{name}</span>
+    <div data-share-home className="flex items-center gap-3 rounded-[18px] border-2 border-border bg-card px-4 py-3">
+      <span aria-hidden className="flex size-7 shrink-0 items-center justify-center rounded-full border-2 border-border bg-background">
+        <House className="size-3.5" />
+      </span>
+      <span className="min-w-0 truncate font-display text-[17px] font-extrabold leading-tight">{name}</span>
       <span className="shrink-0 text-[13px] font-semibold text-muted-foreground">Home</span>
     </div>
   );
