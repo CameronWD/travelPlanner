@@ -36,6 +36,8 @@ export function ToPayRowView({
   pending,
   onToggle,
   onPartlyPaid,
+  onRefund,
+  onRefundReceived,
   onEdit,
   onDelete,
   onOpen,
@@ -47,6 +49,8 @@ export function ToPayRowView({
   pending: boolean;
   onToggle: () => void;
   onPartlyPaid?: () => void;
+  onRefund?: () => void;
+  onRefundReceived?: () => void;
   onEdit?: () => void;
   onDelete?: () => void;
   onOpen?: () => void;
@@ -54,7 +58,7 @@ export function ToPayRowView({
   /** Fires when the row's own entry animation (not a child's) ends. */
   onRiseInEnd?: () => void;
 }) {
-  const hasMenu = Boolean(onPartlyPaid || onEdit || onDelete);
+  const hasMenu = Boolean(onPartlyPaid || onRefund || onRefundReceived || onEdit || onDelete);
   // The check pops only when ticked here, not for rows already paid at mount (MOTION.md M7).
   const [prevPaid, setPrevPaid] = React.useState(row.paid);
   const [ticked, setTicked] = React.useState(false);
@@ -146,6 +150,8 @@ export function ToPayRowView({
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end">
               {onPartlyPaid ? <DropdownMenuItem onSelect={onPartlyPaid}>Mark partly paid</DropdownMenuItem> : null}
+              {onRefund ? <DropdownMenuItem onSelect={onRefund}>Refund</DropdownMenuItem> : null}
+              {onRefundReceived ? <DropdownMenuItem onSelect={onRefundReceived}>Received</DropdownMenuItem> : null}
               {onEdit ? <DropdownMenuItem onSelect={onEdit}>Edit cost</DropdownMenuItem> : null}
               {onDelete ? <DropdownMenuItem onSelect={onDelete}>Delete cost</DropdownMenuItem> : null}
             </DropdownMenuContent>

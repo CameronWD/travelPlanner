@@ -13,6 +13,7 @@ import {
 import { FormError } from "@/components/ui/form-error";
 import { DateField } from "@/components/ui/date-field";
 import { CostSummary } from "./cost-summary";
+import { RefundControl } from "@/components/money/refund-control";
 import { InlineCostFields } from "@/components/money/cost-fields/inline-cost-fields";
 import {
   costToFormState as costToCostFormState,
@@ -89,6 +90,7 @@ interface CostDialogProps {
   errors: Record<string, string[]>;
   onCancel: () => void;
   cover?: React.ComponentProps<typeof DialogContent>["cover"];
+  refundCost?: CostRow;
 }
 
 /**
@@ -105,6 +107,7 @@ function CostDialogForm({
   errors,
   onCancel,
   cover,
+  refundCost,
 }: CostDialogProps) {
   const [form, setForm] = React.useState<FormState>(initialState);
 
@@ -156,6 +159,8 @@ function CostDialogForm({
               disabled={submitting}
             />
           )}
+
+          {refundCost ? <RefundControl cost={refundCost} /> : null}
 
           {/* Form-level error */}
           <FormError>{formError(errors)}</FormError>
@@ -270,6 +275,7 @@ export function OwnedCostFormDialog({ cost, open, onOpenChange, cover }: OwnedCo
       errors={errors}
       onCancel={() => onOpenChange(false)}
       cover={cover}
+      refundCost={cost}
     />
   );
 }

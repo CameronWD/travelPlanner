@@ -25,6 +25,7 @@ import {
 import { MoneyInput } from "@/components/ui/money-input";
 import { createCost, updateCost } from "@/server/actions/costs";
 import { isOnTrip } from "@/lib/enum-values";
+import { RefundControl } from "@/components/money/refund-control";
 import { SettlementChoice } from "@/components/trip/settlement-choice";
 import { CURRENCY_CODES } from "@/lib/money/currencies";
 import { todayLocalISO } from "@/lib/dates";
@@ -138,6 +139,7 @@ interface OtherCostDialogProps {
   errors: Record<string, string[]>;
   onCancel: () => void;
   cover?: React.ComponentProps<typeof DialogContent>["cover"];
+  refundCost?: CostRow | null;
 }
 
 function OtherCostDialog({
@@ -150,6 +152,7 @@ function OtherCostDialog({
   errors,
   onCancel,
   cover,
+  refundCost,
 }: OtherCostDialogProps) {
   const [form, setForm] = React.useState<FormState>(initialState);
 
@@ -290,6 +293,8 @@ function OtherCostDialog({
             </>
           )}
 
+          {refundCost ? <RefundControl cost={refundCost} /> : null}
+
           <FormError>{formError(errors)}</FormError>
 
           <DialogFooter>
@@ -372,6 +377,7 @@ export function OtherCostFormDialog({ tripId, homeCurrency, cost, open, onOpenCh
       errors={errors}
       onCancel={() => onOpenChange(false)}
       cover={cover}
+      refundCost={cost}
     />
   );
 }
