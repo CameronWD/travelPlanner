@@ -152,7 +152,7 @@ This replaces the grid of day cards. It's shown when any of `includeAccommodatio
     - The day title, if any, is `font-display text-[17px]` (only when `includeDailyPlans`).
     - Then the items. Each is a 44px time column, a 12px category dot and the title (`text-[15px] font-bold`).
     - Accommodation check-in/out and transport rows appear as items with their own glyph, from the existing `buildItinerary`, which already interleaves them.
-- **Leg lines** between stop blocks (only when `includeTransport`): a plain row with the mode icon, the label ("Flight to Rome") and the times ("Tue 15 Dec · CDG 10:05 → FCO 12:15"). Never show the booking reference.
+- **Leg lines** between stop blocks (only when `includeTransport`): a plain row with the mode icon, the label ("Flight to Rome") and the times ("Tue 15 Dec · CDG 10:05 → FCO 12:15"). Never show the booking reference. (Amended 2026-11-25: the mode icon sits in a round sun tile; the line adds the duration, a `+1`/`−1` after an arrival on another local date, and the flight or train number for a Flight or Train only; the legs from and back to the Home base are listed above the first and below the last stop block. Carrier, seat, terminal, gate, coach, platform, reference, notes and Costs stay private.)
 
 **Mobile:**
 - The stop index becomes a pill dropdown next to the H2 ("Paris ⌄"), which switches which stop is open.

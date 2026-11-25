@@ -48,6 +48,7 @@ import { RightNowCard, NextRow, type RightNowPlace } from "./right-now-card";
 import { ShareTally } from "./share-tally";
 import { ShareRouteList } from "./share-route-list";
 import { DayByDay, type DayByDayStop } from "./day-by-day";
+import { buildShareLeg } from "./share-leg";
 import { JournalPolaroids, buildJournalCards, type JournalPolaroidsProps } from "./journal-polaroids";
 import { ShareCta, ShareFooter } from "./share-cta";
 import { ShareReveal } from "./share-reveal";
@@ -191,7 +192,10 @@ export default async function SharePage({
             arrPlace: true,
             depAt: true,
             arrAt: true,
-            // reference (booking number) and notes intentionally omitted — private
+            // The flight or train number is the one Travel detail a public link carries.
+            // reference (booking number), notes, carrier, seat, terminal, gate, coach and platform
+            // are intentionally omitted — private
+            serviceNumber: true,
             sortOrder: true,
             depIsHome: true,
             arrIsHome: true,
@@ -474,21 +478,10 @@ export default async function SharePage({
   const dayStops: DayByDayStop[] = scheduled.map((s, i) => {
     const following = scheduled[i + 1];
     const t = following ? transports.find((tr) => tr.fromStopId === s.id && tr.toStopId === following.id) : undefined;
-    let legAfter: DayByDayStop["legAfter"] = null;
-    if (t && following) {
-      const depZone = s.timezone;
-      const arrZone = following.timezone;
-      const dep = [t.depPlace, t.depAt ? instantToZonedTime(t.depAt, depZone) : null].filter(Boolean).join(" ");
-      const arr = [t.arrPlace, t.arrAt ? instantToZonedTime(t.arrAt, arrZone) : null].filter(Boolean).join(" ");
-      const route = dep && arr ? `${dep} → ${arr}` : dep || arr;
-      legAfter = {
-        mode: t.mode,
-        label: `${MODE_LABELS[t.mode] ?? "Transport"} to ${following.name}`,
-        line: [t.depAt ? formatDayLabel(instantToZonedDateISO(t.depAt, depZone)) : null, route || null]
-          .filter(Boolean)
-          .join(" · "),
-      };
-    }
+    const legAfter =
+      t && following
+        ? buildShareLeg({ ...t, mode: t.mode as TransportMode }, { dep: zoneOfEnd(s.id, false), arr: zoneOfEnd(following.id, false) }, `${MODE_LABELS[t.mode] ?? "Transport"} to ${following.name}`)
+        : null;
     return {
       id: s.id,
       name: s.name,
@@ -507,6 +500,18 @@ export default async function SharePage({
       legAfter,
     };
   });
+  const firstStop = scheduled[0];
+  const lastStop = scheduled[scheduled.length - 1];
+  const outbound = firstStop ? transports.find((t) => t.depIsHome && t.toStopId === firstStop.id) : undefined;
+  const homeOut =
+    outbound && firstStop
+      ? buildShareLeg({ ...outbound, mode: outbound.mode as TransportMode }, { dep: zoneOfEnd(null, true), arr: zoneOfEnd(firstStop.id, false) }, `${MODE_LABELS[outbound.mode] ?? "Transport"} to ${firstStop.name}`)
+      : null;
+  const inbound = lastStop ? transports.find((t) => t.arrIsHome && t.fromStopId === lastStop.id) : undefined;
+  const homeBack =
+    inbound && lastStop
+      ? buildShareLeg({ ...inbound, mode: inbound.mode as TransportMode }, { dep: zoneOfEnd(lastStop.id, false), arr: zoneOfEnd(null, true) }, `${MODE_LABELS[inbound.mode] ?? "Transport"} home`)
+      : null;
   // Computed here so the client's first render matches (current stop during,
   // first stop before, everything folded after).
   const initialOpenId =
@@ -632,7 +637,7 @@ export default async function SharePage({
           />
         );
       case "days":
-        return <DayByDay stops={dayStops} initialOpenId={initialOpenId} />;
+        return <DayByDay stops={dayStops} initialOpenId={initialOpenId} homeOut={homeOut} homeBack={homeBack} />;
       case "cta":
         return <ShareCta stage={stage} stopCount={stops.length} hrefs={hrefs} />;
     }

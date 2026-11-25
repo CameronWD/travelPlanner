@@ -1,0 +1,80 @@
+import { describe, it, expect } from "vitest";
+import { buildShareLeg, type ShareLegInput } from "./share-leg";
+
+const BERLIN = { dep: "Europe/Berlin", arr: "Europe/Berlin" };
+const base: ShareLegInput = {
+  mode: "TRAIN",
+  depPlace: null,
+  arrPlace: null,
+  depAt: null,
+  arrAt: null,
+  serviceNumber: null,
+};
+
+describe("buildShareLeg", () => {
+  it("gives the day, route, duration and number for a train", () => {
+    const leg = buildShareLeg(
+      {
+        ...base,
+        depPlace: "Munich Hbf",
+        arrPlace: "Strasbourg",
+        depAt: new Date("2026-12-10T05:51:00Z"),
+        arrAt: new Date("2026-12-10T09:40:00Z"),
+        serviceNumber: "ICE 9572",
+      },
+      BERLIN,
+      "Train to Strasbourg",
+    );
+    expect(leg).toEqual({
+      mode: "TRAIN",
+      label: "Train to Strasbourg",
+      line: "Thu 10 Dec · Munich Hbf 06:51 → Strasbourg 10:40 · 3h 49m · ICE 9572",
+    });
+  });
+
+  it("marks an overnight arrival and keeps the number last", () => {
+    const { line } = buildShareLeg(
+      {
+        ...base,
+        mode: "FLIGHT",
+        depPlace: "Denpasar (DPS)",
+        arrPlace: "Munich (MUC)",
+        depAt: new Date("2026-12-05T11:00:00Z"),
+        arrAt: new Date("2026-12-06T05:45:00Z"),
+        serviceNumber: "TG 440 / TG 924",
+      },
+      { dep: "Asia/Makassar", arr: "Europe/Berlin" },
+      "Flight to Munich",
+    );
+    expect(line).toContain("19:00 → Munich (MUC) 06:45 +1 · ");
+    expect(line.endsWith("· TG 440 / TG 924")).toBe(true);
+  });
+
+  it.each(["BUS", "FERRY"] as const)("shows no number for a %s", (mode) => {
+    const { line } = buildShareLeg(
+      { ...base, mode, depPlace: "A", arrPlace: "B", depAt: new Date("2026-12-10T05:00:00Z"), serviceNumber: "198" },
+      BERLIN,
+      "x",
+    );
+    expect(line).not.toContain("198");
+  });
+
+  it("shows no dangling arrow or duration for a departure-only leg", () => {
+    const { line } = buildShareLeg(
+      { ...base, depPlace: "Munich Hbf", depAt: new Date("2026-12-10T05:51:00Z") },
+      BERLIN,
+      "x",
+    );
+    expect(line).toBe("Thu 10 Dec · Munich Hbf 06:51");
+    expect(line).not.toContain("→");
+  });
+
+  it("is empty for a leg with no times and no places", () => {
+    expect(buildShareLeg(base, BERLIN, "x").line).toBe("");
+  });
+
+  it("omits a blank number and trims a padded one", () => {
+    expect(buildShareLeg({ ...base, serviceNumber: "   " }, BERLIN, "x").line).toBe("");
+    expect(buildShareLeg({ ...base, serviceNumber: "  ICE 1 " }, BERLIN, "x").line).toBe("ICE 1");
+  });
+});

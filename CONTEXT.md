@@ -59,7 +59,7 @@ A first-class movement between two Stops — a flight, train, drive, ferry, etc.
 _Avoid_: Leg, journey, travel, segment; for the departure/arrival point avoid terminal, station, place (**Place** is a Category), endpoint (the whole end, not the spot)
 
 **Travel details**:
-The optional particulars of a **Transport** beyond its places and times: the carrier, the flight or train number, the seat, and by mode the terminal and gate (a flight) or the coach and platform (a train). A car has only its hire company. Each is short free text the Traveller types or a **Booking import** fills. Changing a Transport's mode hides the ones that no longer apply without clearing them. Distinct from the **booking reference** (what you quote to the carrier) and from Notes (anything else). Never shown on a shared link or in the **Calendar feed**.
+The optional particulars of a **Transport** beyond its places and times: the carrier, the flight or train number, the seat, and by mode the terminal and gate (a flight) or the coach and platform (a train). A car has only its hire company. Each is short free text the Traveller types or a **Booking import** fills. Changing a Transport's mode hides the ones that no longer apply without clearing them. Distinct from the **booking reference** (what you quote to the carrier) and from Notes (anything else). On a shared link only the flight or train number is shown, and only when the link includes transport; nothing else of them is, and none of them is in the **Calendar feed**.
 _Avoid_: Details line (that is only how they are summarised on a row), flight info, ticket info
 
 **Accommodation**:

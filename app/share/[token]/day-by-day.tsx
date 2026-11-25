@@ -5,6 +5,7 @@ import { stopDotClass, stopHue } from "@/lib/stop-colours";
 import { formatDateRangeCompact, formatDayLabel, formatNights } from "@/lib/dates";
 import type { StopStatus } from "@/lib/share/view";
 import { MODE_ICONS, ShareRows, type ShareRowModel } from "./share-rows";
+import type { ShareLeg } from "./share-leg";
 import { DayByDayProvider, StopBlock, StopIndex, StopPicker } from "./day-by-day-client";
 
 interface DayByDayDay {
@@ -26,7 +27,7 @@ export interface DayByDayStop {
   status: StopStatus;
   days: DayByDayDay[];
   /** Transport from this stop to the next; null when includeTransport is off or none. */
-  legAfter: { mode: string; label: string; line: string } | null;
+  legAfter: ShareLeg | null;
 }
 
 /**
@@ -35,7 +36,17 @@ export interface DayByDayStop {
  * `initialOpenId` is computed on the server (current stop during, first
  * before, none after) so the first client render matches.
  */
-export function DayByDay({ stops, initialOpenId }: { stops: DayByDayStop[]; initialOpenId: string | null }) {
+export function DayByDay({
+  stops,
+  initialOpenId,
+  homeOut = null,
+  homeBack = null,
+}: {
+  stops: DayByDayStop[];
+  initialOpenId: string | null;
+  homeOut?: ShareLeg | null;
+  homeBack?: ShareLeg | null;
+}) {
   return (
     <section data-share-section-inner="days" aria-labelledby="days-heading">
       <DayByDayProvider initialOpenId={initialOpenId}>
@@ -61,6 +72,11 @@ export function DayByDay({ stops, initialOpenId }: { stops: DayByDayStop[]; init
             />
           </div>
           <ol className="mt-3 flex flex-col gap-3 lg:mt-0">
+            {homeOut && (
+              <li>
+                <LegLine leg={homeOut} />
+              </li>
+            )}
             {stops.map((s) => (
               <li key={s.id} id={`share-stop-${s.id}`} data-share-stop={s.id} className="relative scroll-mt-6">
                 <StopBlock
@@ -73,6 +89,11 @@ export function DayByDay({ stops, initialOpenId }: { stops: DayByDayStop[]; init
                 {s.legAfter && <LegLine leg={s.legAfter} />}
               </li>
             ))}
+            {homeBack && (
+              <li>
+                <LegLine leg={homeBack} />
+              </li>
+            )}
           </ol>
         </div>
       </DayByDayProvider>
@@ -165,12 +186,14 @@ function OpenStop({ s }: { s: DayByDayStop }) {
   );
 }
 
-/** The leg to the next stop — label and times only, never the booking reference. */
-function LegLine({ leg }: { leg: NonNullable<DayByDayStop["legAfter"]> }) {
+/** A leg between Stops, or to or from the Home base — label, times and the flight or train number only. */
+function LegLine({ leg }: { leg: ShareLeg }) {
   const Icon = MODE_ICONS[leg.mode] ?? ArrowRight;
   return (
-    <div className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-0.5 px-4 py-2 text-sm">
-      <Icon aria-hidden className="size-4 shrink-0" />
+    <div data-share-leg className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-0.5 px-4 py-2 text-sm">
+      <span aria-hidden className="island flex size-7 shrink-0 items-center justify-center rounded-full bg-sun text-on-accent">
+        <Icon className="size-4" />
+      </span>
       <span className="break-words font-bold">{leg.label}</span>
       <span className="text-[13px] font-medium tabular-nums text-muted-foreground">{leg.line}</span>
     </div>

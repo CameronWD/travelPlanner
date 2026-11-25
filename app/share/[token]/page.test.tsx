@@ -269,8 +269,12 @@ describe("SharePage — public guarantees", () => {
     for (const mock of [transportFindManyMock, accommodationFindManyMock, itemFindManyMock, stopFindManyMock]) {
       expect(mock).toHaveBeenCalledTimes(1);
       const keys = selectOf(mock);
-      for (const k of FORBIDDEN) expect(keys).not.toContain(k);
+      // The flight or train number is the one Travel detail a shared link carries, from Transport only.
+      for (const k of FORBIDDEN.filter((f) => mock !== transportFindManyMock || f !== "serviceNumber")) {
+        expect(keys).not.toContain(k);
+      }
     }
+    expect(selectOf(transportFindManyMock)).toContain("serviceNumber");
     expect(tripMemberFindManyMock).toHaveBeenCalledTimes(1);
     const memberSelect = Object.keys(tripMemberFindManyMock.mock.calls[0][0].select.user.select);
     expect(memberSelect).toEqual(Object.keys(TRAVELLER_SELECT));
@@ -877,6 +881,62 @@ describe("Share page car legs (Travel times)", () => {
     expect(args.where.key.in).toEqual([key]);
     const props = JSON.parse(screen.getByTestId("route-map").getAttribute("data-props")!);
     expect(props.legPaths).toEqual({ "s1>s2": "_p~iF~ps|U" });
+  });
+});
+
+describe("SharePage — travel legs", () => {
+  const BASE = { sortOrder: 0, depIsHome: false, arrIsHome: false, depAt: null, arrAt: null, serviceNumber: null };
+  const withSeatAndGate = { seat: "SEAT-14C", gate: "GATE-B22", carrier: "CARRIER-X", ...PRIVATE.transport };
+  const legs = (container: HTMLElement) => Array.from(container.querySelectorAll("[data-share-leg]"));
+
+  it("selects serviceNumber and none of the other private Transport keys", async () => {
+    await renderPage();
+    const keys = Object.keys(transportFindManyMock.mock.calls[0][0].select);
+    expect(keys).toContain("serviceNumber");
+    for (const k of ["carrier", "seat", "terminal", "gate", "coach", "platform", "reference", "notes"]) {
+      expect(keys).not.toContain(k);
+    }
+  });
+
+  it("shows a train's number, duration and day marker, and none of its private details", async () => {
+    transportFindManyMock.mockResolvedValue([
+      { ...BASE, ...withSeatAndGate, id: "tr1", mode: "TRAIN", fromStopId: "s1", toStopId: "s2", depPlace: "Munich Hbf", arrPlace: "London St Pancras", depAt: new Date("2020-12-08T05:51:00Z"), arrAt: new Date("2020-12-08T12:40:00Z"), serviceNumber: "ICE 9572" },
+    ]);
+    const { container } = await renderPage();
+    const text = container.textContent ?? "";
+    expect(text).toContain("ICE 9572");
+    expect(text).toContain("6h 49m");
+    for (const secret of ["SEAT-14C", "GATE-B22", "CARRIER-X"]) expect(text).not.toContain(secret);
+  });
+
+  it("lists no leg at all, Home legs included, when the link leaves transport out", async () => {
+    shareFindFirstMock.mockResolvedValue({ ...share(), includeTransport: false });
+    const { container } = await renderPage();
+    expect(legs(container)).toHaveLength(0);
+  });
+
+  it.each([["a Home timezone", "Europe/Berlin"], ["no Home timezone", null]])("lists the flights from and back Home, with %s", async (_n, homeTimezone) => {
+    shareFindFirstMock.mockResolvedValue(share({ homeTimezone } as never));
+    transportFindManyMock.mockResolvedValue([
+      { ...BASE, id: "out", mode: "FLIGHT", fromStopId: null, toStopId: "s1", depIsHome: true, depPlace: "Sydney (SYD)", arrPlace: "Munich (MUC)", depAt: new Date("2020-12-05T08:00:00Z"), arrAt: new Date("2020-12-06T06:00:00Z"), serviceNumber: "QF 1" },
+      { ...BASE, id: "mid", mode: "FLIGHT", fromStopId: "s1", toStopId: "s2", depPlace: "Munich (MUC)", arrPlace: "London (LHR)" },
+      { ...BASE, id: "back", mode: "FLIGHT", fromStopId: "s2", toStopId: null, arrIsHome: true, depPlace: "London (LHR)", arrPlace: "Sydney (SYD)", depAt: new Date("2020-12-09T09:00:00Z"), arrAt: new Date("2020-12-10T21:00:00Z"), serviceNumber: "QF 2" },
+    ]);
+    const { container } = await renderPage();
+    const rows = legs(container);
+    expect(rows).toHaveLength(3);
+    expect(rows[0]).toHaveTextContent("Flight to Munich");
+    expect(rows[0]).toHaveTextContent("QF 1");
+    expect(rows[2]).toHaveTextContent("Flight home");
+    expect(rows[2]).toHaveTextContent("QF 2");
+    const stopItems = Array.from(container.querySelectorAll("[data-share-stop]"));
+    expect(rows[0].compareDocumentPosition(stopItems[0]) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(rows[2].compareDocumentPosition(stopItems[stopItems.length - 1]) & Node.DOCUMENT_POSITION_PRECEDING).toBeTruthy();
+  });
+
+  it("renders no Home leg when the Trip has none", async () => {
+    const { container } = await renderPage();
+    expect(legs(container)).toHaveLength(1);
   });
 });
 

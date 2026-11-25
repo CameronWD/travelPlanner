@@ -24,6 +24,30 @@ const stops: DayByDayStop[] = [
 describe("DayByDay (SHARE.md §7)", () => {
   beforeEach(() => scrollToId.mockClear());
 
+  it("draws a leg in a sun tile and tags it, and adds nothing without Home legs", () => {
+    const { container } = render(<DayByDay stops={stops} initialOpenId="par" />);
+    const rows = container.querySelectorAll("[data-share-leg]");
+    expect(rows).toHaveLength(1);
+    const tile = rows[0].querySelector("span[aria-hidden]") as HTMLElement;
+    expect(tile.className).toMatch(/rounded-full/);
+    expect(tile.className).toMatch(/bg-sun/);
+    expect(tile.querySelector("svg")).not.toBeNull();
+  });
+
+  it("lists the Home legs above the first Stop and below the last", () => {
+    const homeOut = { mode: "FLIGHT" as const, label: "Flight to London", line: "Fri 4 Dec · QF 1" };
+    const homeBack = { mode: "FLIGHT" as const, label: "Flight home", line: "Tue 15 Dec · QF 2" };
+    const { container } = render(<DayByDay stops={stops} initialOpenId="par" homeOut={homeOut} homeBack={homeBack} />);
+    const rows = Array.from(container.querySelectorAll("[data-share-leg]"));
+    expect(rows).toHaveLength(3);
+    const first = container.querySelector("[data-share-stop='lon']") as HTMLElement;
+    const last = container.querySelector("[data-share-stop='par']") as HTMLElement;
+    expect(rows[0]).toHaveTextContent("Flight to London");
+    expect(rows[0].compareDocumentPosition(first) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(rows[2]).toHaveTextContent("Flight home");
+    expect(rows[2].compareDocumentPosition(last) & Node.DOCUMENT_POSITION_PRECEDING).toBeTruthy();
+  });
+
   it("opens the initial stop with its head band and day rows; others are folded", () => {
     render(<DayByDay stops={stops} initialOpenId="par" />);
     expect(screen.getByRole("heading", { name: "Day by day" })).toBeInTheDocument();
