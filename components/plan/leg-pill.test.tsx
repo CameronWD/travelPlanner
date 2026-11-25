@@ -6,8 +6,8 @@ vi.mock("next/navigation", () => ({ useRouter: () => ({ refresh: vi.fn() }) }));
 vi.mock("@/server/actions/booking-confirmation", () => ({ setNothingToAttach: vi.fn() }));
 import { LegPill, LegRow } from "./leg-pill";
 
-const FLIGHT = { icon: Plane, label: "Flight CDG → FCO", sub: "Tue 15 Dec 10:05", missing: false, accessibleName: "Flight from Paris to Rome, Tuesday 15 December 10:05. Edit." };
-const MISSING = { icon: null, label: "How are you getting to Florence?", sub: "Add", missing: true, accessibleName: "Add transport from Rome to Florence" };
+const FLIGHT = { icon: Plane, label: "Flight CDG → FCO", sub: "Tue 15 Dec 10:05", missing: false, accessibleName: "Flight from Paris to Rome, Tuesday 15 December 10:05. Edit.", arrival: "", detail: "" };
+const MISSING = { icon: null, label: "How are you getting to Florence?", sub: "Add", missing: true, accessibleName: "Add transport from Rome to Florence", arrival: "", detail: "" };
 
 describe("LegRow / LegPill (PLAN.md §2)", () => {
   it("a solid connector for legs, dashed otherwise; 52px desktop, 40px compact", () => {
@@ -25,22 +25,32 @@ describe("LegRow / LegPill (PLAN.md §2)", () => {
     const onClick = vi.fn();
     render(<LegPill label={FLIGHT} onClick={onClick} />);
     const pill = screen.getByRole("button", { name: FLIGHT.accessibleName });
-    expect(pill.className).toContain("h-[34px]");
-    expect(pill.className).toContain("bg-card");
-    expect(pill.className).toContain("whitespace-nowrap");
+    expect(pill).toHaveAttribute("data-travel-row");
+    expect(pill.className).toContain("bg-sun/15");
+    expect(pill.className).toContain("rounded-2xl");
     expect(pill.className).toContain("tap-target");
+    expect(pill.querySelector(".bg-sun")).not.toBeNull();
     expect(screen.getByText("Tue 15 Dec 10:05").className).toContain("tabular-nums");
     await userEvent.click(pill);
     expect(onClick).toHaveBeenCalled();
   });
 
-  it("the date gives up width before the destination does, and a stacked pill fills its column on a phone", () => {
+  it("a stacked row fills its column on a phone and the route label truncates", () => {
     render(<LegPill label={FLIGHT} onClick={vi.fn()} />);
-    const sub = screen.getByText("Tue 15 Dec 10:05");
-    expect(sub.className).toContain("shrink-[100]");
-    expect(sub.className).toContain("truncate");
-    expect(screen.getByText("Flight CDG → FCO").className).not.toContain("shrink-0");
+    expect(screen.getByText("Flight CDG → FCO").className).toContain("truncate");
     expect(screen.getByRole("button", { name: FLIGHT.accessibleName }).className).toContain("max-md:w-full");
+  });
+
+  it("the when line joins the departure and the arrival", () => {
+    render(<LegPill label={{ ...FLIGHT, sub: "Thu 10 Dec 09:28", arrival: "→ 13:05 · 3h 37m" }} onClick={vi.fn()} />);
+    expect(document.querySelector('[data-travel-line="when"]')).toHaveTextContent("Thu 10 Dec 09:28 → 13:05 · 3h 37m");
+  });
+
+  it("the detail line shows only when there is detail", () => {
+    const { rerender } = render(<LegPill label={FLIGHT} onClick={vi.fn()} />);
+    expect(document.querySelector('[data-travel-line="detail"]')).toBeNull();
+    rerender(<LegPill label={{ ...FLIGHT, detail: "ICE 9572 · QX7P2M" }} onClick={vi.fn()} />);
+    expect(document.querySelector('[data-travel-line="detail"]')).toHaveTextContent("ICE 9572 · QX7P2M");
   });
 
   it("the missing pill is dashed on paper with a coral Add", () => {
@@ -48,6 +58,8 @@ describe("LegRow / LegPill (PLAN.md §2)", () => {
     const pill = screen.getByRole("button", { name: "Add transport from Rome to Florence" });
     expect(pill.className).toMatch(/border-dashed/);
     expect(pill.className).toContain("bg-background");
+    expect(pill).not.toHaveAttribute("data-travel-row");
+    expect(pill.className).not.toContain("bg-sun");
     expect(screen.getByText("Add").className).toContain("text-coral-text");
   });
 
@@ -65,9 +77,9 @@ describe("LegRow / LegPill (PLAN.md §2)", () => {
   });
 });
 
-const TRAIN_A = { icon: Plane, label: "Train", sub: "Tue 15 Dec", missing: false, accessibleName: "Train from Paris to Milano Centrale. Edit." };
-const TRAIN_B = { icon: Plane, label: "Train", sub: "Tue 15 Dec", missing: false, accessibleName: "Train from Milano Centrale to Bologna. Edit." };
-const TRAIN_C = { icon: Plane, label: "Train", sub: "Tue 15 Dec", missing: false, accessibleName: "Train from Bologna to Rome. Edit." };
+const TRAIN_A = { icon: Plane, label: "Train", sub: "Tue 15 Dec", missing: false, accessibleName: "Train from Paris to Milano Centrale. Edit.", arrival: "", detail: "" };
+const TRAIN_B = { icon: Plane, label: "Train", sub: "Tue 15 Dec", missing: false, accessibleName: "Train from Milano Centrale to Bologna. Edit.", arrival: "", detail: "" };
+const TRAIN_C = { icon: Plane, label: "Train", sub: "Tue 15 Dec", missing: false, accessibleName: "Train from Bologna to Rome. Edit.", arrival: "", detail: "" };
 
 describe("LegRow — metro line (spec 2026-10-05 §F)", () => {
   it("a single leg looks as it does now, plus its station dot", () => {
@@ -76,7 +88,7 @@ describe("LegRow — metro line (spec 2026-10-05 §F)", () => {
     expect(container.querySelectorAll("[data-station-dot]")).toHaveLength(1);
     expect(container.querySelector("[data-changeover]")).toBeNull();
     const pill = screen.getByRole("button", { name: FLIGHT.accessibleName });
-    expect(pill.className).toContain("h-[34px]");
+    expect(pill).toHaveAttribute("data-travel-row");
     expect(container.querySelector("[data-station-dot]")).toHaveAttribute("aria-hidden");
   });
 
@@ -131,9 +143,11 @@ describe("LegRow — metro line (spec 2026-10-05 §F)", () => {
     const { container, rerender } = render(<LegRow kind="legs"><LegPill label={FLIGHT} onClick={vi.fn()} /></LegRow>);
     expect(container.querySelector("[data-leg-stack]")!.className).toContain("ml-[18px]");
     expect(container.querySelector("[data-station-dot]")!.className).toContain("left-[-19px]");
+    expect(container.querySelector("[data-station-dot]")!.className).toContain("top-7");
     rerender(<LegRow kind="legs" compact><LegPill label={FLIGHT} onClick={vi.fn()} compact /></LegRow>);
     expect(container.querySelector("[data-leg-stack]")!.className).toContain("ml-3");
     expect(container.querySelector("[data-station-dot]")!.className).toContain("left-[-13px]");
+    expect(container.querySelector("[data-station-dot]")!.className).toContain("top-6");
   });
 
   it("the missing prompt and the bare line get no dot", () => {
@@ -156,7 +170,7 @@ describe("LegRow — metro line (spec 2026-10-05 §F)", () => {
     expect(pill.className).toContain("min-w-0");
     expect(pill.className).not.toContain("shrink-0");
     expect(screen.getByText("Drive Devonport → Launceston").className).toContain("truncate");
-    expect(screen.getByText("Tue 22 Sep 08:00").className).toContain("shrink-[100]");
+    expect(screen.getByText("Tue 22 Sep 08:00")).toBeInTheDocument();
   });
 });
 

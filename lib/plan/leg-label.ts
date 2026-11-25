@@ -1,10 +1,11 @@
 import type { LucideIcon } from "lucide-react";
 import type { TransportMode } from "@/lib/enum-values";
-import { TRANSPORT_MODE_META, formatDuration } from "@/lib/transport";
+import { TRANSPORT_MODE_META, durationMinutes, formatDuration } from "@/lib/transport";
+import { transportDetailsLine, type TransportDetails } from "@/lib/transport-details";
 import { transportTimeDisplay } from "@/lib/time-display";
 import { formatDayLabel } from "@/lib/dates";
 
-export interface LegTransport {
+export interface LegTransport extends TransportDetails {
   mode: TransportMode;
   depPlace?: string | null;
   arrPlace?: string | null;
@@ -14,6 +15,7 @@ export interface LegTransport {
   toStopId?: string | null;
   depIsHome?: boolean | null;
   arrIsHome?: boolean | null;
+  reference?: string | null;
   driveEstimate?: { minutes: number; roadKm: number; estimated: boolean } | null;
 }
 
@@ -31,6 +33,8 @@ export interface LegLabel {
   sub: string;
   missing: boolean;
   accessibleName: string;
+  arrival: string;
+  detail: string;
 }
 
 const SPOKEN_DAY = new Intl.DateTimeFormat("en-GB", { weekday: "long", day: "numeric", month: "long", timeZone: "UTC" });
@@ -88,12 +92,13 @@ export function legLabel(
   let label = word;
   let sub = "";
   let spoken = "";
+  let arrival = "";
   if (t.depAt) {
     if (fromShort && toShort) {
       const e = ends(fromShort, toShort);
       label = typeof e === "string" ? `${word} in ${e}` : `${word} ${e[0]} → ${e[1]}`;
     }
-    const { dep } = transportTimeDisplay({
+    const { dep, arr, dayDelta } = transportTimeDisplay({
       depAt: t.depAt,
       arrAt: t.arrAt ?? null,
       fromTimezone: from?.timezone,
@@ -105,6 +110,10 @@ export function legLabel(
     if (dep) {
       sub = `${formatDayLabel(dep.dateISO)} ${dep.time}`;
       spoken = `${spokenDay(dep.dateISO)} ${dep.time}`;
+    }
+    if (arr) {
+      const mins = durationMinutes(t.depAt, t.arrAt);
+      arrival = `→ ${arr.time}${dayDelta >= 1 ? ` +${dayDelta}` : ""}${mins ? ` · ${formatDuration(mins)}` : ""}`;
     }
   } else if (isCar && t.driveEstimate) {
     sub = `${t.driveEstimate.estimated ? "~" : ""}${formatDuration(t.driveEstimate.minutes)} · ${t.driveEstimate.roadKm} km${t.driveEstimate.estimated ? " (estimated)" : ""}`;
@@ -128,6 +137,8 @@ export function legLabel(
     sub,
     missing: false,
     accessibleName: `${word}${route}${spoken ? `, ${spoken}` : ""}. Edit.`,
+    arrival,
+    detail: [transportDetailsLine(t.mode, t), t.reference?.trim()].filter(Boolean).join(" · "),
   };
 }
 
@@ -138,6 +149,8 @@ export function missingLegLabel(from: { name: string }, to: { name: string }): L
     sub: "Add",
     missing: true,
     accessibleName: `Add transport from ${from.name} to ${to.name}`,
+    arrival: "",
+    detail: "",
   };
 }
 

@@ -60,7 +60,7 @@ export function LegRow({ kind, compact, children, changeovers }: LegRowProps) {
                       aria-hidden
                       className={cn(
                         "absolute size-2.5 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-border bg-card",
-                        compact ? "left-[-13px] top-3.5" : "left-[-19px] top-[17px]",
+                        compact ? "left-[-13px] top-6" : "left-[-19px] top-7",
                       )}
                     />
                   ) : null}
@@ -92,19 +92,18 @@ export function LegPill({ label, onClick, compact, bookingState, bookBy, attache
   // here instead, and hide the badge from the accessibility tree.
   const bookingText = bookingState === "TO_BOOK" ? (bookBy ? bookByLabel(bookBy) : BOOKING_STATE_LABELS.TO_BOOK) : null;
   const accessibleName = [label.accessibleName, bookingText && `${bookingText}.`, attached && "File attached."].filter(Boolean).join(" ");
-  return (
-    <button
-      type="button"
-      aria-label={accessibleName}
-      onClick={onClick}
-      className={cn(
-        "group tap-target pressable inline-flex min-w-0 max-w-full items-center gap-2 whitespace-nowrap rounded-full border-2 border-border font-bold max-md:w-full max-md:justify-start",
-        compact ? "h-7 px-2.5 text-xs" : "h-[34px] px-3 text-[13px]",
-        label.missing ? "border-dashed bg-background" : "bg-card",
-      )}
-    >
-      {label.missing ? (
-        compact ? (
+  if (label.missing) {
+    return (
+      <button
+        type="button"
+        aria-label={accessibleName}
+        onClick={onClick}
+        className={cn(
+          "group tap-target pressable inline-flex min-w-0 max-w-full items-center gap-2 whitespace-nowrap rounded-full border-2 border-dashed border-border bg-background font-bold max-md:w-full max-md:justify-start",
+          compact ? "h-7 px-2.5 text-xs" : "h-[34px] px-3 text-[13px]",
+        )}
+      >
+        {compact ? (
           <>
             <Plus className="size-3.5" aria-hidden />
             <span>Add transport</span>
@@ -115,16 +114,34 @@ export function LegPill({ label, onClick, compact, bookingState, bookBy, attache
             {/* MOTION.md P8 (optional): the Add label nudges on hover; no dash animation. */}
             <span className="inline-block text-coral-text transition-transform duration-[var(--dur-fast)] group-hover:translate-x-0.5">{label.sub}</span>
           </>
-        )
-      ) : (
-        <>
-          {Icon ? <Icon className="size-4 shrink-0" aria-hidden /> : null}
-          <span className="min-w-0 shrink truncate">{label.label}</span>
-          {label.sub ? <span className="min-w-0 shrink-[100] truncate text-xs font-semibold text-muted-foreground tabular-nums">{label.sub}</span> : null}
-          {attached ? <Paperclip className="size-3.5 shrink-0 text-muted-foreground" aria-hidden /> : null}
-          <BookingStateBadge state={bookingState} bookBy={bookBy} compact hidden className="text-xs" />
-        </>
+        )}
+      </button>
+    );
+  }
+  const when = [label.sub, label.arrival].filter(Boolean).join(" ");
+  return (
+    <button
+      type="button"
+      aria-label={accessibleName}
+      onClick={onClick}
+      data-travel-row
+      className={cn(
+        "group tap-target pressable flex min-w-0 max-w-full items-start gap-2.5 rounded-2xl border-2 border-border bg-sun/15 text-left max-md:w-full",
+        compact ? "px-2.5 py-2" : "px-3 py-2.5",
       )}
+    >
+      <span aria-hidden className={cn("island flex shrink-0 items-center justify-center rounded-lg bg-sun text-on-accent", compact ? "size-7" : "size-8")}>
+        {Icon ? <Icon className="size-4" /> : null}
+      </span>
+      <span className="flex min-w-0 flex-1 flex-col gap-0.5">
+        <span className={cn("flex min-w-0 items-center gap-2 font-bold", compact ? "text-xs" : "text-[13px]")}>
+          <span className="min-w-0 truncate">{label.label}</span>
+          {attached ? <Paperclip className="size-3.5 shrink-0 text-muted-foreground" aria-hidden /> : null}
+          <BookingStateBadge state={bookingState} bookBy={bookBy} compact hidden className="ml-auto text-xs" />
+        </span>
+        {when ? <span data-travel-line="when" className="text-xs font-semibold tabular-nums text-foreground">{when}</span> : null}
+        {label.detail ? <span data-travel-line="detail" className="break-words text-xs font-medium text-muted-foreground">{label.detail}</span> : null}
+      </span>
     </button>
   );
 }

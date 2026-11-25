@@ -105,6 +105,32 @@ describe("legLabel", () => {
   });
 });
 
+describe("legLabel arrival and detail", () => {
+  const train = { mode: "TRAIN" as const, fromStopId: "r", toStopId: "f", depAt: new Date("2026-12-22T08:28:00Z"), arrAt: new Date("2026-12-22T12:05:00Z") };
+  const flight = (arrAt: string) => ({ mode: "FLIGHT" as const, fromStopId: "p", toStopId: "r", depAt: new Date("2026-12-15T22:00:00Z"), arrAt: new Date(arrAt) });
+
+  it("a same-day train gives the arrival time and the duration", () => {
+    expect(legLabel(train, STOPS).arrival).toBe("→ 13:05 · 3h 37m");
+  });
+  it("an arrival on a later local day gets +N", () => {
+    const next = legLabel(flight("2026-12-16T01:00:00Z"), STOPS).arrival;
+    expect(next.startsWith("→ ")).toBe(true);
+    expect(next).toContain(" +1 · ");
+    expect(legLabel(flight("2026-12-17T01:00:00Z"), STOPS).arrival).toContain(" +2 · ");
+  });
+  it("no arrival time, no arrival line", () => {
+    expect(legLabel({ ...train, arrAt: null }, STOPS).arrival).toBe("");
+  });
+  it("an arrival that is not after the departure leaves the duration off", () => {
+    expect(legLabel({ ...train, arrAt: train.depAt }, STOPS).arrival).toBe("→ 09:28");
+  });
+  it("detail joins the Travel details and the reference", () => {
+    expect(legLabel({ ...train, serviceNumber: "ICE 9572", coach: "7", seat: "42", reference: "QX7P2M" }, STOPS).detail).toBe("ICE 9572 · Coach 7 · Seat 42 · QX7P2M");
+    expect(legLabel({ ...train, reference: " QX7P2M " }, STOPS).detail).toBe("QX7P2M");
+    expect(legLabel(train, STOPS).detail).toBe("");
+  });
+});
+
 describe("missingLegLabel", () => {
   it("asks how you're getting to the next stop", () => {
     expect(missingLegLabel({ name: "Rome" }, { name: "Florence" })).toEqual({
@@ -113,6 +139,8 @@ describe("missingLegLabel", () => {
       sub: "Add",
       missing: true,
       accessibleName: "Add transport from Rome to Florence",
+      arrival: "",
+      detail: "",
     });
   });
 });
