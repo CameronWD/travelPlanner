@@ -2697,6 +2697,14 @@ describe("TransportFormDialog: a drive's Travel time", () => {
     expect(driveTimeForEnds).toHaveBeenCalledTimes(1);
   });
 
+  it("a departure with a five-digit year shows the line with no Set arrival button", async () => {
+    vi.mocked(driveTimeForEnds).mockResolvedValue(REAL);
+    render(<TransportFormDialog {...fixtureProps} initialValues={{ mode: "CAR", fromStopId: "bne", toStopId: "twd", depAt: "20261-12-04T09:00" }} />);
+    expect(screen.getByLabelText("Leaves Brisbane")).toBeInTheDocument();
+    expect(await screen.findByText("About 1h 12m · 95 km by road")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /^Set arrival to/ })).toBeNull();
+  });
+
   it("an estimate shows (estimated) and never says the times allow less", async () => {
     vi.mocked(driveTimeForEnds).mockResolvedValue({ ...REAL, estimated: true });
     render(<TransportFormDialog {...fixtureProps} transport={savedDrive} />);

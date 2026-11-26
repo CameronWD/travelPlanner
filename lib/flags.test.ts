@@ -1213,6 +1213,29 @@ describe("flagDrivesShorterThanTimes", () => {
     expect(flags[0].between).toEqual({ from: "Brisbane Airport", to: "Mullumbimby" });
   });
 
+  it("dates a drive from a zoneless place to Home by Home's zone, as the Plan card does", () => {
+    const PLACE = { lat: -27.3842, lng: 153.1175 };
+    const MULL = { lat: -28.5513, lng: 153.4995 };
+    const home: HomeBase = { name: "Mullumbimby", ...MULL, countryCode: "AU" };
+    const toHome = makeTransport({
+      id: "t3", mode: "CAR", depPlace: "Brisbane Airport", depLat: PLACE.lat, depLng: PLACE.lng,
+      arrIsHome: true, depAt: "2026-12-20T20:30:00Z", arrAt: "2026-12-20T21:30:00Z",
+    });
+    const flags = flagDrivesShorterThanTimes(STOPS, [toHome], {
+      ...OPTS, lookup: new Map([[driveKey(PLACE, MULL), ok(100)]]), home, homePoint: MULL, homeTimezone: "Australia/Brisbane",
+    });
+    expect(flags.map((f) => f.date)).toEqual(["2026-12-21"]);
+  });
+
+  it("dates a 23:30 departure in the departure Stop's zone, not the arrival's", () => {
+    const late = { ...drive, depAt: "2026-12-05T13:30:00Z", arrAt: "2026-12-05T14:30:00Z" };
+    expect(flagsFor([late]).map((f) => f.date)).toEqual(["2026-12-05"]);
+  });
+
+  it("does not flag times exactly the road time", () => {
+    expect(flagsFor([{ ...drive, arrAt: "2026-12-05T00:12:00Z" }])).toEqual([]);
+  });
+
   it("the fingerprint changes with either time and with a Travel time about 5 minutes longer, not with 1 minute", () => {
     const fp = (t: FlagTransport, minutes = 72) => flagsFor([t], new Map([[driveKey(BNE, TWD), ok(minutes)]]))[0].fingerprint;
     const base = fp(drive);

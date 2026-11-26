@@ -51,7 +51,7 @@ export async function loadRouteLegPaths(
 }
 
 // A drive's ends are resolved only from Stops the reader may see: a hidden Surprise Stop is left out, so its drives report null.
-export async function loadDriveTimes(tripId: string, hiddenStopIds: readonly string[] = []): Promise<Map<string, DriveTime>> {
+export async function loadDriveTimes(tripId: string, hiddenStopIds: readonly string[]): Promise<Map<string, DriveTime>> {
   const [trip, stopRows, transports] = await Promise.all([
     db.trip.findUnique({ where: { id: tripId }, select: { homeLat: true, homeLng: true, drivingWindingFactor: true, drivingAvgSpeedKph: true } }),
     db.stop.findMany({ where: { tripId, ...REAL_PLAN, id: { notIn: [...hiddenStopIds] } }, select: { id: true, lat: true, lng: true } }),

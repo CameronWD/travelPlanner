@@ -897,11 +897,13 @@ export function HelpGuide({
               : one box, whatever you&rsquo;re travelling on.
             </p>
             <p>
-              Once both ends of a drive are known, the form shows how long the
-              road takes and how far it is. If you&rsquo;ve put in when you
-              leave, a button offers to set the arrival to match, in one tap.
-              A drive with times shows the same figure on its card on the Plan,
-              in amber when your times leave too little.
+              Once both ends of a drive are known and you&rsquo;re entering
+              its times, the form shows how long the road takes and how far it
+              is. If you&rsquo;ve put in when you leave, a button offers to set
+              the arrival to match, in one tap. A drive with times shows the
+              same figure on its card on the Plan; when your times leave too
+              little, it&rsquo;s shown in amber and marked &ldquo;longer than
+              your times&rdquo;.
             </p>
             <p>
               Flying with a layover? Enter the flight from where you leave to

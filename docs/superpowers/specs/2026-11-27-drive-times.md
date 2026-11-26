@@ -23,8 +23,8 @@ Agreed with Cam on 2026-11-27. He asked whether the app could check how long the
 
 ## 2. On the Plan card
 
-- A drive **with** times keeps its times as the main line and gains a second line, **"95 km · about 1h 12m driving"** ("(estimated)" appended when it is).
-- That line takes the warning colour when the drive's times allow less than a real (not estimated) Travel time.
+- A drive that has a departure time keeps its times as the main line and gains a second line, **"95 km · about 1h 12m driving"** ("(estimated)" appended when it is; thousands are separated: 1,422 km). It shows with only a departure, but never warns without both times.
+- When the drive's times allow less than a real (not estimated) Travel time, that line takes the warning colour and ends **"· longer than your times"**: "95 km · about 1h 12m driving · longer than your times".
 - A drive with no times looks exactly as it does today.
 - The public shared page and the Day view are unchanged.
 
@@ -63,3 +63,5 @@ Agreed with Cam on 2026-11-27. He asked whether the app could check how long the
 - No in-app undo for a drive Flag Marked fine.
 - The Compare view's driving total follows the long-driving-day rule.
 - A drive touching a hidden Surprise Stop reports no Travel time through the Claude connection or the form.
+- Kilometres are written with a thousands separator in the form and on the card.
+- A card line whose times are too short ends "· longer than your times", after Cam saw the screenshots.

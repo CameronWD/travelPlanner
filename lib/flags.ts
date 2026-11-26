@@ -11,6 +11,8 @@ import { nightsBetween, isDateWithin, addDays, daysBetween, formatLongDate, form
 import { uncoveredNights } from "@/lib/accommodation-coverage";
 import { HARD_END_APPROACHING_NIGHTS } from "@/lib/firm-up"; // threshold lives alongside computeProjectedEnd
 import { instantToZonedDateISO } from "@/lib/tz";
+import { resolveEndpointZones } from "@/lib/time-display";
+import { endZones } from "@/lib/leg-zones";
 import { haversineKm, type LatLng } from "@/lib/geo";
 import {
   byHopOrder,
@@ -715,7 +717,7 @@ export function flagLongDrivingDays(
 //
 // A CAR leg with both times whose span is shorter than its real Travel time
 // (never the estimate; lib/travel-times/drive-fit.ts driveFit). Dated by the
-// departure's own day.
+// departure's own day, in the zone the Plan card shows it in.
 // ---------------------------------------------------------------------------
 
 const DRIVE_SHORT_PREFIX = "drive-short-";
@@ -730,7 +732,6 @@ export function flagDrivesShorterThanTimes(
   transports: FlagTransport[],
   opts: TravelOpts & { home?: HomeBase | null; homePoint?: Pt | null; homeTimezone?: string | null; stopNames?: ReadonlyMap<string, string> },
 ): Flag[] {
-  const stopById = new Map(stops.map((s) => [s.id, s]));
   const names = opts.stopNames ?? new Map(stops.map((s) => [s.id, s.name]));
   const pointsById = hopStopsById(opts.travelStops ?? stops);
   const lookup: TravelLookup = opts.lookup ?? new Map();
@@ -746,8 +747,9 @@ export function flagDrivesShorterThanTimes(
     if (!ends || samePoint(ends.from, ends.to)) continue;
     const fit = driveFit(driveTimeOf(resolveDriveLeg(ends.from, ends.to, lookup, opts), opts.windingFactor), dep, arr);
     if (!fit.tooShort || fit.allowedMinutes === null) continue;
-    const date = legDepartureDay(t, stopById, opts.homeTimezone);
-    if (!date) continue;
+    const { fromTimezone, toTimezone } = endZones(t, (id) => (id ? pointsById.get(id)?.timezone : null));
+    const { depTz } = resolveEndpointZones(fromTimezone, toTimezone, { depIsHome: t.depIsHome, arrIsHome: t.arrIsHome, homeTimezone: opts.homeTimezone });
+    const date = instantToZonedDateISO(dep, depTz);
     const between = { from: endName(t.depIsHome, t.depPlace, t.fromStopId), to: endName(t.arrIsHome, t.arrPlace, t.toStopId) };
     flags.push({
       id: `drive-short-${t.id}`,

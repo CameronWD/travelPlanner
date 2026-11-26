@@ -197,8 +197,8 @@ describe("legLabel drive line", () => {
   it("a timed drive keeps its times and gains the drive line, short when the times allow less", () => {
     const l = legLabel(drive, STOPS);
     expect(l.arrival).toBe("→ 11:00 · 1h");
-    expect(l.drive).toEqual({ text: "95 km · about 1h 12m driving", tooShort: true });
-    expect(l.accessibleName).toContain("95 km · about 1h 12m driving.");
+    expect(l.drive).toEqual({ text: "95 km · about 1h 12m driving · longer than your times", tooShort: true });
+    expect(l.accessibleName).toContain("95 km · about 1h 12m driving · longer than your times.");
   });
   it("an estimated drive line is never short", () => {
     expect(legLabel({ ...drive, driveTime: { ...drive.driveTime, estimated: true } }, STOPS).drive).toEqual({ text: "95 km · about 1h 12m driving (estimated)", tooShort: false });

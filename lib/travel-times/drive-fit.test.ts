@@ -32,6 +32,12 @@ describe("drive-fit", () => {
     expect(driveFit(real, dep, dep)).toMatchObject({ allowedMinutes: null, tooShort: false });
     expect(driveFit(real, null, null)).toMatchObject({ allowedMinutes: null, tooShort: false, arriveAt: null });
   });
+  it("an unreadable departure suggests no arrival", () => {
+    expect(driveFit(real, new Date(NaN), null).arriveAt).toBeNull();
+  });
+  it("a span exactly the road time is not too short", () => {
+    expect(driveFit(real, dep, new Date(dep.getTime() + 72 * 60_000))).toMatchObject({ allowedMinutes: 72, tooShort: false });
+  });
   it("drivingMinutes counts a real time shorter than the typed span, else the span", () => {
     const six = new Date("2026-12-05T05:00:00Z");
     expect(drivingMinutes({ minutes: 290, estimated: false }, dep, six)).toEqual({ minutes: 290, estimated: false });
@@ -41,8 +47,18 @@ describe("drive-fit", () => {
     expect(drivingMinutes({ minutes: 72, estimated: true }, null, null)).toEqual({ minutes: 72, estimated: true });
   });
   it("the Plan card line", () => {
-    expect(planDriveLine(real)).toBe("95 km · about 1h 12m driving");
-    expect(planDriveLine({ ...real, estimated: true })).toBe("95 km · about 1h 12m driving (estimated)");
+    expect(planDriveLine(driveFit(real, dep, null))).toBe("95 km · about 1h 12m driving");
+    expect(planDriveLine(driveFit({ ...real, estimated: true }, dep, null))).toBe("95 km · about 1h 12m driving (estimated)");
+    expect(planDriveLine(driveFit(real, dep, arr))).toBe("95 km · about 1h 12m driving · longer than your times");
+  });
+  it("an estimated card line never says it is longer than the times", () => {
+    expect(planDriveLine(driveFit({ ...real, estimated: true }, dep, arr))).toBe("95 km · about 1h 12m driving (estimated)");
+  });
+  it("thousands of kilometres are separated", () => {
+    const long: DriveTime = { minutes: 860, roadKm: 1422, estimated: false };
+    expect(planDriveLine(driveFit(long, dep, null))).toBe("1,422 km · about 14h 20m driving");
+    expect(formDriveLine(driveFit(long, dep, null))).toBe("About 14h 20m · 1,422 km by road");
+    expect(planDriveLine(driveFit(long, dep, arr))).toBe("1,422 km · about 14h 20m driving · longer than your times");
   });
   it("the form line", () => {
     expect(formDriveLine(driveFit(real, dep, null))).toBe("About 1h 12m · 95 km by road");

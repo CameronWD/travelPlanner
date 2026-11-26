@@ -207,19 +207,19 @@ describe("loadDriveTimes", () => {
 
   it("gives each located drive its Travel time", async () => {
     serve([drive("t1")], [{ key: driveKey(BNE, TWD), status: "OK", minutes: 72, distanceM: 95_000 }]);
-    expect(await loadDriveTimes("t1")).toEqual(new Map([["t1", { minutes: 72, roadKm: 95, estimated: false }]]));
+    expect(await loadDriveTimes("t1", [])).toEqual(new Map([["t1", { minutes: 72, roadKm: 95, estimated: false }]]));
   });
 
   it("an unlooked-up drive is estimated with the trip's winding factor", async () => {
     serve([drive("t1")]);
-    const got = (await loadDriveTimes("t1")).get("t1")!;
+    const got = (await loadDriveTimes("t1", [])).get("t1")!;
     expect(got.estimated).toBe(true);
     expect(got.roadKm).toBe(Math.round(estimateRoadKm(haversineKm(BNE, TWD), 1.5)));
   });
 
   it("a same-point drive and a train get no entry", async () => {
     serve([drive("same", { toStopId: "bne" }), drive("train", { mode: "TRAIN" })]);
-    expect((await loadDriveTimes("t1")).size).toBe(0);
+    expect((await loadDriveTimes("t1", [])).size).toBe(0);
   });
 
   it("a drive to a Stop the reader may not see has no entry", async () => {

@@ -331,7 +331,7 @@ export function registerReadTools(server: McpServer): void {
     {
       title: "Get flags",
       description:
-        "Reads the trip's health flags: things worth a second look, such as a stop with no accommodation booked, a packed day, a thing to do on a day it is closed, a ticket you would be late for, a booking due soon, or too little time to get between two things to do, or a drive whose times are shorter than the road takes. A drive flag has a flagId, like a travel-time flag; markedFine lists the travel-time flags a Traveller marked fine, by whom and when, which show again when either thing's time or place or the travel time changes.",
+        "Reads the trip's health flags: things worth a second look, such as a stop with no accommodation booked, a packed day, a thing to do on a day it is closed, a ticket you would be late for, a booking due soon, too little time to get between two things to do, or a drive whose times are shorter than the road takes. A drive flag has a flagId, like a travel-time flag; markedFine lists the travel-time flags a Traveller marked fine, by whom and when, which show again when either thing's time or place or the travel time changes.",
       inputSchema: { tripId: z.string() },
       annotations: { readOnlyHint: true },
     },

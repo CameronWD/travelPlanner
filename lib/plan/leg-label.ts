@@ -127,7 +127,8 @@ export function legLabel(
       arrivalSpoken = ` Arrives ${arr.time}${plus}.`;
     }
     if (isCar && t.driveTime) {
-      drive = { text: planDriveLine(t.driveTime), tooShort: driveFit(t.driveTime, t.depAt, t.arrAt ?? null).tooShort };
+      const fit = driveFit(t.driveTime, t.depAt, t.arrAt ?? null);
+      drive = { text: planDriveLine(fit), tooShort: fit.tooShort };
       arrivalSpoken += ` ${drive.text}.`;
     }
   } else if (isCar && t.driveEstimate) {

@@ -22,7 +22,7 @@ export function driveFit(drive: DriveTime, depAt: Date | null, arrAt: Date | nul
     ...drive,
     allowedMinutes,
     tooShort: !drive.estimated && allowedMinutes !== null && allowedMinutes < drive.minutes,
-    arriveAt: depAt ? new Date(depAt.getTime() + drive.minutes * 60_000) : null,
+    arriveAt: depAt && !Number.isNaN(depAt.getTime()) ? new Date(depAt.getTime() + drive.minutes * 60_000) : null,
   };
 }
 
@@ -39,12 +39,14 @@ export function drivingMinutes(
   return { minutes: hop.minutes, estimated: hop.estimated };
 }
 
-export function planDriveLine(drive: DriveTime): string {
-  return `${drive.roadKm} km · about ${formatDuration(drive.minutes)} driving${drive.estimated ? " (estimated)" : ""}`;
+const KM = new Intl.NumberFormat("en-AU");
+
+export function planDriveLine(fit: DriveFit): string {
+  return `${KM.format(fit.roadKm)} km · about ${formatDuration(fit.minutes)} driving${fit.estimated ? " (estimated)" : ""}${fit.tooShort ? " · longer than your times" : ""}`;
 }
 
 export function formDriveLine(fit: DriveFit): string {
-  const base = `About ${formatDuration(fit.minutes)} · ${fit.roadKm} km by road${fit.estimated ? " (estimated)" : ""}`;
+  const base = `About ${formatDuration(fit.minutes)} · ${KM.format(fit.roadKm)} km by road${fit.estimated ? " (estimated)" : ""}`;
   return fit.tooShort && fit.allowedMinutes !== null ? `${base}. Your times allow ${formatDuration(fit.allowedMinutes)}.` : base;
 }
 
