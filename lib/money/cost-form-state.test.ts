@@ -6,6 +6,8 @@ import {
   seedCostFormState,
   setCostAmount,
   setPaid,
+  setCostCurrency,
+  setPaidCurrency,
   toCostPayload,
   paidFieldsFromRow,
 } from "./cost-form-state";
@@ -33,13 +35,24 @@ describe("seedCostFormState", () => {
       paidAt: "2026-10-01",
       paid: true,
       settlement: "ON_TRIP",
+      paidCurrency: "EUR",
+      paidCurrencyExplicit: false,
     });
   });
 
   it("seeds a Proposal's inline Cost", () => {
     expect(
       seedCostFormState(null, { costMinor: 12_000, currency: "JPY", paidMinor: null, paidAt: null }, "AUD"),
-    ).toEqual({ costAmount: "12000", currency: "JPY", paidAmount: "", paidAt: "", paid: false, settlement: "BEFORE" });
+    ).toEqual({
+      costAmount: "12000",
+      currency: "JPY",
+      paidAmount: "",
+      paidAt: "",
+      paid: false,
+      settlement: "BEFORE",
+      paidCurrency: "JPY",
+      paidCurrencyExplicit: false,
+    });
   });
 
   it("falls back to an empty Cost in the default currency", () => {
@@ -50,6 +63,8 @@ describe("seedCostFormState", () => {
       paidAt: "",
       paid: false,
       settlement: "BEFORE",
+      paidCurrency: "AUD",
+      paidCurrencyExplicit: false,
     });
   });
 });
@@ -155,6 +170,108 @@ describe("paidFieldsFromRow", () => {
     expect(paidFieldsFromRow({ costMinor: 500, paidMinor: null, paidAt: new Date("2026-10-01T00:00:00Z") })).toEqual({
       paidMinor: 500,
       paidAt: "2026-10-01",
+    });
+  });
+});
+
+describe("the paid currency", () => {
+  const paidAt = new Date("2026-10-01T00:00:00Z");
+
+  it("a Cost paid in Home seeds You paid in Home with its decimals", () => {
+    const s = costToFormState(cost({ currency: "JPY", costMinor: 12_000, paidMinor: 15_050, paidCurrency: "AUD", paidAt }));
+    expect(s).toMatchObject({ costAmount: "12000", currency: "JPY", paidCurrency: "AUD", paidAmount: "150.50", paid: true });
+  });
+
+  it("a Proposal paid in Home seeds You paid in Home with its decimals", () => {
+    const s = seedCostFormState(null, { costMinor: 12_000, currency: "JPY", paidMinor: 15_050, paidCurrency: "AUD", paidAt: "2026-10-01" }, "AUD");
+    expect(s).toMatchObject({ costAmount: "12000", currency: "JPY", paidCurrency: "AUD", paidAmount: "150.50" });
+    expect(toCostPayload(s)).toMatchObject({ kind: "ok", fields: { paidMinor: 15_050, paidCurrency: "AUD" } });
+  });
+
+  it("the payload parses the paid amount in the paid currency", () => {
+    const s = setPaidCurrency(setPaid({ ...emptyCostFormState("JPY"), costAmount: "12000" }, true, "2026-10-15"), "AUD");
+    expect(toCostPayload({ ...s, paidAmount: "150.50" })).toEqual({
+      kind: "ok",
+      fields: { costMinor: 12_000, currency: "JPY", paidMinor: 15_050, paidAt: "2026-10-15", paidCurrency: "AUD", settlement: "BEFORE" },
+    });
+  });
+
+  it("an amount typed in a zero-decimal paid currency is counted in its units", () => {
+    const s = setPaidCurrency(setPaid({ ...emptyCostFormState("AUD"), costAmount: "100" }, true, "2026-10-15"), "JPY");
+    expect(toCostPayload({ ...s, paidAmount: "12000" })).toMatchObject({ kind: "ok", fields: { costMinor: 10_000, paidMinor: 12_000, paidCurrency: "JPY" } });
+  });
+
+  it("the payload sends null when paid in the Cost's currency", () => {
+    const s = costToFormState(cost({ currency: "JPY", costMinor: 12_000, paidMinor: 15_050, paidCurrency: "AUD", paidAt }));
+    const back = { ...setPaidCurrency(s, "JPY"), paidAmount: "12000" };
+    const p = toCostPayload(back);
+    expect(p).toMatchObject({ kind: "ok", fields: { paidMinor: 12_000 } });
+    expect(p.kind === "ok" && p.fields).toHaveProperty("paidCurrency", null);
+  });
+
+  it("the payload sends no paid currency when unpaid", () => {
+    const s = costToFormState(cost({ currency: "JPY", costMinor: 12_000, paidMinor: 15_050, paidCurrency: "AUD", paidAt }));
+    const p = toCostPayload(setPaid(s, false, "2026-10-15"));
+    expect(p.kind === "ok" && p.fields).not.toHaveProperty("paidCurrency");
+  });
+
+  it("setPaidCurrency clears the amount", () => {
+    const s = setPaid({ ...emptyCostFormState("EUR"), costAmount: "550" }, true, "2026-10-15");
+    expect(setPaidCurrency(s, "AUD")).toMatchObject({ currency: "EUR", costAmount: "550", paidCurrency: "AUD", paidAmount: "" });
+    expect(setPaidCurrency(setPaidCurrency(s, "AUD"), "EUR")).toMatchObject({ paidCurrency: "EUR", paidAmount: "" });
+  });
+
+  it("setCostCurrency keeps a Home paid currency that has an amount and moves an own one", () => {
+    const own = setPaid({ ...emptyCostFormState("EUR"), costAmount: "550" }, true, "2026-10-15");
+    expect(setCostCurrency(own, "GBP", "AUD")).toMatchObject({ currency: "GBP", paidCurrency: "GBP", paidAmount: "550" });
+    const home = { ...setPaidCurrency(own, "AUD"), paidAmount: "905.12" };
+    expect(setCostCurrency(home, "GBP", "AUD")).toMatchObject({ currency: "GBP", paidCurrency: "AUD", paidAmount: "905.12" });
+  });
+
+  it("a Home picked in You paid stays Home through a change of the Cost's currency before an amount is typed", () => {
+    const home = setPaidCurrency(setPaid({ ...emptyCostFormState("EUR"), costAmount: "550" }, true, "2026-10-15"), "AUD");
+    expect(setCostCurrency(home, "GBP", "AUD")).toMatchObject({ currency: "GBP", paidCurrency: "AUD", paidAmount: "" });
+  });
+
+  it("a Cost with no stored paid currency follows a change of the Cost's currency, even paid in Home", () => {
+    const s = costToFormState(cost({ currency: "AUD", costMinor: 5000, paidMinor: 5000, paidCurrency: null, paidAt }));
+    const moved = setCostCurrency(s, "EUR", "AUD");
+    expect(moved).toMatchObject({ currency: "EUR", paidCurrency: "EUR", paidAmount: "50.00" });
+    const p = toCostPayload(moved);
+    expect(p.kind === "ok" && p.fields).not.toHaveProperty("paidCurrency");
+  });
+
+  it("a new Cost switched from Home to EUR, then Paid ticked, offers the cost pre-filled in EUR", () => {
+    const typed = setCostAmount(emptyCostFormState("AUD"), "550");
+    const ticked = setPaid(setCostCurrency(typed, "EUR", "AUD"), true, "2026-10-15");
+    expect(ticked).toMatchObject({ currency: "EUR", paidCurrency: "EUR", paidAmount: "550" });
+  });
+
+  it("ticking Paid with a blank amount puts You paid back in the Cost's currency", () => {
+    const home = setPaid(setPaidCurrency(setPaid({ ...emptyCostFormState("EUR"), costAmount: "550" }, true, "2026-10-15"), "AUD"), false, "2026-10-15");
+    expect(setPaid(home, true, "2026-10-15")).toMatchObject({ paidCurrency: "EUR", paidAmount: "550" });
+  });
+
+  it("ticking Paid with an amount already typed in Home leaves it in Home", () => {
+    const home = { ...setPaidCurrency(setPaid({ ...emptyCostFormState("EUR"), costAmount: "550" }, true, "2026-10-15"), "AUD"), paidAmount: "905.12" };
+    expect(setPaid(setPaid(home, false, "2026-10-15"), true, "2026-10-15")).toMatchObject({ paidCurrency: "AUD", paidAmount: "905.12" });
+  });
+
+  it("an existing Cost seeds and pays back exactly as before", () => {
+    const paid = cost({ currency: "JPY", costMinor: 12_000, paidMinor: 11_500, paidCurrency: null, paidAt, settlement: "ON_TRIP" });
+    expect(toCostPayload(costToFormState(paid))).toStrictEqual({
+      kind: "ok",
+      fields: { costMinor: 12_000, currency: "JPY", paidMinor: 11_500, paidAt: "2026-10-01", settlement: "ON_TRIP" },
+    });
+    const unpaid = cost({ currency: "EUR", costMinor: 1200, paidMinor: null, paidAt: null });
+    expect(toCostPayload(costToFormState(unpaid))).toStrictEqual({
+      kind: "ok",
+      fields: { costMinor: 1200, currency: "EUR", paidMinor: undefined, paidAt: undefined, settlement: "BEFORE" },
+    });
+    const legacy = cost({ currency: "EUR", costMinor: 1200, paidMinor: null, paidAt });
+    expect(toCostPayload(costToFormState(legacy))).toStrictEqual({
+      kind: "ok",
+      fields: { costMinor: 1200, currency: "EUR", paidMinor: 1200, paidAt: "2026-10-01", settlement: "BEFORE" },
     });
   });
 });

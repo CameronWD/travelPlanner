@@ -27,6 +27,7 @@ import { formatMinor, parseAmountToMinor } from "@/lib/money/money";
 import type { ProposalCostFields } from "@/lib/booking-import/types";
 import type { FieldErrors } from "@/lib/action-result";
 import type { CostRow } from "@/lib/money/cost-row";
+import { followCurrencyChange, paidCurrencyOf, storedPaidCurrency } from "@/lib/money/paid-currency";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -40,6 +41,14 @@ export interface CostFormState {
   paidAt: string;
   /** CONTEXT.md "Settlement". */
   settlement: CostSettlement;
+  paidCurrency: string;
+  /**
+   * The row stored a paid currency, or the Traveller picked one in this edit.
+   * Only then is one sent: the server follows a change of the Cost's currency
+   * for a row with none stored, and honours any paid currency a save names.
+   * While false, `paidCurrency` is the Cost's currency.
+   */
+  paidCurrencyExplicit: boolean;
 }
 
 type CostPayloadFields = {
@@ -47,6 +56,7 @@ type CostPayloadFields = {
   currency: string;
   paidMinor?: number;
   paidAt?: string;
+  paidCurrency?: string | null;
   settlement: CostSettlement;
 };
 
@@ -61,11 +71,22 @@ export type CostPayload =
 
 /** An empty Cost in the given (default) currency, unpaid, Before you go. */
 export function emptyCostFormState(currency: string): CostFormState {
-  return { costAmount: "", currency, paid: false, paidAmount: "", paidAt: "", settlement: "BEFORE" };
+  return {
+    costAmount: "",
+    currency,
+    paid: false,
+    paidAmount: "",
+    paidAt: "",
+    settlement: "BEFORE",
+    paidCurrency: currency,
+    paidCurrencyExplicit: false,
+  };
 }
 
 /** Seed from a saved single Cost row. */
 export function costToFormState(row: CostRow): CostFormState {
+  const hasPaidMinor = row.paidMinor !== null && row.paidMinor !== undefined;
+  const paidCurrency = hasPaidMinor ? paidCurrencyOf(row) : row.currency;
   return {
     costAmount: formatMinor(row.costMinor, row.currency),
     currency: row.currency,
@@ -78,25 +99,31 @@ export function costToFormState(row: CostRow): CostFormState {
     // open Paid-with-a-blank-amount and refuse to save.
     paidAmount:
       row.paidMinor !== null && row.paidMinor !== undefined
-        ? formatMinor(row.paidMinor, row.currency)
+        ? formatMinor(row.paidMinor, paidCurrency)
         : row.paidAt
           ? formatMinor(row.costMinor, row.currency)
           : "",
     paidAt: row.paidAt ? formatISODate(new Date(row.paidAt)) : "",
     settlement: isOnTrip(row.settlement) ? "ON_TRIP" : "BEFORE",
+    paidCurrency,
+    paidCurrencyExplicit: row.paidCurrency != null,
   };
 }
 
 /** Seed from a Booking import Proposal's inline Cost fields. */
 function proposalToFormState(p: ProposalCostFields, defaultCurrency: string): CostFormState {
   const currency = p.currency ?? defaultCurrency;
+  const stored = storedPaidCurrency(p.paidCurrency, currency);
+  const paidCurrency = stored ?? currency;
   return {
     costAmount: p.costMinor !== undefined ? formatMinor(p.costMinor, currency) : "",
     currency,
-    paidAmount: p.paidMinor != null ? formatMinor(p.paidMinor, currency) : "",
+    paidAmount: p.paidMinor != null ? formatMinor(p.paidMinor, paidCurrency) : "",
     paidAt: p.paidAt ?? "",
     paid: Boolean(p.paidAt),
     settlement: p.settlement ?? "BEFORE",
+    paidCurrency,
+    paidCurrencyExplicit: stored != null,
   };
 }
 
@@ -136,12 +163,27 @@ export function setCostAmount<S extends CostFormState>(s: S, value: string): S {
  */
 export function setPaid<S extends CostFormState>(s: S, next: boolean, today: string): S {
   if (!next) return { ...s, paid: false };
+  const blank = !s.paidAmount.trim();
   return {
     ...s,
     paid: true,
-    paidAmount: !s.paidAmount.trim() && s.costAmount.trim() ? s.costAmount : s.paidAmount,
+    paidAmount: blank && s.costAmount.trim() ? s.costAmount : s.paidAmount,
+    paidCurrency: blank ? s.currency : s.paidCurrency,
     paidAt: !s.paidAt.trim() ? today : s.paidAt,
   };
+}
+
+export function setCostCurrency<S extends CostFormState>(s: S, next: string, homeCurrency: string | null): S {
+  const paidCurrency = s.paidCurrencyExplicit
+    ? followCurrencyChange(s.paidCurrency, s.currency, next, homeCurrency, true)
+    : next;
+  return { ...s, currency: next, paidCurrency };
+}
+
+/** The app does not convert: a different paid currency starts from a blank amount. */
+export function setPaidCurrency<S extends CostFormState>(s: S, next: string): S {
+  if (next === s.paidCurrency) return s;
+  return { ...s, paidCurrency: next, paidAmount: "", paidCurrencyExplicit: true };
 }
 
 // ---------------------------------------------------------------------------
@@ -173,12 +215,19 @@ export function toCostPayload(s: CostFormState): CostPayload {
   // amount, but an amount with no date is a legal, incomplete record — so a
   // blank/unparseable paid amount is refused outright, while a blank paid
   // date is simply omitted (never fabricated).
-  const paidMinor = parseAmountToMinor(s.paidAmount, s.currency);
+  const paidMinor = parseAmountToMinor(s.paidAmount, s.paidCurrency);
   if (paidMinor === null) return { kind: "invalid", errors: { paidMinor: ["Enter what you paid"] } };
 
   return {
     kind: "ok",
-    fields: { costMinor, currency: s.currency, paidMinor, paidAt: s.paidAt || undefined, settlement: s.settlement },
+    fields: {
+      costMinor,
+      currency: s.currency,
+      paidMinor,
+      paidAt: s.paidAt || undefined,
+      ...(s.paidCurrencyExplicit ? { paidCurrency: storedPaidCurrency(s.paidCurrency, s.currency) } : {}),
+      settlement: s.settlement,
+    },
   };
 }
 

@@ -3,7 +3,16 @@
 import * as React from "react";
 import { todayLocalISO } from "@/lib/dates";
 import type { CostSettlement } from "@/lib/enum-values";
-import { setCostAmount, setPaid, toCostPayload, type CostFormState, type CostPayload } from "@/lib/money/cost-form-state";
+import {
+  setCostAmount,
+  setCostCurrency,
+  setPaid,
+  setPaidCurrency,
+  toCostPayload,
+  type CostFormState,
+  type CostPayload,
+} from "@/lib/money/cost-form-state";
+import { useTripCurrencies } from "@/components/money/trip-currencies-context";
 import type { InlineCostFieldsProps } from "./inline-cost-fields";
 
 export type CostFieldProps = Pick<
@@ -16,6 +25,8 @@ export type CostFieldProps = Pick<
   | "onPaidChange"
   | "paidAmount"
   | "onPaidAmountChange"
+  | "paidCurrency"
+  | "onPaidCurrencyChange"
   | "paidAt"
   | "onPaidAtChange"
   | "settlement"
@@ -34,16 +45,19 @@ export function useCostFields(seed: CostFormState): {
   dirtyValues: readonly unknown[];
 } {
   const [state, setState] = React.useState<CostFormState>(seed);
+  const homeCurrency = useTripCurrencies()?.homeCurrency ?? null;
 
   const fieldProps: CostFieldProps = {
     costAmount: state.costAmount,
     onCostChange: (v: string) => setState((s) => setCostAmount(s, v)),
     currency: state.currency,
-    onCurrencyChange: (v: string) => setState((s) => ({ ...s, currency: v })),
+    onCurrencyChange: (v: string) => setState((s) => setCostCurrency(s, v, homeCurrency)),
     paid: state.paid,
     onPaidChange: (v: boolean) => setState((s) => setPaid(s, v, todayLocalISO())),
     paidAmount: state.paidAmount,
     onPaidAmountChange: (v: string) => setState((s) => ({ ...s, paidAmount: v })),
+    paidCurrency: state.paidCurrency,
+    onPaidCurrencyChange: (v: string) => setState((s) => setPaidCurrency(s, v)),
     paidAt: state.paidAt,
     onPaidAtChange: (v: string) => setState((s) => ({ ...s, paidAt: v })),
     settlement: state.settlement,
@@ -54,6 +68,6 @@ export function useCostFields(seed: CostFormState): {
     state,
     fieldProps,
     payload: () => toCostPayload(state),
-    dirtyValues: [state.costAmount, state.currency, state.paid, state.paidAmount, state.paidAt, state.settlement],
+    dirtyValues: [state.costAmount, state.currency, state.paid, state.paidAmount, state.paidCurrency, state.paidAt, state.settlement],
   };
 }

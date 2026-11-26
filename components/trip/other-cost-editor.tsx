@@ -27,14 +27,16 @@ import { createCost, updateCost } from "@/server/actions/costs";
 import { isOnTrip } from "@/lib/enum-values";
 import { RefundControl } from "@/components/money/refund-control";
 import { SettlementChoice } from "@/components/trip/settlement-choice";
-import { CURRENCY_CODES } from "@/lib/money/currencies";
+import { paidCurrencyChoices } from "@/lib/money/paid-currency";
 import { todayLocalISO } from "@/lib/dates";
 import { toPatch } from "@/lib/patch";
 import {
   costToFormState as costToCostFormState,
   emptyCostFormState,
   setCostAmount,
+  setCostCurrency,
   setPaid,
+  setPaidCurrency,
   toCostPayload,
   type CostFormState,
 } from "@/lib/money/cost-form-state";
@@ -130,6 +132,7 @@ function parseFormToInput(form: FormState, travelling: boolean): { input: CostRa
 // ---------------------------------------------------------------------------
 
 interface OtherCostDialogProps {
+  homeCurrency: string;
   open: boolean;
   onOpenChange: (open: boolean) => void;
   title: string;
@@ -143,6 +146,7 @@ interface OtherCostDialogProps {
 }
 
 function OtherCostDialog({
+  homeCurrency,
   open,
   onOpenChange,
   title,
@@ -210,7 +214,6 @@ function OtherCostDialog({
             <MoneyInput
               amount={form.costAmount}
               currency={form.currency}
-              currencies={CURRENCY_CODES}
               onAmountChange={(v) =>
                 setForm((f) =>
                   // A paid-today default stays ticked and its amount follows
@@ -219,7 +222,7 @@ function OtherCostDialog({
                   f.paidFollowsCost ? { ...f, costAmount: v, paidAmount: v } : setCostAmount(f, v),
                 )
               }
-              onCurrencyChange={(v) => setForm((f) => ({ ...f, currency: v }))}
+              onCurrencyChange={(v) => setForm((f) => setCostCurrency(f, v, homeCurrency))}
               disabled={submitting}
               invalid={Boolean(errors.costMinor)}
               aria-label="Cost amount"
@@ -266,13 +269,14 @@ function OtherCostDialog({
 
               {form.paid && (
                 <>
-                  <Field label="You paid" error={errors.paidMinor?.[0]}>
+                  <Field label="You paid" error={(errors.paidMinor ?? errors.paidCurrency)?.[0]}>
                     <MoneyInput
                       amount={form.paidAmount}
-                      currency={form.currency}
-                      currencies={CURRENCY_CODES}
+                      currency={form.paidCurrency}
+                      currencies={paidCurrencyChoices(form, homeCurrency)}
+                      currencyLabel="You paid currency"
                       onAmountChange={(v) => setForm((f) => ({ ...f, paidAmount: v, paidFollowsCost: false }))}
-                      onCurrencyChange={(v) => setForm((f) => ({ ...f, currency: v }))}
+                      onCurrencyChange={(v) => setForm((f) => ({ ...setPaidCurrency(f, v), paidFollowsCost: false }))}
                       disabled={submitting}
                       invalid={Boolean(errors.paidMinor)}
                       aria-label="You paid amount"
@@ -363,6 +367,7 @@ export function OtherCostFormDialog({ tripId, homeCurrency, cost, open, onOpenCh
   return (
     <OtherCostDialog
       key={open ? (cost?.id ?? "add") : "closed"}
+      homeCurrency={homeCurrency}
       open={open}
       onOpenChange={(o) => {
         if (!o) {

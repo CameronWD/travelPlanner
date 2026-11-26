@@ -1,7 +1,11 @@
 import { describe, it, expect, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import * as React from "react";
 import { InlineCostFields } from "./inline-cost-fields";
+import { useCostFields } from "./use-cost-fields";
+import { TripCurrenciesProvider } from "@/components/money/trip-currencies-context";
+import { emptyCostFormState, type CostFormState } from "@/lib/money/cost-form-state";
 
 function renderFields(overrides = {}) {
   const props = {
@@ -14,6 +18,8 @@ function renderFields(overrides = {}) {
     onPaidChange: vi.fn(),
     paidAmount: "",
     onPaidAmountChange: vi.fn(),
+    paidCurrency: "GBP",
+    onPaidCurrencyChange: vi.fn(),
     paidAt: "",
     onPaidAtChange: vi.fn(),
     settlement: "BEFORE",
@@ -24,6 +30,30 @@ function renderFields(overrides = {}) {
   render(<InlineCostFields {...props} />);
   return props;
 }
+
+function inTrip(ui: React.ReactElement) {
+  return (
+    <TripCurrenciesProvider homeCurrency="AUD" currencies={["AUD", "EUR", "THB"]}>
+      {ui}
+    </TripCurrenciesProvider>
+  );
+}
+
+function Harness({ seed }: { seed: CostFormState }) {
+  const { fieldProps } = useCostFields(seed);
+  return <InlineCostFields hasMultipleCosts={false} errors={{}} {...fieldProps} />;
+}
+
+const paidInEur: CostFormState = {
+  ...emptyCostFormState("EUR"),
+  costAmount: "550",
+  paid: true,
+  paidAmount: "550",
+  paidAt: "2026-10-01",
+  paidCurrency: "EUR",
+};
+
+const optionNames = () => screen.getAllByRole("option").map((o) => o.textContent);
 
 describe("InlineCostFields", () => {
   it("labels the cost field 'Cost', not 'Estimated cost'", () => {
@@ -85,6 +115,8 @@ describe("InlineCostFields", () => {
         onPaidChange={vi.fn()}
         paidAmount=""
         onPaidAmountChange={vi.fn()}
+        paidCurrency="GBP"
+        onPaidCurrencyChange={vi.fn()}
         paidAt=""
         onPaidAtChange={vi.fn()}
         settlement="BEFORE"
@@ -111,5 +143,65 @@ describe("InlineCostFields paired (spec 2026-10-05 §D)", () => {
   it("unpaired (the CostEditor) keeps the flat layout", () => {
     renderFields({ paid: true, paidAmount: "340.00", paidAt: "2026-10-01" });
     expect(document.querySelector("[data-pair]")).toBeNull();
+  });
+});
+
+describe("InlineCostFields currencies (spec 2026-11-26 §2)", () => {
+  it("Cost offers the trip's currencies and More currencies", async () => {
+    const user = userEvent.setup();
+    render(inTrip(<Harness seed={paidInEur} />));
+    await user.click(screen.getByRole("combobox", { name: "Currency" }));
+    expect(optionNames()).toEqual(["AUD", "EUR", "THB", "More currencies"]);
+  });
+
+  it("You paid offers the Cost's currency and Home", async () => {
+    const user = userEvent.setup();
+    render(inTrip(<Harness seed={paidInEur} />));
+    await user.click(screen.getByRole("combobox", { name: "You paid currency" }));
+    expect(optionNames()).toEqual(["EUR", "AUD"]);
+  });
+
+  it("You paid is plain text when they are the same", () => {
+    render(inTrip(<Harness seed={{ ...paidInEur, currency: "AUD", paidCurrency: "AUD" }} />));
+    expect(screen.queryByRole("combobox", { name: "You paid currency" })).not.toBeInTheDocument();
+    expect(screen.getByRole("group", { name: "You paid currency" })).toHaveTextContent("AUD");
+  });
+
+  it("changing You paid's currency does not change the Cost's, and clears the amount", async () => {
+    const user = userEvent.setup();
+    render(inTrip(<Harness seed={paidInEur} />));
+    await user.click(screen.getByRole("combobox", { name: "You paid currency" }));
+    await user.click(screen.getByRole("option", { name: "AUD" }));
+    expect(screen.getByRole("combobox", { name: "You paid currency" })).toHaveTextContent("AUD");
+    expect(screen.getByRole("combobox", { name: "Currency" })).toHaveTextContent("EUR");
+    expect(screen.getByLabelText("Cost amount")).toHaveValue("550");
+    expect(screen.getByLabelText("You paid amount")).toHaveValue("");
+  });
+
+  it("changing the Cost's currency does not change a Home You paid", async () => {
+    const user = userEvent.setup();
+    render(inTrip(<Harness seed={paidInEur} />));
+    await user.click(screen.getByRole("combobox", { name: "You paid currency" }));
+    await user.click(screen.getByRole("option", { name: "AUD" }));
+    await user.type(screen.getByLabelText("You paid amount"), "905.12");
+    await user.click(screen.getByRole("combobox", { name: "Currency" }));
+    await user.click(screen.getByRole("option", { name: "THB" }));
+    expect(screen.getByRole("combobox", { name: "Currency" })).toHaveTextContent("THB");
+    expect(screen.getByRole("combobox", { name: "You paid currency" })).toHaveTextContent("AUD");
+    expect(screen.getByLabelText("You paid amount")).toHaveValue("905.12");
+  });
+
+  it("You paid follows a change of the Cost's currency when it was never chosen", async () => {
+    const user = userEvent.setup();
+    render(inTrip(<Harness seed={paidInEur} />));
+    await user.click(screen.getByRole("combobox", { name: "Currency" }));
+    await user.click(screen.getByRole("option", { name: "THB" }));
+    expect(screen.getByRole("combobox", { name: "You paid currency" })).toHaveTextContent("THB");
+    expect(screen.getByLabelText("You paid amount")).toHaveValue("550");
+  });
+
+  it("an error about the paid currency shows under You paid", () => {
+    renderFields({ paid: true, errors: { paidCurrency: ["What you paid can only be in the cost’s currency or your trip’s home currency."] } });
+    expect(screen.getByText("What you paid can only be in the cost’s currency or your trip’s home currency.")).toBeInTheDocument();
   });
 });

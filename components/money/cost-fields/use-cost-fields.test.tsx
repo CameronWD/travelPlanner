@@ -1,5 +1,7 @@
 import { describe, it, expect, vi, afterEach } from "vitest";
+import * as React from "react";
 import { act, renderHook } from "@testing-library/react";
+import { TripCurrenciesProvider } from "@/components/money/trip-currencies-context";
 import { useCostFields } from "./use-cost-fields";
 import { emptyCostFormState, toCostPayload, type CostFormState } from "@/lib/money/cost-form-state";
 
@@ -17,6 +19,8 @@ const seeded: CostFormState = {
   paidAmount: "",
   paidAt: "",
   settlement: "ON_TRIP",
+  paidCurrency: "EUR",
+  paidCurrencyExplicit: false,
 };
 
 describe("useCostFields", () => {
@@ -63,6 +67,33 @@ describe("useCostFields", () => {
     expect(result.current.payload()).toEqual(toCostPayload(result.current.state));
     act(() => result.current.fieldProps.onPaidAmountChange(""));
     expect(result.current.payload()).toEqual({ kind: "invalid", errors: { paidMinor: ["Enter what you paid"] } });
+  });
+
+  it("a change of the paid currency clears the paid amount and leaves the Cost's currency", () => {
+    const { result } = renderHook(() => useCostFields(seeded));
+    act(() => result.current.fieldProps.onPaidChange(true));
+    act(() => result.current.fieldProps.onPaidCurrencyChange("AUD"));
+    expect(result.current.state).toMatchObject({ currency: "EUR", paidCurrency: "AUD", paidAmount: "" });
+    expect(result.current.fieldProps.paidCurrency).toBe("AUD");
+  });
+
+  it("a change of the Cost's currency keeps a Home paid currency, Home from the trip", () => {
+    const wrapper = ({ children }: { children: React.ReactNode }) => (
+      <TripCurrenciesProvider homeCurrency="AUD" currencies={["AUD", "EUR"]}>{children}</TripCurrenciesProvider>
+    );
+    const { result } = renderHook(() => useCostFields(seeded), { wrapper });
+    act(() => result.current.fieldProps.onPaidChange(true));
+    act(() => result.current.fieldProps.onPaidCurrencyChange("AUD"));
+    act(() => result.current.fieldProps.onCurrencyChange("GBP"));
+    expect(result.current.state).toMatchObject({ currency: "GBP", paidCurrency: "AUD" });
+  });
+
+  it("dirtyValues change when the paid currency changes", () => {
+    const { result } = renderHook(() => useCostFields({ ...seeded, paid: true }));
+    const before = JSON.stringify(result.current.dirtyValues);
+    act(() => result.current.fieldProps.onPaidCurrencyChange("AUD"));
+    expect(JSON.stringify(result.current.dirtyValues)).not.toBe(before);
+    expect(result.current.dirtyValues).toContain("AUD");
   });
 
   it("dirtyValues change when any field changes", () => {
