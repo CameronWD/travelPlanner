@@ -1202,6 +1202,17 @@ describe("flagMissingConnections", () => {
     const t = makeTransport({ id: "t1", fromStopId: "london", toStopId: "paris" });
     expect(flagMissingConnections([LONDON, PARIS], [t])).toHaveLength(0);
   });
+  it("a journey between two Stops split by a layover is not a missing connection", () => {
+    const legs = [
+      makeTransport({ id: "t1", fromStopId: "london", depPlace: "London Heathrow (LHR)", arrPlace: "Bangkok (BKK)", depAt: "2026-07-01T08:00:00.000Z", arrAt: "2026-07-01T20:00:00.000Z", depIsHome: false, arrIsHome: false }),
+      makeTransport({ id: "t2", toStopId: "paris", depPlace: "Bangkok (BKK)", arrPlace: "Paris CDG (CDG)", depAt: new Date("2026-07-01T22:35:00Z"), arrAt: new Date("2026-07-02T06:00:00Z"), depIsHome: false, arrIsHome: false }),
+    ];
+    expect(flagMissingConnections([LONDON, PARIS], legs)).toEqual([]);
+  });
+  it("a single Transport to a place with nothing onward still leaves the Stops unlinked", () => {
+    const t = makeTransport({ id: "t1", fromStopId: "london", depPlace: "London Heathrow (LHR)", arrPlace: "Bangkok (BKK)", depAt: new Date("2026-07-01T08:00:00Z"), arrAt: new Date("2026-07-01T20:00:00Z") });
+    expect(flagMissingConnections([LONDON, PARIS], [t]).map((f) => f.id)).toEqual(["missing-connection-london-paris"]);
+  });
 });
 
 // ---------------------------------------------------------------------------

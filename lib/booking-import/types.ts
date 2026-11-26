@@ -49,7 +49,8 @@ export interface ProposedStopInput {
  * ("YYYY-MM-DDTHH:mm") the action reads in each end's Stop or Home zone.
  * depTimezone/arrTimezone are import-only hints for an end that has no zone of
  * its own (a connection airport, or Home when the Trip's Home timezone is
- * unset); confirm converts that end itself and strips them.
+ * unset); confirm converts a Home or rough Stop's end itself and passes a place
+ * end's hint to createTransport, which uses it when the place is not found.
  */
 export interface ProposedTransportInput extends ProposalCostFields, Partial<Record<TransportDetailKey, string>> {
   mode: TransportMode;

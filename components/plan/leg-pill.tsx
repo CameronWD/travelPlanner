@@ -26,12 +26,11 @@ export interface LegRowProps {
 export function LegRow({ kind, compact, children, changeovers }: LegRowProps) {
   const stations = React.Children.toArray(children);
   const legs = kind === "legs";
-  const runs: { node: React.ReactNode; key: React.Key; joined: boolean; changeover: string | null }[][] = [];
+  const runs: { node: React.ReactNode; key: React.Key; changeover: string | null }[][] = [];
   stations.forEach((node, i) => {
-    const changeover = changeovers?.[i] ?? null;
-    const joined = Boolean(changeover) && i > 0;
-    const entry = { node, key: React.isValidElement(node) && node.key != null ? node.key : i, joined, changeover };
-    if (joined) runs[runs.length - 1].push(entry);
+    const changeover = (i > 0 && changeovers?.[i]) || null;
+    const entry = { node, key: React.isValidElement(node) && node.key != null ? node.key : i, changeover };
+    if (changeover) runs[runs.length - 1].push(entry);
     else runs.push([entry]);
   });
   const spread = runs.some((run) => run.length > 1);
@@ -59,7 +58,7 @@ export function LegRow({ kind, compact, children, changeovers }: LegRowProps) {
               data-leg-run
               className={cn("flex min-w-0 max-w-full flex-col items-start max-md:w-full", run.length > 1 && "w-fit")}
             >
-              {run.map(({ node, key, joined, changeover }) => {
+              {run.map(({ node, key, changeover }) => {
                 const label = React.isValidElement<LegPillProps>(node) ? node.props.label : null;
                 const Icon = label && !label.missing ? label.icon : null;
                 return (
@@ -68,7 +67,7 @@ export function LegRow({ kind, compact, children, changeovers }: LegRowProps) {
                     data-leg-station
                     className={cn("flex min-w-0 max-w-full flex-col items-start max-md:w-full", run.length > 1 && "w-full")}
                   >
-                    {joined && changeover ? <JourneyJoin label={changeover} compact={compact} /> : null}
+                    {changeover ? <JourneyJoin label={changeover} compact={compact} /> : null}
                     <div
                       className={cn(
                         "relative flex min-w-0 max-w-full max-md:w-full",
@@ -111,12 +110,12 @@ export function LegRow({ kind, compact, children, changeovers }: LegRowProps) {
   );
 }
 
-export function JourneyJoin({ label, compact }: { label: string; compact?: boolean }) {
+function JourneyJoin({ label, compact }: { label: string; compact?: boolean }) {
   // pt clears the card above's offset shadow; the row then holds the pill with
   // 6px above and below it.
   return (
     <div className={cn("w-full min-w-0", compact ? "pt-[3px]" : "pt-1")}>
-      <div className="relative flex h-9 items-center">
+      <div className="relative flex h-9 min-w-0 items-center">
         <span
           data-layover-stub
           aria-hidden
@@ -134,7 +133,8 @@ export function JourneyJoin({ label, compact }: { label: string; compact?: boole
         </span>
         <span
           data-changeover
-          className="relative max-w-full cursor-default rounded-full border-2 border-border bg-background px-2.5 py-0.5 text-xs font-bold text-foreground"
+          title={label}
+          className="relative min-w-0 max-w-full truncate cursor-default rounded-full border-2 border-border bg-background px-2.5 py-0.5 text-xs font-bold text-foreground"
         >
           {label}
         </span>

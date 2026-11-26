@@ -174,7 +174,22 @@ describe("LegRow — metro line (spec 2026-10-05 §F)", () => {
     const { container } = render(<LegRow kind="legs"><LegPill label={FLIGHT} onClick={vi.fn()} /></LegRow>);
     expect(container.querySelectorAll("[data-station-dot]")).toHaveLength(1);
     expect(container.querySelector("[data-layover-dot]")).toBeNull();
-    expect(container.querySelector("[data-station-dot-minor]")).toBeNull();
+    const run = container.querySelector("[data-leg-run]") as HTMLElement;
+    const station = run.querySelector("[data-leg-station]") as HTMLElement;
+    const wrapper = station.querySelector("[data-travel-row]")!.parentElement as HTMLElement;
+    for (const el of [run, station, wrapper]) {
+      expect(el.className.split(" ")).not.toContain("w-fit");
+      expect(el.className.split(" ")).not.toContain("w-full");
+    }
+  });
+
+  it("a long layover label stays on one line, cut short, with the whole label on hover", () => {
+    const long = "Layover in Frankfurt am Main Flughafen Fernbahnhof · 2h 35m";
+    const { container } = journey([null, long]);
+    const pills = container.querySelectorAll("[data-changeover]");
+    expect(pills).toHaveLength(1);
+    expect((pills[0] as HTMLElement).className.split(" ")).toContain("truncate");
+    expect(pills[0]).toHaveAttribute("title", long);
   });
 
   it("an unjoined card after a journey keeps its own marker and gap", () => {

@@ -4,10 +4,6 @@ import { TRANSPORT_MODE_META } from "@/lib/transport";
 
 export interface SharedFile<A> { attachment: A; filedOn: string | null }
 
-export function partnerIds<T extends ConnectionLeg>(leg: T, legs: readonly T[]): string[] {
-  return (bookingPartners(legs).get(leg.id) ?? []).map((p) => p.id);
-}
-
 export function filesForLeg<A, T extends ConnectionLeg>(
   leg: T, legs: readonly T[], ownFiles: (id: string) => readonly A[], labelOf: (leg: T) => string,
 ): SharedFile<A>[] {

@@ -29,7 +29,7 @@ import {
   type TravelLookup,
 } from "@/lib/travel-times/hops";
 import { hasOutboundLeg, hasReturnLeg, type HomeBase } from "@/lib/home-base";
-import { journeyHome } from "@/lib/connections";
+import { journeyBetween, journeyHome } from "@/lib/connections";
 import { deadlineNoun, type TripDeadline } from "@/lib/trip-deadline";
 import { hoursOn, type DayHours, type OpeningHours } from "@/lib/opening-hours";
 import { defaultStartFromSlot } from "@/lib/slot-time";
@@ -972,8 +972,9 @@ export function flagAccommodationCoverageGaps(
 // ---------------------------------------------------------------------------
 // Rule 13: Missing connection between consecutive stops (info)
 //
-// For each pair of consecutive stops (by sortOrder) that have no transport
-// linking them in either direction, fire an info flag on the TRANSPORT target
+// For each pair of consecutive stops (by sortOrder) that have no transport, nor
+// journey of Connections (lib/connections.ts), linking them in either
+// direction, fire an info flag on the TRANSPORT target
 // type to prompt the user to book a connection.
 // ---------------------------------------------------------------------------
 
@@ -983,10 +984,12 @@ export function flagMissingConnections(stops: FlagStop[], transports: FlagTransp
   for (const t of transports) {
     if (t.fromStopId && t.toStopId) linked.add(`${t.fromStopId}|${t.toStopId}`);
   }
+  const legs = transports.map((t) => ({ ...t, depAt: toDate(t.depAt), arrAt: toDate(t.arrAt) }));
   const flags: Flag[] = [];
   for (let i = 0; i < sorted.length - 1; i++) {
     const a = sorted[i], b = sorted[i + 1];
     if (linked.has(`${a.id}|${b.id}`) || linked.has(`${b.id}|${a.id}`)) continue;
+    if (journeyBetween(legs, a.id, b.id).length > 0 || journeyBetween(legs, b.id, a.id).length > 0) continue;
     flags.push({
       id: `missing-connection-${a.id}-${b.id}`,
       severity: "info",

@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { bookingLegLabel, filesForLeg, partnerIds } from "./booking-files";
+import { bookingLegLabel, filesForLeg } from "./booking-files";
 import type { ConnectionLeg } from "./connections";
 
 const dps: ConnectionLeg = {
@@ -41,19 +41,11 @@ describe("filesForLeg", () => {
 
   it("a leg alone lists only its own", () => {
     expect(filesForLeg(dps, [dps], ownFiles, labelOf)).toEqual([{ attachment: "ticket.pdf", filedOn: null }]);
-    expect(partnerIds(dps, [dps])).toEqual([]);
   });
 
   it("two legs at the same place with different references share nothing", () => {
     const other = { ...bkk, reference: "QR7781" };
     expect(filesForLeg(dps, [dps, other], ownFiles, labelOf)).toEqual([{ attachment: "ticket.pdf", filedOn: null }]);
-    expect(partnerIds(other, [dps, other])).toEqual([]);
-  });
-});
-
-describe("partnerIds", () => {
-  it("names every other leg of the booking in travel order", () => {
-    expect(partnerIds(bkk, [doh, bkk, dps])).toEqual(["dps", "doh"]);
   });
 });
 
