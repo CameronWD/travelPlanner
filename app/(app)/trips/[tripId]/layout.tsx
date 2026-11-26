@@ -14,6 +14,8 @@ import { tripOfflinePaths } from "@/lib/offline";
 import { Badge } from "@/components/ui/badge";
 import { TravellerAvatar } from "@/components/ui/traveller-avatar";
 import { DaysHrefProvider } from "@/components/trip/days-href-context";
+import { TripCurrenciesProvider } from "@/components/money/trip-currencies-context";
+import { loadTripCurrencies } from "@/lib/money/trip-currencies-loader";
 import { SectionTransition } from "@/components/navigation/section-transition";
 import { TripHeaderFrame } from "@/components/trip/trip-header-frame";
 import { RailTripPublisher } from "@/components/shell/rail-trip";
@@ -70,7 +72,7 @@ export default async function TripLayout({
   // Prisma query into one settled promise the Fork list can chain on.
   const shellPromise = Promise.resolve(readTripShell(tripId));
   const visibilityPromise = loadSurpriseVisibility(tripId, user.id);
-  const [trip, unreadCount, recent, forks, warmAttachments] = await Promise.all([
+  const [trip, unreadCount, recent, forks, warmAttachments, currencies] = await Promise.all([
     shellPromise,
     readUnreadActivityCount(tripId),
     readRecentActivity(tripId, 10),
@@ -88,6 +90,12 @@ export default async function TripLayout({
         orderBy: { createdAt: "desc" },
         take: 200,
       }),
+    ),
+    // The currencies the Trip uses, for every amount field's picker. Chains
+    // on the shell (Home currency) and the Surprise visibility, so it adds no
+    // step to the wave.
+    Promise.all([shellPromise, visibilityPromise]).then(([shell, v]) =>
+      shell ? loadTripCurrencies(tripId, shell.homeCurrency, v) : [],
     ),
   ]);
 
@@ -141,6 +149,7 @@ export default async function TripLayout({
     // so the content sits flush against the rail instead of being capped by
     // the app shell's own max-width.
     <DaysHrefProvider href={daysHref}>
+      <TripCurrenciesProvider homeCurrency={trip.homeCurrency} currencies={currencies}>
       <div data-trip-shell className="flex flex-col gap-0 md:flex-row">
         <RailTripPublisher
           id={trip.id}
@@ -249,6 +258,7 @@ export default async function TripLayout({
         {/* ── Mobile bottom tab bar ── */}
         <MobileTabBar tripId={tripId} phase={tripPhase} />
       </div>
+      </TripCurrenciesProvider>
     </DaysHrefProvider>
   );
 }

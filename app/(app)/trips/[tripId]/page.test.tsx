@@ -20,6 +20,7 @@ import React from "react";
 const mockDb = vi.hoisted(() => ({
   trip: { findUnique: vi.fn() },
   stop: { findMany: vi.fn() },
+  cost: { findMany: vi.fn() },
   transport: { findFirst: vi.fn() },
   attachment: { findMany: vi.fn() },
   tripMember: { findMany: vi.fn().mockResolvedValue([]) },
@@ -206,6 +207,7 @@ beforeEach(() => {
   });
   mockDb.trip.findUnique.mockResolvedValue(BASE_TRIP);
   mockDb.stop.findMany.mockResolvedValue([]);
+  mockDb.cost.findMany.mockResolvedValue([]);
   mockDb.transport.findFirst.mockResolvedValue(null);
   mockDb.attachment.findMany.mockResolvedValue([]);
   mockDb.tripMember.findMany.mockResolvedValue([]);
