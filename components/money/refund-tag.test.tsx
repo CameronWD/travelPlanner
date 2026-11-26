@@ -28,3 +28,12 @@ describe("RefundTag", () => {
     expect(container.querySelector("[data-refund-tag]")).toHaveTextContent("AUD50 refund expected");
   });
 });
+
+describe("RefundTag paid currency", () => {
+  it("a Refund on a Cost paid in Home reads in Home", () => {
+    const { container } = render(
+      <RefundTag cost={{ refundMinor: 5000, refundedAt: null, paidAt: PAID, currency: "EUR", paidCurrency: "AUD" }} format={(m, c) => `${c}${m / 100}`} />,
+    );
+    expect(container.querySelector("[data-refund-tag]")).toHaveTextContent("AUD50 refund expected");
+  });
+});

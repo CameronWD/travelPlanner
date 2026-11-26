@@ -5,6 +5,7 @@ import userEvent from "@testing-library/user-event";
 vi.mock("@/server/actions/costs", () => ({ recordRefund: vi.fn(), markRefundReceived: vi.fn(), clearRefund: vi.fn() }));
 
 import { RefundsWaitingCard } from "./refunds-waiting-card";
+import { formatMoneyWhole } from "@/lib/money/format-parts";
 import type { ToPayRow } from "@/lib/money/to-pay";
 import type { CostRow } from "@/lib/money/cost-row";
 
@@ -47,5 +48,32 @@ describe("RefundsWaitingCard", () => {
     render(<RefundsWaitingCard rows={[row("a")]} costs={costs} homeCurrency="AUD" />);
     await user.click(screen.getByRole("button", { name: /^Received/ }));
     expect(await screen.findByRole("radio", { name: "Received" })).toBeChecked();
+  });
+});
+
+describe("RefundsWaitingCard paid currency", () => {
+  it("a Refund on a Cost paid in Home reads in Home, with no second line", () => {
+    render(
+      <RefundsWaitingCard
+        rows={[row("a", { currency: "EUR", shownCurrency: "AUD", paidCurrency: "AUD", foreign: false, refund: { minor: 5000, homeMinor: 5000, state: "expected", on: null } })]}
+        costs={costs}
+        homeCurrency="AUD"
+      />,
+    );
+    const li = screen.getByRole("listitem");
+    expect(li).toHaveTextContent(formatMoneyWhole(5000, "AUD"));
+    expect(li).not.toHaveTextContent("€");
+    expect(li.querySelectorAll("p")).toHaveLength(2);
+  });
+
+  it("with no Home figure the Refund prints in the paid currency", () => {
+    render(
+      <RefundsWaitingCard
+        rows={[row("a", { currency: "EUR", shownCurrency: "GBP", paidCurrency: "GBP", foreign: true, refund: { minor: 5000, homeMinor: null, state: "expected", on: null } })]}
+        costs={costs}
+        homeCurrency="AUD"
+      />,
+    );
+    expect(screen.getByRole("listitem")).toHaveTextContent(formatMoneyWhole(5000, "GBP"));
   });
 });

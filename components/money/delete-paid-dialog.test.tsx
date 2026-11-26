@@ -180,3 +180,42 @@ describe("paidCostsForDelete", () => {
     expect(listed.map((c) => c.id)).toEqual(["plain"]);
   });
 });
+
+describe("useDeletePaid paid currency", () => {
+  const home: PaidCostForDelete[] = [{ id: "c1", label: "Hotel", paidMinor: 90512, currency: "AUD" }];
+
+  it("a Cost paid in Home asks for the Refund in Home", async () => {
+    const onResult = await open(home);
+    expect(screen.getByText(/You’ve paid \$905\.12 for this/)).toBeInTheDocument();
+    await userEvent.click(screen.getByRole("radio", { name: /^Refunded/ }));
+    expect(screen.getByLabelText("Refund amount")).toHaveValue("905.12");
+    expect(screen.getByText("AUD")).toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: "Delete" }));
+    await waitFor(() =>
+      expect(onResult).toHaveBeenCalledWith({ confirmed: true, refunds: [{ costId: "c1", refundMinor: 90512, refundedAt: todayLocalISO() }] }),
+    );
+  });
+
+  it("a Refund more than the Home paid amount is refused", async () => {
+    await open(home);
+    await userEvent.click(screen.getByRole("radio", { name: /^Refunded/ }));
+    const input = screen.getByLabelText("Refund amount");
+    await userEvent.clear(input);
+    await userEvent.type(input, "905.13");
+    expect(screen.getByRole("alert")).toHaveTextContent("A refund can’t be more than what was paid.");
+    expect(screen.getByRole("button", { name: "Delete" })).toBeDisabled();
+  });
+
+  it("paidCostsForDelete carries the paid currency", () => {
+    const paidAt = new Date("2026-09-01");
+    expect(
+      paidCostsForDelete([
+        { id: "a", label: "Tour", paidMinor: 90512, paidAt, currency: "JPY", paidCurrency: "AUD" },
+        { id: "b", label: "Hotel", paidMinor: 5000, paidAt, currency: "JPY" },
+      ]),
+    ).toEqual([
+      { id: "a", label: "Tour", paidMinor: 90512, currency: "AUD" },
+      { id: "b", label: "Hotel", paidMinor: 5000, currency: "JPY" },
+    ]);
+  });
+});

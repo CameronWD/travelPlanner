@@ -24,15 +24,16 @@ export function RefundsWaitingCard({ rows, costs, homeCurrency }: { rows: ToPayR
       <ul className="mt-2">
         {rows.map((row) => {
           const refund = row.refund!;
-          const home = refund.homeMinor != null && row.foreign;
+          const refundCurrency = row.paidCurrency ?? row.currency;
+          const home = refund.homeMinor != null && refundCurrency.toUpperCase() !== homeCurrency.toUpperCase();
           return (
             <li key={row.id} className="flex min-h-[52px] items-center gap-2 border-b-2 border-muted py-2.5 last:border-b-0">
               <p className="min-w-0 flex-1 truncate text-sm font-bold">{row.label}</p>
               <div className="shrink-0 text-right">
                 <p className="text-[15px] font-extrabold tabular-nums">
-                  {refund.homeMinor != null ? formatMoneyWhole(refund.homeMinor, homeCurrency) : formatMoneyWhole(refund.minor, row.currency)}
+                  {refund.homeMinor != null ? formatMoneyWhole(refund.homeMinor, homeCurrency) : formatMoneyWhole(refund.minor, refundCurrency)}
                 </p>
-                {home ? <p className="text-[11px] font-semibold tabular-nums text-muted-foreground">{formatMoneyWhole(refund.minor, row.currency)}</p> : null}
+                {home ? <p className="text-[11px] font-semibold tabular-nums text-muted-foreground">{formatMoneyWhole(refund.minor, refundCurrency)}</p> : null}
               </div>
               <Button variant="outline" size="sm" aria-label={`Received, ${row.label}`} onClick={() => setReceiving(row.id)}>
                 Received

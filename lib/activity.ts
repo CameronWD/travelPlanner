@@ -229,6 +229,16 @@ function moneyFormat(value: unknown, row: Record<string, unknown>): string {
   return formatMoney(amount, currency);
 }
 
+function paidMoneyFormat(value: unknown, row: Record<string, unknown>, side?: { own: Record<string, unknown> }): string {
+  if (isEmpty(value)) return "";
+  const amount = Number(value);
+  if (!Number.isFinite(amount)) return String(value);
+  const own = side?.own.paidCurrency;
+  const paid = typeof own === "string" ? own : typeof row.paidCurrency === "string" ? row.paidCurrency : null;
+  const currency = paid ?? (typeof row.currency === "string" ? row.currency : "AUD");
+  return formatMoney(amount, currency);
+}
+
 const FIELD_SPECS: Record<ActivityEntityType, FieldSpec[]> = {
   STOP: [
     { key: "name", label: "Name" },
@@ -295,11 +305,12 @@ const FIELD_SPECS: Record<ActivityEntityType, FieldSpec[]> = {
   ],
   COST: [
     { key: "costMinor", label: "Cost", format: moneyFormat },
-    { key: "paidMinor", label: "You paid", format: moneyFormat },
+    { key: "paidMinor", label: "You paid", format: paidMoneyFormat },
+    { key: "paidCurrency", label: "Paid in" },
     { key: "currency", label: "Currency" },
     { key: "category", label: "Category", format: (v) => categoryFormat(v) },
     { key: "paidAt", label: "Paid", format: (v) => (v == null ? "not paid" : dateFormat((v instanceof Date ? formatISODate(v) : v))) },
-    { key: "refundMinor", label: "Refund", format: moneyFormat },
+    { key: "refundMinor", label: "Refund", format: paidMoneyFormat },
     { key: "refundedAt", label: "Refund received", format: (v, _row, side) => {
         if (v != null) return dateFormat(v instanceof Date ? formatISODate(v) : v);
         if (side?.own.refundMinor != null) return "expected";

@@ -135,3 +135,44 @@ describe("mergeToPay Refunds", () => {
     expect(row.refund).toEqual({ minor: 4000, homeMinor: 6000, state: "expected", on: null });
   });
 });
+
+describe("mergeToPay paid currency", () => {
+  const paidAt = new Date("2026-09-02");
+  const homePaid = (over: Partial<ToPayInput> = {}) =>
+    cost({ id: "h", currency: "EUR", rateToHome: 1.65, costMinor: 55000, paidMinor: 90512, paidCurrency: "AUD", paidAt, ...over });
+
+  it("a Cost paid in Home is a Home amount, not converted again", () => {
+    const [row] = mergeToPay([homePaid()], OPTS);
+    expect(row.originalMinor).toBe(90512);
+    expect(row.shownCurrency).toBe("AUD");
+    expect(row.homeMinor).toBe(90512);
+    expect(row.foreign).toBe(false);
+    expect(row.paidCurrency).toBe("AUD");
+  });
+
+  it("its Refund is in Home", () => {
+    const [row] = mergeToPay([homePaid({ refundMinor: 10000, refundedAt: null })], OPTS);
+    expect(row.refund).toEqual({ minor: 10000, homeMinor: 10000, state: "expected", on: null });
+    expect(row.originalMinor).toBe(90512);
+  });
+
+  it("a received Refund comes off the Home paid amount", () => {
+    const [row] = mergeToPay([homePaid({ refundMinor: 10000, refundedAt: new Date("2026-09-10") })], OPTS);
+    expect(row.originalMinor).toBe(80512);
+    expect(row.homeMinor).toBe(80512);
+  });
+
+  it("a Cost paid in a third currency with no rate for it keeps its own amount and has no Home figure", () => {
+    const [row] = mergeToPay([homePaid({ paidCurrency: "GBP" })], OPTS);
+    expect(row.shownCurrency).toBe("GBP");
+    expect(row.homeMinor).toBeNull();
+    expect(row.foreign).toBe(true);
+  });
+
+  it("every row of an existing Cost is as before", () => {
+    const [row] = mergeToPay([cost({ id: "e", currency: "EUR", rateToHome: 1.5, costMinor: 10000, paidMinor: 9000, paidAt })], OPTS);
+    expect(row.shownCurrency).toBe("EUR");
+    expect(row.paidCurrency).toBeNull();
+    expect(row).toMatchObject({ originalMinor: 9000, homeMinor: 13500, foreign: true, currency: "EUR" });
+  });
+});
