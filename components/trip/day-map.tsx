@@ -3,6 +3,7 @@
 import { useMemo, useState } from "react";
 import type { DayMapHop, DayMapModel, DayMapPoint } from "@/lib/day-map";
 import { mapsUrl, appleMapsUrl, googleDirectionsUrl, appleDirectionsUrl } from "@/lib/map/maps";
+import { DayRouteButtons } from "@/components/trip/day-route-buttons";
 import { useTheme } from "@/components/ui/theme-provider";
 import { GoogleMapFrame } from "@/components/map/google-map-frame";
 import { HtmlPin } from "@/components/map/html-pin";
@@ -139,29 +140,9 @@ export function DayMap({ tripId, model, highlightId, fill = false }: { tripId: s
   }
   if (points.length === 0) return null;
 
-  const googleRouteUrl = googleDirectionsUrl(routePoints);
-  const appleRouteUrl = appleDirectionsUrl(routePoints);
-
-  const routeLinks =
-    googleRouteUrl || appleRouteUrl ? (
-      <div className="flex items-center gap-3 text-sm">
-        <span className="text-muted-foreground font-medium">Open today’s route:</span>
-        {googleRouteUrl && (
-          <a href={googleRouteUrl} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-primary hover:underline">
-            Google Maps
-          </a>
-        )}
-        {appleRouteUrl && (
-          <a href={appleRouteUrl} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-primary hover:underline">
-            Apple Maps
-          </a>
-        )}
-      </div>
-    ) : null;
-
   return (
     <div className={fill ? "flex min-h-0 flex-1 flex-col gap-2" : "flex flex-col gap-2"}>
-      {fill ? null : routeLinks}
+      {fill ? null : <DayRouteButtons routePoints={routePoints} />}
       <GoogleMapFrame
         role="region"
         aria-label={`Day route map for trip ${tripId}`}
@@ -204,7 +185,7 @@ export function DayMap({ tripId, model, highlightId, fill = false }: { tripId: s
           );
         })}
       </GoogleMapFrame>
-      {fill ? routeLinks : null}
+      {fill ? <DayRouteButtons routePoints={routePoints} className="lg:hidden" /> : null}
     </div>
   );
 }

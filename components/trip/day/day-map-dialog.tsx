@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { createMapLoader } from "@/components/ui/map-loader";
 import { useMediaQuery } from "@/components/ui/use-media-query";
+import { DayRouteButtons } from "@/components/trip/day-route-buttons";
 import { cn } from "@/lib/cn";
 import { dayFromPathname } from "@/lib/day-path";
 import { recordUsageAction } from "@/lib/usage/client";
@@ -64,7 +65,8 @@ export function DayMapDialog({
           <div className="flex min-h-0 flex-1 flex-col">
             <DayMapLoader tripId={tripId} model={model} highlightId={highlightId} fill />
           </div>
-          <ol aria-label="Today’s places" className="hidden w-72 shrink-0 flex-col gap-1.5 overflow-y-auto p-1.5 lg:flex">
+          <div data-testid="places-column" className="hidden w-72 shrink-0 flex-col gap-3 lg:flex">
+          <ol aria-label="Today’s places" className="flex min-h-0 flex-1 flex-col gap-1.5 overflow-y-auto p-1.5">
             {model.points.map((point) => (
               <li key={`${point.kind}:${point.id}`}>
                 <button
@@ -82,6 +84,8 @@ export function DayMapDialog({
               </li>
             ))}
           </ol>
+          <DayRouteButtons routePoints={model.routePoints} />
+          </div>
         </div>
       </DialogContent>
     </Dialog>

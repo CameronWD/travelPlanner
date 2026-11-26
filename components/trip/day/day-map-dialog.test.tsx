@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, afterEach } from "vitest";
-import { act, render, screen, waitFor } from "@testing-library/react";
+import { act, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import type { DayMapModel } from "@/lib/day-map";
 import { setMatchMedia } from "@/test/setup";
@@ -25,7 +25,10 @@ const model: DayMapModel = {
     { kind: "item", id: "i2", lat: 1.1, lng: 2.1, label: "Pastel de nata", order: 2 },
     { kind: "accommodation", id: "a1", lat: 1.2, lng: 2.2, label: "Hotel" },
   ],
-  routePoints: [],
+  routePoints: [
+    { kind: "item", id: "i1", lat: 1, lng: 2, label: "Castle", order: 1 },
+    { kind: "item", id: "i2", lat: 1.1, lng: 2.1, label: "Pastel de nata", order: 2 },
+  ],
   perItemPrev: {},
 };
 const empty: DayMapModel = { points: [], routePoints: [], perItemPrev: {} };
@@ -54,6 +57,14 @@ describe("DayMapButton", () => {
     expect(await screen.findByTestId("day-map")).toHaveAttribute("data-fill", "true");
     const names = screen.getAllByRole("listitem").map((li) => li.textContent);
     expect(names).toEqual(["1Castle", "2Pastel de nata", "Hotel"]);
+  });
+
+  it("the route buttons sit in the places column", async () => {
+    setMatchMedia(wide);
+    render(<DayMapButton tripId="t1" model={model} size="desktop" />);
+    await userEvent.click(screen.getByRole("button", { name: "Day map" }));
+    const column = (await screen.findByTestId("places-column"));
+    expect(within(column).getByRole("link", { name: "Google Maps" })).toBeInTheDocument();
   });
 
   it("records one Day map opening per tap, and none when ?map=1 opens it", async () => {
@@ -116,12 +127,12 @@ describe("DayMapButton", () => {
     expect(screen.queryByRole("dialog")).toBeNull();
   });
 
-  it("on a phone the dialog shows the route links under the map and no place list", async () => {
+  it("on a phone the dialog shows the route buttons under the map and no place list", async () => {
     setMatchMedia(false);
     window.history.replaceState(null, "", "/?map=1");
     render(<DayMapButton tripId="t1" model={{ ...model, routePoints: model.points.slice(0, 2) }} size="phone" />);
     await screen.findByRole("dialog");
-    expect(screen.getByRole("list", { hidden: true }).className.split(" ")).toEqual(expect.arrayContaining(["hidden", "lg:flex"]));
+    expect(screen.getByTestId("places-column").className.split(" ")).toEqual(expect.arrayContaining(["hidden", "lg:flex"]));
     expect(screen.getByTestId("day-map")).toHaveAttribute("data-fill", "true");
   });
 

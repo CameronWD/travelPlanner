@@ -809,7 +809,7 @@ export function HelpGuide({
               top for something new.{" "}
               <strong className="font-semibold">Day map</strong>, a button in the
               Day plan&rsquo;s header, opens the day&rsquo;s places as a route in a
-              dialog (full screen on a phone), with links to open the day&rsquo;s
+              dialog (full screen on a phone), with buttons to open the day&rsquo;s
               route in Google Maps or Apple Maps.
             </p>
             <p>

@@ -90,9 +90,10 @@ describe("DayMap pins", () => {
     expect(container).toBeEmptyDOMElement();
   });
 
-  it("links Open today's route when there are two route points", () => {
+  it("shows the route buttons when there are two route points", () => {
     render(<DayMap tripId="t1" model={MODEL} />);
-    expect(screen.getByText(/Open today’s route/)).toBeInTheDocument();
+    expect(screen.getByText("Open today’s route in")).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Google Maps" })).toBeInTheDocument();
   });
 
   it("labels and sizes the frame itself", () => {
@@ -179,10 +180,10 @@ describe("DayMap route hops", () => {
 });
 
 describe("DayMap fill", () => {
-  it("puts the route links under the map instead of above it", () => {
+  it("puts the route buttons under the map instead of above it", () => {
     const withRoute = { ...MODEL, routePoints: MODEL.points.slice(0, 2) };
     const { container, rerender } = render(<DayMap tripId="t1" model={withRoute} />);
-    const links = () => screen.getByText("Open today’s route:");
+    const links = () => screen.getByText("Open today’s route in");
     const map = () => screen.getByRole("region");
     expect(links().compareDocumentPosition(map()) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     rerender(<DayMap tripId="t1" model={withRoute} fill />);
