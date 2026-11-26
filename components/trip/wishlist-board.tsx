@@ -73,7 +73,7 @@ export interface WishlistBoardProps {
    * marker is a Fork affordance, so it is hidden when off (the default).
    */
   forksEnabled?: boolean;
-  /** Whether the viewing user belongs to a Globe (controls the "Add from Globe" affordance). */
+  /** Whether the viewing user belongs to a Globe (controls the "From your Globe" entry in the Add an idea menu). */
   hasGlobe?: boolean;
   /** All Markers on the viewer's Globe (for the browser dialog). */
   globeMarkers?: MarkerView[];
@@ -328,7 +328,7 @@ export function WishlistBoard({
               </div>
             </AnimatedItem>
           ))}
-          <AnimatedItem key="add-an-idea" as="li" className="hidden min-w-0 sm:block">
+          <AnimatedItem key="add-an-idea" as="li" className="hidden min-w-0 md:block">
             <AddItemButton
               {...addProps}
               variant="dashed"

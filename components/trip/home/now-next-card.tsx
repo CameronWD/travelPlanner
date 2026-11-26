@@ -45,7 +45,7 @@ export function NowNextCard({
 
   if (nowNext.kind === "nothing") {
     return (
-      <Card className="flex items-center justify-between gap-3 p-3.5">
+      <Card className="flex flex-wrap items-center justify-between gap-3 p-3.5">
         <p className="text-sm font-bold text-muted-foreground">Nothing left today</p>
         <div className="flex flex-wrap justify-end gap-2">
           {back}

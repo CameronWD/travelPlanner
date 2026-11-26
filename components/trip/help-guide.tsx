@@ -841,12 +841,14 @@ export function HelpGuide({
               conversation about every single one.
             </p>
             <p>
-              If you&rsquo;re part of a Globe, an{" "}
-              <strong className="font-semibold">Add from Globe</strong> button
-              appears at the top of the board, pulling in places you saved on
-              some earlier trip. Can&rsquo;t see it? Open your{" "}
-              <GlobeLink>Globe</GlobeLink> once: that first visit is what
-              creates it. There&rsquo;s a section on the Globe further down.
+              If you&rsquo;re part of a Globe, the{" "}
+              <strong className="font-semibold">Add an idea</strong> button at
+              the top of the board has a{" "}
+              <strong className="font-semibold">From your Globe</strong> entry,
+              pulling in places you saved on some earlier trip. Can&rsquo;t see
+              it? Open your <GlobeLink>Globe</GlobeLink> once: that first visit
+              is what creates it. There&rsquo;s a section on the Globe further
+              down.
             </p>
             <p>
               One thing that catches people out: putting an idea on a day never
@@ -1513,8 +1515,9 @@ export function HelpGuide({
               <Go tripId={tripId} segment="wishlist">
                 Wishlist
               </Go>
-              , <strong className="font-semibold">Add from Globe</strong> pulls
-              a Marker in, and the board suggests Markers near where
+              , <strong className="font-semibold">Add an idea</strong> then{" "}
+              <strong className="font-semibold">From your Globe</strong> pulls a
+              Marker in, and the board suggests Markers near where
               you&rsquo;re going without you having to remember them. Pulling
               one in takes a <strong className="font-semibold">copy</strong>:
               the Marker stays on the Globe for the next trip, and editing the
@@ -1523,9 +1526,10 @@ export function HelpGuide({
             <p>
               Your Globe is made the first time you open it. That&rsquo;s the
               whole trick to it: if{" "}
-              <strong className="font-semibold">Add from Globe</strong>{" "}
-              isn&rsquo;t on your Wishlist yet, open your{" "}
-              <GlobeLink>Globe</GlobeLink> once and the button is there from
+              <strong className="font-semibold">From your Globe</strong>{" "}
+              isn&rsquo;t in the <strong className="font-semibold">Add an idea</strong>{" "}
+              menu on your Wishlist yet, open your{" "}
+              <GlobeLink>Globe</GlobeLink> once and it&rsquo;s there from
               then on. A Globe can also be shared, so two of you collect into
               the same one.
             </p>

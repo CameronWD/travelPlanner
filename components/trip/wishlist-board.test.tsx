@@ -470,6 +470,7 @@ describe("WishlistBoard — Playground kit", () => {
       .getAllByRole("button", { name: "Add an idea" })
       .filter((b) => b.dataset.variant === "dashed");
     expect(dashed).toHaveLength(1);
+    expect(dashed[0].closest("li")?.className).toMatch(/\bhidden\b.*\bmd:block\b/);
   });
 
   it("lays ideas out in the kit's card grid, every second-of-three card in the sun tone", () => {

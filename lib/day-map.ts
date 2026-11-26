@@ -280,7 +280,6 @@ export function resolvedPlanHops(
   });
 }
 
-/** The hop from the Accommodation woken in to the day's first located thing, resolved; the map and the hop list share it. */
 export function resolvedStartHop(
   input: DayHopInput,
 ): { fromId: string; toId: string; resolved: ResolvedHop; localMode: LocalMode } | null {

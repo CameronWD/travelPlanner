@@ -28,6 +28,7 @@ const FILES = [
   "app/(app)/trips/[tripId]/wishlist/page.tsx",
   "components/trip/calendar-views.tsx",
   "components/trip/wishlist-board.tsx",
+  "components/trip/wishlist-add-menu.tsx",
   "components/trip/day/tonight-card.tsx",
   "components/trip/help-guide.tsx",
   "lib/help-guide.ts",

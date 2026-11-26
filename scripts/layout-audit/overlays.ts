@@ -562,7 +562,10 @@ export const OVERLAYS: OverlayRecipe[] = [
     route: "/wishlist",
     tripScoped: true,
     form: true,
-    steps: [{ click: { role: "button", name: "Add an idea", exact: true } }],
+    steps: [
+      { click: { role: "button", name: "Add an idea", exact: true } },
+      { click: { role: "menuitem", name: "Type it in" } },
+    ],
     expect: { role: "dialog", name: "Add Item" },
   },
   {
@@ -578,7 +581,10 @@ export const OVERLAYS: OverlayRecipe[] = [
     route: "/wishlist",
     tripScoped: true,
     form: true,
-    steps: [{ click: { role: "button", name: "Add from Globe", exact: true } }],
+    steps: [
+      { click: { role: "button", name: "Add an idea", exact: true } },
+      { click: { role: "menuitem", name: "From your Globe" } },
+    ],
     expect: { role: "dialog", name: "Add from Globe" },
   },
   {
