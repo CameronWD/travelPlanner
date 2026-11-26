@@ -897,6 +897,13 @@ export function HelpGuide({
               : one box, whatever you&rsquo;re travelling on.
             </p>
             <p>
+              Once both ends of a drive are known, the form shows how long the
+              road takes and how far it is. If you&rsquo;ve put in when you
+              leave, a button offers to set the arrival to match, in one tap.
+              A drive with times shows the same figure on its card on the Plan,
+              in amber when your times leave too little.
+            </p>
+            <p>
               Flying with a layover? Enter the flight from where you leave to
               where you end up, then tick{" "}
               <strong className="font-semibold">
@@ -1254,6 +1261,7 @@ export function HelpGuide({
               <li>
                 a day whose plans are miles apart, or an unreasonably long drive
               </li>
+              <li>a drive your times don&rsquo;t leave enough time for</li>
               <li>a stay so short it&rsquo;s barely worth unpacking</li>
               <li>the plan running past the day you have to be home</li>
             </ul>

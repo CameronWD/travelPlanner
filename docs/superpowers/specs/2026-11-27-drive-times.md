@@ -53,3 +53,13 @@ Agreed with Cam on 2026-11-27. He asked whether the app could check how long the
 
 - CONTEXT.md: **Travel time** (shown on a timed drive too; offered in the form), **Flag** (the new one; what a long driving day counts).
 - The help guide, where it describes drives and Flags.
+
+## Decisions made while building (2026-11-27)
+
+- The new line in the form shows only once the times are showing; the untimed box is unchanged.
+- "Your times allow ..." and the warning colour need a real Travel time.
+- The form may look a missing Travel time up from routing, within the existing daily limit.
+- The new Flag is dated by the departure day, while a long driving day keeps the arrival day.
+- No in-app undo for a drive Flag Marked fine.
+- The Compare view's driving total follows the long-driving-day rule.
+- A drive touching a hidden Surprise Stop reports no Travel time through the Claude connection or the form.
