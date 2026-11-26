@@ -30,6 +30,8 @@ import { transportBookingSubject } from "@/lib/booking-state";
 import { TRANSPORT_DETAIL_KEYS, type TransportDetailKey } from "@/lib/transport-details";
 import { toPatch } from "@/lib/patch";
 import { transportClearable } from "@/lib/transport-clearable";
+import { creationAnchor, groupTransportsBySlot, resolveTransportSlot } from "@/lib/transport-anchor";
+import { orderPlanStops } from "@/lib/plan-order";
 
 function detailColumns(data: Partial<Record<TransportDetailKey, string | null>>) {
   return Object.fromEntries(TRANSPORT_DETAIL_KEYS.map((k) => [k, data[k] || null])) as Record<TransportDetailKey, string | null>;
@@ -494,15 +496,41 @@ function layoverTimeRefusals(
   stopover: string,
   t: { departs: Date | null; lands: Date | null; leaves: Date | null; arrives: Date | null },
 ): FieldErrors | null {
-  const errors: FieldErrors = {};
-  const add = (key: string, message: string) => (errors[key] ??= []).push(message);
-  if (t.departs && t.lands && t.lands <= t.departs) add("layoverLandAt", "Landing must be after you depart.");
-  if (t.lands && t.leaves) {
-    if (t.leaves < t.lands) add("layoverLeaveAt", "You can't leave before you land.");
-    else if (t.leaves.getTime() - t.lands.getTime() >= DAY_MS) add("layoverLeaveAt", "A layover is under a day. For a longer stay, add a Stop.");
+  const landAt = !t.lands
+    ? (stopover === "layover" ? "Add when you land." : "Add when you arrive there.")
+    : t.departs && t.lands <= t.departs ? "Landing must be after you depart."
+    : null;
+  const leaveAt = !t.leaves
+    ? "Add when you leave."
+    : t.lands && t.leaves < t.lands ? "You can't leave before you land."
+    : t.arrives && t.arrives <= t.leaves ? `Arriving must be after you leave the ${stopover}.`
+    : t.lands && t.leaves.getTime() - t.lands.getTime() >= DAY_MS ? "A layover is under a day. For a longer stay, add a Stop."
+    : null;
+  if (!landAt && !leaveAt) return null;
+  return { ...(landAt && { layoverLandAt: [landAt] }), ...(leaveAt && { layoverLeaveAt: [leaveAt] }) };
+}
+
+async function planStopsInOrder(tripId: string, plan: PlanId) {
+  return orderPlanStops(
+    await db.stop.findMany({
+      where: { tripId, ...planScope(plan) },
+      orderBy: { sortOrder: "asc" },
+      select: { id: true, sortOrder: true, arriveDate: true, departDate: true },
+    }),
+  );
+}
+
+function sortOrdersAfter(slotRows: readonly { id: string; sortOrder: number }[], firstId: string) {
+  const at = slotRows.findIndex((r) => r.id === firstId);
+  const second = slotRows[at].sortOrder + 1;
+  const moved: { id: string; sortOrder: number }[] = [];
+  let previous = second;
+  for (const row of slotRows.slice(at + 1)) {
+    const sortOrder = Math.max(row.sortOrder, previous + 1);
+    if (sortOrder !== row.sortOrder) moved.push({ id: row.id, sortOrder });
+    previous = sortOrder;
   }
-  if (t.leaves && t.arrives && t.arrives <= t.leaves) add("layoverLeaveAt", `Arriving must be after you leave the ${stopover}.`);
-  return Object.keys(errors).length > 0 ? errors : null;
+  return { second, moved };
 }
 
 async function layoverTarget(target: { tripId: string; forkId?: string } | { transportId: string }) {
@@ -585,9 +613,21 @@ export async function saveTransportWithLayover(
   if (!parsedLayover.success) return layoverFieldRefusal(validationResult(parsedLayover.error).errors, stopover);
   const stop = parsedLayover.data;
 
+  if (journey.anchorStopId) {
+    const anchorError = await validateStopBelongsToTrip(tripId, [journey.anchorStopId], plan);
+    if (anchorError) return anchorError;
+  }
+  const orderedStops = await planStopsInOrder(tripId, plan);
+  const anchorStopId = creationAnchor({
+    anchorStopId: journey.anchorStopId || null,
+    fromStopId: journey.depIsHome ? null : journey.fromStopId || null,
+    toStopId: journey.arrIsHome ? null : journey.toStopId || null,
+  }, orderedStops) ?? undefined;
+
   const pick = pickedPlace({ placeId: stop.placeId, lat: stop.lat, lng: stop.lng });
   const firstInput: TransportInput = {
     ...journey,
+    anchorStopId,
     toStopId: undefined,
     arrIsHome: false,
     arrPlace: stop.place,
@@ -621,16 +661,21 @@ export async function saveTransportWithLayover(
     let firstRow: Transport;
     if (held) {
       firstRow = await tx.transport.update({ where: { id: held.before.id }, data: first.columns });
-      await tx.transport.updateMany({
-        where: { tripId, ...planScope(plan), sortOrder: { gt: held.before.sortOrder } },
-        data: { sortOrder: { increment: 1 } },
-      });
     } else {
       const sortOrder = Math.max(-1, ...locked.map((r) => r.sortOrder)) + 1;
       firstRow = await tx.transport.create({ data: { tripId, forkId: plan, ...first.columns, sortOrder } });
     }
+    const planRows = await tx.transport.findMany({
+      where: { tripId, ...planScope(plan) },
+      select: { id: true, anchorStopId: true, fromStopId: true, toStopId: true, sortOrder: true },
+    });
+    const slotRows = groupTransportsBySlot(planRows, orderedStops).get(resolveTransportSlot(firstRow, orderedStops)) ?? [];
+    const order = sortOrdersAfter(slotRows, firstRow.id);
+    for (const row of order.moved) {
+      await tx.transport.update({ where: { id: row.id }, data: { sortOrder: row.sortOrder } });
+    }
     const secondRow = await tx.transport.create({
-      data: { tripId, forkId: plan, ...second.columns, sortOrder: firstRow.sortOrder + 1 },
+      data: { tripId, forkId: plan, ...second.columns, sortOrder: order.second },
     });
     if (rate) await writeInlineCostTx(tx, { tripId, plan, ownerId: firstRow.id, data: first.data, existing: first.owned, rate });
     const grownTo = await growTripEndTx(tx, tripId, plan);

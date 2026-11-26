@@ -192,6 +192,7 @@ import {
   saveTransportWithLayover,
 } from "./transport";
 import { isConnection, sameBooking } from "@/lib/connections";
+import { groupTransportsBySlot, HEAD_SLOT } from "@/lib/transport-anchor";
 import { recordActivity } from "@/lib/activity-record";
 import { transportTimeDisplay } from "@/lib/time-display";
 import { endZones } from "@/lib/leg-zones";
@@ -2154,7 +2155,12 @@ describe("saveTransportWithLayover", () => {
       });
       const tx = {
         $queryRaw: vi.fn(async () => [...draft.values()].map(({ id, sortOrder }) => ({ id, sortOrder }))),
-        transport: { create: txCreateMock, update: txUpdateMock, updateMany: txUpdateManyMock },
+        transport: {
+          create: txCreateMock,
+          update: txUpdateMock,
+          updateMany: txUpdateManyMock,
+          findMany: vi.fn(async () => [...draft.values()].map((row) => ({ ...row }))),
+        },
         cost: { create: costCreateMock, update: costUpdateMock },
       };
       const out = await (arg as (tx: unknown) => unknown)(tx);
@@ -2334,10 +2340,48 @@ describe("saveTransportWithLayover", () => {
       ["t-later-a", 5],
       ["t-later-b", 6],
     ]);
-    expect(txUpdateManyMock).toHaveBeenCalledWith({
-      where: { tripId: "trip-1", forkId: null, sortOrder: { gt: 3 } },
-      data: { sortOrder: { increment: 1 } },
-    });
+  });
+
+  const slotOf = (stopId: string) => groupTransportsBySlot(rows(), [DPS, MUC]).get(stopId)?.map((r) => r.id);
+
+  it("a journey with no anchor saves two rows the Plan puts in the same slot, the first before the second", async () => {
+    const result = await saveTransportWithLayover(
+      { tripId: "trip-1" },
+      { ...JOURNEY, fromStopId: undefined, depIsHome: true, anchorStopId: undefined },
+      LAYOVER,
+    );
+
+    expect(result.success).toBe(true);
+    expect(committed.get("t-new-1")!.anchorStopId).toBe("stop-dps");
+    expect(committed.get("t-new-2")!.anchorStopId).toBe("stop-dps");
+    expect(slotOf("stop-dps")).toEqual(["t-new-1", "t-new-2"]);
+    expect(groupTransportsBySlot(rows(), [DPS, MUC]).has(HEAD_SLOT)).toBe(false);
+  });
+
+  it("on add, a slot whose rows are tied on sortOrder ends with the first then the second, the others in their order", async () => {
+    committed.set("t-a", { ...EXISTING, id: "t-a", sortOrder: 2 });
+    committed.set("t-b", { ...EXISTING, id: "t-b", sortOrder: 2 });
+    committed.set("t-m", { ...EXISTING, id: "t-m", anchorStopId: "stop-muc", sortOrder: 7 });
+
+    await saveTransportWithLayover({ tripId: "trip-1" }, JOURNEY, LAYOVER);
+
+    expect(slotOf("stop-dps")).toEqual(["t-a", "t-b", "t-new-1", "t-new-2"]);
+    expect(committed.get("t-a")!.sortOrder).toBe(2);
+    expect(committed.get("t-b")!.sortOrder).toBe(2);
+    expect(committed.get("t-m")!.sortOrder).toBe(7);
+  });
+
+  it("on edit, a slot whose rows are tied on sortOrder gets the second straight after the first, and other slots are left alone", async () => {
+    committed.set("t-a", { ...EXISTING, id: "t-a", sortOrder: 3 });
+    committed.set("t-edit", { ...EXISTING });
+    committed.set("t-z", { ...EXISTING, id: "t-z", sortOrder: 3 });
+    committed.set("t-zz", { ...EXISTING, id: "t-zz", sortOrder: 4 });
+    committed.set("t-m", { ...EXISTING, id: "t-m", anchorStopId: "stop-muc", sortOrder: 5 });
+
+    await saveTransportWithLayover({ transportId: "t-edit" }, JOURNEY, LAYOVER);
+
+    expect(slotOf("stop-dps")).toEqual(["t-a", "t-edit", "t-new-1", "t-z", "t-zz"]);
+    expect(committed.get("t-m")!.sortOrder).toBe(5);
   });
 
   describe("nothing is saved when the second write fails", () => {
@@ -2422,6 +2466,30 @@ describe("saveTransportWithLayover", () => {
     it("arriving not after leaving, on a train, says change", async () => {
       expect(await refused({ mode: "TRAIN" as never }, { leaveAt: "2026-12-06T13:00" })).toEqual({
         success: false, errors: { layoverLeaveAt: ["Arriving must be after you leave the change."] },
+      });
+    });
+
+    it("a missing landing time", async () => {
+      expect(await refused({}, { landAt: "" })).toEqual({
+        success: false, errors: { layoverLandAt: ["Add when you land."] },
+      });
+    });
+
+    it("a missing arriving time on a train", async () => {
+      expect(await refused({ mode: "TRAIN" as never }, { landAt: undefined as never })).toEqual({
+        success: false, errors: { layoverLandAt: ["Add when you arrive there."] },
+      });
+    });
+
+    it("a missing leaving time", async () => {
+      expect(await refused({}, { leaveAt: "" })).toEqual({
+        success: false, errors: { layoverLeaveAt: ["Add when you leave."] },
+      });
+    });
+
+    it("one message per field: leaving before landing wins over arriving before leaving", async () => {
+      expect(await refused({ arrAt: "2026-12-05T14:00" }, { leaveAt: "2026-12-05T21:00" })).toEqual({
+        success: false, errors: { layoverLeaveAt: ["You can't leave before you land."] },
       });
     });
 
