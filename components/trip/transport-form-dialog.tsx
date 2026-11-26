@@ -985,17 +985,6 @@ function TransportForm({
           </div>
         )}
 
-        {/* Soft date-order warning */}
-        {depInstant && arrInstant && depInstant >= arrInstant && (
-          <Badge
-            role="status"
-            variant="warning"
-            className="flex w-fit items-center gap-1 text-xs"
-          >
-            Departure is on or after arrival. Double-check these times.
-          </Badge>
-        )}
-
         {offersLayover && (
           <Checkbox
             label={stopover.box}
@@ -1052,6 +1041,18 @@ function TransportForm({
             </div>
           </div>
         )}
+
+        {/* Soft date-order warning */}
+        {depInstant && arrInstant && depInstant >= arrInstant && (
+          <Badge
+            role="status"
+            variant="warning"
+            className="flex w-fit items-center gap-1 text-xs"
+          >
+            Departure is on or after arrival. Double-check these times.
+          </Badge>
+        )}
+
 
         <div data-group="travel-details" role="group" aria-labelledby={detailsHeadingId} className="space-y-2">
           <h3 id={detailsHeadingId} className="text-[11px] font-semibold text-muted-foreground">Travel details</h3>
