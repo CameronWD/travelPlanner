@@ -127,14 +127,16 @@ export function journeyOut<T extends ConnectionLeg>(legs: readonly T[], firstSto
 }
 
 export function journeyBetween<T extends ConnectionLeg>(legs: readonly T[], fromStopId: string, toStopId: string): T[] {
-  const last = findOutboundLeg(legs.filter((t) => !t.depIsHome), toStopId);
+  const candidates = legs.filter((t) => !t.depIsHome && (!t.fromStopId || t.fromStopId === fromStopId));
+  const last = findOutboundLeg(candidates, toStopId);
   if (!last) return [];
   const journey: T[] = [last];
+  const fromTheStop = (x: T, y: T) => Number(y.fromStopId === fromStopId) - Number(x.fromStopId === fromStopId);
   while (!journey[0].fromStopId) {
     const head = journey[0];
-    const prev = legs
-      .filter((p) => (!p.fromStopId || p.fromStopId === fromStopId) && !journey.includes(p) && isConnection(p, head))
-      .sort(byLatestArrival)[0];
+    const prev = candidates
+      .filter((p) => !journey.includes(p) && isConnection(p, head))
+      .sort((x, y) => fromTheStop(x, y) || byLatestArrival(x, y))[0];
     if (!prev) break;
     journey.unshift(prev);
   }

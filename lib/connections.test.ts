@@ -273,3 +273,30 @@ describe("journeyBetween", () => {
     expect(journeyBetween([parisMilan, { ...milanRome, toStopId: null }], "par", "rom")).toEqual([]);
   });
 });
+
+describe("journeyBetween beside a journey out through the same hub", () => {
+  const parisDoha: ConnectionLeg = { id: "p1", mode: "FLIGHT", fromStopId: "par", depPlace: "Paris", arrPlace: "Doha" };
+  const dohaRome: ConnectionLeg = { id: "p2", mode: "FLIGHT", depPlace: "Doha", arrPlace: "Rome", toStopId: "rom" };
+  const homeDoha: ConnectionLeg = { id: "a0", mode: "FLIGHT", depIsHome: true, depPlace: "Brisbane", arrPlace: "Doha" };
+
+  it("journeyBetween: a Home leg through the same hub does not displace the chain (dated)", () => {
+    const legs = [
+      { ...parisDoha, arrAt: new Date("2026-12-20T10:00:00Z") },
+      { ...dohaRome, depAt: new Date("2026-12-20T16:00:00Z") },
+      { ...homeDoha, arrAt: new Date("2026-12-20T14:00:00Z") },
+    ];
+    expect(journeyBetween(legs, "par", "rom").map((l) => l.id)).toEqual(["p1", "p2"]);
+  });
+  it("journeyBetween: a Home leg through the same hub does not displace the chain (undated)", () => {
+    expect(journeyBetween([homeDoha, parisDoha, dohaRome], "par", "rom").map((l) => l.id)).toEqual(["p1", "p2"]);
+    expect(journeyBetween([parisDoha, dohaRome, homeDoha], "par", "rom").map((l) => l.id)).toEqual(["p1", "p2"]);
+  });
+  it("journeyBetween: the leg from the earlier Stop is taken even when another candidate arrives later", () => {
+    const legs = [
+      { ...parisDoha, arrAt: new Date("2026-12-20T10:00:00Z") },
+      { ...dohaRome, depAt: new Date("2026-12-20T16:00:00Z") },
+      { id: "s1", mode: "FLIGHT", depPlace: "Sydney", arrPlace: "Doha", arrAt: new Date("2026-12-20T14:00:00Z") },
+    ];
+    expect(journeyBetween(legs, "par", "rom").map((l) => l.id)).toEqual(["p1", "p2"]);
+  });
+});
