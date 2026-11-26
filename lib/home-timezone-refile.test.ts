@@ -120,7 +120,7 @@ describe("refileHomeEndsTx", () => {
     expect(findMany).toHaveBeenCalledWith({
       where: { tripId: "trip-1", OR: [{ depIsHome: true }, { arrIsHome: true }] },
       select: {
-        id: true, depAt: true, arrAt: true, depIsHome: true, arrIsHome: true,
+        id: true, depAt: true, arrAt: true, depIsHome: true, arrIsHome: true, depTimezone: true, arrTimezone: true,
         fromStop: { select: { timezone: true } },
         toStop: { select: { timezone: true } },
       },
@@ -137,6 +137,14 @@ describe("refileHomeEndsTx", () => {
     expect(update).toHaveBeenCalledTimes(2);
     expect(update).toHaveBeenCalledWith({ where: { id: "out" }, data: { depAt: at("2026-12-10", "06:10", BNE) } });
     expect(update).toHaveBeenCalledWith({ where: { id: "fork-ret" }, data: { arrAt: at("2026-12-26", "05:30", BNE) } });
+  });
+
+  it("a place end with its own zone keeps its instant while the Home end moves", async () => {
+    const { tx, update } = fakeTx([
+      { id: "t", depAt: at("2026-12-10", "06:10", SYD), arrAt: at("2026-12-10", "15:00", "Asia/Bangkok"), depIsHome: true, arrIsHome: false, depTimezone: null, arrTimezone: "Asia/Bangkok", fromStop: null, toStop: null },
+    ]);
+    expect(await refileHomeEndsTx(tx, "trip-1", SYD, BNE)).toBe(1);
+    expect(update).toHaveBeenCalledWith({ where: { id: "t" }, data: { depAt: at("2026-12-10", "06:10", BNE) } });
   });
 
   it("a Stop whose zone is null (rough) reads as no zone", async () => {

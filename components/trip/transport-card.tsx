@@ -3,6 +3,7 @@ import { ArrowRight, Clock, StickyNote } from "lucide-react";
 import { cn } from "@/lib/cn";
 import { TRANSPORT_MODE_META, durationMinutes, formatDuration } from "@/lib/transport";
 import { transportTimeDisplay, shortDate, dayDeltaSuffix } from "@/lib/time-display";
+import { endZones } from "@/lib/leg-zones";
 import { endpointLabel } from "@/lib/home-base";
 import { transportDetailsLine } from "@/lib/transport-details";
 import { CostEditor } from "./cost-editor";
@@ -70,8 +71,12 @@ export function TransportCard({
   const fromLabel = t.depIsHome ? (homeBaseName ?? "Home") : endpointLabel(t.fromStopName, t.depPlace);
   const toLabel = t.arrIsHome ? (homeBaseName ?? "Home") : endpointLabel(t.toStopName, t.arrPlace);
 
+  const { fromTimezone, toTimezone } = endZones(
+    { ...t, fromStopId: "from", toStopId: "to" },
+    (end) => (end === "from" ? t.fromStopTimezone : t.toStopTimezone),
+  );
   const td = transportTimeDisplay({
-    depAt: t.depAt, arrAt: t.arrAt, fromTimezone: t.fromStopTimezone, toTimezone: t.toStopTimezone,
+    depAt: t.depAt, arrAt: t.arrAt, fromTimezone, toTimezone,
     depIsHome: t.depIsHome, arrIsHome: t.arrIsHome, homeTimezone,
   });
 
@@ -168,14 +173,14 @@ export function TransportCard({
             <span {...highlightAttrs(highlight, "depAt")}>
               <span className="font-medium text-foreground/70">dep</span>{" "}
               {shortDate(td.dep.dateISO)} {td.dep.time}{" "}
-              <abbr title={t.fromStopTimezone ?? "Time zone unknown"} className="no-underline text-foreground/60">{td.dep.zone}</abbr>
+              <abbr title={fromTimezone ?? "Time zone unknown"} className="no-underline text-foreground/60">{td.dep.zone}</abbr>
             </span>
           )}
           {td.arr && (
             <span {...highlightAttrs(highlight, "arrAt")}>
               <span className="font-medium text-foreground/70">arr</span>{" "}
               {td.arr.time}{" "}
-              <abbr title={t.toStopTimezone ?? "Time zone unknown"} className="no-underline text-foreground/60">{td.arr.zone}</abbr>
+              <abbr title={toTimezone ?? "Time zone unknown"} className="no-underline text-foreground/60">{td.arr.zone}</abbr>
               {dayDeltaSuffix(td.dayDelta)}
             </span>
           )}

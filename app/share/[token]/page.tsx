@@ -201,6 +201,9 @@ export default async function SharePage({
             sortOrder: true,
             depIsHome: true,
             arrIsHome: true,
+            // Server-only: read into times here, never passed to a client component.
+            depTimezone: true,
+            arrTimezone: true,
             depLat: true,
             depLng: true,
             arrLat: true,
@@ -363,6 +366,8 @@ export default async function SharePage({
       arrAt: t.arrAt,
       depIsHome: t.depIsHome,
       arrIsHome: t.arrIsHome,
+      depTimezone: t.depTimezone,
+      arrTimezone: t.arrTimezone,
     })),
     accommodations: accommodations.map((a) => ({
       id: a.id,
@@ -422,8 +427,8 @@ export default async function SharePage({
   // A Home end has no Stop of its own (CONTEXT.md "Home base"): its zone is
   // the Trip's `homeTimezone` — used only to compute times here, never
   // rendered as its own field (the Share link is public).
-  const zoneOfEnd = (stopId: string | null, isHome: boolean | null | undefined) =>
-    (isHome && trip.homeTimezone) || scheduled.find((s) => s.id === stopId)?.timezone || zone;
+  const zoneOfEnd = (stopId: string | null, isHome: boolean | null | undefined, placeZone?: string | null) =>
+    (isHome && trip.homeTimezone) || scheduled.find((s) => s.id === stopId)?.timezone || placeZone || zone;
 
   // ── Right now (During) ──
   let place: RightNowPlace = { kind: "none" };
@@ -434,7 +439,7 @@ export default async function SharePage({
       toName: to?.name ?? (leg.arrIsHome ? "home" : leg.arrPlace) ?? "the next stop",
       toHome: Boolean(leg.arrIsHome),
       mode: leg.mode,
-      landsAt: leg.arrAt ? instantToZonedTime(leg.arrAt, zoneOfEnd(leg.toStopId, leg.arrIsHome)) : null,
+      landsAt: leg.arrAt ? instantToZonedTime(leg.arrAt, zoneOfEnd(leg.toStopId, leg.arrIsHome, leg.arrTimezone)) : null,
     };
   } else if (currentStop) {
     place = {
@@ -455,7 +460,7 @@ export default async function SharePage({
     rightNowRows = [
       {
         key: `transport-departure-${leg.id}`,
-        time: leg.depAt ? instantToZonedTime(leg.depAt, zoneOfEnd(leg.fromStopId, leg.depIsHome)) : null,
+        time: leg.depAt ? instantToZonedTime(leg.depAt, zoneOfEnd(leg.fromStopId, leg.depIsHome, leg.depTimezone)) : null,
         title: `${MODE_LABELS[leg.mode] ?? "Transport"}${place.kind === "leg" && place.toHome ? " home" : toName ? ` to ${toName}` : ""}`,
         sub: null,
         kind: "transport",

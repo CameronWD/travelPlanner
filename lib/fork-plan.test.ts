@@ -201,6 +201,12 @@ it("carries each Transport end's country and region into the variant; none copie
   expect(buildForkPlan(source).transports[0].data).toMatchObject({ depCountryCode: null, depRegion: null, arrCountryCode: null, arrRegion: null });
 });
 
+it("carries a place end's own zone into the variant; none copies as null", () => {
+  const plan = buildForkPlan({ ...source, transports: [{ ...source.transports[0], arrTimezone: "Asia/Bangkok" }] });
+  expect(plan.transports[0].data).toMatchObject({ depTimezone: null, arrTimezone: "Asia/Bangkok" });
+  expect(buildForkPlan(source).transports[0].data).toMatchObject({ depTimezone: null, arrTimezone: null });
+});
+
 it("carries a Stop's Local travel mode into the variant; none copies as null", () => {
   const plan = buildForkPlan({ ...source, stops: [{ ...source.stops[0], localTravelMode: "DRIVE" }] });
   expect(plan.stops[0].data.localTravelMode).toBe("DRIVE");

@@ -17,6 +17,7 @@ import { formatMoney } from "@/lib/money/money";
 import { perNightMinor } from "@/lib/money/summary-lines";
 import { formatDateRange, formatDayRange, nightsBetween } from "@/lib/dates";
 import { transportTimeDisplay, shortDate } from "@/lib/time-display";
+import { endZones } from "@/lib/leg-zones";
 import { buildBudget, applyFxRatesToCosts } from "@/lib/money/budget";
 import { flagsFromRows } from "@/lib/flags-loader";
 import { loadMarkedFineRows } from "@/lib/flag-dismissals-read";
@@ -524,8 +525,7 @@ export default async function SummaryPage({
                           ? (transportTimeDisplay({
                               depAt: new Date(transport.depAt),
                               arrAt: null,
-                              fromTimezone: stop.timezone,
-                              toTimezone: transport.toStopId ? (stopTimezone.get(transport.toStopId) ?? null) : null,
+                              ...endZones(transport, (id) => (id ? stopTimezone.get(id) : null)),
                             }).dep?.dateISO ?? null)
                           : null;
                         const stopBudget = budgetByStopId.get(stop.id);

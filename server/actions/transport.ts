@@ -6,6 +6,8 @@ import { requirePlanAccess, requireRowAccess } from "@/lib/guards";
 import { transportSchema, type TransportInput } from "@/lib/validations/transport";
 import { wallTimeToInstant } from "@/lib/wall-time";
 import { resolveEndpointZones } from "@/lib/time-display";
+import { endZones } from "@/lib/leg-zones";
+import { pointTimezone } from "@/lib/tz-point";
 import { geocodePlaceDetailed } from "@/lib/geocode";
 import { pickedPlace, placeForSave, type SavedPlace } from "@/lib/place-save";
 import { auditedUpdate, recordPlanActivity } from "@/lib/activity-guard";
@@ -111,6 +113,16 @@ async function endPlaces(
   };
 }
 
+function placeEndZones(
+  ends: { fromStopId: string | null; toStopId: string | null; depIsHome: boolean; arrIsHome: boolean },
+  coords: { depLat: number | null; depLng: number | null; arrLat: number | null; arrLng: number | null },
+) {
+  return {
+    depTimezone: ends.fromStopId || ends.depIsHome ? null : pointTimezone(coords.depLat, coords.depLng),
+    arrTimezone: ends.toStopId || ends.arrIsHome ? null : pointTimezone(coords.arrLat, coords.arrLng),
+  };
+}
+
 // ---------------------------------------------------------------------------
 // Actions
 // ---------------------------------------------------------------------------
@@ -160,12 +172,16 @@ export async function createTransport(
   const endpointStops = endpointIds.length
     ? await db.stop.findMany({ where: { id: { in: endpointIds } }, select: { id: true, timezone: true } })
     : [];
-  const tzOf = (id: string | null) =>
+  const tzOf = (id: string | null | undefined) =>
     id ? endpointStops.find((s) => s.id === id)?.timezone ?? null : null;
   const home = depIsHome || arrIsHome
     ? await db.trip.findUnique({ where: { id: tripId }, select: { homeTimezone: true } })
     : null;
-  const { depTz, arrTz } = resolveEndpointZones(tzOf(fromStopId), tzOf(toStopId), {
+  // Home endpoints are not looked up — coords resolve from the trip at read time.
+  const ends = await endPlaces(data, { depPlace, arrPlace });
+  const zones = placeEndZones({ fromStopId, toStopId, depIsHome, arrIsHome }, ends);
+  const { fromTimezone, toTimezone } = endZones({ fromStopId, toStopId, ...zones }, tzOf);
+  const { depTz, arrTz } = resolveEndpointZones(fromTimezone, toTimezone, {
     depIsHome,
     arrIsHome,
     homeTimezone: home?.homeTimezone ?? null,
@@ -180,9 +196,6 @@ export async function createTransport(
     select: { sortOrder: true },
   });
   const sortOrder = (maxTransport?.sortOrder ?? -1) + 1;
-
-  // Home endpoints are not looked up — coords resolve from the trip at read time.
-  const ends = await endPlaces(data, { depPlace, arrPlace });
 
   const created = await db.transport.create({
     data: {
@@ -203,6 +216,7 @@ export async function createTransport(
       notes: data.notes ?? null,
       sortOrder,
       ...ends,
+      ...zones,
       ...booking,
     },
   });
@@ -323,21 +337,22 @@ export async function updateTransport(
   const endpointStops = endpointIds.length
     ? await db.stop.findMany({ where: { id: { in: endpointIds } }, select: { id: true, timezone: true } })
     : [];
-  const tzOf = (id: string | null) =>
+  const tzOf = (id: string | null | undefined) =>
     id ? endpointStops.find((s) => s.id === id)?.timezone ?? null : null;
   const home = depIsHome || arrIsHome
     ? await db.trip.findUnique({ where: { id: transport.tripId }, select: { homeTimezone: true } })
     : null;
-  const { depTz, arrTz } = resolveEndpointZones(tzOf(fromStopId), tzOf(toStopId), {
+  // Home endpoints are not looked up — coords resolve from the trip at read time.
+  const ends = await endPlaces(data, { depPlace, arrPlace }, before);
+  const zones = placeEndZones({ fromStopId, toStopId, depIsHome, arrIsHome }, ends);
+  const { fromTimezone, toTimezone } = endZones({ fromStopId, toStopId, ...zones }, tzOf);
+  const { depTz, arrTz } = resolveEndpointZones(fromTimezone, toTimezone, {
     depIsHome,
     arrIsHome,
     homeTimezone: home?.homeTimezone ?? null,
   });
   const depAtInstant = wallTimeToInstant(data.depAt, depTz);
   const arrAtInstant = wallTimeToInstant(data.arrAt, arrTz);
-
-  // Home endpoints are not looked up — coords resolve from the trip at read time.
-  const ends = await endPlaces(data, { depPlace, arrPlace }, before);
 
   await auditedUpdate("TRANSPORT", db.transport, transportId, {
     mode: data.mode,
@@ -354,6 +369,7 @@ export async function updateTransport(
     ...detailColumns(data),
     notes: data.notes ?? null,
     ...ends,
+    ...zones,
     ...booking,
   }, transport.forkId ?? null, { before });
   // F4: re-dating (or re-homing) a leg can push the soft end to the day it lands home.

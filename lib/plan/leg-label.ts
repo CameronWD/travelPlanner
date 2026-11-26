@@ -3,6 +3,7 @@ import type { TransportMode } from "@/lib/enum-values";
 import { TRANSPORT_MODE_META, durationMinutes, formatDuration } from "@/lib/transport";
 import { transportDetailsLine, type TransportDetails } from "@/lib/transport-details";
 import { transportTimeDisplay } from "@/lib/time-display";
+import { endZones } from "@/lib/leg-zones";
 import { formatDayLabel } from "@/lib/dates";
 
 export interface LegTransport extends TransportDetails {
@@ -15,6 +16,8 @@ export interface LegTransport extends TransportDetails {
   toStopId?: string | null;
   depIsHome?: boolean | null;
   arrIsHome?: boolean | null;
+  depTimezone?: string | null;
+  arrTimezone?: string | null;
   reference?: string | null;
   driveEstimate?: { minutes: number; roadKm: number; estimated: boolean } | null;
 }
@@ -99,11 +102,12 @@ export function legLabel(
       const e = ends(fromShort, toShort);
       label = typeof e === "string" ? `${word} in ${e}` : `${word} ${e[0]} → ${e[1]}`;
     }
+    const { fromTimezone, toTimezone } = endZones(t, (id) => (id ? stops.find((s) => s.id === id)?.timezone : null));
     const { dep, arr, dayDelta } = transportTimeDisplay({
       depAt: t.depAt,
       arrAt: t.arrAt ?? null,
-      fromTimezone: from?.timezone,
-      toTimezone: to?.timezone,
+      fromTimezone,
+      toTimezone,
       depIsHome: t.depIsHome,
       arrIsHome: t.arrIsHome,
       homeTimezone,

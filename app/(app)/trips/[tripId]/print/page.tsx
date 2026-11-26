@@ -172,6 +172,8 @@ export default async function PrintPage({
       reference: t.reference,
       depIsHome: t.depIsHome,
       arrIsHome: t.arrIsHome,
+      depTimezone: t.depTimezone,
+      arrTimezone: t.arrTimezone,
     })),
     accommodations: accommodations.map((a) => ({
       id: a.id,

@@ -190,6 +190,7 @@ interface DayTransportRow extends TransportDetails {
   depAt: Date | null; arrAt: Date | null; depLat: number | null; depLng: number | null; arrLat: number | null; arrLng: number | null;
   depPlaceId: string | null; arrPlaceId: string | null;
   reference: string | null; notes: string | null; sortOrder: number; anchorStopId: string | null; depIsHome: boolean; arrIsHome: boolean;
+  depTimezone?: string | null; arrTimezone?: string | null;
   bookingState: BookingState; bookingStateSet: boolean; nothingToAttach?: boolean; bookBy: string | null;
 }
 interface DayAccommodationRow {
@@ -318,6 +319,7 @@ function deriveTrip(rows: DayRows): TripDerived {
         id: t.id, mode: t.mode as TransportMode, fromStopId: t.fromStopId, toStopId: t.toStopId,
         depPlace: t.depPlace, arrPlace: t.arrPlace, depAt: t.depAt, arrAt: t.arrAt,
         reference: t.reference, notes: t.notes, depIsHome: t.depIsHome, arrIsHome: t.arrIsHome,
+        depTimezone: t.depTimezone, arrTimezone: t.arrTimezone,
         bookingState: t.bookingState, bookingStateSet: t.bookingStateSet, nothingToAttach: t.nothingToAttach, bookBy: t.bookBy,
         ...pickTransportDetails(t),
       })),

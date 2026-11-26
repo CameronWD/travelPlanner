@@ -16,6 +16,7 @@
  */
 import { lastPlanStop } from "@/lib/trip-deadline";
 import { resolveEndpointZones } from "@/lib/time-display";
+import { endZones } from "@/lib/leg-zones";
 import { instantToZonedDateISO } from "@/lib/tz";
 
 export interface SoftEndStop {
@@ -32,6 +33,8 @@ export interface SoftEndLeg {
   depIsHome: boolean;
   arrIsHome: boolean;
   arrAt: Date | string | null;
+  depTimezone?: string | null;
+  arrTimezone?: string | null;
 }
 
 const later = (a: string | null, b: string): string => (a === null || b > a ? b : a);
@@ -53,11 +56,12 @@ export function softEndDate(input: {
     if (!leg.arrIsHome && !returnShape) continue;
     const instant = leg.arrAt instanceof Date ? leg.arrAt : new Date(leg.arrAt);
     if (Number.isNaN(instant.getTime())) continue;
-    const { arrTz } = resolveEndpointZones(
-      leg.fromStopId ? zoneOf.get(leg.fromStopId) ?? null : null,
-      null,
-      { depIsHome: leg.depIsHome, arrIsHome: leg.arrIsHome, homeTimezone: input.homeTimezone },
-    );
+    const { fromTimezone, toTimezone } = endZones(leg, (id) => (id ? zoneOf.get(id) : null));
+    const { arrTz } = resolveEndpointZones(fromTimezone, toTimezone, {
+      depIsHome: leg.depIsHome,
+      arrIsHome: leg.arrIsHome,
+      homeTimezone: input.homeTimezone,
+    });
     end = later(end, instantToZonedDateISO(instant, arrTz));
   }
   return end;

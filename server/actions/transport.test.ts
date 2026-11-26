@@ -861,6 +861,91 @@ describe("Home-end wall times", () => {
   });
 });
 
+describe("a place end's own zone", () => {
+  const DPS = { id: "stop-dps", tripId: "trip-1", forkId: null, timezone: "Asia/Makassar" };
+  const BKK = { arrPlace: "Bangkok (BKK)", arrPlaceId: "bkk-id", arrLat: 13.69, arrLng: 100.75 };
+
+  beforeEach(() => {
+    transportFindFirstMock.mockResolvedValue(null);
+    stopFindManyMock.mockResolvedValue([DPS]);
+    tripFindUniqueMock.mockResolvedValue({ homeTimezone: "Australia/Brisbane", homeCurrency: "AUD" });
+    transportCreateMock.mockResolvedValue({ id: "t-zone" });
+    transportUpdateMock.mockResolvedValue({ id: "t-zone" });
+  });
+
+  const created = () => transportCreateMock.mock.calls[0][0].data;
+  const updated = () => transportUpdateMock.mock.calls[0][0].data;
+  const heldLeg = (row: Record<string, unknown>) => {
+    transportFindUniqueMock
+      .mockResolvedValueOnce({ id: "t-zone", tripId: "trip-1", forkId: null })
+      .mockResolvedValueOnce({ id: "t-zone", mode: "FLIGHT", fromStopId: "stop-dps", ...row });
+  };
+
+  describe("createTransport", () => {
+    it("a place end with coordinates and no Stop is saved with the zone at that point, and its time is read in it", async () => {
+      await createTransport("trip-1", { mode: "FLIGHT", fromStopId: "stop-dps", ...BKK, arrAt: "2026-12-05T22:15" });
+
+      expect(created()).toMatchObject({ depTimezone: null, arrTimezone: "Asia/Bangkok" });
+      expect(created().arrAt.toISOString()).toBe("2026-12-05T15:15:00.000Z");
+    });
+
+    it("an end that is a Stop or Home stores no zone", async () => {
+      await createTransport("trip-1", {
+        mode: "FLIGHT",
+        fromStopId: "stop-dps", depPlace: "Denpasar (DPS)", depPlaceId: "dps-id", depLat: -8.75, depLng: 115.17,
+        arrIsHome: true, arrAt: "2026-12-05T22:15",
+      });
+
+      expect(created()).toMatchObject({ depTimezone: null, arrTimezone: null });
+      expect(created().arrAt.toISOString()).toBe("2026-12-05T12:15:00.000Z");
+    });
+
+    it("a place end with no coordinates stores no zone and borrows the other end's, as before", async () => {
+      await createTransport("trip-1", { mode: "FLIGHT", fromStopId: "stop-dps", arrPlace: "Bangkok", arrAt: "2026-12-05T22:15" });
+
+      expect(created()).toMatchObject({ arrLat: null, arrTimezone: null });
+      expect(created().arrAt.toISOString()).toBe("2026-12-05T14:15:00.000Z");
+    });
+  });
+
+  describe("updateTransport", () => {
+    it("a place end with coordinates and no Stop is saved with the zone at that point, and its time is read in it", async () => {
+      heldLeg({});
+
+      await updateTransport("t-zone", { ...BKK, arrAt: "2026-12-05T22:15" });
+
+      expect(updated()).toMatchObject({ depTimezone: null, arrTimezone: "Asia/Bangkok" });
+      expect(updated().arrAt.toISOString()).toBe("2026-12-05T15:15:00.000Z");
+    });
+
+    it("an end that is a Stop or Home stores no zone", async () => {
+      heldLeg({ depPlace: "Denpasar (DPS)", depLat: -8.75, depLng: 115.17, depPlaceId: "dps-id" });
+
+      await updateTransport("t-zone", { arrIsHome: true, arrAt: "2026-12-05T22:15" });
+
+      expect(updated()).toMatchObject({ depTimezone: null, arrTimezone: null });
+      expect(updated().arrAt.toISOString()).toBe("2026-12-05T12:15:00.000Z");
+    });
+
+    it("a place end with no coordinates stores no zone and borrows the other end's, as before", async () => {
+      heldLeg({});
+
+      await updateTransport("t-zone", { arrPlace: "Bangkok", arrAt: "2026-12-05T22:15" });
+
+      expect(updated()).toMatchObject({ arrLat: null, arrTimezone: null });
+      expect(updated().arrAt.toISOString()).toBe("2026-12-05T14:15:00.000Z");
+    });
+
+    it("clearing the place clears its zone", async () => {
+      heldLeg({ ...BKK, arrTimezone: "Asia/Bangkok" });
+
+      await updateTransport("t-zone", { toStopId: null, arrPlace: null });
+
+      expect(updated()).toMatchObject({ arrPlace: null, arrLat: null, arrTimezone: null });
+    });
+  });
+});
+
 // ---------------------------------------------------------------------------
 // deleteTransport
 // ---------------------------------------------------------------------------

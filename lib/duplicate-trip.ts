@@ -105,6 +105,8 @@ interface DuplicateSourceTransport extends TransportDetails {
   depRegion?: string | null;
   arrCountryCode?: string | null;
   arrRegion?: string | null;
+  depTimezone?: string | null;
+  arrTimezone?: string | null;
 }
 
 interface DuplicateSourceChecklistItem {
@@ -164,6 +166,7 @@ export interface DuplicatePlan {
       depLat: number | null; depLng: number | null; arrLat: number | null; arrLng: number | null;
       depPlaceId: string | null; arrPlaceId: string | null;
       depCountryCode: string | null; depRegion: string | null; arrCountryCode: string | null; arrRegion: string | null; sortOrder: number;
+      depTimezone: string | null; arrTimezone: string | null;
       bookingState: BookingState; bookingStateSet: false;
     };
   }>;
@@ -272,6 +275,8 @@ export function buildDuplicatePlan(source: DuplicateSource, newName: string, dup
         depRegion: t.depRegion ?? null,
         arrCountryCode: t.arrCountryCode ?? null,
         arrRegion: t.arrRegion ?? null,
+        depTimezone: t.depTimezone ?? null,
+        arrTimezone: t.arrTimezone ?? null,
         sortOrder: idx,
         // No reference is copied, so the leg starts at its mode's default: a drive needs no booking.
         bookingState: defaultBookingState(transportBookingSubject(t.mode)),

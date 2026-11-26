@@ -11,6 +11,7 @@
  */
 import type { Prisma } from "@prisma/client";
 import { resolveEndpointZones } from "@/lib/time-display";
+import { endZones } from "@/lib/leg-zones";
 import { instantToZonedDateISO, instantToZonedTime, zonedWallTimeToInstant } from "@/lib/tz";
 
 export interface HomeLeg {
@@ -19,9 +20,9 @@ export interface HomeLeg {
   arrAt: Date | null;
   depIsHome: boolean;
   arrIsHome: boolean;
-  /** The departure Stop's zone (null: no Stop, or a rough Stop). */
+  /** The departure end's own zone, a Stop's or a place's stored one (null: neither, or a rough Stop). */
   fromTimezone: string | null;
-  /** The arrival Stop's zone. */
+  /** The arrival end's own zone. */
   toTimezone: string | null;
 }
 
@@ -79,7 +80,7 @@ export async function refileHomeEndsTx(
   const rows = await tx.transport.findMany({
     where: { tripId, OR: [{ depIsHome: true }, { arrIsHome: true }] },
     select: {
-      id: true, depAt: true, arrAt: true, depIsHome: true, arrIsHome: true,
+      id: true, depAt: true, arrAt: true, depIsHome: true, arrIsHome: true, depTimezone: true, arrTimezone: true,
       fromStop: { select: { timezone: true } },
       toStop: { select: { timezone: true } },
     },
@@ -90,8 +91,10 @@ export async function refileHomeEndsTx(
     arrAt: r.arrAt,
     depIsHome: r.depIsHome,
     arrIsHome: r.arrIsHome,
-    fromTimezone: r.fromStop?.timezone ?? null,
-    toTimezone: r.toStop?.timezone ?? null,
+    ...endZones(
+      { fromStopId: "from", toStopId: "to", depTimezone: r.depTimezone, arrTimezone: r.arrTimezone },
+      (end) => (end === "from" ? r.fromStop : r.toStop)?.timezone,
+    ),
   }));
   const changes = refileHomeEnds(legs, oldHomeTimezone, newHomeTimezone);
   for (const { id, ...data } of changes) {

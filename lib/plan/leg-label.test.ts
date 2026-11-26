@@ -105,6 +105,23 @@ describe("legLabel", () => {
   });
 });
 
+describe("legLabel at a place with its own zone", () => {
+  const DPS = { id: "dps", name: "Denpasar", timezone: "Asia/Makassar", arriveDate: "2026-12-01", departDate: "2026-12-05" };
+  const toBangkok = { mode: "FLIGHT" as const, fromStopId: "dps", arrPlace: "Bangkok (BKK)", depAt: new Date("2026-12-05T11:00:00Z"), arrAt: new Date("2026-12-05T15:15:00Z") };
+
+  it("a leg to a place with its own zone shows the arrival in that zone", () => {
+    const l = legLabel({ ...toBangkok, arrTimezone: "Asia/Bangkok" }, [DPS]);
+    expect(l.sub).toBe("Sat 5 Dec 19:00");
+    expect(l.arrival).toBe("→ 22:15 · 4h 15m");
+  });
+
+  it("a leg with no stored zone reads exactly as before", () => {
+    const l = legLabel({ ...toBangkok, arrTimezone: null }, [DPS]);
+    expect(l.sub).toBe("Sat 5 Dec 19:00");
+    expect(l.arrival).toBe("→ 23:15 · 4h 15m");
+  });
+});
+
 describe("legLabel arrival and detail", () => {
   const train = { mode: "TRAIN" as const, fromStopId: "r", toStopId: "f", depAt: new Date("2026-12-22T08:28:00Z"), arrAt: new Date("2026-12-22T12:05:00Z") };
   const flight = (arrAt: string) => ({ mode: "FLIGHT" as const, fromStopId: "p", toStopId: "r", depAt: new Date("2026-12-15T22:00:00Z"), arrAt: new Date(arrAt) });

@@ -4,6 +4,7 @@ import { loadSurpriseVisibility } from "@/lib/surprise-visibility";
 import { tripTodayISO } from "@/lib/trip-today";
 import { computeTripPhase } from "@/lib/trip-phase";
 import { transportTimeDisplay } from "@/lib/time-display";
+import { endZones } from "@/lib/leg-zones";
 import { needsBookingConfirmation, type ConfirmationKind, type ConfirmationSubject } from "@/lib/booking-confirmation";
 
 export interface BookingConfirmationToAdd {
@@ -23,7 +24,7 @@ export async function loadBookingConfirmationsToAdd(tripId: string, viewerId: st
     }),
     db.transport.findMany({
       where: { tripId, ...REAL_PLAN, bookingState: "BOOKED" },
-      select: { id: true, nothingToAttach: true, depAt: true, arrAt: true, fromStopId: true, toStopId: true, depIsHome: true, arrIsHome: true },
+      select: { id: true, nothingToAttach: true, depAt: true, arrAt: true, fromStopId: true, toStopId: true, depIsHome: true, arrIsHome: true, depTimezone: true, arrTimezone: true },
     }),
     db.accommodation.findMany({
       where: { tripId, ...REAL_PLAN, bookingState: "BOOKED", ...v.where.accommodation },
@@ -41,8 +42,7 @@ export async function loadBookingConfirmationsToAdd(tripId: string, viewerId: st
   const tzById = new Map(stops.map((s) => [s.id, s.timezone] as const));
   const subjects: ConfirmationSubject[] = [
     ...transports.map((t) => {
-      const fromTimezone = t.fromStopId ? (tzById.get(t.fromStopId) ?? null) : null;
-      const toTimezone = t.toStopId ? (tzById.get(t.toStopId) ?? null) : null;
+      const { fromTimezone, toTimezone } = endZones(t, (id) => (id ? tzById.get(id) : null));
       const { dep } = transportTimeDisplay({
         depAt: t.depAt, arrAt: t.arrAt, fromTimezone, toTimezone,
         depIsHome: t.depIsHome, arrIsHome: t.arrIsHome, homeTimezone: trip.homeTimezone,

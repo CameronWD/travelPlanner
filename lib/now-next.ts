@@ -3,6 +3,7 @@ import { zonedWallTimeToInstant } from "@/lib/tz";
 import { addDays } from "@/lib/dates";
 import { stopForDate } from "@/lib/itinerary";
 import { resolveEndpointZones } from "@/lib/time-display";
+import { endZones } from "@/lib/leg-zones";
 import type { TransportMode } from "@/lib/enum-values";
 import type { LatLng } from "@/lib/geo";
 
@@ -32,6 +33,8 @@ export interface NowNextTransport {
   arrAt: Date | null;
   depIsHome: boolean;
   arrIsHome: boolean;
+  depTimezone?: string | null;
+  arrTimezone?: string | null;
 }
 
 export interface NowNextTimed {
@@ -57,12 +60,10 @@ const DAY_MS = 24 * 60 * 60 * 1000;
 export function nowNext(input: NowNextInput, now: Date): NowNext {
   const stopById = new Map(input.stops.map((s) => [s.id, s] as const));
   const datedStops = input.stops.flatMap((s) => (s.arriveDate && s.departDate ? [{ ...s, arriveDate: s.arriveDate, departDate: s.departDate }] : []));
-  const zones = (t: NowNextTransport) =>
-    resolveEndpointZones(
-      t.fromStopId ? stopById.get(t.fromStopId)?.timezone : null,
-      t.toStopId ? stopById.get(t.toStopId)?.timezone : null,
-      { depIsHome: t.depIsHome, arrIsHome: t.arrIsHome, homeTimezone: input.home.timezone },
-    );
+  const zones = (t: NowNextTransport) => {
+    const { fromTimezone, toTimezone } = endZones(t, (id) => (id ? stopById.get(id)?.timezone : null));
+    return resolveEndpointZones(fromTimezone, toTimezone, { depIsHome: t.depIsHome, arrIsHome: t.arrIsHome, homeTimezone: input.home.timezone });
+  };
   const endName = (stopId: string | null, place: string | null, isHome: boolean) =>
     (stopId ? stopById.get(stopId)?.name : null) || place || (isHome ? input.home.name : null);
   const label = (t: NowNextTransport) => routeLabel(endName(t.fromStopId, t.depPlace, t.depIsHome), endName(t.toStopId, t.arrPlace, t.arrIsHome));

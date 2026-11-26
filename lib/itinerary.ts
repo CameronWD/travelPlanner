@@ -9,6 +9,7 @@
 import { addDays, daysBetween, isDateWithin } from "@/lib/dates";
 import { instantToZonedDateISO, instantToZonedTime } from "@/lib/tz";
 import { resolveEndpointZones } from "@/lib/time-display";
+import { endZones } from "@/lib/leg-zones";
 import type { SurpriseView } from "@/lib/surprise";
 import type { BookingState } from "@/lib/enum-values";
 import type { OpeningHours } from "@/lib/opening-hours";
@@ -88,6 +89,8 @@ export interface ItineraryTransport extends TransportDetails {
   /** This end is the Trip's Home base, not a Stop — its zone is the Trip's `homeTimezone`. */
   depIsHome?: boolean | null;
   arrIsHome?: boolean | null;
+  depTimezone?: string | null;
+  arrTimezone?: string | null;
 }
 
 export interface ItineraryAccommodation {
@@ -274,12 +277,16 @@ type ZonedStop = { timezone?: string | null } | undefined | null;
 // A Home end has no Stop of its own (CONTEXT.md "Home base"): its zone is
 // the Trip's `homeTimezone` when set; a zone-less end takes the other end's.
 export function transportEndZones(
-  transport: { depIsHome?: boolean | null; arrIsHome?: boolean | null },
+  transport: { depIsHome?: boolean | null; arrIsHome?: boolean | null; depTimezone?: string | null; arrTimezone?: string | null },
   homeTimezone: string | null | undefined,
   fromStop: ZonedStop,
   toStop: ZonedStop,
 ): { depTz: string; arrTz: string } {
-  return resolveEndpointZones(fromStop?.timezone, toStop?.timezone, {
+  const { fromTimezone, toTimezone } = endZones(
+    { fromStopId: "from", toStopId: "to", depTimezone: transport.depTimezone, arrTimezone: transport.arrTimezone },
+    (end) => (end === "from" ? fromStop : toStop)?.timezone,
+  );
+  return resolveEndpointZones(fromTimezone, toTimezone, {
     depIsHome: transport.depIsHome,
     arrIsHome: transport.arrIsHome,
     homeTimezone,

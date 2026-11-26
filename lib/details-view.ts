@@ -16,6 +16,7 @@ import { isEmptyOpeningHours, type OpeningHours } from "@/lib/opening-hours";
 import { openingHoursSummary, openingLine } from "@/lib/opening-hours-display";
 import { slotLabel } from "@/lib/slot-time";
 import { shortDate, transportTimeDisplay } from "@/lib/time-display";
+import { endZones } from "@/lib/leg-zones";
 import { TRANSPORT_MODE_META } from "@/lib/transport";
 import { transportDetailsLine } from "@/lib/transport-details";
 import { safeWebHref } from "@/lib/url";
@@ -93,8 +94,12 @@ export function transportDetails(t: TransportCardTransport, ctx: DetailsContext)
   const from = t.depIsHome ? home : endpointLabel(t.fromStopName, t.depPlace);
   const to = t.arrIsHome ? home : endpointLabel(t.toStopName, t.arrPlace);
   const title = from && to ? `${from} → ${to}` : (from ?? to ?? mode);
+  const { fromTimezone, toTimezone } = endZones(
+    { ...t, fromStopId: "from", toStopId: "to" },
+    (end) => (end === "from" ? t.fromStopTimezone : t.toStopTimezone),
+  );
   const td = transportTimeDisplay({
-    depAt: t.depAt, arrAt: t.arrAt, fromTimezone: t.fromStopTimezone, toTimezone: t.toStopTimezone,
+    depAt: t.depAt, arrAt: t.arrAt, fromTimezone, toTimezone,
     depIsHome: t.depIsHome, arrIsHome: t.arrIsHome, homeTimezone: ctx.homeTimezone,
   });
   const times: DetailsView["times"] = [];

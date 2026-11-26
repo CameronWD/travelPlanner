@@ -748,6 +748,8 @@ model Transport {
   arrRegion      String?
   depIsHome      Boolean   @default(false) // departs the trip's Home base (see ADR 0030)
   arrIsHome      Boolean   @default(false) // arrives the trip's Home base
+  depTimezone    String? // IANA zone at a departure end that is a place, not a Stop or Home
+  arrTimezone    String? // IANA zone at an arrival end that is a place, not a Stop or Home
   reference      String?
   notes          String?
   carrier        String?
