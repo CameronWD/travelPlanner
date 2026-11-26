@@ -25,7 +25,8 @@ export function meetingPlace(a: ConnectionLeg, b: ConnectionLeg): string | null 
 }
 
 export function isConnection(a: ConnectionLeg, b: ConnectionLeg): boolean {
-  return meetingPlace(a, b) !== null && !a.toStopId && !a.arrIsHome && !b.fromStopId && !b.depIsHome;
+  if (meetingPlace(a, b) === null || a.toStopId || a.arrIsHome || b.fromStopId || b.depIsHome) return false;
+  return !a.arrAt || !b.depAt || waitMinutes(a, b) !== null;
 }
 
 export function waitMinutes(a: ConnectionLeg, b: ConnectionLeg): number | null {
@@ -60,17 +61,21 @@ const byDeparture = (x: ConnectionLeg, y: ConnectionLeg) => {
 };
 
 export function bookingPartners<T extends ConnectionLeg>(legs: readonly T[]): Map<string, T[]> {
-  const sorted = [...legs].sort(byDeparture);
-  const chains: T[][] = [];
-  for (const leg of sorted) {
-    const chain = chains[chains.length - 1];
-    if (chain && sameBooking(chain[chain.length - 1], leg)) chain.push(leg);
-    else chains.push([leg]);
+  const groups = new Map<string, T[]>();
+  for (const leg of [...legs].sort(byDeparture)) {
+    const ref = norm(leg.reference);
+    if (ref) groups.set(ref, [...(groups.get(ref) ?? []), leg]);
   }
   const partners = new Map<string, T[]>();
-  for (const chain of chains) {
-    if (chain.length < 2) continue;
-    for (const leg of chain) partners.set(leg.id, chain.filter((l) => l !== leg));
+  for (const group of groups.values()) {
+    const successor = (leg: T) => group.find((n) => n !== leg && sameBooking(leg, n));
+    const entered = new Set(group.map(successor));
+    for (const start of group.filter((l) => !entered.has(l))) {
+      const chain: T[] = [start];
+      for (let n = successor(start); n && !chain.includes(n); n = successor(n)) chain.push(n);
+      if (chain.length < 2) continue;
+      for (const leg of chain) partners.set(leg.id, chain.filter((l) => l !== leg));
+    }
   }
   return partners;
 }

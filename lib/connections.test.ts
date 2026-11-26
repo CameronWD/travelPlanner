@@ -56,6 +56,19 @@ describe("isConnection", () => {
   });
 });
 
+describe("isConnection with times", () => {
+  it("not when the second leaves a day or more after the first arrives", () => {
+    expect(isConnection(a, { ...b, depAt: new Date("2026-12-06T15:15:00Z") })).toBe(false);
+  });
+  it("not when the second leaves before the first arrives", () => {
+    expect(isConnection(a, { ...b, depAt: new Date("2026-12-05T14:00:00Z") })).toBe(false);
+  });
+  it("still a Connection when a time is missing", () => {
+    expect(isConnection({ ...a, arrAt: null }, b)).toBe(true);
+    expect(isConnection(a, { ...b, depAt: null })).toBe(true);
+  });
+});
+
 describe("waitMinutes", () => {
   it("whole minutes between arrival and departure", () => {
     expect(waitMinutes(a, b)).toBe(155);
@@ -91,6 +104,16 @@ describe("changeLabel", () => {
   });
   it("null when they do not meet", () => {
     expect(changeLabel(a, { ...b, depPlace: "Singapore" })).toBeNull();
+  });
+  it("leaves a bracket that is not the last group alone", () => {
+    const x = { ...a, arrPlace: "St Pancras (London) International" };
+    expect(changeLabel(x, { ...b, depPlace: "St Pancras (London) International" })).toBe("Layover in St Pancras (London) International · 2h 35m");
+  });
+  it("leaves a name with no brackets alone", () => {
+    expect(changeLabel({ ...a, arrPlace: "Doha" }, { ...b, depPlace: "Doha" })).toBe("Layover in Doha · 2h 35m");
+  });
+  it("falls back to the raw text when only a bracket would remain", () => {
+    expect(changeLabel({ ...a, arrPlace: "(BKK)" }, { ...b, depPlace: "(BKK)" })).toBe("Layover in (BKK) · 2h 35m");
   });
 });
 
@@ -130,6 +153,19 @@ describe("bookingPartners", () => {
     expect(m.get("l2")?.map((l) => l.id)).toEqual(["l1", "l3"]);
     expect(m.get("l3")?.map((l) => l.id)).toEqual(["l1", "l2"]);
   });
+  it("a middle leg with no departure time does not split its booking", () => {
+    const mid = { ...l2, depAt: null };
+    const m = bookingPartners([l3, mid, l1]);
+    expect(m.get("l1")?.map((l) => l.id)).toEqual(["l2", "l3"]);
+    expect(m.get("l2")?.map((l) => l.id)).toEqual(["l1", "l3"]);
+    expect(m.get("l3")?.map((l) => l.id)).toEqual(["l1", "l2"]);
+  });
+  it("an unrelated leg departing between two legs of a booking does not split it", () => {
+    const other: ConnectionLeg = { id: "o", mode: "TRAIN", depPlace: "Oslo", arrPlace: "Bergen", depAt: new Date("2026-12-05T03:00:00Z"), reference: "ZZ" };
+    const m = bookingPartners([l1, other, l2, l3]);
+    expect(m.get("l1")?.map((l) => l.id)).toEqual(["l2", "l3"]);
+    expect(m.get("o") ?? []).toEqual([]);
+  });
   it("a lone leg has no partners", () => {
     expect(bookingPartners([a]).get("a") ?? []).toEqual([]);
   });
@@ -154,7 +190,21 @@ describe("journeyHome", () => {
   });
 });
 
+describe("journeyHome a week later", () => {
+  it("a leg from the same place a week later is not chained even when nothing earlier fits", () => {
+    const first: ConnectionLeg = { id: "r1", mode: "FLIGHT", fromStopId: "rome", arrPlace: "Doha", arrAt: new Date("2026-12-10T14:00:00Z") };
+    const late: ConnectionLeg = { id: "r3", mode: "FLIGHT", depPlace: "Doha", arrIsHome: true, depAt: new Date("2026-12-17T17:00:00Z") };
+    expect(journeyHome([first, late], "rome").map((l) => l.id)).toEqual(["r1"]);
+  });
+});
+
 describe("journeyOut", () => {
+  it("picks the latest arrival at or before the next departure", () => {
+    const o1: ConnectionLeg = { id: "o1", mode: "FLIGHT", depIsHome: true, arrPlace: "Singapore", arrAt: new Date("2026-12-01T08:00:00Z") };
+    const o0: ConnectionLeg = { id: "o0", mode: "FLIGHT", depIsHome: true, arrPlace: "Singapore", arrAt: new Date("2026-12-01T05:00:00Z") };
+    const o2: ConnectionLeg = { id: "o2", mode: "FLIGHT", depPlace: "Singapore", toStopId: "first", depAt: new Date("2026-12-01T10:00:00Z") };
+    expect(journeyOut([o0, o2, o1], "first").map((l) => l.id)).toEqual(["o1", "o2"]);
+  });
   const out1: ConnectionLeg = { id: "o1", mode: "FLIGHT", depIsHome: true, arrPlace: "Singapore", depAt: new Date("2026-12-01T01:00:00Z"), arrAt: new Date("2026-12-01T08:00:00Z") };
   const out2: ConnectionLeg = { id: "o2", mode: "FLIGHT", depPlace: "Singapore", toStopId: "first", depAt: new Date("2026-12-01T10:00:00Z"), arrAt: new Date("2026-12-01T12:00:00Z") };
   it("chains the legs out in order", () => {
