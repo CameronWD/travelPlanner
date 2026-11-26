@@ -3,7 +3,7 @@
 import { db } from "@/lib/db";
 import { requireTripAccess, requirePlanAccess, requireRowAccess } from "@/lib/guards";
 import { resolveRateForTrip, persistRate } from "@/lib/money/fx";
-import { costSchema, paidAtStringSchema, refundedAtStringSchema, MAX_AMOUNT_MINOR, type CostRawInput } from "@/lib/validations/cost";
+import { costSchema, paidAtStringSchema, paidCurrencySchema, refundedAtStringSchema, MAX_AMOUNT_MINOR, type CostRawInput } from "@/lib/validations/cost";
 import type { Cost } from "@prisma/client";
 import { auditedUpdate, recordPlanActivity, recordUpdate } from "@/lib/activity-guard";
 import { requireOutsideSurprise, type SurpriseRoot } from "@/lib/surprise-guard";
@@ -14,7 +14,7 @@ import { revalidateTrip } from "@/lib/revalidate";
 import { WHAT_IF_PLANS_HIDDEN } from "@/lib/what-if";
 import { notFound } from "next/navigation";
 import { mergeCostPatch, paidCurrencyMoved, refundGuard } from "@/lib/money/cost-patch";
-import { paidCurrencyProblem, storedPaidCurrency } from "@/lib/money/paid-currency";
+import { PAID_CURRENCY_MESSAGE, paidCurrencyProblem, storedPaidCurrency } from "@/lib/money/paid-currency";
 import { refundProblem, refundState, REFUND_MESSAGES } from "@/lib/money/refund";
 import { type Patch } from "@/lib/patch";
 
@@ -349,7 +349,12 @@ export async function markCostPaid(
     return { success: false, errors: { paidAt: ["Enter when you paid"] } };
   }
 
-  const nextPaidCurrency = paidCurrency === undefined ? undefined : storedPaidCurrency(paidCurrency, cost.currency);
+  const parsedPaidCurrency = paidCurrencySchema.safeParse(paidCurrency);
+  if (!parsedPaidCurrency.success) {
+    return { success: false, errors: { paidCurrency: [PAID_CURRENCY_MESSAGE] } };
+  }
+
+  const nextPaidCurrency = parsedPaidCurrency.data === undefined ? undefined : storedPaidCurrency(parsedPaidCurrency.data, cost.currency);
   if (nextPaidCurrency != null) {
     const trip = await db.trip.findUnique({ where: { id: cost.tripId }, select: { homeCurrency: true } });
     if (!trip) return formFail("Trip not found");

@@ -1475,6 +1475,39 @@ describe("updateTransport: inline cost update/create", () => {
   });
 });
 
+describe("updateTransport: the inline Cost's paid currency", () => {
+  const owning = () => {
+    transportFindUniqueMock
+      .mockResolvedValueOnce({ id: "tu-pc", tripId: "trip-1", forkId: null })
+      .mockResolvedValueOnce({ id: "tu-pc", mode: "FLIGHT" });
+    transportUpdateMock.mockResolvedValue({ id: "tu-pc", mode: "FLIGHT" });
+    costFindManyMock.mockResolvedValue([
+      { id: "cost-pc", costMinor: 55_000, currency: "EUR", paidMinor: null, paidAt: null, paidCurrency: null, refundMinor: null, refundedAt: null },
+    ]);
+    tripFindUniqueMock.mockResolvedValue({ homeCurrency: "AUD" });
+    resolveRateForTripMock.mockResolvedValue({ rate: 0.6, persist: null });
+  };
+
+  it("editing a Cost with no paid currency, paid and naming none, writes no paid currency", async () => {
+    owning();
+
+    const result = await updateTransport("tu-pc", { mode: "FLIGHT", costMinor: 55_000, currency: "EUR", paidMinor: 55_000, paidAt: "2026-06-01" });
+
+    expect(result.success).toBe(true);
+    expect(costUpdateMock.mock.calls[0][0].data).not.toHaveProperty("paidCurrency");
+  });
+
+  it("editing a Cost with no paid currency to another currency, paid and naming none, writes no paid currency", async () => {
+    owning();
+
+    const result = await updateTransport("tu-pc", { mode: "FLIGHT", costMinor: 8_000_000, currency: "JPY", paidMinor: 8_000_000, paidAt: "2026-06-01" });
+
+    expect(result.success).toBe(true);
+    expect(costUpdateMock.mock.calls[0][0].data).toMatchObject({ currency: "JPY" });
+    expect(costUpdateMock.mock.calls[0][0].data).not.toHaveProperty("paidCurrency");
+  });
+});
+
 describe("updateTransport (PATCH, ADR 0075)", () => {
   const row = {
     id: "t1", tripId: "trip-1", forkId: null,
@@ -2356,6 +2389,53 @@ describe("saveTransportWithLayover", () => {
     expect(costCreateMock).not.toHaveBeenCalled();
     expect(costUpdateMock).toHaveBeenCalledTimes(1);
     expect(costUpdateMock.mock.calls[0][0].data).toMatchObject({ paidMinor: 90_512, paidCurrency: "AUD" });
+  });
+
+  it("adding a paid journey with a layover that names no paid currency writes no paid currency", async () => {
+    const result = await saveTransportWithLayover(
+      { tripId: "trip-1" },
+      { ...JOURNEY, costMinor: 55_000, currency: "EUR", paidMinor: 55_000, paidAt: "2026-10-01" },
+      LAYOVER,
+    );
+
+    expect(result.success).toBe(true);
+    expect(costCreateMock).toHaveBeenCalledTimes(1);
+    expect(costCreateMock.mock.calls[0][0].data).toMatchObject({ ownerId: "t-new-1", paidMinor: 55_000 });
+    expect(costCreateMock.mock.calls[0][0].data).not.toHaveProperty("paidCurrency");
+  });
+
+  it("editing a paid Transport into a journey with a layover, naming no paid currency, writes no paid currency", async () => {
+    committed.set("t-edit", { ...EXISTING });
+    costFindManyMock.mockResolvedValueOnce([
+      { id: "cost-9", costMinor: 55_000, currency: "EUR", paidMinor: 55_000, paidAt: new Date("2026-10-01"), paidCurrency: null, refundMinor: null, refundedAt: null },
+    ]);
+
+    const result = await saveTransportWithLayover(
+      { transportId: "t-edit" },
+      { ...JOURNEY, costMinor: 55_000, currency: "EUR", paidMinor: 55_000, paidAt: "2026-10-01" },
+      LAYOVER,
+    );
+
+    expect(result.success).toBe(true);
+    expect(costUpdateMock).toHaveBeenCalledTimes(1);
+    expect(costUpdateMock.mock.calls[0][0].data).toMatchObject({ paidMinor: 55_000 });
+    expect(costUpdateMock.mock.calls[0][0].data).not.toHaveProperty("paidCurrency");
+  });
+
+  it("editing a Transport into a journey with a layover paid in a third currency is refused with the message and saves nothing", async () => {
+    committed.set("t-edit", { ...EXISTING });
+    costFindManyMock.mockResolvedValueOnce([
+      { id: "cost-9", costMinor: 55_000, currency: "EUR", paidMinor: null, paidAt: null, paidCurrency: null, refundMinor: null, refundedAt: null },
+    ]);
+
+    const result = await saveTransportWithLayover(
+      { transportId: "t-edit" },
+      { ...JOURNEY, costMinor: 55_000, currency: "EUR", paidMinor: 90_512, paidAt: "2026-10-01", paidCurrency: "GBP" },
+      LAYOVER,
+    );
+
+    expect(result).toEqual({ success: false, errors: { paidCurrency: [PAID_CURRENCY_MESSAGE] } });
+    expect(transactionMock).not.toHaveBeenCalled();
   });
 
   it("a journey home: the second Transport arrives Home, the first does not", async () => {

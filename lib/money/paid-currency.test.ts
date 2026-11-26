@@ -18,6 +18,10 @@ describe("paidCurrencyOf", () => {
   it("is the recorded paid currency, upper-cased", () => {
     expect(paidCurrencyOf({ currency: "EUR", paidCurrency: "aud" })).toBe("AUD");
   });
+  it("treats an empty paid currency as none recorded", () => {
+    expect(paidCurrencyOf({ currency: "EUR", paidCurrency: "" })).toBe("EUR");
+    expect(paysInOwnCurrency({ currency: "EUR", paidCurrency: "" })).toBe(true);
+  });
 });
 
 describe("paysInOwnCurrency", () => {

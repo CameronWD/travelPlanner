@@ -36,7 +36,7 @@ Today a Cost has one currency for both its cost amount and its paid amount, and 
   - If the Cost's currency is changed to the Home currency, the paid currency is simply the Cost's again.
   - Changing the Trip's Home currency: a Cost paid in the old Home currency keeps its paid amount and now has a paid currency that is neither its own nor Home. It is shown as recorded and converted at the Trip's exchange rate for that currency where a Home total needs it; the form lets the Traveller re-enter it. This is the one case where a third currency can appear, and it must not crash or silently drop the Cost from totals without saying so (the existing "missing rate" line covers it).
   - Marking a Cost unpaid keeps the paid amount and its currency as history, as today.
-- **Copies.** A What-if plan, a duplicated Trip, and a booking import carry the paid currency with the Cost.
+- **Copies.** A What-if plan copies a Cost without its payment, so without a paid currency. A booking import carries the paid currency with the Cost. Duplicating a Trip copies no Costs.
 - **The Claude connection.** A Cost's `paid` gains its currency; recording a payment may name the Home currency. Reads of existing Costs are unchanged apart from the added field.
 
 ## Decisions made while planning (2026-11-26)

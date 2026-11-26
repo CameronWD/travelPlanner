@@ -1182,6 +1182,25 @@ describe("the inline Cost on an Accommodation: paid currency", () => {
     expect(costUpdateMock.mock.calls[0][0].data).not.toHaveProperty("paidCurrency");
   });
 
+  it("editing a Cost with no paid currency, paid and naming none, writes no paid currency", async () => {
+    owning({});
+
+    const result = await updateAccommodation("acc-pc", { ...VALID_INPUT, ...PAID_IN_HOME, paidMinor: 55_000 });
+
+    expect(result.success).toBe(true);
+    expect(costUpdateMock.mock.calls[0][0].data).not.toHaveProperty("paidCurrency");
+  });
+
+  it("editing a Cost with no paid currency to another currency, paid and naming none, writes no paid currency", async () => {
+    owning({});
+
+    const result = await updateAccommodation("acc-pc", { ...VALID_INPUT, ...PAID_IN_HOME, costMinor: 8_000_000, currency: "JPY", paidMinor: 8_000_000 });
+
+    expect(result.success).toBe(true);
+    expect(costUpdateMock.mock.calls[0][0].data).toMatchObject({ currency: "JPY" });
+    expect(costUpdateMock.mock.calls[0][0].data).not.toHaveProperty("paidCurrency");
+  });
+
   it("editing it with a third paid currency is refused with the message and writes nothing", async () => {
     owning({});
 

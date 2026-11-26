@@ -8,7 +8,7 @@ export interface PaidCurrencyFields {
 export const PAID_CURRENCY_MESSAGE = "What you paid can only be in the cost’s currency or your trip’s home currency.";
 
 export function paidCurrencyOf(c: PaidCurrencyFields): string {
-  return (c.paidCurrency ?? c.currency).toUpperCase();
+  return (c.paidCurrency || c.currency).toUpperCase();
 }
 
 export function paysInOwnCurrency(c: PaidCurrencyFields): boolean {

@@ -1282,7 +1282,7 @@ describe("the paid currency", () => {
   it("createCost stores null when it equals the Cost's currency", async () => {
     seed();
     expect((await createCost("trip-1", { ...paidInput, paidMinor: 55000, paidCurrency: "eur" })).success).toBe(true);
-    expect(costCreateMock.mock.calls[0][0].data.paidCurrency ?? null).toBeNull();
+    expect(costCreateMock.mock.calls[0][0].data).not.toHaveProperty("paidCurrency");
   });
 
   it("createCost refuses a third currency with the message", async () => {
@@ -1323,6 +1323,23 @@ describe("the paid currency", () => {
     expect(costUpdateMock).not.toHaveBeenCalled();
   });
 
+  it("updateCost on an unpaid Cost in Home changed to another currency clears the history paid amount and writes no paid currency", async () => {
+    costFindUniqueMock.mockResolvedValue({ ...eurRow, currency: "AUD", paidCurrency: null, paidMinor: 5000, paidAt: null });
+    seed("AUD");
+    expect((await updateCost("c1", { currency: "EUR" })).success).toBe(true);
+    const data = costUpdateMock.mock.calls[0][0].data;
+    expect(data).toMatchObject({ currency: "EUR", paidMinor: null });
+    expect(data).not.toHaveProperty("paidCurrency");
+  });
+
+  it("updateCost on a Cost paid in Home changed to the Home currency stores null and keeps the paid amount", async () => {
+    costFindUniqueMock.mockResolvedValue(eurRow);
+    seed("AUD");
+    expect((await updateCost("c1", { currency: "AUD" })).success).toBe(true);
+    const data = costUpdateMock.mock.calls[0][0].data;
+    expect(data).toMatchObject({ currency: "AUD", paidCurrency: null, paidMinor: 90512 });
+  });
+
   it("an existing unpaid AUD Cost changed to EUR through updateCost stores no paid currency, and a later markCostPaid with none records the payment in EUR", async () => {
     const audUnpaid = { ...eurRow, currency: "AUD", paidMinor: null, paidAt: null, paidCurrency: null };
     costFindUniqueMock.mockResolvedValue(audUnpaid);
@@ -1354,6 +1371,20 @@ describe("the paid currency", () => {
     seed();
     expect((await markCostPaid("c1", 55000, "2026-06-04", null)).success).toBe(true);
     expect(costUpdateMock.mock.calls[0][0].data).toEqual({ paidMinor: 55000, paidAt: new Date("2026-06-04"), paidCurrency: null });
+  });
+
+  it("markCostPaid with null on an un-marked Cost whose history is in Home records the payment in the Cost's own currency", async () => {
+    costFindUniqueMock.mockResolvedValue({ ...eurRow, currency: "EUR", paidCurrency: "AUD", paidMinor: 90512, paidAt: null });
+    seed();
+    expect((await markCostPaid("c1", 55000, "2026-06-04", null)).success).toBe(true);
+    expect(costUpdateMock.mock.calls[0][0].data).toEqual({ paidMinor: 55000, paidAt: new Date("2026-06-04"), paidCurrency: null });
+  });
+
+  it("markCostPaid refuses a paid currency that is not a currency code, and writes nothing", async () => {
+    costFindUniqueMock.mockResolvedValue(eurRow);
+    seed();
+    expect(await markCostPaid("c1", 100, "2026-06-04", 42 as never)).toEqual(refused);
+    expect(costUpdateMock).not.toHaveBeenCalled();
   });
 
   it("markCostPaid refuses a third currency", async () => {

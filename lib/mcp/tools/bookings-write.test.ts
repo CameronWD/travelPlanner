@@ -701,7 +701,7 @@ describe("bookings write tools", () => {
       const c = await connectTestClient();
       await c.callTool({ name: "mark_cost_paid", arguments: { costId: COST_ID, paidMinor: 10000, paidAt: "2026-04-01" } });
       expect(requireTripAccess).toHaveBeenCalledWith(TRIP_ID);
-      expect(markCostPaid).toHaveBeenCalledWith(COST_ID, 10000, "2026-04-01", undefined);
+      expect(markCostPaid).toHaveBeenCalledWith(COST_ID, 10000, "2026-04-01", null);
     });
 
     it("mark_cost_paid passes paidCurrency to markCostPaid", async () => {

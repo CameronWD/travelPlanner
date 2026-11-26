@@ -501,14 +501,14 @@ export function registerBookingsWriteTools(server: McpServer): void {
     "mark_cost_paid",
     {
       title: "Mark cost paid",
-      description: `Marks a Cost paid. ${MONEY_NOTE} paidAt is the date it was paid, YYYY-MM-DD. paidMinor is in paidCurrency.`,
+      description: `Marks a Cost paid. ${MONEY_NOTE} paidAt is the date it was paid, YYYY-MM-DD. paidMinor is in paidCurrency; omit paidCurrency for the Cost's own currency.`,
       inputSchema: {
         costId: z.string(),
         paidMinor: z.number().int().min(0),
         paidAt: isoDate,
         paidCurrency: currencySchema
           .optional()
-          .describe("The currency the money left the account in: the Cost's own currency (the default) or the Trip's Home currency. Nothing else is accepted."),
+          .describe("The currency the money left the account in: the Cost's own currency or the Trip's Home currency. Omit it for the Cost's own currency. Nothing else is accepted."),
       },
     },
     ({ costId, paidMinor, paidAt, paidCurrency }) =>
@@ -516,7 +516,7 @@ export function registerBookingsWriteTools(server: McpServer): void {
         "mark_cost_paid",
         async () => {
           await loadCostForMark(costId);
-          return markCostPaid(costId, paidMinor, paidAt, paidCurrency);
+          return markCostPaid(costId, paidMinor, paidAt, paidCurrency ?? null);
         },
         async () => ({ cost: await loadCostForMcp(costId) }),
       ),
