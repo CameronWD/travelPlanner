@@ -113,13 +113,34 @@ async function endPlaces(
   };
 }
 
-function placeEndZones(
-  ends: { fromStopId: string | null; toStopId: string | null; depIsHome: boolean; arrIsHome: boolean },
-  coords: { depLat: number | null; depLng: number | null; arrLat: number | null; arrLng: number | null },
-) {
+type EndKinds = { fromStopId: string | null; toStopId: string | null; depIsHome: boolean; arrIsHome: boolean };
+type EndCoords = { depLat: number | null; depLng: number | null; arrLat: number | null; arrLng: number | null };
+type HeldEnds = Partial<EndKinds & EndCoords & { depTimezone: string | null; arrTimezone: string | null }>;
+
+const sameCoord = (a: number | null | undefined, b: number | null) =>
+  a == null || b == null ? a == null && b == null : Math.round(a * 1e5) === Math.round(b * 1e5);
+
+// An end whose place is unchanged keeps its stored zone, even none: a legacy
+// row's time must read where it always has until its place is changed.
+function placeEndZone(
+  isPlace: boolean,
+  lat: number | null,
+  lng: number | null,
+  held?: { wasPlace: boolean; lat?: number | null; lng?: number | null; zone?: string | null },
+): string | null {
+  if (!isPlace) return null;
+  if (held?.wasPlace && sameCoord(held.lat, lat) && sameCoord(held.lng, lng)) return held.zone ?? null;
+  return pointTimezone(lat, lng);
+}
+
+function placeEndZones(ends: EndKinds, coords: EndCoords, before?: HeldEnds) {
   return {
-    depTimezone: ends.fromStopId || ends.depIsHome ? null : pointTimezone(coords.depLat, coords.depLng),
-    arrTimezone: ends.toStopId || ends.arrIsHome ? null : pointTimezone(coords.arrLat, coords.arrLng),
+    depTimezone: placeEndZone(!ends.fromStopId && !ends.depIsHome, coords.depLat, coords.depLng, before && {
+      wasPlace: !before.fromStopId && !before.depIsHome, lat: before.depLat, lng: before.depLng, zone: before.depTimezone,
+    }),
+    arrTimezone: placeEndZone(!ends.toStopId && !ends.arrIsHome, coords.arrLat, coords.arrLng, before && {
+      wasPlace: !before.toStopId && !before.arrIsHome, lat: before.arrLat, lng: before.arrLng, zone: before.arrTimezone,
+    }),
   };
 }
 
@@ -344,7 +365,7 @@ export async function updateTransport(
     : null;
   // Home endpoints are not looked up — coords resolve from the trip at read time.
   const ends = await endPlaces(data, { depPlace, arrPlace }, before);
-  const zones = placeEndZones({ fromStopId, toStopId, depIsHome, arrIsHome }, ends);
+  const zones = placeEndZones({ fromStopId, toStopId, depIsHome, arrIsHome }, ends, before);
   const { fromTimezone, toTimezone } = endZones({ fromStopId, toStopId, ...zones }, tzOf);
   const { depTz, arrTz } = resolveEndpointZones(fromTimezone, toTimezone, {
     depIsHome,

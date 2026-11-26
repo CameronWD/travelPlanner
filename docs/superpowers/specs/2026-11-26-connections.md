@@ -35,7 +35,7 @@ Decided with Cam:
 
 A Transport end with no Stop has no timezone of its own today: it borrows the other end's. So a 22:15 arrival in Bangkok on a leg from Denpasar is shown, and saved, in Denpasar's time. With a Connection that is wrong on both legs, and the saved instants make the wait wrong too.
 
-- A Transport end that is a place with coordinates and is neither a Stop nor Home gets its own zone, looked up from the coordinates when the Transport is saved, and stored on the Transport.
+- A Transport end that is a place with coordinates and is neither a Stop nor Home gets its own zone, looked up from the coordinates when the Transport is created or when that end's place is changed, and stored on the Transport.
 - Every reader of a leg's times uses, for each end: Home's zone, else the Stop's, else this stored zone, else the other end's, else UTC. So nothing changes for any Transport that has no stored zone, which is every Transport that exists today.
 - The Transport form shows and reads each end's time in the same zone the save will use, including straight after a place is picked.
 - **This needs a database change** (two optional columns on Transport), which the playback to Cam said there would be none of. It goes to `main` first, then beta once live.
@@ -45,7 +45,7 @@ A Transport end with no Stop has no timezone of its own today: it borrows the ot
 - A Flag for a too-short Connection (logged in `docs/open.md`).
 - Any change to what the booking import proposes. It already makes a connection as two legs; its legs get the stored zone like any other save.
 - A "via" on a single Transport.
-- Backfilling a zone onto existing Transports. They gain one the next time they are saved.
+- Backfilling a zone onto existing Transports. They gain one only when the end's place is changed; until then their times read exactly as they do today.
 
 ## Documents to bring into line
 

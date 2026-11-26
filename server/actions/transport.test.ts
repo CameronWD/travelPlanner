@@ -191,6 +191,8 @@ import {
   reorderTransports,
 } from "./transport";
 import { recordActivity } from "@/lib/activity-record";
+import { transportTimeDisplay } from "@/lib/time-display";
+import { endZones } from "@/lib/leg-zones";
 
 const VALID_INPUT = {
   mode: "FLIGHT" as const,
@@ -934,6 +936,63 @@ describe("a place end's own zone", () => {
 
       expect(updated()).toMatchObject({ arrLat: null, arrTimezone: null });
       expect(updated().arrAt.toISOString()).toBe("2026-12-05T14:15:00.000Z");
+    });
+
+    describe("updating an existing place end without changing its place keeps its stored zone null and its time where it was", () => {
+      const legacy = { ...BKK, arrTimezone: null, arrAt: new Date("2026-12-05T14:15:00.000Z") };
+      const shownArrival = (row: { arrAt: Date | null; arrTimezone?: string | null }) =>
+        transportTimeDisplay({ depAt: null, arrAt: row.arrAt, ...endZones({ fromStopId: "stop-dps", ...row }, (id) => (id === "stop-dps" ? DPS.timezone : null)) }).arr;
+
+      it.each([
+        ["only the notes", { notes: "Window seat please" }],
+        ["only the booking state (set_booking_state's patch)", { bookingState: "BOOKED" as const, bookBy: null }],
+      ])("%s", async (_name, patch) => {
+        heldLeg(legacy);
+
+        await updateTransport("t-zone", patch);
+
+        expect(updated().arrTimezone).toBeNull();
+        expect(updated().arrAt.toISOString()).toBe("2026-12-05T14:15:00.000Z");
+        expect(shownArrival(updated())).toEqual(shownArrival(legacy));
+        expect(shownArrival(updated())?.time).toBe("22:15");
+      });
+    });
+
+    it("changing a place end to a different place gives it the new place's zone and reads the submitted time in it", async () => {
+      heldLeg({ ...BKK, arrTimezone: "Asia/Bangkok" });
+
+      await updateTransport("t-zone", { arrPlace: "Singapore (SIN)", arrPlaceId: "sin-id", arrLat: 1.36, arrLng: 103.99, arrAt: "2026-12-05T22:15" });
+
+      expect(updated()).toMatchObject({ arrTimezone: "Asia/Singapore" });
+      expect(updated().arrAt.toISOString()).toBe("2026-12-05T14:15:00.000Z");
+    });
+
+    it("changing an end from a Stop to a place stores the place's zone", async () => {
+      stopFindManyMock.mockResolvedValue([DPS, { id: "stop-bkk", tripId: "trip-1", forkId: null, timezone: "Asia/Bangkok" }]);
+      heldLeg({ toStopId: "stop-bkk", arrTimezone: null });
+
+      await updateTransport("t-zone", { toStopId: null, ...BKK, arrAt: "2026-12-05T22:15" });
+
+      expect(updated()).toMatchObject({ toStopId: null, arrTimezone: "Asia/Bangkok" });
+      expect(updated().arrAt.toISOString()).toBe("2026-12-05T15:15:00.000Z");
+    });
+
+    it("changing an end from a place to a Stop clears it", async () => {
+      stopFindManyMock.mockResolvedValue([DPS, { id: "stop-bkk", tripId: "trip-1", forkId: null, timezone: "Asia/Bangkok" }]);
+      heldLeg({ ...BKK, arrTimezone: "Asia/Bangkok" });
+
+      await updateTransport("t-zone", { toStopId: "stop-bkk", arrPlace: null });
+
+      expect(updated()).toMatchObject({ toStopId: "stop-bkk", arrTimezone: null });
+    });
+
+    it("re-saving a place end that already has a stored zone, place unchanged, keeps that zone", async () => {
+      heldLeg({ ...BKK, arrLat: 13.690001, arrTimezone: "Asia/Bangkok" });
+
+      await updateTransport("t-zone", { arrPlace: BKK.arrPlace, arrAt: "2026-12-05T22:15" });
+
+      expect(updated()).toMatchObject({ arrTimezone: "Asia/Bangkok" });
+      expect(updated().arrAt.toISOString()).toBe("2026-12-05T15:15:00.000Z");
     });
 
     it("clearing the place clears its zone", async () => {
