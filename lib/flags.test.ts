@@ -19,6 +19,10 @@ import {
   flagMissingHomeConnection,
   flagReturnLegAfterHardEnd,
   flagClosedVenue,
+  flagDrivesShorterThanTimes,
+  canMarkFine,
+  isTightFlag,
+  driveShortFlagTransport,
   SPREAD_DAY_THRESHOLD_KM,
   LONG_DRIVE_DAY_THRESHOLD_MIN,
   TIGHT_CONNECTION_BUFFER_MIN,
@@ -28,6 +32,7 @@ import {
   type FlagItem,
 } from "./flags";
 import { formatDayLabel } from "@/lib/dates";
+import type { HomeBase } from "@/lib/home-base";
 import { driveKey, hopKeys, planTravelKeys, pointKey, type TravelLookup } from "@/lib/travel-times/hops";
 import { flagsToFindings } from "@/lib/review/from-flags";
 import { offeredFix } from "@/lib/review/fixed";
@@ -1134,6 +1139,96 @@ describe("Travel times in the Flags", () => {
         "Long driving day on 2026-07-03: ~6.7h behind the wheel. Check it's doable.",
       );
     });
+
+    it("a long driving day counts a real Travel time shorter than the typed span", () => {
+      const timed = { ...leg, depAt: "2026-12-09T19:00:00Z", arrAt: "2026-12-10T01:00:00Z" };
+      expect(long(new Map([[driveKey(CHCH, QT), ok(290)]]), {}, stops, [timed]).filter((f) => f.id.startsWith("long-drive-"))).toEqual([]);
+      expect(long(new Map(), {}, stops, [timed]).map((f) => [f.id, f.message])).toEqual([
+        ["long-drive-2026-12-10", "Long driving day on 2026-12-10: ~6h behind the wheel. Check it's doable."],
+      ]);
+    });
+
+    it("a long driving day still skips a timed drive with an unlocated end", () => {
+      const unlocated = [stops[0], makeStop({ id: "b", arriveDate: "2026-07-03", departDate: "2026-07-03", timezone: "Pacific/Auckland" })];
+      const timed = { ...leg, depAt: "2026-12-09T19:00:00Z", arrAt: "2026-12-10T01:00:00Z" };
+      expect(long(new Map(), {}, unlocated, [timed])).toEqual([]);
+    });
+  });
+});
+
+describe("flagDrivesShorterThanTimes", () => {
+  const BNE = { lat: -27.4698, lng: 153.0251 };
+  const TWD = { lat: -28.1766, lng: 153.5414 };
+  const STOPS: FlagStop[] = [
+    makeStop({ id: "bne", name: "Brisbane", timezone: "Australia/Brisbane", ...BNE, arriveDate: "2026-12-01", departDate: "2026-12-05", sortOrder: 0 }),
+    makeStop({ id: "twd", name: "Tweed Heads", timezone: "Australia/Sydney", ...TWD, arriveDate: "2026-12-05", departDate: "2026-12-08", sortOrder: 1 }),
+  ];
+  const OPTS = { windingFactor: 1.5, avgSpeedKph: 80 };
+  const ok = (minutes: number) => ({ status: "OK" as const, minutes, distanceM: 95_000, polyline: null });
+  const travel: TravelLookup = new Map([[driveKey(BNE, TWD), ok(72)]]);
+  const drive = makeTransport({ id: "t1", mode: "CAR", fromStopId: "bne", toStopId: "twd", depAt: "2026-12-04T23:00:00Z", arrAt: "2026-12-05T00:00:00Z" });
+  const flagsFor = (t: FlagTransport[], lookup: TravelLookup = travel) => flagDrivesShorterThanTimes(STOPS, t, { ...OPTS, lookup });
+
+  it("flags a cross-zone drive whose times allow 60 minutes for a 72 minute road", () => {
+    const flags = flagDrivesShorterThanTimes(STOPS, [drive], { windingFactor: 1.5, avgSpeedKph: 80, lookup: travel });
+    expect(flags).toEqual([expect.objectContaining({
+      id: "drive-short-t1", severity: "warning", targetType: "DAY", date: "2026-12-05",
+      message: "Drive from Brisbane to Tweed Heads on 2026-12-05: your times allow 1h but the road takes about 1h 12m.",
+      between: { from: "Brisbane", to: "Tweed Heads" },
+    })]);
+    expect(canMarkFine(flags[0])).toBe(true);
+    expect(isTightFlag(flags[0])).toBe(false);
+    expect(driveShortFlagTransport(flags[0].id)).toBe("t1");
+    expect(driveShortFlagTransport("tight-a-b")).toBeNull();
+  });
+
+  it("never flags from the estimate", () => {
+    expect(flagsFor([drive], new Map())).toEqual([]);
+  });
+
+  it("does not flag times that allow the road", () => {
+    expect(flagsFor([{ ...drive, arrAt: "2026-12-05T00:15:00Z" }])).toEqual([]);
+  });
+
+  it("does not flag a drive with one time, a same-point drive, or a timed TRAIN", () => {
+    expect(flagsFor([{ ...drive, arrAt: null }])).toEqual([]);
+    expect(flagsFor([{ ...drive, depAt: null }])).toEqual([]);
+    expect(flagsFor([{ ...drive, toStopId: "bne" }], new Map([[driveKey(BNE, BNE), ok(72)]]))).toEqual([]);
+    expect(flagsFor([{ ...drive, mode: "TRAIN" }])).toEqual([]);
+  });
+
+  it("names a Home end and a place end", () => {
+    const AIRPORT = { lat: -27.3842, lng: 153.1175 };
+    const MULL = { lat: -28.5513, lng: 153.4995 };
+    const home: HomeBase = { name: "Mullumbimby", ...MULL, countryCode: "AU" };
+    const fromAirport = makeTransport({
+      id: "t2", mode: "CAR", depPlace: "Brisbane Airport", depLat: AIRPORT.lat, depLng: AIRPORT.lng, depTimezone: "Australia/Brisbane",
+      arrIsHome: true, depAt: "2026-12-04T23:00:00Z", arrAt: "2026-12-05T00:00:00Z",
+    });
+    const flags = flagDrivesShorterThanTimes(STOPS, [fromAirport], {
+      ...OPTS, lookup: new Map([[driveKey(AIRPORT, MULL), ok(100)]]), home, homePoint: MULL, homeTimezone: "Australia/Sydney",
+    });
+    expect(flags).toHaveLength(1);
+    expect(flags[0].message).toMatch(/^Drive from Brisbane Airport to Mullumbimby on /);
+    expect(flags[0].between).toEqual({ from: "Brisbane Airport", to: "Mullumbimby" });
+  });
+
+  it("the fingerprint changes with either time and with a Travel time about 5 minutes longer, not with 1 minute", () => {
+    const fp = (t: FlagTransport, minutes = 72) => flagsFor([t], new Map([[driveKey(BNE, TWD), ok(minutes)]]))[0].fingerprint;
+    const base = fp(drive);
+    expect(base).toBeDefined();
+    expect(fp({ ...drive, depAt: "2026-12-04T22:59:00Z" })).not.toBe(base);
+    expect(fp({ ...drive, arrAt: "2026-12-05T00:01:00Z" })).not.toBe(base);
+    expect(fp(drive, 77)).not.toBe(base);
+    expect(fp(drive, 71)).toBe(fp(drive, 72));
+  });
+
+  it("detectFlags hides the drive Flag from a viewer the Surprise Stop is hidden from", () => {
+    const input = { stops: STOPS, transports: [drive], accommodations: [], items: [], tripStart: "2026-12-01", tripEnd: "2026-12-08", travel };
+    const driveIds = (hiddenStopIds: string[]) =>
+      detectFlags({ ...input, hiddenStopIds }).map((f) => f.id).filter((id) => id.startsWith("drive-short-"));
+    expect(driveIds(["twd"])).toEqual([]);
+    expect(driveIds([])).toEqual(["drive-short-t1"]);
   });
 });
 

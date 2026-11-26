@@ -635,6 +635,18 @@ describe("drivingMinutes", () => {
     expect(computePlanMetrics(input).drivingMinutes).toBe(120);
   });
 
+  it("drivingMinutes counts a real Travel time shorter than a drive's typed span", () => {
+    const key = `DRIVE|${london.lat.toFixed(5)},${london.lng.toFixed(5)}|${paris.lat.toFixed(5)},${paris.lng.toFixed(5)}`;
+    const travel = new Map([[key, { status: "OK" as const, minutes: 290, distanceM: 460000, polyline: null }]]);
+    const transports = [makeTransport("t1", { mode: "CAR", fromStopId: "london", toStopId: "paris", depAt: "2026-07-03T08:00:00Z", arrAt: "2026-07-03T14:00:00Z" })];
+    expect(computePlanMetrics(carInput({ travel, transports })).drivingMinutes).toBe(290);
+  });
+
+  it("counts the span when only an estimate exists", () => {
+    const transports = [makeTransport("t1", { mode: "CAR", fromStopId: "london", toStopId: "paris", depAt: "2026-07-03T08:00:00Z", arrAt: "2026-07-03T14:00:00Z" })];
+    expect(computePlanMetrics(carInput({ transports })).drivingMinutes).toBe(360);
+  });
+
   it("returns 0 for non-CAR transports or missing coords", () => {
     const input: PlanMetricsInput = {
       ...emptyInput(),

@@ -31,6 +31,7 @@ import { resolveTripDeadline } from "@/lib/trip-deadline";
 import { tripHomeBase } from "@/lib/home-base";
 import { applyMarkedFine, type MarkedFineRow } from "@/lib/flag-dismissals";
 import { carLegs, hopStopsById, homePointOf, resolveDriveLeg, toPlanTransport, type HopModeChoice, type TravelLookup } from "@/lib/travel-times/hops";
+import { drivingMinutes as legDrivingMinutes } from "@/lib/travel-times/drive-fit";
 
 // ---------------------------------------------------------------------------
 // Input shapes
@@ -488,9 +489,9 @@ export function computePlanMetrics(input: PlanMetricsInput): PlanMetrics {
   let drivingMinutes = 0;
   for (const leg of carLegs(transports.map(toPlanTransport), hopStopsById(stops), homePointOf(trip))) {
     const t = carTransports.get(leg.transportId);
-    const dep = t?.depAt ? new Date(t.depAt).getTime() : NaN;
-    const arr = t?.arrAt ? new Date(t.arrAt).getTime() : NaN;
-    drivingMinutes += arr > dep ? (arr - dep) / 60000 : resolveDriveLeg(leg.from, leg.to, input.travel, estimateOpts).minutes;
+    const dep = t?.depAt ? new Date(t.depAt) : null;
+    const arr = t?.arrAt ? new Date(t.arrAt) : null;
+    drivingMinutes += legDrivingMinutes(resolveDriveLeg(leg.from, leg.to, input.travel, estimateOpts), dep, arr).minutes;
   }
 
   return {

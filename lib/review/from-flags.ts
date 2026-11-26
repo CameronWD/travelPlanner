@@ -36,6 +36,7 @@ const RULES: readonly { prefix: string; category: FindingCategory; title: string
   { prefix: "packed-day", category: "LOGISTICS", title: "Packed day" },
   { prefix: "spread-day", category: "LOGISTICS", title: "Spread-out day" },
   { prefix: "long-drive", category: "LOGISTICS", title: "Long driving day" },
+  { prefix: "drive-short", category: "LOGISTICS", title: "Too little time for the drive" },
   { prefix: "tight", category: "LOGISTICS", title: "Tight connection" },
   { prefix: "missing-connection", category: "LOGISTICS", title: "Missing connection" },
   { prefix: "missing-home-outbound", category: "LOGISTICS", title: "No way there from home" },
