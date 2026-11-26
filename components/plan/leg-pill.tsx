@@ -34,6 +34,7 @@ export function LegRow({ kind, compact, children, changeovers }: LegRowProps) {
     if (joined) runs[runs.length - 1].push(entry);
     else runs.push([entry]);
   });
+  const spread = runs.some((run) => run.length > 1);
   return (
     <div data-leg-kind={kind} className={cn("flex items-stretch", compact ? "min-h-10" : "min-h-[52px]")}>
       <span
@@ -46,9 +47,10 @@ export function LegRow({ kind, compact, children, changeovers }: LegRowProps) {
           data-leg-stack
           className={cn(
             "flex min-w-0 flex-col items-start max-md:items-stretch",
+            legs && (spread ? "gap-14" : "gap-3"),
             // Room for the marker: the row starts 53px (compact) / 63px from the
             // left, so the stack margin is 53 - 22 = 31px / 63 - 28 = 35px.
-            legs ? (compact ? "ml-[31px] gap-3 py-4" : "ml-[35px] gap-3 py-5") : cn("gap-1.5 py-2", compact ? "ml-3" : "ml-[18px]"),
+            legs ? (compact ? "ml-[31px] py-4" : "ml-[35px] py-5") : cn("gap-1.5 py-2", compact ? "ml-3" : "ml-[18px]"),
           )}
         >
           {runs.map((run) => (
@@ -111,10 +113,10 @@ export function LegRow({ kind, compact, children, changeovers }: LegRowProps) {
 
 export function JourneyJoin({ label, compact }: { label: string; compact?: boolean }) {
   // pt clears the card above's offset shadow; the row then holds the pill with
-  // 8px above and below it.
+  // 6px above and below it.
   return (
     <div className={cn("w-full min-w-0", compact ? "pt-[3px]" : "pt-1")}>
-      <div className="relative flex h-10 items-center">
+      <div className="relative flex h-9 items-center">
         <span
           data-layover-stub
           aria-hidden

@@ -151,6 +151,18 @@ describe("LegRow — metro line (spec 2026-10-05 §F)", () => {
     expect(container.querySelector("[data-layover-stub]")).not.toBeNull();
   });
 
+  it("separate journeys in one stack sit further apart than the cards of one journey", () => {
+    const { container } = journey([null, JOURNEY, null], true);
+    const stack = container.querySelector("[data-leg-stack]") as HTMLElement;
+    expect(stack.className).toContain("gap-14");
+    expect(stack.className).not.toContain("gap-3");
+  });
+
+  it("a stack with no joined cards keeps its gap", () => {
+    const { container } = journey([null, null]);
+    expect((container.querySelector("[data-leg-stack]") as HTMLElement).className).toContain("gap-3");
+  });
+
   it("an unjoined pair has no layover marker", () => {
     const { container } = journey([null, null]);
     expect(container.querySelector("[data-layover-dot]")).toBeNull();
