@@ -191,7 +191,7 @@ import {
   reorderTransports,
   saveTransportWithLayover,
 } from "./transport";
-import { isConnection, sameBooking } from "@/lib/connections";
+import { isConnection, sameBooking, waitMinutes } from "@/lib/connections";
 import { groupTransportsBySlot, HEAD_SLOT } from "@/lib/transport-anchor";
 import { recordActivity } from "@/lib/activity-record";
 import { transportTimeDisplay } from "@/lib/time-display";
@@ -2563,20 +2563,40 @@ describe("saveTransportWithLayover", () => {
     expect(committed.get("t-new-1")).toMatchObject({ nothingToAttach: true });
   });
 
-  it("a layover with no zone shows on each card exactly the times typed for it", async () => {
-    await saveTransportWithLayover({ tripId: "trip-1" }, JOURNEY, { ...LAYOVER, place: "Bangkok", placeId: undefined, lat: undefined, lng: undefined });
-
-    const first = committed.get("t-new-1")!;
-    const second = committed.get("t-new-2")!;
-    expect(first).toMatchObject({ arrTimezone: null });
-    expect(second).toMatchObject({ depTimezone: null });
+  describe("a layover the map cannot find", () => {
+    const UNFOUND = { ...LAYOVER, place: "Bangkok", placeId: undefined, lat: undefined, lng: undefined };
     const stopZone = (id: string | null | undefined) => [DPS, MUC].find((s) => s.id === id)?.timezone ?? null;
     const shown = (row: Row) => transportTimeDisplay({
       depAt: row.depAt as Date, arrAt: row.arrAt as Date,
       ...endZones(row as Parameters<typeof endZones>[0], stopZone),
     });
-    expect(shown(first).arr?.time).toBe("22:15");
-    expect(shown(second).dep?.time).toBe("00:50");
-    expect(shown(second).dep?.dateISO).toBe("2026-12-06");
+    const leg = (r: Row) => r as unknown as Parameters<typeof waitMinutes>[0];
+
+    it("keeps one zone on both ends", async () => {
+      const result = await saveTransportWithLayover({ tripId: "trip-1" }, JOURNEY, UNFOUND);
+
+      expect(result.success).toBe(true);
+      const first = committed.get("t-new-1")!;
+      const second = committed.get("t-new-2")!;
+      expect(first).toMatchObject({ arrLat: null, arrTimezone: "Asia/Makassar" });
+      expect(second).toMatchObject({ depLat: null, depTimezone: "Asia/Makassar" });
+      expect(waitMinutes(leg(first), leg(second))).toBe(155);
+      expect(shown(first).arr?.time).toBe("22:15");
+      expect(shown(second).dep?.time).toBe("00:50");
+      expect(shown(second).dep?.dateISO).toBe("2026-12-06");
+      expect(shown(first).dep?.time).toBe("19:00");
+      expect(shown(second).arr?.time).toBe("06:45");
+    });
+
+    it("a wait of a day or more is still refused", async () => {
+      const result = await saveTransportWithLayover(
+        { tripId: "trip-1" },
+        { ...JOURNEY, fromStopId: "stop-muc", toStopId: "stop-dps", depAt: "2026-12-05T10:00", arrAt: "2026-12-07T16:00" },
+        { ...UNFOUND, landAt: "2026-12-05T22:15", leaveAt: "2026-12-06T22:15" },
+      );
+
+      expect(result).toEqual({ success: false, errors: { layoverLeaveAt: ["A layover is under a day. For a longer stay, add a Stop."] } });
+      expect(transactionMock).not.toHaveBeenCalled();
+    });
   });
 });

@@ -213,7 +213,7 @@ function rowColumns(
   };
 }
 
-type PreparedRow = { columns: ReturnType<typeof rowColumns> };
+type PreparedRow = { columns: ReturnType<typeof rowColumns>; readZones: Awaited<ReturnType<typeof wallZones>> };
 type PreparedUpdate = PreparedRow & { data: TransportInput; owned: OwnedCostRow[] };
 
 async function prepareCreateRow(
@@ -255,7 +255,7 @@ async function prepareCreateRow(
   };
   const { depTz, arrTz } = readZones(zones);
   const times = { depAt: wallTimeToInstant(data.depAt, depTz), arrAt: wallTimeToInstant(data.arrAt, arrTz) };
-  return { columns: rowColumns(data, { ...kinds, anchorStopId, depPlace, arrPlace }, times, ends, zones, booking) };
+  return { columns: rowColumns(data, { ...kinds, anchorStopId, depPlace, arrPlace }, times, ends, zones, booking), readZones };
 }
 
 async function prepareUpdateRow(
@@ -328,7 +328,7 @@ async function prepareUpdateRow(
   });
   const { depTz, arrTz } = readZones(zones);
   const times = { depAt: wallTimeToInstant(data.depAt, depTz), arrAt: wallTimeToInstant(data.arrAt, arrTz) };
-  return { columns: rowColumns(data, { ...kinds, anchorStopId, depPlace, arrPlace }, times, ends, zones, booking), data, owned };
+  return { columns: rowColumns(data, { ...kinds, anchorStopId, depPlace, arrPlace }, times, ends, zones, booking), readZones, data, owned };
 }
 
 type InlineCostFields = Pick<TransportInput, "costMinor" | "currency" | "paidMinor" | "paidAt" | "settlement">;
@@ -609,6 +609,33 @@ async function prepareSecondRow(
   const details = { carrier, serviceNumber: layover.serviceNumber, seat: layover.seat };
   return {
     columns: rowColumns({ mode, reference, ...details }, ends, times, places, zones, { bookingState, bookingStateSet, bookBy }),
+    readZones,
+  };
+}
+
+// A layover the map cannot find gets the zone its first row's arrival would
+// borrow anyway, stored on both ends so both times read, check and show in one zone.
+async function zoneForUnfoundLayover(tripId: string, first: PreparedRow, second: PreparedRow) {
+  const journeyZones = await wallZones(tripId, {
+    fromStopId: first.columns.fromStopId,
+    toStopId: second.columns.toStopId,
+    depIsHome: first.columns.depIsHome,
+    arrIsHome: second.columns.arrIsHome,
+  });
+  return journeyZones({ depTimezone: first.columns.depTimezone, arrTimezone: second.columns.arrTimezone }).depTz;
+}
+
+function rezoned<R extends PreparedRow>(
+  row: R,
+  zone: Partial<PlaceZones>,
+  depWall: TransportInput["depAt"],
+  arrWall: TransportInput["arrAt"],
+): R {
+  const zones = { depTimezone: row.columns.depTimezone, arrTimezone: row.columns.arrTimezone, ...zone };
+  const { depTz, arrTz } = row.readZones(zones);
+  return {
+    ...row,
+    columns: { ...row.columns, ...zones, depAt: wallTimeToInstant(depWall, depTz), arrAt: wallTimeToInstant(arrWall, arrTz) },
   };
 }
 
@@ -653,12 +680,18 @@ export async function saveTransportWithLayover(
     arrRegion: undefined,
     arrAt: stop.landAt,
   };
-  const first: ActionFailure | PreparedUpdate = held
+  let first: ActionFailure | PreparedUpdate = held
     ? await prepareUpdateRow(held.transport, held.before, toPatch(firstInput, transportClearable(firstInput)))
     : await prepareCreateRow(tripId, plan, firstInput).then((row) => ("success" in row ? row : { ...row, data: firstInput, owned: [] }));
   if ("success" in first) return first;
-  const second = await prepareSecondRow(tripId, plan, journey, stop, first, held?.before ?? null);
-  if ("success" in second) return second;
+  const prepared = await prepareSecondRow(tripId, plan, journey, stop, first, held?.before ?? null);
+  if ("success" in prepared) return prepared;
+  let second: PreparedRow = prepared;
+  if (!first.columns.arrTimezone) {
+    const guess = await zoneForUnfoundLayover(tripId, first, second);
+    first = rezoned(first, { arrTimezone: guess }, first.data.depAt, first.data.arrAt);
+    second = rezoned(second, { depTimezone: guess }, stop.leaveAt, journey.arrAt);
+  }
 
   const refusals = layoverTimeRefusals(stopover, {
     departs: first.columns.depAt,
