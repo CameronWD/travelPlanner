@@ -13,6 +13,7 @@ export async function loadTripCurrencies(
   const [stops, costs] = await Promise.all([
     db.stop.findMany({
       where: { tripId, ...REAL_PLAN, id: { notIn: v.hiddenStopIds } },
+      orderBy: { sortOrder: "asc" },
       select: { id: true, countryCode: true, arriveDate: true, departDate: true, sortOrder: true },
     }),
     db.cost.findMany({
