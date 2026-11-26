@@ -943,11 +943,19 @@ export function HelpGuide({
                 how much and when, offered pre-filled with the cost, so
                 confirming something that came to exactly what you expected is
                 one tap. Nothing is ever recorded as paid without an amount, so
-                &ldquo;paid&rdquo; always means a real number.
+                &ldquo;paid&rdquo; always means a real number.{" "}
+                <strong className="font-semibold">You paid</strong> has its own
+                currency, the cost&rsquo;s or your home currency, so you can
+                record what actually left your account. A &euro;550 room paid
+                from your card in dollars is entered as the dollars. Changing
+                it clears the amount rather than converting it.
               </li>
             </ul>
             <p>
-              Enter each amount in the currency you were charged in. The app
+              Enter each amount in the currency you were charged in. The
+              currency list shows your trip&rsquo;s own currencies first, and{" "}
+              <strong className="font-semibold">More currencies</strong> has
+              the rest. The app
               converts everything into your trip&rsquo;s home currency for the
               totals, and you can override a rate if you know better than it
               does.

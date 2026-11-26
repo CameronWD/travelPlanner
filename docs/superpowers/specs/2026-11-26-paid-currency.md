@@ -45,6 +45,7 @@ Today a Cost has one currency for both its cost amount and its paid amount, and 
 - **Both amounts side by side** ("€550.00 · paid A$905.12") appear only on the line for a single Cost paid in another currency. Cards and rows show the one current number.
 - **A Cost paid in Home whose own currency has no exchange rate** is left out of Home totals like any Cost with a missing rate, so its cost and paid amounts stay paired, and is named in the missing-rate line. This departs from "counts as exactly the amount typed" for that rare case.
 - **Deleting a thing paid in Home** leaves an Other cost in the paid currency for the paid amount.
+- **A Cost with no recorded paid currency follows its own currency** when that currency is changed, exactly as before this work, even when its currency was the Home currency. Home is kept as the paid currency through a change of the Cost's currency only when it was recorded explicitly. A save that does not mention a paid currency must write exactly what it wrote before.
 
 ## Not in this work
 
