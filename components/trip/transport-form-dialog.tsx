@@ -10,6 +10,7 @@ import { Button } from "@/components/ui/button";
 import { Field } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { PlaceCombobox, type PickedPlace } from "@/components/ui/place-combobox";
+import { samePlaceText } from "@/lib/place-save";
 import { Textarea } from "@/components/ui/textarea";
 import {
   Select,
@@ -111,11 +112,8 @@ function placePoint(value: LocationValue, saved: SavedEnd | null): Point | null 
   if (value.kind === "stop" || value.kind === "home") return null;
   if (value.kind === "place" && value.placeId && value.lat !== undefined && value.lng !== undefined) return { lat: value.lat, lng: value.lng };
   const text = value.kind === "place" ? value.name || null : null;
-  return saved && saved.text === text && saved.lat != null && saved.lng != null ? { lat: saved.lat, lng: saved.lng } : null;
+  return saved && samePlaceText(saved.text, text) && saved.lat != null && saved.lng != null ? { lat: saved.lat, lng: saved.lng } : null;
 }
-
-// server/actions/transport.ts is a "use server" module, so its samePlaceText is restated here.
-const samePlaceText = (a: string | null, b: string | null) => (a ?? "").trim().toLowerCase() === (b ?? "").trim().toLowerCase();
 
 function keepsSavedZone(value: LocationValue, saved: SavedEnd | null): saved is SavedEnd {
   if (!saved?.wasPlace) return false;
