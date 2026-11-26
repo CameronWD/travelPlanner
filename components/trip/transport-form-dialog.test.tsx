@@ -2659,7 +2659,7 @@ describe("TransportFormDialog: a drive's Travel time", () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
-    vi.mocked(driveTimeForEnds).mockResolvedValue(null);
+    vi.mocked(driveTimeForEnds).mockReset().mockResolvedValue(null);
   });
 
   it("a timed drive shows its Travel time and says the times allow 1h", async () => {
