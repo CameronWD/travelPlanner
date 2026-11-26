@@ -19,6 +19,8 @@ Decided with Cam:
 - The existing "Change at …" line between two legs that meet at a Stop keeps working and gains the wait in the same way.
 - **The journey home and the journey out.** The Home card at each end of the Plan holds one leg today. A journey home is the leg leaving the last Stop plus every Connection leg after it; a journey out is the leg arriving at the first Stop plus every Connection leg before it. Each is drawn as one stack with its layover lines. Everything that asks "is there a way home", "when do we get home" or "when do we leave home" reads the whole journey: the last leg's arrival, the first leg's departure.
 
+**How it is drawn (decided with Cam on 2026-11-26 from screenshots).** The layover is its own stop on the line between the two travel cards (plane, clock, plane), with the wait in a pill beside the clock, replacing the line of text the first version put between the cards. Both cards keep their marker and share a width. Separate journeys in one slot sit further apart than the Transports of one journey.
+
 ## 2. The wait, elsewhere
 
 - **Day view:** a line in the timeline directly after the arrival that starts a Connection, on the day of that arrival: "Layover in Bangkok · 2h 35m".

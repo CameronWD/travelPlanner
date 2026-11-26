@@ -897,6 +897,13 @@ export function HelpGuide({
               : one box, whatever you&rsquo;re travelling on.
             </p>
             <p>
+              When you change planes or trains somewhere you&rsquo;re not
+              staying, add the second ticket as its own transport. The Plan
+              draws the two together, with the wait in between, for example
+              &ldquo;Layover in Bangkok · 2h 35m&rdquo; or &ldquo;Change at
+              Lyon · 12m&rdquo;. Your journey home can be several of them too.
+            </p>
+            <p>
               Both of them take a{" "}
               <strong className="font-semibold">Cost</strong> in the same form,
               so you never have to go somewhere else to write down what the hotel
@@ -1012,6 +1019,12 @@ export function HelpGuide({
               exception: it takes its files in its own form, once you&rsquo;ve
               saved it. Whichever way you attach something, it turns up here as
               well.
+            </p>
+            <p>
+              When two transports share a booking reference, such as a flight
+              and its connection, a ticket added to one shows on the other as
+              well, marked with the transport it&rsquo;s filed on. You only
+              need to add it once.
             </p>
           </Section>
 
