@@ -8,6 +8,7 @@ import { wallTimeToInstant } from "@/lib/wall-time";
 import { resolveEndpointZones } from "@/lib/time-display";
 import { endZones } from "@/lib/leg-zones";
 import { pointTimezone } from "@/lib/tz-point";
+import { isValidTimeZone } from "@/lib/tz";
 import { geocodePlaceDetailed } from "@/lib/geocode";
 import { pickedPlace, placeForSave, type SavedPlace } from "@/lib/place-save";
 import { auditedUpdate, recordPlanActivity } from "@/lib/activity-guard";
@@ -115,32 +116,41 @@ async function endPlaces(
 
 type EndKinds = { fromStopId: string | null; toStopId: string | null; depIsHome: boolean; arrIsHome: boolean };
 type EndCoords = { depLat: number | null; depLng: number | null; arrLat: number | null; arrLng: number | null };
-type HeldEnds = Partial<EndKinds & EndCoords & { depTimezone: string | null; arrTimezone: string | null }>;
+type HeldEnds = Partial<EndKinds & EndCoords & {
+  depPlace: string | null; arrPlace: string | null; depTimezone: string | null; arrTimezone: string | null;
+}>;
+type SentEnds = { depPlace: string | null; arrPlace: string | null; depPick: SavedPlace | null; arrPick: SavedPlace | null };
 
 const sameCoord = (a: number | null | undefined, b: number | null) =>
   a == null || b == null ? a == null && b == null : Math.round(a * 1e5) === Math.round(b * 1e5);
+const samePlaceText = (a: string | null | undefined, b: string | null) => (a ?? "").trim().toLowerCase() === (b ?? "").trim().toLowerCase();
 
-// An end whose place is unchanged keeps its stored zone, even none: a legacy
-// row's time must read where it always has until its place is changed.
-function placeEndZone(
-  isPlace: boolean,
-  lat: number | null,
-  lng: number | null,
-  held?: { wasPlace: boolean; lat?: number | null; lng?: number | null; zone?: string | null },
-): string | null {
+type HeldEnd = { wasPlace: boolean; text?: string | null; lat?: number | null; lng?: number | null; zone?: string | null };
+type SentEnd = { text: string | null; pick: SavedPlace | null };
+
+// "Its place changed" is read from what the save sends, never from what a lookup
+// resolved: a legacy row's time must read where it always has until then.
+function placeEndZone(isPlace: boolean, lat: number | null, lng: number | null, held?: HeldEnd, sent?: SentEnd): string | null {
   if (!isPlace) return null;
-  if (held?.wasPlace && sameCoord(held.lat, lat) && sameCoord(held.lng, lng)) return held.zone ?? null;
-  return pointTimezone(lat, lng);
+  if (!held?.wasPlace || !sent) return pointTimezone(lat, lng);
+  const changed = sent.pick
+    ? !sameCoord(held.lat, sent.pick.lat) || !sameCoord(held.lng, sent.pick.lng)
+    : !samePlaceText(held.text, sent.text);
+  return changed ? pointTimezone(lat, lng) : (held.zone ?? null);
 }
 
-function placeEndZones(ends: EndKinds, coords: EndCoords, before?: HeldEnds) {
+function placeEndZones(ends: EndKinds, coords: EndCoords, before?: HeldEnds, sent?: SentEnds) {
   return {
-    depTimezone: placeEndZone(!ends.fromStopId && !ends.depIsHome, coords.depLat, coords.depLng, before && {
-      wasPlace: !before.fromStopId && !before.depIsHome, lat: before.depLat, lng: before.depLng, zone: before.depTimezone,
-    }),
-    arrTimezone: placeEndZone(!ends.toStopId && !ends.arrIsHome, coords.arrLat, coords.arrLng, before && {
-      wasPlace: !before.toStopId && !before.arrIsHome, lat: before.arrLat, lng: before.arrLng, zone: before.arrTimezone,
-    }),
+    depTimezone: placeEndZone(
+      !ends.fromStopId && !ends.depIsHome, coords.depLat, coords.depLng,
+      before && { wasPlace: !before.fromStopId && !before.depIsHome, text: before.depPlace, lat: before.depLat, lng: before.depLng, zone: before.depTimezone },
+      sent && { text: sent.depPlace, pick: sent.depPick },
+    ),
+    arrTimezone: placeEndZone(
+      !ends.toStopId && !ends.arrIsHome, coords.arrLat, coords.arrLng,
+      before && { wasPlace: !before.toStopId && !before.arrIsHome, text: before.arrPlace, lat: before.arrLat, lng: before.arrLng, zone: before.arrTimezone },
+      sent && { text: sent.arrPlace, pick: sent.arrPick },
+    ),
   };
 }
 
@@ -158,6 +168,7 @@ export async function createTransport(
   tripId: string,
   input: TransportInput,
   forkId?: PlanId,
+  importZones?: { depTimezone?: string; arrTimezone?: string },
 ): Promise<ActionResult<{ id: string }>> {
   const { plan } = await requirePlanAccess(tripId, forkId);
 
@@ -201,7 +212,14 @@ export async function createTransport(
   // Home endpoints are not looked up — coords resolve from the trip at read time.
   const ends = await endPlaces(data, { depPlace, arrPlace });
   const zones = placeEndZones({ fromStopId, toStopId, depIsHome, arrIsHome }, ends);
-  const { fromTimezone, toTimezone } = endZones({ fromStopId, toStopId, ...zones }, tzOf);
+  // The booking import's zone for an end with no Stop reads its time only when no point zone was found; it is never stored.
+  const fallback = (isPlace: boolean, zone: string | undefined) => (isPlace && zone && isValidTimeZone(zone) ? zone : null);
+  const { fromTimezone, toTimezone } = endZones({
+    fromStopId,
+    toStopId,
+    depTimezone: zones.depTimezone ?? fallback(!fromStopId && !depIsHome, importZones?.depTimezone),
+    arrTimezone: zones.arrTimezone ?? fallback(!toStopId && !arrIsHome, importZones?.arrTimezone),
+  }, tzOf);
   const { depTz, arrTz } = resolveEndpointZones(fromTimezone, toTimezone, {
     depIsHome,
     arrIsHome,
@@ -365,7 +383,12 @@ export async function updateTransport(
     : null;
   // Home endpoints are not looked up — coords resolve from the trip at read time.
   const ends = await endPlaces(data, { depPlace, arrPlace }, before);
-  const zones = placeEndZones({ fromStopId, toStopId, depIsHome, arrIsHome }, ends, before);
+  const zones = placeEndZones({ fromStopId, toStopId, depIsHome, arrIsHome }, ends, before, {
+    depPlace,
+    arrPlace,
+    depPick: depPlace ? pickedPlace({ placeId: data.depPlaceId, lat: data.depLat, lng: data.depLng }) : null,
+    arrPick: arrPlace ? pickedPlace({ placeId: data.arrPlaceId, lat: data.arrLat, lng: data.arrLng }) : null,
+  });
   const { fromTimezone, toTimezone } = endZones({ fromStopId, toStopId, ...zones }, tzOf);
   const { depTz, arrTz } = resolveEndpointZones(fromTimezone, toTimezone, {
     depIsHome,

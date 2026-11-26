@@ -1225,6 +1225,37 @@ describe("collectDigestInput", () => {
     ]);
   });
 
+  it("times a departure from a place with its own zone in that zone, ahead of the recipient's device zone", async () => {
+    dbData.trip = [
+      { id: TRIP_ID, startDate: TOMORROW, endDate: "2026-12-12", homeName: "Brisbane", homeCountryCode: "au", homeTimezone: "Australia/Brisbane" },
+    ];
+    dbData.stop = [
+      { id: "stop-1", tripId: TRIP_ID, forkId: null, name: "Vienna", timezone: "Europe/Vienna" },
+    ];
+    dbData.transport = [
+      {
+        id: "tr-connection",
+        tripId: TRIP_ID,
+        forkId: null,
+        mode: "FLIGHT",
+        fromStopId: null,
+        toStopId: "stop-1",
+        depPlace: "Bangkok (BKK)",
+        arrPlace: null,
+        // 2026-12-01T23:00Z is 2026-12-02 06:00 in Bangkok, still 2026-12-01 in Los Angeles.
+        depAt: new Date("2026-12-01T23:00:00Z"),
+        reference: null,
+        depIsHome: false,
+        arrIsHome: false,
+        depTimezone: "Asia/Bangkok",
+      },
+    ];
+
+    const input = await collect({ slot: "EVENING", zone: "America/Los_Angeles" });
+
+    expect(input.schedule.transports).toEqual([expect.objectContaining({ id: "tr-connection", localTime: "06:00" })]);
+  });
+
   it("prints an outbound departure in the recipient's own zone, not the country guess", async () => {
     // Gold Coast is Queensland — AEST all year. `au` guesses Australia/Sydney,
     // which is AEDT in December, so a 06:00 departure printed as 07:00.

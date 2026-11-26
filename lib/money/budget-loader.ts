@@ -250,7 +250,7 @@ export async function loadBudget(tripId: string, viewerId: string, forkId?: Plan
     }),
     db.transport.findMany({
       where: { tripId, ...planScope(forkId) },
-      select: { id: true, fromStopId: true, toStopId: true, depAt: true, depIsHome: true },
+      select: { id: true, fromStopId: true, toStopId: true, depAt: true, depIsHome: true, depTimezone: true },
     }),
     // Rough (date-less) chapters have no dated window — buildBudget would
     // emit a blank $0 row for each, so exclude them (matches the Budget page).

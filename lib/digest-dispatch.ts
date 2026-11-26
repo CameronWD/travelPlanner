@@ -295,6 +295,7 @@ export async function collectDigestInput(opts: {
           reference: true,
           fromStopId: true,
           toStopId: true,
+          depTimezone: true,
         },
       })
     : [];
@@ -351,6 +352,7 @@ type TransportRow = {
   reference: string | null;
   fromStopId: string | null;
   toStopId: string | null;
+  depTimezone?: string | null;
 };
 
 type StopRow = {
@@ -606,7 +608,7 @@ function transportZone(
   homeTimezone: string | null,
 ): string {
   if (t.depIsHome && homeTimezone) return homeTimezone;
-  if (!t.fromStopId) return tripZone;
+  if (!t.fromStopId) return t.depTimezone ?? tripZone;
   const from = stopById.get(t.fromStopId);
   if (from?.timezone) return from.timezone;
   // A departure Stop that is still rough has no zone of its own; the arrival

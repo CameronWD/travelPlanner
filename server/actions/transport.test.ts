@@ -902,6 +902,30 @@ describe("a place end's own zone", () => {
       expect(created().arrAt.toISOString()).toBe("2026-12-05T12:15:00.000Z");
     });
 
+    describe("with the booking import's zone for an end with no Stop", () => {
+      const OOL = { id: "stop-ool", tripId: "trip-1", forkId: null, timezone: "Australia/Brisbane" };
+      const toDenpasar = { mode: "FLIGHT" as const, fromStopId: "stop-ool", arrPlace: "Denpasar (DPS)", arrAt: "2026-12-04T14:15" };
+
+      it("a place it finds stores that place's zone and reads the typed time in it", async () => {
+        stopFindManyMock.mockResolvedValue([OOL]);
+        geocodePlaceMock.mockResolvedValue({ lat: -8.75, lng: 115.17, placeId: "dps-id" });
+
+        await createTransport("trip-1", toDenpasar, undefined, { arrTimezone: "Asia/Jakarta" });
+
+        expect(created()).toMatchObject({ arrTimezone: "Asia/Makassar" });
+        expect(created().arrAt.toISOString()).toBe("2026-12-04T06:15:00.000Z");
+      });
+
+      it("a place it cannot find reads the typed time in the import's zone and stores no zone", async () => {
+        stopFindManyMock.mockResolvedValue([OOL]);
+
+        await createTransport("trip-1", toDenpasar, undefined, { arrTimezone: "Asia/Jakarta" });
+
+        expect(created()).toMatchObject({ arrLat: null, arrTimezone: null });
+        expect(created().arrAt.toISOString()).toBe("2026-12-04T07:15:00.000Z");
+      });
+    });
+
     it("a place end with no coordinates stores no zone and borrows the other end's, as before", async () => {
       await createTransport("trip-1", { mode: "FLIGHT", fromStopId: "stop-dps", arrPlace: "Bangkok", arrAt: "2026-12-05T22:15" });
 
@@ -956,6 +980,39 @@ describe("a place end's own zone", () => {
         expect(shownArrival(updated())).toEqual(shownArrival(legacy));
         expect(shownArrival(updated())?.time).toBe("22:15");
       });
+    });
+
+    it("a never-located place end keeps no zone on a save that changes nothing, even when the lookup now finds it", async () => {
+      const neverLocated = { arrPlace: "Bangkok", arrLat: null, arrLng: null, arrTimezone: null, arrAt: new Date("2026-12-05T14:15:00.000Z") };
+      heldLeg(neverLocated);
+      geocodePlaceMock.mockResolvedValue({ lat: 13.69, lng: 100.75, placeId: "bkk-id" });
+      const shown = (row: { arrAt: Date | null; arrTimezone?: string | null }) =>
+        transportTimeDisplay({ depAt: null, arrAt: row.arrAt, ...endZones({ fromStopId: "stop-dps", ...row }, (id) => (id === "stop-dps" ? DPS.timezone : null)) }).arr;
+
+      await updateTransport("t-zone", { notes: "Window seat please" });
+
+      expect(updated().arrTimezone).toBeNull();
+      expect(updated().arrAt.toISOString()).toBe("2026-12-05T14:15:00.000Z");
+      expect(shown(updated())).toEqual(shown(neverLocated));
+    });
+
+    it("changing only the place's text with no pick re-reads its zone from the looked-up point", async () => {
+      heldLeg({ ...BKK, arrTimezone: "Asia/Bangkok" });
+      geocodePlaceMock.mockResolvedValue({ lat: 1.36, lng: 103.99, placeId: "sin-id" });
+
+      await updateTransport("t-zone", { arrPlace: "Singapore Changi", arrAt: "2026-12-05T22:15" });
+
+      expect(updated()).toMatchObject({ arrTimezone: "Asia/Singapore" });
+      expect(updated().arrAt.toISOString()).toBe("2026-12-05T14:15:00.000Z");
+    });
+
+    it("a pick at the saved coordinates with new text keeps the held zone", async () => {
+      heldLeg({ ...BKK, arrTimezone: null });
+
+      await updateTransport("t-zone", { arrPlace: "Suvarnabhumi Airport", arrPlaceId: "bkk-id", arrLat: 13.69, arrLng: 100.75, arrAt: "2026-12-05T22:15" });
+
+      expect(updated()).toMatchObject({ arrPlace: "Suvarnabhumi Airport", arrTimezone: null });
+      expect(updated().arrAt.toISOString()).toBe("2026-12-05T14:15:00.000Z");
     });
 
     it("changing a place end to a different place gives it the new place's zone and reads the submitted time in it", async () => {

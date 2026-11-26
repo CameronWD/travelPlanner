@@ -104,6 +104,7 @@ export async function loadYourTravels(userId: string, today?: string): Promise<Y
         toStopId: true,
         depIsHome: true,
         arrIsHome: true,
+        depTimezone: true,
       },
     }),
     db.accommodation.findMany({
@@ -170,7 +171,7 @@ export async function loadYourTravels(userId: string, today?: string): Promise<Y
       // departure has no Stop of its own: its zone is the Trip's
       // homeTimezone (spec 2026-10-14) when set, else "UTC" like an absent
       // fromStop does there.
-      const depTz = (t.depIsHome && trip.homeTimezone) || fromStop?.timezone || "UTC";
+      const depTz = (t.depIsHome && trip.homeTimezone) || fromStop?.timezone || t.depTimezone || "UTC";
       const depAt = t.depAt ? instantToZonedDateISO(t.depAt, depTz) : null;
 
       return { mode: t.mode, depAt, from, to };

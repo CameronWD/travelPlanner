@@ -409,6 +409,7 @@ async function renderDesktopHome({
         depPlace: true,
         arrPlace: true,
         depIsHome: true,
+        depTimezone: true,
         fromStop: { select: { name: true, timezone: true } },
         toStop: { select: { name: true } },
       },
@@ -421,6 +422,7 @@ async function renderDesktopHome({
   const zone =
     (leg?.depIsHome && trip.homeTimezone) ||
     leg?.fromStop?.timezone ||
+    leg?.depTimezone ||
     currentTripTimezone(orderPlanStops(trip.stops));
 
   const firstLeg = firstLegLine({

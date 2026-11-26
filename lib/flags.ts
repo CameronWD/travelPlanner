@@ -111,6 +111,8 @@ export interface FlagTransport {
   depLng?: number | null;
   arrLat?: number | null;
   arrLng?: number | null;
+  depTimezone?: string | null;
+  arrTimezone?: string | null;
   /** CONTEXT.md "Booking state" (the stored, effective state) and its book-by date, "YYYY-MM-DD" (spec 2026-10-17 R2). */
   bookingState?: string | null;
   bookBy?: string | null;
@@ -309,14 +311,14 @@ export function flagEmptyDays(
     const depDate = toDate(t.depAt);
     if (depDate) {
       const fromStop = t.fromStopId ? stopById.get(t.fromStopId) : undefined;
-      const depTz = (t.depIsHome && homeTimezone) || tzOf(fromStop);
+      const depTz = (t.depIsHome && homeTimezone) || (!fromStop && t.depTimezone) || tzOf(fromStop);
       const depDay = instantToZonedDateISO(depDate, depTz);
       if (depDay >= tripStart && depDay <= tripEnd) activeDays.add(depDay);
     }
     const arrDate = toDate(t.arrAt);
     if (arrDate) {
       const toStop = t.toStopId ? stopById.get(t.toStopId) : undefined;
-      const arrTz = (t.arrIsHome && homeTimezone) || tzOf(toStop ?? (t.fromStopId ? stopById.get(t.fromStopId) : undefined));
+      const arrTz = (t.arrIsHome && homeTimezone) || (!toStop && t.arrTimezone) || tzOf(toStop ?? (t.fromStopId ? stopById.get(t.fromStopId) : undefined));
       const arrDay = instantToZonedDateISO(arrDate, arrTz);
       if (arrDay >= tripStart && arrDay <= tripEnd) activeDays.add(arrDay);
     }
@@ -678,7 +680,7 @@ export function flagLongDrivingDays(
         ? { minutes: (arr.getTime() - dep.getTime()) / 60000, estimated: false }
         : resolveDriveLeg(ends.from, ends.to, lookup, opts);
 
-    const arrivalZone = (t.arrIsHome && opts.homeTimezone) || to?.timezone || from?.timezone;
+    const arrivalZone = (t.arrIsHome && opts.homeTimezone) || to?.timezone || t.arrTimezone || from?.timezone || t.depTimezone;
     const driveDate = dep
       ? instantToZonedDateISO(dep, arrivalZone ?? "UTC")
       : t.arrIsHome
@@ -1060,7 +1062,7 @@ export function flagMissingHomeConnection(
 
 export function flagReturnLegAfterHardEnd(
   transports: (Pick<FlagTransport, "arrIsHome" | "fromStopId" | "toStopId" | "arrAt"> &
-    Partial<Pick<FlagTransport, "id" | "mode" | "depAt" | "depIsHome" | "depPlace" | "arrPlace" | "depPlaceId" | "arrPlaceId">>)[],
+    Partial<Pick<FlagTransport, "id" | "mode" | "depAt" | "depIsHome" | "depPlace" | "arrPlace" | "depPlaceId" | "arrPlaceId" | "arrTimezone">>)[],
   hardEndDate: string | null | undefined,
   lastStopId: string | null,
   /** The Trip's Home base timezone (spec 2026-10-14) — an arrIsHome leg lands on this zone's calendar date instead of the raw UTC one. */
@@ -1070,7 +1072,8 @@ export function flagReturnLegAfterHardEnd(
   const legs = transports.map((t) => ({ ...t, id: t.id ?? "", mode: t.mode ?? "", depAt: toDate(t.depAt), arrAt: toDate(t.arrAt) }));
   const ret = journeyHome(legs, lastStopId).at(-1);
   if (!ret?.arrAt) return [];
-  const landISO = ret.arrIsHome && homeTimezone ? instantToZonedDateISO(ret.arrAt, homeTimezone) : formatISODate(ret.arrAt);
+  const landZone = (ret.arrIsHome && homeTimezone) || (!ret.arrIsHome && !ret.toStopId && ret.arrTimezone);
+  const landISO = landZone ? instantToZonedDateISO(ret.arrAt, landZone) : formatISODate(ret.arrAt);
   if (landISO <= hardEndDate) return [];
   return [
     {
@@ -1294,7 +1297,7 @@ function legDepartureDay(t: FlagTransport, stopById: Map<string, FlagStop>, home
   if (!dep) return null;
   const from = t.fromStopId ? stopById.get(t.fromStopId) : undefined;
   const to = t.toStopId ? stopById.get(t.toStopId) : undefined;
-  return instantToZonedDateISO(dep, (t.depIsHome && homeTimezone) || from?.timezone || to?.timezone || "UTC");
+  return instantToZonedDateISO(dep, (t.depIsHome && homeTimezone) || from?.timezone || t.depTimezone || to?.timezone || t.arrTimezone || "UTC");
 }
 
 function bookingSubjects(

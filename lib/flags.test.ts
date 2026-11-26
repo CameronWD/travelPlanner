@@ -248,6 +248,21 @@ describe("flagEmptyDays", () => {
     expect(flags.map((f) => f.date)).not.toContain("2026-07-01");
   });
 
+  it("lands a departure from a place with its own zone on that zone's calendar date", () => {
+    // 2026-07-01T20:00:00Z is 2026-07-02 05:00 in Asia/Tokyo.
+    const transport = makeTransport({ id: "t-place", fromStopId: null, depTimezone: "Asia/Tokyo", depAt: new Date("2026-07-01T20:00:00Z") });
+    const flags = flagEmptyDays([], [transport], [], [], tripStart, tripEnd);
+    expect(flags.map((f) => f.date)).toEqual(["2026-07-01", "2026-07-03"]);
+  });
+
+  it("lands an arrival at a place with its own zone on that zone's calendar date, not the departure Stop's", () => {
+    const stop = makeStop({ id: "s1", arriveDate: tripStart, departDate: tripEnd, timezone: "UTC" });
+    // 2026-07-02T20:00:00Z is 2026-07-03 05:00 in Asia/Tokyo.
+    const transport = makeTransport({ id: "t-place", fromStopId: "s1", toStopId: null, arrTimezone: "Asia/Tokyo", arrAt: new Date("2026-07-02T20:00:00Z") });
+    const flags = flagEmptyDays([stop], [transport], [], [], tripStart, tripEnd);
+    expect(flags.map((f) => f.date)).toEqual(["2026-07-01", "2026-07-02"]);
+  });
+
   it("returns empty array when all days have activity", () => {
     const items = [
       makeItem({ id: "i1", date: "2026-07-01" }),
@@ -1316,6 +1331,13 @@ describe("flagReturnLegAfterHardEnd", () => {
     const flags = flagReturnLegAfterHardEnd(transports, "2026-07-12", "s2");
     expect(flags).toHaveLength(1);
     expect(flags[0]).toMatchObject({ id: "return-after-hard-end", severity: "warning" });
+  });
+
+  it("lands a free-text return leg with its own zone on that zone's calendar date, not the UTC one", () => {
+    // 2027-01-07T22:30:00Z is 2027-01-07 UTC but 2027-01-08 in Asia/Tokyo.
+    const transports = [{ fromStopId: "s2", toStopId: null, arrIsHome: false, arrTimezone: "Asia/Tokyo", arrAt: new Date("2027-01-07T22:30:00Z") }];
+    expect(flagReturnLegAfterHardEnd(transports, "2027-01-07", "s2")).toHaveLength(1);
+    expect(flagReturnLegAfterHardEnd([{ ...transports[0], arrTimezone: null }], "2027-01-07", "s2")).toEqual([]);
   });
 
   it("lands an arrIsHome leg on its homeTimezone calendar date, not the UTC one (spec 2026-10-14)", () => {

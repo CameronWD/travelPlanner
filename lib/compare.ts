@@ -64,6 +64,8 @@ interface CompareTransport {
   depLng?: number | null;
   arrLat?: number | null;
   arrLng?: number | null;
+  depTimezone?: string | null;
+  arrTimezone?: string | null;
   bookingState?: string | null;
   bookBy?: string | null;
 }
@@ -291,6 +293,7 @@ export function computePlanMetrics(input: PlanMetricsInput): PlanMetrics {
     fromStopId: t.fromStopId,
     toStopId: t.toStopId,
     depAt: t.depAt,
+    depTimezone: t.depTimezone ?? null,
   }));
 
   const budgetResult = buildBudget({
@@ -341,6 +344,8 @@ export function computePlanMetrics(input: PlanMetricsInput): PlanMetrics {
     depLng: t.depLng ?? null,
     arrLat: t.arrLat ?? null,
     arrLng: t.arrLng ?? null,
+    depTimezone: t.depTimezone ?? null,
+    arrTimezone: t.arrTimezone ?? null,
     bookingState: t.bookingState ?? null,
     bookBy: t.bookBy ?? null,
   }));

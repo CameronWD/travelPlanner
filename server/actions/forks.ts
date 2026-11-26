@@ -577,7 +577,7 @@ const PREVIEW_STOP_SELECT = {
 } as const;
 const PREVIEW_TRANSPORT_SELECT = {
   id: true, mode: true, fromStopId: true, toStopId: true, depAt: true, arrAt: true, depIsHome: true, arrIsHome: true,
-  depLat: true, depLng: true, arrLat: true, arrLng: true, bookingState: true, bookBy: true,
+  depLat: true, depLng: true, arrLat: true, arrLng: true, depTimezone: true, arrTimezone: true, bookingState: true, bookBy: true,
 } as const;
 const PREVIEW_ACCOMMODATION_SELECT = { id: true, stopId: true, name: true, checkIn: true, checkOut: true, bookingState: true, bookBy: true } as const;
 const PREVIEW_ITEM_SELECT = {

@@ -218,6 +218,12 @@ describe("flagBookByDates (Book by soon, info / Overdue, warning)", () => {
     expect(at("2026-12-09")).toEqual([]); // 8 days: not yet
   });
 
+  it("a leg leaving a place with its own zone is judged on that zone's day", () => {
+    // 2026-11-30T20:00:00Z is 2026-12-01 09:00 in Auckland (today), still 30 Nov in Munich.
+    const fromPlace = leg({ id: "t-place", fromStopId: null, depPlace: "Auckland (AKL)", depTimezone: "Pacific/Auckland", depAt: new Date("2026-11-30T20:00:00Z"), ...toBook, bookBy: "2026-12-03" });
+    expect(run({ transports: [fromPlace] }).map((f) => f.id)).toEqual(["book-by-soon-t-place"]);
+  });
+
   it("a book-by date already past is overdue", () => {
     expect(run({ accommodations: [stay({ id: "a1", ...toBook, bookBy: "2026-11-30" })] })).toEqual([
       { id: "book-by-overdue-a1", severity: "warning", message: "Book Hotel Victoria now: its book-by date (Mon 30 Nov) has passed.", targetType: "ACCOMMODATION", targetId: "a1", stopId: "nbg" },

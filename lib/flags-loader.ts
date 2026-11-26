@@ -220,6 +220,8 @@ const FLAG_TRANSPORT_SELECT = {
   depLng: true,
   arrLat: true,
   arrLng: true,
+  depTimezone: true,
+  arrTimezone: true,
   bookingState: true,
   bookBy: true,
 } as const;

@@ -95,13 +95,23 @@ describe("confirmProposalFor", () => {
     expect(m.createAccommodation).not.toHaveBeenCalled();
   });
 
-  it("reads a connection airport's wall time in its own zone (Review Focus 2)", async () => {
+  it("hands a connection airport's wall time to createTransport unread, with the import's zone as the fallback (Review Focus 2)", async () => {
     const leg: TransportProposal = { ...OUTBOUND, input: { mode: "FLIGHT", depIsHome: true, depAt: "2026-12-01T10:00", arrPlace: "Singapore Changi (SIN)", arrTimezone: "Asia/Singapore", arrAt: "2026-12-01T16:00" } };
     await confirmProposalFor("trip-1", "u1", req({ proposal: leg }), null);
-    const input = m.createTransport.mock.calls[0][1];
-    expect(input.arrAt).toBe("2026-12-01T08:00:00.000Z");
+    const [, input, , importZones] = m.createTransport.mock.calls[0];
+    expect(input.arrAt).toBe("2026-12-01T16:00");
     expect(input.depAt).toBe("2026-12-01T10:00"); // a Home end with a Home timezone: createTransport converts it
     expect(input).not.toHaveProperty("arrTimezone");
+    expect(importZones).toEqual({ arrTimezone: "Asia/Singapore" });
+  });
+
+  it("a leg from a Stop to a place in Denpasar reads its arrival in the zone the saved leg stores, with the country's zone only as the fallback", async () => {
+    m.stops.mockResolvedValue([{ id: "s-ool", sortOrder: 0, arriveDate: null, departDate: null, timezone: "Australia/Brisbane" }]);
+    const leg: TransportProposal = { ...OUTBOUND, input: { mode: "FLIGHT", fromStopId: "s-ool", depAt: "2026-12-04T11:00", arrPlace: "Denpasar (DPS)", arrTimezone: "Asia/Jakarta", arrAt: "2026-12-04T14:15" } };
+    await confirmProposalFor("trip-1", "u1", req({ proposal: leg }), null);
+    const [, input, , importZones] = m.createTransport.mock.calls[0];
+    expect(input.arrAt).toBe("2026-12-04T14:15");
+    expect(importZones).toEqual({ arrTimezone: "Asia/Jakarta" });
   });
 
   it("reads a Home end in the guessed zone when the Trip has no Home timezone (Review Focus 3)", async () => {
