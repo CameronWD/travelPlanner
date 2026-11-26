@@ -141,13 +141,13 @@ export type TransportInput = z.infer<typeof transportSchema>;
 
 export const layoverSchema = z.object({
   place: z.string().trim().min(1),
-  placeId: z.string().optional(),
-  lat: z.number().optional(),
-  lng: z.number().optional(),
+  placeId: placeId.optional(),
+  lat: z.number().min(-90).max(90).optional(),
+  lng: z.number().min(-180).max(180).optional(),
   landAt: isoDatetime,
   leaveAt: isoDatetime,
-  serviceNumber: z.string().max(60).optional(),
-  seat: z.string().max(60).optional(),
+  serviceNumber: z.string().trim().max(TRANSPORT_DETAIL_MAX).optional(),
+  seat: z.string().trim().max(TRANSPORT_DETAIL_MAX).optional(),
 });
 
 export type LayoverInput = z.infer<typeof layoverSchema>;

@@ -32,6 +32,7 @@ import { toPatch } from "@/lib/patch";
 import { transportClearable } from "@/lib/transport-clearable";
 import { creationAnchor, groupTransportsBySlot, resolveTransportSlot } from "@/lib/transport-anchor";
 import { orderPlanStops } from "@/lib/plan-order";
+import { isConnection } from "@/lib/connections";
 
 function detailColumns(data: Partial<Record<TransportDetailKey, string | null>>) {
   return Object.fromEntries(TRANSPORT_DETAIL_KEYS.map((k) => [k, data[k] || null])) as Record<TransportDetailKey, string | null>;
@@ -212,7 +213,7 @@ function rowColumns(
   };
 }
 
-type PreparedRow = { columns: ReturnType<typeof rowColumns>; arrTz: string };
+type PreparedRow = { columns: ReturnType<typeof rowColumns> };
 type PreparedUpdate = PreparedRow & { data: TransportInput; owned: OwnedCostRow[] };
 
 async function prepareCreateRow(
@@ -254,7 +255,7 @@ async function prepareCreateRow(
   };
   const { depTz, arrTz } = readZones(zones);
   const times = { depAt: wallTimeToInstant(data.depAt, depTz), arrAt: wallTimeToInstant(data.arrAt, arrTz) };
-  return { columns: rowColumns(data, { ...kinds, anchorStopId, depPlace, arrPlace }, times, ends, zones, booking), arrTz };
+  return { columns: rowColumns(data, { ...kinds, anchorStopId, depPlace, arrPlace }, times, ends, zones, booking) };
 }
 
 async function prepareUpdateRow(
@@ -327,7 +328,7 @@ async function prepareUpdateRow(
   });
   const { depTz, arrTz } = readZones(zones);
   const times = { depAt: wallTimeToInstant(data.depAt, depTz), arrAt: wallTimeToInstant(data.arrAt, arrTz) };
-  return { columns: rowColumns(data, { ...kinds, anchorStopId, depPlace, arrPlace }, times, ends, zones, booking), arrTz, data, owned };
+  return { columns: rowColumns(data, { ...kinds, anchorStopId, depPlace, arrPlace }, times, ends, zones, booking), data, owned };
 }
 
 type InlineCostFields = Pick<TransportInput, "costMinor" | "currency" | "paidMinor" | "paidAt" | "settlement">;
@@ -484,9 +485,23 @@ export async function updateTransport(
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 
+const PLACE_KEYS = new Set(["place", "placeId", "lat", "lng"]);
+const LAYOVER_REFUSED = "This transport can't take a layover.";
+
+async function inConnection(before: Transport, plan: PlanId) {
+  const others = await db.transport.findMany({
+    where: { tripId: before.tripId, ...planScope(plan), id: { not: before.id } },
+    select: {
+      id: true, mode: true, depPlace: true, arrPlace: true, depPlaceId: true, arrPlaceId: true, depAt: true, arrAt: true,
+      fromStopId: true, toStopId: true, depIsHome: true, arrIsHome: true, reference: true,
+    },
+  });
+  return others.some((other) => isConnection(before, other) || isConnection(other, before));
+}
+
 function layoverFieldRefusal(errors: FieldErrors, stopover: string): ActionFailure {
   return fail(Object.fromEntries(Object.entries(errors).map(([key, messages]) =>
-    key === "place"
+    PLACE_KEYS.has(key)
       ? ["layoverPlace", [`Add where the ${stopover} is.`]]
       : [`layover${key[0].toUpperCase()}${key.slice(1)}`, messages],
   )));
@@ -588,13 +603,12 @@ async function prepareSecondRow(
     depRegion: first.columns.arrRegion,
   };
   const zones = { depTimezone: first.columns.arrTimezone, arrTimezone };
-  const { arrTz } = readZones(zones);
+  const { depTz, arrTz } = readZones(zones);
   const { mode, reference, carrier, bookingState, bookingStateSet, bookBy } = first.columns;
-  const times = { depAt: wallTimeToInstant(layover.leaveAt, first.arrTz), arrAt: wallTimeToInstant(journey.arrAt, arrTz) };
-  const details = { carrier, serviceNumber: layover.serviceNumber?.trim(), seat: layover.seat?.trim() };
+  const times = { depAt: wallTimeToInstant(layover.leaveAt, depTz), arrAt: wallTimeToInstant(journey.arrAt, arrTz) };
+  const details = { carrier, serviceNumber: layover.serviceNumber, seat: layover.seat };
   return {
     columns: rowColumns({ mode, reference, ...details }, ends, times, places, zones, { bookingState, bookingStateSet, bookBy }),
-    arrTz,
   };
 }
 
@@ -608,6 +622,7 @@ export async function saveTransportWithLayover(
   const parsed = transportSchema.safeParse(input);
   if (!parsed.success) return validationResult(parsed.error);
   const journey = parsed.data;
+  if (journey.mode === "CAR" || (held && (await inConnection(held.before, plan)))) return formFail(LAYOVER_REFUSED);
   const stopover = journey.mode === "FLIGHT" ? "layover" : "change";
   const parsedLayover = layoverSchema.safeParse(layover);
   if (!parsedLayover.success) return layoverFieldRefusal(validationResult(parsedLayover.error).errors, stopover);
@@ -675,7 +690,7 @@ export async function saveTransportWithLayover(
       await tx.transport.update({ where: { id: row.id }, data: { sortOrder: row.sortOrder } });
     }
     const secondRow = await tx.transport.create({
-      data: { tripId, forkId: plan, ...second.columns, sortOrder: order.second },
+      data: { tripId, forkId: plan, ...second.columns, nothingToAttach: firstRow.nothingToAttach, sortOrder: order.second },
     });
     if (rate) await writeInlineCostTx(tx, { tripId, plan, ownerId: firstRow.id, data: first.data, existing: first.owned, rate });
     const grownTo = await growTripEndTx(tx, tripId, plan);

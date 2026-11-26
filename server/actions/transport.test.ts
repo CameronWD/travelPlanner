@@ -2127,6 +2127,8 @@ describe("saveTransportWithLayover", () => {
     stopFindManyMock.mockResolvedValue([DPS, MUC]);
     tripFindUniqueMock.mockResolvedValue({ homeTimezone: "Australia/Brisbane", homeCurrency: "AUD" });
     transportFindUniqueMock.mockImplementation(async (args?: { where: { id: string } }) => committed.get(args?.where.id ?? "t-edit") ?? null);
+    transportFindManyMock.mockImplementation(async (args?: { where?: { id?: { not?: string } } }) =>
+      [...committed.values()].filter((r) => r.id !== args?.where?.id?.not));
     txCreateMock.mockReset();
     txUpdateMock.mockReset();
     txUpdateManyMock.mockReset();
@@ -2173,6 +2175,8 @@ describe("saveTransportWithLayover", () => {
     transactionMock.mockImplementation(originalTransaction!);
     if (originalFindUnique) transportFindUniqueMock.mockImplementation(originalFindUnique);
     else transportFindUniqueMock.mockReset();
+    transportFindManyMock.mockReset();
+    transportFindManyMock.mockResolvedValue([]);
   });
 
   const EXISTING: Row = {
@@ -2308,6 +2312,7 @@ describe("saveTransportWithLayover", () => {
     expect(costUpdateMock).toHaveBeenCalledTimes(1);
     expect(costUpdateMock).toHaveBeenCalledWith(expect.objectContaining({ where: { id: "cost-9" } }));
     expect(costUpdateMock.mock.calls[0][0].data).not.toHaveProperty("ownerId");
+    expect(costUpdateMock.mock.calls[0][0].data).toMatchObject({ paidMinor: 90000, paidAt: new Date("2026-10-01") });
   });
 
   it("a journey home: the second Transport arrives Home, the first does not", async () => {
@@ -2358,17 +2363,17 @@ describe("saveTransportWithLayover", () => {
     expect(groupTransportsBySlot(rows(), [DPS, MUC]).has(HEAD_SLOT)).toBe(false);
   });
 
-  it("on add, a slot whose rows are tied on sortOrder ends with the first then the second, the others in their order", async () => {
-    committed.set("t-a", { ...EXISTING, id: "t-a", sortOrder: 2 });
-    committed.set("t-b", { ...EXISTING, id: "t-b", sortOrder: 2 });
-    committed.set("t-m", { ...EXISTING, id: "t-m", anchorStopId: "stop-muc", sortOrder: 7 });
+  it("a journey out from Home to the first Stop saves both in the head slot, in order", async () => {
+    const result = await saveTransportWithLayover(
+      { tripId: "trip-1" },
+      { ...JOURNEY, fromStopId: undefined, depIsHome: true, toStopId: "stop-dps", anchorStopId: undefined },
+      LAYOVER,
+    );
 
-    await saveTransportWithLayover({ tripId: "trip-1" }, JOURNEY, LAYOVER);
-
-    expect(slotOf("stop-dps")).toEqual(["t-a", "t-b", "t-new-1", "t-new-2"]);
-    expect(committed.get("t-a")!.sortOrder).toBe(2);
-    expect(committed.get("t-b")!.sortOrder).toBe(2);
-    expect(committed.get("t-m")!.sortOrder).toBe(7);
+    expect(result.success).toBe(true);
+    expect(committed.get("t-new-1")!.anchorStopId).toBeNull();
+    expect(committed.get("t-new-2")!.anchorStopId).toBeNull();
+    expect(groupTransportsBySlot(rows(), [DPS, MUC]).get(HEAD_SLOT)?.map((r) => r.id)).toEqual(["t-new-1", "t-new-2"]);
   });
 
   it("on edit, a slot whose rows are tied on sortOrder gets the second straight after the first, and other slots are left alone", async () => {
@@ -2493,6 +2498,18 @@ describe("saveTransportWithLayover", () => {
       });
     });
 
+    it("out-of-range coordinates", async () => {
+      expect(await refused({}, { lat: 91 })).toEqual({
+        success: false, errors: { layoverPlace: ["Add where the layover is."] },
+      });
+    });
+
+    it("a drive", async () => {
+      expect(await refused({ mode: "CAR" as never }, {})).toEqual({
+        success: false, errors: { _: ["This transport can't take a layover."] },
+      });
+    });
+
     it("a wait of a day or more", async () => {
       expect(await refused({ arrAt: "2026-12-07T06:45" }, { leaveAt: "2026-12-06T22:15" })).toEqual({
         success: false, errors: { layoverLeaveAt: ["A layover is under a day. For a longer stay, add a Stop."] },
@@ -2519,5 +2536,47 @@ describe("saveTransportWithLayover", () => {
     expect(recordActivity).toHaveBeenCalledWith(expect.objectContaining({ verb: "UPDATED", entityType: "TRANSPORT", entityId: "t-edit" }));
     expect(recordActivity).toHaveBeenCalledWith(expect.objectContaining({ verb: "CREATED", entityType: "TRANSPORT", entityId: "t-new-1" }));
     expect(revalidateTripMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("editing a Transport already in a Connection is refused, and nothing is written", async () => {
+    committed.set("t-edit", {
+      ...EXISTING, toStopId: null, arrPlace: "Singapore (SIN)", arrPlaceId: "sin", arrAt: new Date("2026-12-05T13:00:00Z"),
+    });
+    committed.set("t-onward", {
+      ...EXISTING, id: "t-onward", fromStopId: null, depPlace: "Singapore (SIN)", depPlaceId: "sin",
+      depAt: new Date("2026-12-05T15:00:00Z"), sortOrder: 4,
+    });
+    const before = structuredClone([...committed.values()]);
+
+    const result = await saveTransportWithLayover({ transportId: "t-edit" }, JOURNEY, LAYOVER);
+
+    expect(result).toEqual({ success: false, errors: { _: ["This transport can't take a layover."] } });
+    expect(transactionMock).not.toHaveBeenCalled();
+    expect([...committed.values()]).toEqual(before);
+  });
+
+  it("the second flight inherits \"no ticket or file needed\" from the first", async () => {
+    committed.set("t-edit", { ...EXISTING, nothingToAttach: true });
+
+    await saveTransportWithLayover({ transportId: "t-edit" }, JOURNEY, LAYOVER);
+
+    expect(committed.get("t-new-1")).toMatchObject({ nothingToAttach: true });
+  });
+
+  it("a layover with no zone shows on each card exactly the times typed for it", async () => {
+    await saveTransportWithLayover({ tripId: "trip-1" }, JOURNEY, { ...LAYOVER, place: "Bangkok", placeId: undefined, lat: undefined, lng: undefined });
+
+    const first = committed.get("t-new-1")!;
+    const second = committed.get("t-new-2")!;
+    expect(first).toMatchObject({ arrTimezone: null });
+    expect(second).toMatchObject({ depTimezone: null });
+    const stopZone = (id: string | null | undefined) => [DPS, MUC].find((s) => s.id === id)?.timezone ?? null;
+    const shown = (row: Row) => transportTimeDisplay({
+      depAt: row.depAt as Date, arrAt: row.arrAt as Date,
+      ...endZones(row as Parameters<typeof endZones>[0], stopZone),
+    });
+    expect(shown(first).arr?.time).toBe("22:15");
+    expect(shown(second).dep?.time).toBe("00:50");
+    expect(shown(second).dep?.dateISO).toBe("2026-12-06");
   });
 });
