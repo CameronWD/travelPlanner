@@ -45,6 +45,7 @@ vi.mock("@/server/actions/transport", () => ({
   createTransport: vi.fn().mockResolvedValue({ success: true }),
   updateTransport: vi.fn().mockResolvedValue({ success: true }),
   reorderTransports: vi.fn().mockResolvedValue({ success: true }),
+  saveTransportWithLayover: vi.fn().mockResolvedValue({ success: true, firstId: "f", secondId: "s" }),
 }));
 
 vi.mock("@/server/actions/accommodation", () => ({
@@ -3216,6 +3217,21 @@ describe("metro-line legs (spec 2026-10-05 §F)", () => {
     const stations = [...screen.getByTestId("plan-desktop-list").querySelectorAll("[data-leg-station]")] as HTMLElement[];
     expect(within(stations[1]).getByText("Layover in Bangkok · 2h 35m")).toHaveAttribute("data-changeover");
     expect(stations[0].querySelector("[data-changeover]")).toBeNull();
+  });
+
+  it("a flight already joined to its neighbour opens without the layover box; a lone flight has it", async () => {
+    const user = userEvent.setup();
+    const f1 = makeTransport({ id: "f1", mode: "FLIGHT", fromStopId: "par", anchorStopId: "par", depPlace: "Paris", arrPlace: "Bangkok (BKK)", depAt: new Date("2026-12-15T06:00:00Z"), arrAt: new Date("2026-12-15T12:00:00Z"), sortOrder: 0 });
+    const f2 = makeTransport({ id: "f2", mode: "FLIGHT", toStopId: "rom", anchorStopId: "par", depPlace: "Bangkok (BKK)", arrPlace: "Rome", depAt: new Date("2026-12-15T14:35:00Z"), arrAt: new Date("2026-12-15T20:00:00Z"), sortOrder: 1 });
+    const { unmount } = renderPlan(<ItineraryManager {...baseProps} initialStops={[PARIS, ROME]} initialTransports={[f1, f2]} />);
+    await user.click(desktop().getByRole("button", { name: /^Flight from Bangkok \(BKK\) to Rome/ }));
+    expect(await screen.findByRole("button", { name: "Delete leg" })).toBeInTheDocument();
+    expect(screen.queryByRole("checkbox", { name: "This flight includes a layover" })).toBeNull();
+    unmount();
+
+    renderPlan(<ItineraryManager {...baseProps} initialStops={[PARIS, ROME]} initialTransports={[{ ...f2, depPlace: "Doha (DOH)" }]} />);
+    await user.click(desktop().getByRole("button", { name: /^Flight from Doha \(DOH\) to Rome/ }));
+    expect(await screen.findByRole("checkbox", { name: "This flight includes a layover" })).toBeInTheDocument();
   });
 
   it("two trains meeting at a place show Change at … with the wait", () => {

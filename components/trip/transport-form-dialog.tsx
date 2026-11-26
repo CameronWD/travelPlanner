@@ -9,6 +9,7 @@ import { AppLink } from "@/components/navigation/app-link";
 import { Button } from "@/components/ui/button";
 import { Field } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
+import { Checkbox } from "@/components/ui/checkbox";
 import { PlaceCombobox, type PickedPlace } from "@/components/ui/place-combobox";
 import { samePlaceText } from "@/lib/place-save";
 import { Textarea } from "@/components/ui/textarea";
@@ -24,7 +25,7 @@ import { TRANSPORT_MODE_TILES, TRANSPORT_MODE_META, formatDuration } from "@/lib
 import { Badge } from "@/components/ui/badge";
 import { FormError } from "@/components/ui/form-error";
 import { formError } from "@/components/ui/action-failure";
-import { createTransport, updateTransport } from "@/server/actions/transport";
+import { createTransport, saveTransportWithLayover, updateTransport } from "@/server/actions/transport";
 import { resolveEndpointZones, instantToWallTimeInput } from "@/lib/time-display";
 import { zonedWallTimeToInstant } from "@/lib/tz";
 import { endZones } from "@/lib/leg-zones";
@@ -218,6 +219,8 @@ export interface TransportFormDialogProps {
   onSubmitOverride?: (input: ProposedTransportInput) => Promise<ActionResult>;
   /** Proposal mode: a live preview card shown at the top of the form. */
   preview?: React.ReactNode;
+  /** Edit mode: this Transport is already joined to a neighbour, so it offers no layover box. */
+  inConnection?: boolean;
 }
 
 // ---------------------------------------------------------------------------
@@ -268,6 +271,7 @@ export function TransportFormDialog({
   onDraftChange,
   onSubmitOverride,
   preview,
+  inConnection,
 }: TransportFormDialogProps) {
   const toName = transport
     ? resolveEndpointName(stops, homeBaseName, {
@@ -320,6 +324,7 @@ export function TransportFormDialog({
         onDraftChange={onDraftChange}
         onSubmitOverride={onSubmitOverride}
         preview={preview}
+        inConnection={inConnection}
       />
     </FormDialog>
   );
@@ -359,6 +364,21 @@ interface TransportFormProps {
   onDraftChange?: (input: ProposedTransportInput) => void;
   onSubmitOverride?: (input: ProposedTransportInput) => Promise<ActionResult>;
   preview?: React.ReactNode;
+  inConnection?: boolean;
+}
+
+const SECOND_SERVICE: Record<Exclude<TransportMode, "CAR">, string> = {
+  FLIGHT: "Second flight",
+  TRAIN: "Second train",
+  BUS: "Second bus",
+  FERRY: "Second ferry",
+  OTHER: "Second transport",
+};
+
+function layoverCopy(mode: TransportMode) {
+  return mode === "FLIGHT"
+    ? { box: "This flight includes a layover", place: "Layover at", land: "Land there", noPlace: "Add where the layover is.", noLand: "Add when you land." }
+    : { box: "This journey includes a change", place: "Change at", land: "Arrive there", noPlace: "Add where the change is.", noLand: "Add when you arrive there." };
 }
 
 export { HOME_ENDPOINT } from "./transport-endpoints";
@@ -391,6 +411,7 @@ function TransportForm({
   onDraftChange,
   onSubmitOverride,
   preview,
+  inConnection,
 }: TransportFormProps) {
   const isEdit = Boolean(transport);
   // Booking import (Proposal mode) seeds a new leg only; a saved leg always wins.
@@ -570,6 +591,15 @@ function TransportForm({
   const bookingField = useBookingStateField(transportBookingSubject(mode), transport ?? seedFromProposal(proposed), reference);
   const [nothingToAttach, setNothingToAttach] = React.useState(transport?.nothingToAttach ?? false);
   const [notesText, setNotesText] = React.useState(transport?.notes ?? proposed?.notes ?? "");
+  const [layoverTicked, setLayoverTicked] = React.useState(false);
+  const [layoverPlace, setLayoverPlace] = React.useState("");
+  const [layoverPick, setLayoverPick] = React.useState<EndPick | null>(null);
+  const [landAt, setLandAt] = React.useState("");
+  const [leaveAt, setLeaveAt] = React.useState("");
+  const [second, setSecond] = React.useState({ serviceNumber: "", seat: "" });
+  const offersLayover = mode !== "CAR" && !inConnection && !onSubmitOverride;
+  const withLayover = offersLayover && layoverTicked;
+  const stopover = layoverCopy(mode as TransportMode);
   // Car with no times yet shows a drive estimate instead of empty Leaves/
   // Arrives cards; "Add times" reveals them without waiting for a real time.
   const [showTimes, setShowTimes] = React.useState(false);
@@ -588,7 +618,7 @@ function TransportForm({
   );
 
   // UI-only state (showTimes, selectedAt, showCost) is not input.
-  useFormDirty({ mode, fromValue, toValue, depPoint, arrPoint, pickedSlot, depAt, arrAt, reference, details, bookingState: bookingField.dirtyValues, notesText, cost: cost.dirtyValues });
+  useFormDirty({ mode, fromValue, toValue, depPoint, arrPoint, pickedSlot, depAt, arrAt, reference, details, bookingState: bookingField.dirtyValues, notesText, cost: cost.dirtyValues, layover: withLayover && { layoverPlace, layoverPick, landAt, leaveAt, second } });
 
   // The would-be create/update input, exactly as typed.
   function buildInput() {
@@ -646,12 +676,37 @@ function TransportForm({
 
   useDraftReporter(onDraftChange, buildInput);
 
+  function missingLayover() {
+    const missing = {
+      ...(!layoverPlace.trim() && { layoverPlace: [stopover.noPlace] }),
+      ...(!landAt && { layoverLandAt: [stopover.noLand] }),
+      ...(!leaveAt && { layoverLeaveAt: ["Add when you leave."] }),
+    };
+    return Object.keys(missing).length > 0 ? missing : null;
+  }
+
+  function layoverInput() {
+    return {
+      place: layoverPlace.trim(),
+      ...(layoverPick && { placeId: layoverPick.placeId, lat: layoverPick.lat, lng: layoverPick.lng }),
+      landAt,
+      leaveAt,
+      ...(second.serviceNumber.trim() && { serviceNumber: second.serviceNumber.trim() }),
+      ...(second.seat.trim() && { seat: second.seat.trim() }),
+    };
+  }
+
   const { errors, isPending, onSubmit } = useEntityForm({
     submit: async () => {
       const c = cost.payload();
-      if (c.kind === "invalid") return fail(c.errors);
+      const missing = withLayover ? missingLayover() : null;
+      if (c.kind === "invalid" || missing) return fail({ ...(c.kind === "invalid" && c.errors), ...missing });
       const input = buildInput();
       if (onSubmitOverride) return onSubmitOverride(input);
+      if (withLayover) {
+        const target = isEdit && transport ? { transportId: transport.id } : forkId ? { tripId, forkId } : { tripId };
+        return saveTransportWithLayover(target, input, layoverInput());
+      }
       return isEdit && transport
         ? updateTransport(transport.id, toPatch(input, transportClearable(input)))
         : createTransport(tripId, input, forkId ?? undefined);
@@ -700,6 +755,8 @@ function TransportForm({
   // containment.
   const formId = React.useId();
   const detailsHeadingId = React.useId();
+  const landErrorId = React.useId();
+  const leaveErrorId = React.useId();
 
   const showLeavesArrives = mode !== "CAR" || Boolean(depAt) || Boolean(arrAt) || showTimes;
 
@@ -939,6 +996,63 @@ function TransportForm({
           </Badge>
         )}
 
+        {offersLayover && (
+          <Checkbox
+            label={stopover.box}
+            strike={false}
+            checked={layoverTicked}
+            onChange={(e) => setLayoverTicked(e.target.checked)}
+            disabled={isPending}
+            className="font-bold"
+          />
+        )}
+        {withLayover && (
+          <div data-group="layover" className="tp-rise-in ml-3 flex flex-col gap-3 border-l-2 border-border pl-4">
+            <Field label={stopover.place} required error={errors.layoverPlace?.[0]}>
+              <PlaceCombobox
+                kind="venue"
+                value={layoverPlace}
+                onValueChange={(t) => {
+                  setLayoverPlace(t);
+                  setLayoverPick(null);
+                }}
+                onPick={(p) => setLayoverPick(endPick(p))}
+                placeholder="e.g. Bangkok (BKK)"
+                aria-label={stopover.place}
+                disabled={isPending}
+              />
+            </Field>
+            <div className="grid grid-cols-1 gap-2 min-[430px]:grid-cols-2">
+              {([
+                { id: "transport-land-at", label: stopover.land, value: landAt, set: setLandAt, error: errors.layoverLandAt?.[0], errorId: landErrorId },
+                { id: "transport-leave-at", label: "Leave", value: leaveAt, set: setLeaveAt, error: errors.layoverLeaveAt?.[0], errorId: leaveErrorId },
+              ] as const).map((f) => (
+                <div key={f.id} className="rounded-[14px] border-2 border-border bg-card px-3 py-2">
+                  <label htmlFor={f.id} className="block text-[11px] font-semibold text-muted-foreground">
+                    {f.label}
+                    <span className="ml-0.5 text-destructive" aria-hidden="true">*</span>
+                  </label>
+                  <Input
+                    id={f.id}
+                    type="datetime-local"
+                    value={f.value}
+                    onChange={(e) => f.set(e.target.value)}
+                    disabled={isPending}
+                    aria-label={f.label}
+                    aria-required
+                    invalid={Boolean(f.error)}
+                    aria-describedby={f.error ? f.errorId : undefined}
+                    className="h-auto border-0 bg-transparent p-0 text-[17px] font-extrabold tabular-nums shadow-none focus-visible:translate-x-0 focus-visible:translate-y-0 focus-visible:shadow-none"
+                  />
+                  {f.error && (
+                    <p id={f.errorId} className="mt-1 text-xs font-medium text-destructive">{f.error}</p>
+                  )}
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
         <div data-group="travel-details" role="group" aria-labelledby={detailsHeadingId} className="space-y-2">
           <h3 id={detailsHeadingId} className="text-[11px] font-semibold text-muted-foreground">Travel details</h3>
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
@@ -953,6 +1067,26 @@ function TransportForm({
               </Field>
             ))}
           </div>
+          {withLayover && (
+            <div data-group="second-service" className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+              <Field label={SECOND_SERVICE[mode as Exclude<TransportMode, "CAR">]}>
+                <Input
+                  value={second.serviceNumber}
+                  onChange={(e) => setSecond((s) => ({ ...s, serviceNumber: e.target.value }))}
+                  maxLength={TRANSPORT_DETAIL_MAX}
+                  disabled={isPending}
+                />
+              </Field>
+              <Field label="Seat">
+                <Input
+                  value={second.seat}
+                  onChange={(e) => setSecond((s) => ({ ...s, seat: e.target.value }))}
+                  maxLength={TRANSPORT_DETAIL_MAX}
+                  disabled={isPending}
+                />
+              </Field>
+            </div>
+          )}
         </div>
 
         {/* Booking ref + Position in plan — paired from sm (spec 2026-10-05 §D).
