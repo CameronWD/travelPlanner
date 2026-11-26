@@ -59,7 +59,6 @@ export function buildShareLeg(
   return { mode: t.mode, label, when, number: number || null, arrivesAt: t.arrAt ? new Date(t.arrAt).toISOString() : null, arrivesLocal: t.arrAt ? wallClock(new Date(t.arrAt), zones.arr) : null };
 }
 
-/** One or more legs drawn as one stack, with the finished line above each (null for the first). */
 export interface ShareLegStack {
   legs: ShareLeg[];
   changeovers: (string | null)[];
@@ -104,11 +103,6 @@ function shareJourneyLeg(t: ShareTransportRow, ctx: ShareRouteContext): ShareLeg
   );
 }
 
-/**
- * The legs between two Stops: the one that joins them, else a chain of
- * Connections from one to the other. A chain that does not arrive at the next
- * Stop lists nothing, as a lone leg to nowhere did before.
- */
 function journeyBetween<T extends ShareTransportRow>(legs: readonly T[], fromStopId: string, toStopId: string): T[] {
   const direct = legs.find((t) => t.fromStopId === fromStopId && t.toStopId === toStopId);
   if (direct) return [direct];
@@ -116,11 +110,6 @@ function journeyBetween<T extends ShareTransportRow>(legs: readonly T[], fromSto
   return journey.length > 1 && journey[0].fromStopId === fromStopId ? journey : [];
 }
 
-/**
- * Every stack of travel cards on The route. A journey out or home is listed
- * only when it really starts or ends at Home, so a place nobody flagged as Home
- * is never shown as its far end.
- */
 export function shareRouteLegs(rows: readonly ShareTransportRow[], ctx: ShareRouteContext): ShareRouteLegs {
   // One booking is not a public notion: no rule here reads a reference.
   const legs = rows.map((t) => ({ ...t, reference: null }));
@@ -129,6 +118,7 @@ export function shareRouteLegs(rows: readonly ShareTransportRow[], ctx: ShareRou
   const ids = ctx.stops.map((s) => s.id);
   const out = journeyOut(legs, ids[0] ?? null);
   const back = journeyHome(legs, ids.at(-1) ?? null);
+  // Listed only when the far end is flagged Home, so an unflagged address is never printed as one.
   return {
     out: out[0]?.depIsHome ? stack(out) : null,
     between: ids.slice(1).map((to, i) => stack(journeyBetween(legs, ids[i], to))),
