@@ -379,6 +379,28 @@ describe("Plan page with stops (LA-038)", () => {
     expect(itineraryManagerCapture.props?.needsConfirmationIds).toEqual(["t9", "i4"]);
   });
 
+  it("hands the manager each Transport's booking partners' files, labelled with the Transport they are filed on", async () => {
+    scenario.stops = [STOP, { ...STOP, id: "s2", name: "Naples", sortOrder: 1, arriveDate: "2026-01-05", departDate: "2026-01-08" }];
+    scenario.transports = [
+      { id: "t1", mode: "FLIGHT", fromStopId: "s1", toStopId: null, depPlace: null, arrPlace: "Milan", reference: "XY12",
+        depAt: new Date("2026-01-05T08:00:00Z"), arrAt: new Date("2026-01-05T09:00:00Z"), sortOrder: 0 },
+      { id: "t2", mode: "FLIGHT", fromStopId: null, toStopId: "s2", depPlace: "Milan", arrPlace: null, reference: "xy12",
+        depAt: new Date("2026-01-05T10:00:00Z"), arrAt: new Date("2026-01-05T11:30:00Z"), sortOrder: 1 },
+    ];
+    mockDb.attachment.findMany.mockResolvedValue([
+      { id: "f1", filename: "eticket.pdf", title: null, mime: "application/pdf", size: 1, url: "/api/attachments/f1", uploadedById: "u1", createdAt: new Date(), targetId: "t2", targetType: "TRANSPORT" },
+    ]);
+
+    await renderPlan();
+
+    const own = itineraryManagerCapture.props?.attachmentsByTransportId as Map<string, Array<{ id: string }>>;
+    const partners = itineraryManagerCapture.props?.partnerFilesByTransportId as Map<string, Array<{ id: string; filedOn: string }>>;
+    expect(own.get("t1")).toBeUndefined();
+    expect(own.get("t2")?.map((a) => a.id)).toEqual(["f1"]);
+    expect(partners.get("t1")?.map((a) => [a.id, a.filedOn])).toEqual([["f1", "Milan → Naples"]]);
+    expect(partners.get("t2")).toBeUndefined();
+  });
+
   it("groups a Stop's reminders by stopId and passes them to ItineraryManager", async () => {
     scenario.stops = [STOP];
     readRemindersAbout.mockResolvedValueOnce({

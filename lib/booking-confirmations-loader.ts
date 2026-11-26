@@ -6,6 +6,7 @@ import { computeTripPhase } from "@/lib/trip-phase";
 import { transportTimeDisplay } from "@/lib/time-display";
 import { endZones } from "@/lib/leg-zones";
 import { needsBookingConfirmation, type ConfirmationKind, type ConfirmationSubject } from "@/lib/booking-confirmation";
+import { bookingPartners } from "@/lib/connections";
 
 export interface BookingConfirmationToAdd {
   kind: ConfirmationKind;
@@ -23,8 +24,12 @@ export async function loadBookingConfirmationsToAdd(tripId: string, viewerId: st
       select: { id: true, timezone: true, arriveDate: true, departDate: true, sortOrder: true },
     }),
     db.transport.findMany({
-      where: { tripId, ...REAL_PLAN, bookingState: "BOOKED" },
-      select: { id: true, nothingToAttach: true, depAt: true, arrAt: true, fromStopId: true, toStopId: true, depIsHome: true, arrIsHome: true, depTimezone: true, arrTimezone: true },
+      where: { tripId, ...REAL_PLAN },
+      select: {
+        id: true, mode: true, bookingState: true, nothingToAttach: true, reference: true,
+        depPlace: true, arrPlace: true, depPlaceId: true, arrPlaceId: true, depAt: true, arrAt: true,
+        fromStopId: true, toStopId: true, depIsHome: true, arrIsHome: true, depTimezone: true, arrTimezone: true,
+      },
     }),
     db.accommodation.findMany({
       where: { tripId, ...REAL_PLAN, bookingState: "BOOKED", ...v.where.accommodation },
@@ -41,7 +46,7 @@ export async function loadBookingConfirmationsToAdd(tripId: string, viewerId: st
 
   const tzById = new Map(stops.map((s) => [s.id, s.timezone] as const));
   const subjects: ConfirmationSubject[] = [
-    ...transports.map((t) => {
+    ...transports.filter((t) => t.bookingState === "BOOKED").map((t) => {
       const { fromTimezone, toTimezone } = endZones(t, (id) => (id ? tzById.get(id) : null));
       const { dep } = transportTimeDisplay({
         depAt: t.depAt, arrAt: t.arrAt, fromTimezone, toTimezone,
@@ -56,11 +61,14 @@ export async function loadBookingConfirmationsToAdd(tripId: string, viewerId: st
   ];
   if (subjects.length === 0) return [];
 
+  const partners = bookingPartners(transports);
+  const partnerIdsOf = (s: ConfirmationSubject) => (s.kind === "TRANSPORT" ? (partners.get(s.id) ?? []).map((p) => p.id) : []);
+
   const attachments = await db.attachment.findMany({
     where: {
       tripId,
       targetType: { in: ["TRANSPORT", "ACCOMMODATION", "ITEM"] },
-      targetId: { in: subjects.map((s) => s.id) },
+      targetId: { in: [...new Set(subjects.flatMap((s) => [s.id, ...partnerIdsOf(s)]))] },
       ...v.where.attachment,
     },
     select: { id: true, targetType: true, targetId: true },
@@ -72,7 +80,10 @@ export async function loadBookingConfirmationsToAdd(tripId: string, viewerId: st
   }
 
   return subjects
-    .filter((s) => needsBookingConfirmation(s, idsByTarget.get(`${s.kind}:${s.id}`) ?? [], today))
+    .filter((s) => {
+      const ids = [s.id, ...partnerIdsOf(s)].flatMap((id) => idsByTarget.get(`${s.kind}:${id}`) ?? []);
+      return needsBookingConfirmation(s, ids, today);
+    })
     .sort((a, b) => (a.lastDay === b.lastDay ? 0 : a.lastDay === null ? 1 : b.lastDay === null ? -1 : a.lastDay < b.lastDay ? -1 : 1))
     .map((s) => ({ kind: s.kind, id: s.id }));
 }

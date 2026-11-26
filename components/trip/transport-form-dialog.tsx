@@ -43,6 +43,7 @@ import { fail, type ActionResult } from "@/lib/action-result";
 import type { ProposedTransportInput } from "@/lib/booking-import/types";
 import { useDraftReporter } from "@/components/ui/use-draft-reporter";
 import { AttachmentList, type AttachmentView } from "@/components/trip/attachment-list";
+import { AttachmentLinks } from "@/components/trip/attachment-links";
 import { LocationCombobox, type LocationValue } from "@/components/trip/location-combobox";
 import { NoteThread, type NoteView } from "@/components/trip/note-thread";
 import { ReminderList } from "@/components/trip/reminder-list";
@@ -178,6 +179,7 @@ export interface TransportFormDialogProps {
   homeTimezone?: string | null;
   /** Existing attachments for this transport (edit mode only). */
   attachments?: AttachmentView[];
+  partnerFiles?: AttachmentView[];
   /** Reminders about this leg (edit mode, real plan only — spec F8). */
   reminders?: ReminderItem[];
   /** Opens Add a Reminder about this leg; omitted on a Fork's leg. */
@@ -253,6 +255,7 @@ export function TransportFormDialog({
   homeBaseName,
   homeTimezone,
   attachments,
+  partnerFiles,
   reminders,
   onAddReminder,
   onDelete,
@@ -304,6 +307,7 @@ export function TransportFormDialog({
         homeBaseName={homeBaseName}
         homeTimezone={homeTimezone}
         attachments={attachments}
+        partnerFiles={partnerFiles}
         reminders={reminders}
         onAddReminder={onAddReminder}
         onDelete={onDelete}
@@ -340,6 +344,7 @@ interface TransportFormProps {
   homeBaseName?: string | null;
   homeTimezone?: string | null;
   attachments?: AttachmentView[];
+  partnerFiles?: AttachmentView[];
   /** Reminders about this leg (edit mode, real plan only — spec F8). */
   reminders?: ReminderItem[];
   /** Opens Add a Reminder about this leg; omitted on a Fork's leg. */
@@ -373,6 +378,7 @@ function TransportForm({
   homeBaseName,
   homeTimezone,
   attachments,
+  partnerFiles,
   reminders,
   onAddReminder,
   onDelete,
@@ -1024,20 +1030,23 @@ function TransportForm({
         {/* Attachments */}
         <Field label="Attachments">
           {transport?.id ? (
-            <AttachmentList
-              tripId={tripId}
-              targetType="TRANSPORT"
-              targetId={transport.id}
-              attachments={attachments ?? []}
-              compact
-            />
+            <>
+              <AttachmentList
+                tripId={tripId}
+                targetType="TRANSPORT"
+                targetId={transport.id}
+                attachments={attachments ?? []}
+                compact
+              />
+              <AttachmentLinks attachments={partnerFiles ?? []} />
+            </>
           ) : (
             <p className="text-xs text-muted-foreground">
               Save this transport first, then reopen it to attach files.
             </p>
           )}
         </Field>
-        {!forkId && transport?.id && bookingField.shown === "BOOKED" && (nothingToAttach || !hasBookingConfirmation((attachments ?? []).map((a) => a.id))) && (
+        {!forkId && transport?.id && bookingField.shown === "BOOKED" && (nothingToAttach || !hasBookingConfirmation([...(attachments ?? []), ...(partnerFiles ?? [])].map((a) => a.id))) && (
           <NothingToAttachSwitch kind="TRANSPORT" id={transport.id} value={nothingToAttach} onChange={setNothingToAttach} />
         )}
 

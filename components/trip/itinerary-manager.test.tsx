@@ -4023,3 +4023,25 @@ describe("a thing to do with a file attached", () => {
     expect(within(rowOf("Rodin")).getByText("File attached")).toBeInTheDocument();
   });
 });
+
+describe("a Transport of one booking", () => {
+  it("shows the paperclip when only its booking partner has a file, and its sheet lists that file on the partner with no delete", async () => {
+    const user = userEvent.setup();
+    const stopA = makeStop({ id: "s-a", name: "Sydney", sortOrder: 0 });
+    const stopB = makeStop({ id: "s-b", name: "Paris", sortOrder: 1 });
+    const leg: ItineraryTransport = {
+      id: "tr-1", bookingStateSet: false, mode: "FLIGHT", fromStopId: "s-a", toStopId: "s-b", depIsHome: false, arrIsHome: false,
+      depPlace: "Sydney", arrPlace: "Paris", depAt: null, arrAt: null, reference: null, notes: null, sortOrder: 0, costs: [],
+    };
+    const eticket = { id: "f1", filename: "eticket.pdf", title: null, mime: "application/pdf", size: 10, url: "/api/attachments/f1", uploadedById: "u1", createdAt: new Date(), filedOn: "SIN → CDG" };
+    renderPlan(
+      <ItineraryManager {...baseProps} initialStops={[stopA, stopB]} initialTransports={[leg]} partnerFilesByTransportId={new Map([["tr-1", [eticket]]])} />,
+    );
+    const pill = desktop().getByRole("button", { name: /^Flight from Sydney to Paris.*File attached\.$/ });
+    await user.click(pill);
+    const link = await screen.findByRole("link", { name: "eticket.pdf on SIN → CDG" });
+    expect(link).toHaveAttribute("href", "/api/attachments/f1");
+    expect(screen.queryByRole("button", { name: "Delete eticket.pdf" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Rename eticket.pdf" })).toBeNull();
+  });
+});

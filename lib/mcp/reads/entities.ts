@@ -17,6 +17,7 @@ import { requireTripAccess } from "@/lib/guards";
 import { loadDayTitles } from "@/lib/day-titles-loader";
 import { orderPlanStops } from "@/lib/plan-order";
 import { REAL_PLAN, THINGS_TO_DO_WHERE } from "@/lib/plan-scope";
+import { bookingPartners } from "@/lib/connections";
 import { loadSurpriseVisibility, maskSurpriseStops, type SurpriseVisibility } from "@/lib/surprise-visibility";
 import { requireRealPlanRow } from "../real-plan";
 import { loadTripAttachments, type TripAttachmentsResult } from "./attachments";
@@ -28,7 +29,7 @@ import { withOpeningHours } from "@/lib/opening-hours-stored";
 import { withTryList } from "@/lib/try-list-stored";
 import {
   buildMcpStops, MCP_ACCOMMODATION_SELECT, MCP_CHAPTER_SELECT, MCP_DATED_ITEM_SELECT, MCP_THING_TO_DO_SELECT, MCP_TRANSPORT_SELECT,
-  MCP_TRIP_SELECT, mcpStopSelect, toMcpAccommodation, toMcpItem, toMcpTransport, toMcpTrip, withPlaceholders,
+  MCP_TRIP_SELECT, mcpStopSelect, toMcpAccommodation, toMcpItem, toMcpTransport, toMcpTrip, withBookingFiles, withPlaceholders,
   type FilesFor, type McpAccommodation, type NeedsConfirmation, type McpChapter, type McpItem, type McpStop, type McpTransport, type McpTripSummary,
 } from "./plan-shapes";
 
@@ -81,15 +82,22 @@ export async function loadTransportForMcp(transportId: string): Promise<McpTrans
   const { tripId } = await requireRealPlanRow("transport", transportId);
   const { v, needsConfirmation } = await visibilityAndConfirmations(tripId);
   const [trip, t] = await Promise.all([
-    db.trip.findUnique({ where: { id: tripId }, select: { homeTimezone: true } }),
+    db.trip.findUnique({ where: { id: tripId }, select: { homeTimezone: true, homeName: true } }),
     db.transport.findUnique({ where: { id: transportId }, select: MCP_TRANSPORT_SELECT }),
   ]);
   if (!t) notFound();
-  const endIds = [t.fromStopId, t.toStopId].filter((id): id is string => id !== null);
+  const legs = t.reference?.trim()
+    ? await db.transport.findMany({ where: { tripId, ...REAL_PLAN, reference: { not: null } }, select: MCP_TRANSPORT_SELECT })
+    : [];
+  const partners = bookingPartners(legs).get(transportId) ?? [];
+  const endIds = [t, ...partners].flatMap((l) => [l.fromStopId, l.toStopId]).filter((id): id is string => id !== null);
   const [ends, files, { costs }] = await Promise.all([
     // A hidden Surprise Stop keeps its name (its shell), so no fragment here — same as get_trip_plan's endpoints.
-    db.stop.findMany({ where: { id: { in: endIds }, tripId, ...REAL_PLAN }, select: { id: true, name: true, timezone: true } }),
-    loadTripAttachments(tripId, v, { targetIds: [transportId] }),
+    db.stop.findMany({
+      where: { id: { in: endIds }, tripId, ...REAL_PLAN },
+      select: { id: true, name: true, timezone: true, arriveDate: true, departDate: true },
+    }),
+    loadTripAttachments(tripId, v, { targetIds: [transportId, ...partners.map((p) => p.id)] }),
     readMcpCosts(tripId, v, { ownerType: "TRANSPORT", ownerId: transportId }),
   ]);
   return {
@@ -97,7 +105,7 @@ export async function loadTransportForMcp(transportId: string): Promise<McpTrans
       stopNameById: new Map(ends.map((s) => [s.id, s.name])),
       tzById: new Map(ends.map((s) => [s.id, s.timezone])),
       homeTimezone: trip?.homeTimezone ?? null,
-      filesFor: filesFrom(files),
+      filesFor: withBookingFiles(filesFrom(files), [t, ...partners], ends, trip?.homeName ?? null),
       needsConfirmation,
     }),
     costs,

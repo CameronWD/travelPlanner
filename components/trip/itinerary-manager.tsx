@@ -199,6 +199,7 @@ interface ItineraryManagerProps {
   attachmentsByStopId?: Map<string, AttachmentView[]>;
   /** Map of transportId → attachments for that transport */
   attachmentsByTransportId?: Map<string, AttachmentView[]>;
+  partnerFilesByTransportId?: Map<string, AttachmentView[]>;
   /** Map of accommodationId → attachments for that accommodation */
   attachmentsByAccommodationId?: Map<string, AttachmentView[]>;
   /** Map of itemId → attachments for that item */
@@ -485,6 +486,7 @@ export function ItineraryManager({
   notesByAccommodationId,
   attachmentsByStopId,
   attachmentsByTransportId,
+  partnerFilesByTransportId,
   attachmentsByAccommodationId,
   attachmentsByItemId,
   currentUserId,
@@ -1413,7 +1415,7 @@ export function ItineraryManager({
         label={legLabel(t, stops, homeBaseName, homeTimezone)}
         bookingState={t.bookingState}
         bookBy={t.bookBy}
-        attached={(attachmentsByTransportId?.get(t.id)?.length ?? 0) > 0}
+        attached={(attachmentsByTransportId?.get(t.id)?.length ?? 0) + (partnerFilesByTransportId?.get(t.id)?.length ?? 0) > 0}
         onClick={() => {
           setEditingTransport(enrichTransport(t, stops));
           setEditingTransportCosts(t.costs);
@@ -2180,6 +2182,7 @@ export function ItineraryManager({
           homeBaseName={homeBaseName}
           homeTimezone={homeTimezone}
           attachments={attachmentsByTransportId?.get(editingTransport.id) ?? []}
+          partnerFiles={partnerFilesByTransportId?.get(editingTransport.id) ?? []}
           onDelete={() => {
             const id = editingTransport.id;
             setEditingTransport(null);

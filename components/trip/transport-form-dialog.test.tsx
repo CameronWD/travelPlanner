@@ -2063,6 +2063,13 @@ describe("TransportFormDialog: No ticket or file needed tick box", () => {
     expect(screen.getByRole("checkbox", { name: "No ticket or file needed" })).toBeChecked();
   });
 
+  it("is absent when the booking partner already has the ticket, which is listed on the partner with no delete", () => {
+    render(<TransportFormDialog {...baseProps} transport={booked} attachments={[]} partnerFiles={[{ ...file, filedOn: "DPS → BKK" }]} />);
+    expect(screen.queryByRole("checkbox", { name: "No ticket or file needed" })).not.toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "ticket.pdf on DPS → BKK" })).toHaveAttribute("href", "/api/attachments/att-9");
+    expect(screen.queryByRole("button", { name: "Delete ticket.pdf" })).toBeNull();
+  });
+
   it("is absent on a What-if (Fork) plan, where it could only fail", () => {
     render(<TransportFormDialog {...baseProps} transport={booked} forkId="fork-1" />);
     expect(screen.queryByRole("checkbox", { name: "No ticket or file needed" })).not.toBeInTheDocument();
