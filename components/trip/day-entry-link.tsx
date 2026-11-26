@@ -108,7 +108,8 @@ export function DayEntryLink({ target, editor, attachments, className, children 
           homeBaseName={editor.homeBaseName}
           homeTimezone={editor.homeTimezone}
           costs={costs}
-          attachments={attachments}
+          attachments={attachments.filter((a) => !a.filedOn)}
+          partnerFiles={attachments.filter((a) => a.filedOn)}
           forkId={null}
         />
       )}

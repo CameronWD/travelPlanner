@@ -6,7 +6,12 @@ vi.mock("@/components/trip/item-form-dialog", () => ({
   ItemFormDialog: (p: { open: boolean; item?: { id: string } }) => (p.open ? <div data-testid="item-dialog">{p.item?.id}</div> : null),
 }));
 vi.mock("@/components/trip/transport-form-dialog", () => ({
-  TransportFormDialog: (p: { open: boolean; transport?: { id: string } }) => (p.open ? <div data-testid="transport-dialog">{p.transport?.id}</div> : null),
+  TransportFormDialog: (p: { open: boolean; transport?: { id: string }; attachments?: Array<{ id: string }>; partnerFiles?: Array<{ id: string }> }) =>
+    p.open ? (
+      <div data-testid="transport-dialog" data-own={p.attachments?.map((a) => a.id).join(",")} data-partner={p.partnerFiles?.map((a) => a.id).join(",")}>
+        {p.transport?.id}
+      </div>
+    ) : null,
 }));
 vi.mock("@/components/trip/accommodation-form-dialog", () => ({
   AccommodationFormDialog: (p: { open: boolean; accommodation?: { id: string }; stopDateRange: { arriveDate: string } }) =>
@@ -42,6 +47,19 @@ describe("DayEntryLink", () => {
     );
     await user.click(screen.getByRole("button"));
     expect(screen.getByTestId("transport-dialog")).toHaveTextContent("tr1");
+  });
+
+  it("hands a Transport's dialog its own files to manage and its booking partner's files apart", async () => {
+    const user = userEvent.setup();
+    const file = (id: string, filedOn?: string) => ({ id, filename: `${id}.pdf`, mime: "application/pdf", size: 1, url: `/api/attachments/${id}`, uploadedById: "u1", createdAt: new Date(), filedOn });
+    render(
+      <DayEntryLink editor={editor} attachments={[file("own"), file("eticket", "DPS → BKK")]} target={{ kind: "transport", transport: { id: "tr1", bookingStateSet: false, mode: "FLIGHT", sortOrder: 0 } }}>
+        Departs
+      </DayEntryLink>,
+    );
+    await user.click(screen.getByRole("button"));
+    expect(screen.getByTestId("transport-dialog")).toHaveAttribute("data-own", "own");
+    expect(screen.getByTestId("transport-dialog")).toHaveAttribute("data-partner", "eticket");
   });
 
   it("opens the Accommodation dialog with the Stop's date range", async () => {

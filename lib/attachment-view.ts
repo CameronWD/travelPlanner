@@ -14,7 +14,6 @@ export interface AttachmentView {
   targetId?: string | null;
   /** False on files Move would refuse (an Item's photo, a Journal photo); the Files page hides Move for them. */
   movable?: boolean;
-  /** Set on a booking partner's file shown on another Transport: the Transport it is filed on. */
   filedOn?: string | null;
 }
 

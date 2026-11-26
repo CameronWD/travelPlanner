@@ -104,6 +104,7 @@ export function DetailsSheet({
               >
                 <FileText className="size-4 shrink-0" aria-hidden="true" />
                 <span className="min-w-0 break-words">{attachmentName(f)}</span>
+                {f.filedOn ? <span className="text-xs font-medium text-muted-foreground">on {f.filedOn}</span> : null}
               </AttachmentLink>
             ))}
           </div>
