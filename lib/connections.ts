@@ -68,13 +68,20 @@ export function bookingPartners<T extends ConnectionLeg>(legs: readonly T[]): Ma
   }
   const partners = new Map<string, T[]>();
   for (const group of groups.values()) {
-    const successor = (leg: T) => group.find((n) => n !== leg && sameBooking(leg, n));
-    const entered = new Set(group.map(successor));
-    for (const start of group.filter((l) => !entered.has(l))) {
-      const chain: T[] = [start];
-      for (let n = successor(start); n && !chain.includes(n); n = successor(n)) chain.push(n);
-      if (chain.length < 2) continue;
-      for (const leg of chain) partners.set(leg.id, chain.filter((l) => l !== leg));
+    const seen = new Set<T>();
+    for (const root of group) {
+      if (seen.has(root)) continue;
+      const component = [root];
+      seen.add(root);
+      for (let i = 0; i < component.length; i++) {
+        for (const other of group) {
+          if (seen.has(other) || !(sameBooking(component[i], other) || sameBooking(other, component[i]))) continue;
+          seen.add(other);
+          component.push(other);
+        }
+      }
+      if (component.length < 2) continue;
+      for (const leg of component) partners.set(leg.id, group.filter((l) => l !== leg && component.includes(l)));
     }
   }
   return partners;
@@ -88,7 +95,6 @@ export function journeyHome<T extends ConnectionLeg>(legs: readonly T[], lastSto
     const last = journey[journey.length - 1];
     const next = legs
       .filter((n) => !journey.includes(n) && isConnection(last, n))
-      .filter((n) => !last.arrAt || !n.depAt || n.depAt >= last.arrAt)
       .sort(byDeparture)[0];
     if (!next) return journey;
     journey.push(next);
@@ -103,7 +109,6 @@ export function journeyOut<T extends ConnectionLeg>(legs: readonly T[], firstSto
     const head = journey[0];
     const prev = legs
       .filter((p) => !journey.includes(p) && isConnection(p, head))
-      .filter((p) => !p.arrAt || !head.depAt || p.arrAt <= head.depAt)
       .sort((x, y) => (y.arrAt?.getTime() ?? -Infinity) - (x.arrAt?.getTime() ?? -Infinity))[0];
     if (!prev) return journey;
     journey.unshift(prev);

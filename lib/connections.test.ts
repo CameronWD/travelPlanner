@@ -156,9 +156,25 @@ describe("bookingPartners", () => {
   it("a middle leg with no departure time does not split its booking", () => {
     const mid = { ...l2, depAt: null };
     const m = bookingPartners([l3, mid, l1]);
-    expect(m.get("l1")?.map((l) => l.id)).toEqual(["l2", "l3"]);
+    expect(m.get("l1")?.map((l) => l.id)).toEqual(["l3", "l2"]);
     expect(m.get("l2")?.map((l) => l.id)).toEqual(["l1", "l3"]);
     expect(m.get("l3")?.map((l) => l.id)).toEqual(["l1", "l2"]);
+  });
+  it("two legs that connect into each other are still one booking", () => {
+    const x: ConnectionLeg = { id: "x", mode: "FLIGHT", depPlace: "Doha", arrPlace: "Rome", reference: "R" };
+    const y: ConnectionLeg = { id: "y", mode: "FLIGHT", depPlace: "Rome", arrPlace: "Doha", reference: "R" };
+    const m = bookingPartners([x, y]);
+    expect(m.get("x")?.map((l) => l.id)).toEqual(["y"]);
+    expect(m.get("y")?.map((l) => l.id)).toEqual(["x"]);
+  });
+  it("two legs into the same next leg are one booking of three", () => {
+    const x: ConnectionLeg = { id: "x", mode: "FLIGHT", depPlace: "A", arrPlace: "P", reference: "R" };
+    const y: ConnectionLeg = { id: "y", mode: "FLIGHT", depPlace: "B", arrPlace: "P", reference: "R" };
+    const z: ConnectionLeg = { id: "z", mode: "FLIGHT", depPlace: "P", arrPlace: "C", reference: "R" };
+    const m = bookingPartners([z, y, x]);
+    expect(m.get("x")?.map((l) => l.id)).toEqual(["y", "z"]);
+    expect(m.get("y")?.map((l) => l.id)).toEqual(["x", "z"]);
+    expect(m.get("z")?.map((l) => l.id)).toEqual(["x", "y"]);
   });
   it("an unrelated leg departing between two legs of a booking does not split it", () => {
     const other: ConnectionLeg = { id: "o", mode: "TRAIN", depPlace: "Oslo", arrPlace: "Bergen", depAt: new Date("2026-12-05T03:00:00Z"), reference: "ZZ" };
