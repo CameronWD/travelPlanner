@@ -114,14 +114,22 @@ function placePoint(value: LocationValue, saved: SavedEnd | null): Point | null 
   return saved && saved.text === text && saved.lat != null && saved.lng != null ? { lat: saved.lat, lng: saved.lng } : null;
 }
 
-function keepsSavedZone(at: Point | null, saved: SavedEnd | null): saved is SavedEnd {
-  return Boolean(saved?.wasPlace) && samePoint(saved?.lat, at?.lat) && samePoint(saved?.lng, at?.lng);
+// server/actions/transport.ts is a "use server" module, so its samePlaceText is restated here.
+const samePlaceText = (a: string | null, b: string | null) => (a ?? "").trim().toLowerCase() === (b ?? "").trim().toLowerCase();
+
+function keepsSavedZone(value: LocationValue, saved: SavedEnd | null): saved is SavedEnd {
+  if (!saved?.wasPlace) return false;
+  const name = value.kind === "place" ? value.name || null : null;
+  if (name && value.kind === "place" && value.placeId && value.lat !== undefined && value.lng !== undefined) {
+    return samePoint(saved.lat, value.lat) && samePoint(saved.lng, value.lng);
+  }
+  return samePlaceText(saved.text, name);
 }
 
 function placeEndZone(value: LocationValue, saved: SavedEnd | null, pointZones: Record<string, string | null>): string | null {
   if (value.kind === "stop" || value.kind === "home") return null;
+  if (keepsSavedZone(value, saved)) return saved.zone;
   const at = placePoint(value, saved);
-  if (keepsSavedZone(at, saved)) return saved.zone;
   return at ? (pointZones[pointKey(at)] ?? null) : null;
 }
 
@@ -474,8 +482,9 @@ function TransportForm({
   const saved = savedEnds(transport);
   const [pointZones, setPointZones] = React.useState<Record<string, string | null>>({});
   function lookUpPlaceZone(next: LocationValue, savedEnd: SavedEnd | null) {
+    if (next.kind === "stop" || next.kind === "home" || keepsSavedZone(next, savedEnd)) return;
     const at = placePoint(next, savedEnd);
-    if (!at || keepsSavedZone(at, savedEnd) || pointKey(at) in pointZones) return;
+    if (!at || pointKey(at) in pointZones) return;
     import("@/lib/tz-point")
       .then(({ pointTimezone }) => setPointZones((z) => ({ ...z, [pointKey(at)]: pointTimezone(at.lat, at.lng) })))
       .catch(() => {});

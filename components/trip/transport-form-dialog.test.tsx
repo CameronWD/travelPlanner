@@ -2347,6 +2347,23 @@ describe("TransportFormDialog: a place end's own zone", () => {
     expect(pointTimezone).not.toHaveBeenCalled();
   });
 
+  it("changing only the case or spacing of a saved place's text keeps its stored zone", async () => {
+    const user = userEvent.setup();
+    render(
+      <TransportFormDialog
+        {...baseProps}
+        stops={[DPS]}
+        transport={{ ...toBangkok, arrPlace: " Suvarnabhumi Airport ", ...warnTimes, arrAt: new Date("2026-12-05T12:30:00Z") }}
+      />,
+    );
+    expect(warning()).not.toBeInTheDocument();
+
+    await openComboboxAndTypePlace(user, "^To:", "suvarnabhumi AIRPORT");
+    expect(screen.getByLabelText(/^Arrives/)).toHaveValue("2026-12-05T19:30");
+    expect(warning()).not.toBeInTheDocument();
+    expect(pointTimezone).not.toHaveBeenCalled();
+  });
+
   it("a new Transport to a place with coordinates shows and reads the arrival in that place's zone", async () => {
     const user = userEvent.setup();
     render(<TransportFormDialog {...baseProps} stops={[DPS]} defaultFromStopId="dps" />);
