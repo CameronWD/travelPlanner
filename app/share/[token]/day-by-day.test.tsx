@@ -8,13 +8,15 @@ vi.mock("@/lib/scroll-to", () => ({ scrollToId }));
 vi.mock("./viewer-time", () => ({ ViewerArrival: ({ instant }: { instant: string }) => <i data-testid="viewer-arrival">{instant}</i> }));
 
 import { DayByDay, type DayByDayStop } from "./day-by-day";
+import type { ShareLeg } from "./share-leg";
 import { MotionProvider } from "@/components/ui/motion-provider";
 
+const stack = (leg: ShareLeg) => ({ legs: [leg], changeovers: [null] });
 const row = (title: string) => ({ key: title, time: "10:00", title, sub: null, kind: "item" as const, category: "SIGHTSEEING", mode: null, done: false });
 const stops: DayByDayStop[] = [
   { id: "lon", name: "London", summary: "Ritz +1 · 3 plans", number: 1, sortOrder: 0, arriveDate: "2026-12-05", departDate: "2026-12-10", nights: 5, status: "past",
     days: [{ dateISO: "2026-12-05", isToday: false, title: null, rows: [row("Borough Market")] }],
-    legAfter: { mode: "TRAIN", label: "Train to Paris", when: "Thu 10 Dec · St Pancras 09:31 → Gare du Nord 12:47", number: null, arrivesAt: "2026-12-10T11:47:00.000Z", arrivesLocal: "2026-12-10 12:47" } },
+    legAfter: stack({ mode: "TRAIN", label: "Train to Paris", when: "Thu 10 Dec · St Pancras 09:31 → Gare du Nord 12:47", number: null, arrivesAt: "2026-12-10T11:47:00.000Z", arrivesLocal: "2026-12-10 12:47" }) },
   { id: "par", name: "Paris", summary: null, number: 2, sortOrder: 1, arriveDate: "2026-12-10", departDate: "2026-12-15", nights: 5, status: "current",
     days: [
       { dateISO: "2026-12-11", isToday: false, title: null, rows: [row("Louvre")] },
@@ -39,7 +41,7 @@ describe("DayByDay (SHARE.md §7)", () => {
   });
 
   it("lets the last Stop touch a Home-back leg, and gap it otherwise", () => {
-    const back = { mode: "FLIGHT" as const, label: "Flight home", when: "x", number: null, arrivesAt: null, arrivesLocal: null };
+    const back = stack({ mode: "FLIGHT" as const, label: "Flight home", when: "x", number: null, arrivesAt: null, arrivesLocal: null });
     const withBack = render(<DayByDay stops={stops} initialOpenId="par" homeBack={back} />);
     expect(withBack.container.querySelector("[data-share-stop='par']")!.className).not.toMatch(/mb-3/);
     withBack.unmount();
@@ -53,14 +55,14 @@ describe("DayByDay (SHARE.md §7)", () => {
   });
 
   it("adds the viewer's arrival only to a leg that has an arrival time", () => {
-    const homeOut = { mode: "FLIGHT" as const, label: "Flight to London", when: "Fri 4 Dec", number: null, arrivesAt: null, arrivesLocal: null };
+    const homeOut = stack({ mode: "FLIGHT" as const, label: "Flight to London", when: "Fri 4 Dec", number: null, arrivesAt: null, arrivesLocal: null });
     render(<DayByDay stops={stops} initialOpenId="par" homeOut={homeOut} />);
     expect(screen.getAllByTestId("viewer-arrival")).toHaveLength(1);
   });
 
   it("lists the Home legs above the first Stop and below the last", () => {
-    const homeOut = { mode: "FLIGHT" as const, label: "Flight to London", when: "Fri 4 Dec · QF 1", number: null, arrivesAt: null, arrivesLocal: null };
-    const homeBack = { mode: "FLIGHT" as const, label: "Flight home", when: "Tue 15 Dec · QF 2", number: null, arrivesAt: null, arrivesLocal: null };
+    const homeOut = stack({ mode: "FLIGHT" as const, label: "Flight to London", when: "Fri 4 Dec · QF 1", number: null, arrivesAt: null, arrivesLocal: null });
+    const homeBack = stack({ mode: "FLIGHT" as const, label: "Flight home", when: "Tue 15 Dec · QF 2", number: null, arrivesAt: null, arrivesLocal: null });
     const { container } = render(<DayByDay stops={stops} initialOpenId="par" homeOut={homeOut} homeBack={homeBack} />);
     const rows = Array.from(container.querySelectorAll("[data-share-leg]"));
     expect(rows).toHaveLength(3);
@@ -295,8 +297,8 @@ describe("DayByDay (SHARE.md §7)", () => {
   });
 
   describe("Home at both ends", () => {
-    const homeOut = { mode: "FLIGHT" as const, label: "Flight to London", when: "Fri 4 Dec", number: null, arrivesAt: null, arrivesLocal: null };
-    const homeBack = { mode: "FLIGHT" as const, label: "Flight home", when: "Tue 15 Dec", number: null, arrivesAt: null, arrivesLocal: null };
+    const homeOut = stack({ mode: "FLIGHT" as const, label: "Flight to London", when: "Fri 4 Dec", number: null, arrivesAt: null, arrivesLocal: null });
+    const homeBack = stack({ mode: "FLIGHT" as const, label: "Flight home", when: "Tue 15 Dec", number: null, arrivesAt: null, arrivesLocal: null });
     const homes = (c: HTMLElement) => Array.from(c.querySelectorAll<HTMLElement>("[data-share-home]"));
 
     it("puts a solid Home card above the outbound leg and another below the return leg", () => {
@@ -335,7 +337,7 @@ describe("DayByDay (SHARE.md §7)", () => {
     const rough = [{ id: "bali", name: "Bali", country: "Indonesia", nights: 4 }, { id: "fiji", name: "Fiji", country: null, nights: null }];
 
     it("come after the scheduled Stops, and after the Home card, as plain cards with no Show control", () => {
-      const homeBack = { mode: "FLIGHT" as const, label: "Flight home", when: "Tue 15 Dec", number: null, arrivesAt: null, arrivesLocal: null };
+      const homeBack = stack({ mode: "FLIGHT" as const, label: "Flight home", when: "Tue 15 Dec", number: null, arrivesAt: null, arrivesLocal: null });
       const { container } = render(<DayByDay stops={stops} initialOpenId="par" roughStops={rough} homeBack={homeBack} homeName="Gold Coast" />);
       const bali = container.querySelector("[data-share-rough='bali']") as HTMLElement;
       expect(bali).toHaveTextContent("Bali");

@@ -5,7 +5,7 @@ import { stopDotClass, stopHue } from "@/lib/stop-colours";
 import { formatDateRangeCompact, formatDayLabel, formatNights } from "@/lib/dates";
 import type { StopStatus } from "@/lib/share/view";
 import { ShareRows, type ShareRowModel } from "./share-rows";
-import type { ShareLeg } from "./share-leg";
+import type { ShareLegStack } from "./share-leg";
 import { ShareTravelRow } from "./share-travel-row";
 import { DayByDayProvider, StopBlock, StopIndex, StopPicker } from "./day-by-day-client";
 
@@ -30,8 +30,8 @@ export interface DayByDayStop {
   summary: string | null;
   status: StopStatus;
   days: DayByDayDay[];
-  /** Transport from this stop to the next; null when includeTransport is off or none. */
-  legAfter: ShareLeg | null;
+  /** Transport from this stop to the next, one leg or a journey of several; null when includeTransport is off or none. */
+  legAfter: ShareLegStack | null;
 }
 
 /** A Stop with no dates yet: listed at the end, plain, with nothing to open. */
@@ -58,8 +58,8 @@ export function DayByDay({
 }: {
   stops: DayByDayStop[];
   initialOpenId: string | null;
-  homeOut?: ShareLeg | null;
-  homeBack?: ShareLeg | null;
+  homeOut?: ShareLegStack | null;
+  homeBack?: ShareLegStack | null;
   /** The Home base's name, only when the page already shows it on the map; no name, no Home card. */
   homeName?: string | null;
   roughStops?: RoughStop[];
