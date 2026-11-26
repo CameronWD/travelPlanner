@@ -50,6 +50,8 @@ export function actionLabel(action: UsageAction, detail: UsageDetail | null): st
       return "Opened the Day map";
     case "directions-tapped":
       return "Tapped Directions";
+    case "directions-back-tapped":
+      return "Tapped Directions back";
     case "attachment-opened":
       return "Opened an Attachment";
     case "weather-detail-opened":

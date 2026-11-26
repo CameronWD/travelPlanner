@@ -23,6 +23,7 @@ describe("usage labels", () => {
     expect(actionLabel("more-row-chosen", "wishlist")).toBe("Chose Wishlist from More");
     expect(actionLabel("review-started", "deep")).toBe("Started a Deep Review");
     expect(actionLabel("directions-tapped", null)).toBe("Tapped Directions");
+    expect(actionLabel("directions-back-tapped", null)).toBe("Tapped Directions back");
   });
 
   it("formats millionths of a dollar", () => {

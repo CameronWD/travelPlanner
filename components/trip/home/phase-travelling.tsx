@@ -11,6 +11,7 @@ import { loadTravellingHome, type DatedTravellingHome } from "@/lib/travelling-h
 import { EmptyState } from "@/components/ui/empty-state";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { UsageAnchor } from "@/components/usage/usage-anchor";
 import { Timeline } from "@/components/trip/timeline";
 import { DayMapPanel } from "@/components/trip/day-map-panel";
 import { NearbyWishlist } from "@/components/trip/nearby-wishlist";
@@ -18,7 +19,7 @@ import { DayIdeas } from "@/components/trip/day-ideas";
 import { WhatsAroundSheet } from "@/components/trip/whats-around-sheet";
 import { StayCard, StayConfirmation } from "@/components/trip/stay-card";
 import { MapLink } from "@/components/trip/map-link";
-import { mapsUrl } from "@/lib/map/maps";
+import { mapsUrl, directionsBackUrl } from "@/lib/map/maps";
 import { SpendSoFarCard } from "@/components/trip/spend-so-far-card";
 import { AttachmentLinks } from "@/components/trip/attachment-links";
 import { ChapterChip } from "@/components/trip/chapter-chip";
@@ -115,6 +116,7 @@ export async function PhaseTravelling({
     revealNudges,
     holidays,
   } = model;
+  const directionsBack = directionsBackUrl(tonightAccom, localMode);
   const nowNextFiles =
     nowNext.kind === "in-transit" || nowNext.kind === "next-departure" ? (attachmentsByTarget[nowNext.transportId] ?? []) : [];
 
@@ -178,6 +180,7 @@ export async function PhaseTravelling({
           tripId={tripId}
           dayMapHref={tripPath(slug, `/day/${effectiveDate}?map=1`)}
           localMode={localMode}
+          directionsBack={directionsBack}
         />
         {nowNextFiles.length > 0 && <AttachmentLinks attachments={nowNextFiles} />}
       </div>
@@ -236,6 +239,14 @@ export async function PhaseTravelling({
           )}
           {tonightAccom.notes && (
             <p className="whitespace-pre-line text-[13px] font-medium">{tonightAccom.notes}</p>
+          )}
+          {directionsBack && (
+            <Button asChild variant="secondary" size="md" className="min-h-11 self-start">
+              <UsageAnchor action="directions-back-tapped" href={directionsBack} target="_blank" rel="noopener noreferrer">
+                <Bed aria-hidden="true" />
+                Directions back
+              </UsageAnchor>
+            </Button>
           )}
           <AttachmentLinks attachments={attachmentsByTarget[tonightAccom.id] ?? []} />
         </StayCard>

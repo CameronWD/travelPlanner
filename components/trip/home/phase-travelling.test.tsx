@@ -651,6 +651,25 @@ describe("PhaseTravelling Playground kit restyle (Task 10b)", () => {
     expect(dom.innerHTML).not.toMatch(/rounded-2xl border border-border|shadow-soft|bg-hue-leaf\/25/);
   });
 
+  it("Tonight's stay offers Directions back", async () => {
+    pinClockInsideStay();
+    pickDayPlanMock.mockReturnValue({ ...EMPTY_DAY, stop: { id: "stop-1", name: "Munich", country: "Germany" } });
+    const dom = toDom(await PhaseTravelling({ tripId: "trip-1" }));
+    const link = [...dom.querySelectorAll('[data-testid="tonights-stay"] a')].find((a) => a.textContent?.trim() === "Directions back");
+    expect(link?.getAttribute("href")).toBe("https://www.google.com/maps/dir/?api=1&destination=48.1%2C11.6&travelmode=transit");
+  });
+
+  it("Tonight's stay offers no Directions back when the Accommodation has no address or coordinates", async () => {
+    pinClockInsideStay();
+    accommodationFindManyMock.mockResolvedValue([
+      { id: "acc-1", stopId: "stop-1", name: "Hotel Bayern", address: null, checkIn: "2026-01-01", checkOut: "2026-01-10", checkInTime: null, checkOutTime: null, confirmation: null, notes: null, lat: null, lng: null },
+    ]);
+    pickDayPlanMock.mockReturnValue({ ...EMPTY_DAY, stop: { id: "stop-1", name: "Munich", country: "Germany" } });
+    const dom = toDom(await PhaseTravelling({ tripId: "trip-1" }));
+    expect(dom.querySelector('[data-testid="tonights-stay"]')).not.toBeNull();
+    expect(dom.textContent).not.toContain("Directions back");
+  });
+
   it("renders the kit empty treatment when nothing is planned today", async () => {
     const tree = await PhaseTravelling({ tripId: "trip-1" });
     const empty = findElementByType(tree, EmptyState);

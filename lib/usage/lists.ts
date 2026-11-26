@@ -22,6 +22,7 @@ export const USAGE_ACTIONS = [
   "day-changed",
   "day-map-opened",
   "directions-tapped",
+  "directions-back-tapped",
   "attachment-opened",
   "weather-detail-opened",
   "reminder-got-it",

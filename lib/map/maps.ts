@@ -146,3 +146,15 @@ export function directionsFromHereUrl(
     apple: `https://maps.apple.com/?${apple.toString()}`,
   };
 }
+
+export function directionsBackUrl(
+  accommodation: { lat?: number | null; lng?: number | null; address?: string | null } | null,
+  mode: LocalMode | null,
+): string | null {
+  if (!accommodation) return null;
+  if (accommodation.lat != null && accommodation.lng != null) {
+    return directionsFromHereUrl({ lat: accommodation.lat, lng: accommodation.lng }, mode).google;
+  }
+  if (accommodation.address) return directionsFromHereUrl({ address: accommodation.address }, mode).google;
+  return null;
+}
