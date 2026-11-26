@@ -10,6 +10,7 @@ import { addDays, daysBetween, isDateWithin } from "@/lib/dates";
 import { instantToZonedDateISO, instantToZonedTime } from "@/lib/tz";
 import { resolveEndpointZones } from "@/lib/time-display";
 import { endZones } from "@/lib/leg-zones";
+import { changeLabel, isConnection, waitMinutes } from "@/lib/connections";
 import type { SurpriseView } from "@/lib/surprise";
 import type { BookingState } from "@/lib/enum-values";
 import type { OpeningHours } from "@/lib/opening-hours";
@@ -91,6 +92,8 @@ export interface ItineraryTransport extends TransportDetails {
   arrIsHome?: boolean | null;
   depTimezone?: string | null;
   arrTimezone?: string | null;
+  depPlaceId?: string | null;
+  arrPlaceId?: string | null;
 }
 
 export interface ItineraryAccommodation {
@@ -137,11 +140,14 @@ export type TransportDepartureEntry = {
    * Only set on departure entries when arrivesSameDay is true AND arrAt is present.
    */
   arrTimeLabel?: string;
+  /** The Connection line, only when the arrival is on this same day (otherwise the arrival entry carries it). */
+  connection?: string;
 };
 
 export type TransportArrivalEntry = {
   kind: "transport-arrival";
   transport: ItineraryTransport;
+  connection?: string;
   /**
    * Precomputed arrival time string (HH:MM) in the toStop's local timezone.
    * Undefined when arrAt is absent.
@@ -348,7 +354,16 @@ export function buildItinerary({
   };
   const transportDateEntries: TransportDateEntry[] = [];
 
-  for (const transport of transports) {
+  const legs = transports.map((t) => ({ ...t, depAt: toDate(t.depAt), arrAt: toDate(t.arrAt) }));
+  const connectionLine = (index: number): string | undefined => {
+    const a = legs[index];
+    const next = legs
+      .filter((b, i) => i !== index && b.depAt && isConnection(a, b) && waitMinutes(a, b) !== null)
+      .sort((x, y) => x.depAt!.getTime() - y.depAt!.getTime())[0];
+    return (next && changeLabel(a, next)) || undefined;
+  };
+
+  for (const [index, transport] of transports.entries()) {
     const depDate = toDate(transport.depAt);
     if (!depDate) continue; // no depAt → skip from day projection
 
@@ -380,6 +395,8 @@ export function buildItinerary({
       depEntryArrTimeLabel = instantToZonedTime(arrDate, arrTz);
     }
 
+    const connection = arrDate ? connectionLine(index) : undefined;
+
     // Departure entry
     transportDateEntries.push({
       dateISO: depDayISO,
@@ -390,6 +407,7 @@ export function buildItinerary({
         arrivalDateISO,
         depTimeLabel,
         arrTimeLabel: depEntryArrTimeLabel,
+        connection: arrivesSameDay ? connection : undefined,
       },
     });
 
@@ -402,6 +420,7 @@ export function buildItinerary({
           kind: "transport-arrival",
           transport,
           arrTimeLabel,
+          connection,
         },
       });
     }

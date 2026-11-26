@@ -1064,3 +1064,45 @@ describe("transportEndZones fallbacks", () => {
     expect(transportEndZones({}, null, null, null)).toEqual({ depTz: "UTC", arrTz: "UTC" });
   });
 });
+
+describe("buildItinerary: the wait", () => {
+  const BASE = { startDate: "2026-07-01", endDate: "2026-07-10", stops: [PARIS, ROME], items: [], accommodations: [] };
+  const first = makeTransport({
+    id: "f1", fromStopId: "stop-paris", depPlace: "Paris", arrPlace: "Bangkok",
+    depAt: new Date("2026-07-02T08:00:00Z"), arrAt: new Date("2026-07-03T09:00:00Z"),
+  });
+  const second = makeTransport({
+    id: "f2", toStopId: "stop-rome", depPlace: "Bangkok", arrPlace: "Rome",
+    depAt: new Date("2026-07-03T11:35:00Z"), arrAt: new Date("2026-07-03T20:00:00Z"),
+  });
+  const entries = (transports: ItineraryTransport[]) =>
+    buildItinerary({ ...BASE, transports }).flatMap((p) => p.transportEntries);
+
+  it("an arrival that starts a Connection carries its line", () => {
+    const arrival = entries([first, second]).find((e) => e.kind === "transport-arrival" && e.transport.id === "f1");
+    expect(arrival?.connection).toBe("Layover in Bangkok · 2h 35m");
+  });
+
+  it("a same-day arrival that starts a Connection carries its line on its row", () => {
+    const sameDay = { ...first, arrAt: new Date("2026-07-02T09:00:00Z"), depAt: new Date("2026-07-02T03:00:00Z") };
+    const next = { ...second, depAt: new Date("2026-07-02T11:35:00Z"), arrAt: new Date("2026-07-02T20:00:00Z") };
+    const dep = entries([sameDay, next]).find((e) => e.kind === "transport-departure" && e.transport.id === "f1");
+    expect(dep?.connection).toBe("Layover in Bangkok · 2h 35m");
+  });
+
+  it("an arrival at a Stop carries none", () => {
+    const atStop = { ...first, toStopId: "stop-rome", arrPlace: "Rome" };
+    const next = { ...second, fromStopId: "stop-rome", depPlace: "Rome", toStopId: null, arrPlace: "Bangkok" };
+    expect(entries([atStop, next]).every((e) => e.connection === undefined)).toBe(true);
+  });
+
+  it("a leg that nothing follows carries none", () => {
+    expect(entries([first]).every((e) => e.connection === undefined)).toBe(true);
+  });
+
+  it("takes the earliest following departure", () => {
+    const later = { ...second, id: "f3", depAt: new Date("2026-07-03T15:00:00Z"), arrAt: new Date("2026-07-03T22:00:00Z") };
+    const arrival = entries([first, later, second]).find((e) => e.kind === "transport-arrival" && e.transport.id === "f1");
+    expect(arrival?.connection).toBe("Layover in Bangkok · 2h 35m");
+  });
+});

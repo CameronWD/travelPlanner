@@ -320,6 +320,7 @@ function deriveTrip(rows: DayRows): TripDerived {
         depPlace: t.depPlace, arrPlace: t.arrPlace, depAt: t.depAt, arrAt: t.arrAt,
         reference: t.reference, notes: t.notes, depIsHome: t.depIsHome, arrIsHome: t.arrIsHome,
         depTimezone: t.depTimezone, arrTimezone: t.arrTimezone,
+        depPlaceId: t.depPlaceId, arrPlaceId: t.arrPlaceId,
         bookingState: t.bookingState, bookingStateSet: t.bookingStateSet, nothingToAttach: t.nothingToAttach, bookBy: t.bookBy,
         ...pickTransportDetails(t),
       })),
