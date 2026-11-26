@@ -446,6 +446,56 @@ describe("Plan page with stops (LA-038)", () => {
     ]);
   });
 
+  describe("a drive's driveTime", () => {
+    const A = { lat: 41.9, lng: 12.5 };
+    const B = { lat: 43.77, lng: 11.25 };
+    const key = `DRIVE|${A.lat.toFixed(5)},${A.lng.toFixed(5)}|${B.lat.toFixed(5)},${B.lng.toFixed(5)}`;
+    const row = { key, status: "OK", minutes: 190, distanceM: 275400, polyline: null };
+    const stopsAB = () => [
+      { ...STOP, id: "s1", ...A },
+      { ...STOP, id: "s2", name: "Florence", sortOrder: 1, ...B },
+    ];
+    const timed = { depAt: new Date("2026-01-05T08:00:00Z"), arrAt: new Date("2026-01-05T12:00:00Z") };
+
+    it("a timed Car leg gets its driveTime and keeps a null driveEstimate", async () => {
+      scenario.stops = stopsAB();
+      scenario.transports = [{ id: "t1", mode: "CAR", fromStopId: "s1", toStopId: "s2", ...timed, sortOrder: 0 }];
+      mockDb.travelTime.findMany.mockResolvedValue([row]);
+      await renderPlan();
+      expect(itineraryManagerCapture.props?.initialTransports).toMatchObject([
+        { driveTime: { minutes: 190, roadKm: 275, estimated: false }, driveEstimate: null },
+      ]);
+    });
+
+    it("an untimed Car leg's driveEstimate is unchanged and equals its driveTime", async () => {
+      scenario.stops = stopsAB();
+      scenario.transports = [{ id: "t1", mode: "CAR", fromStopId: "s1", toStopId: "s2", depAt: null, arrAt: null, sortOrder: 0 }];
+      mockDb.travelTime.findMany.mockResolvedValue([row]);
+      await renderPlan();
+      const [t] = itineraryManagerCapture.props?.initialTransports as { driveTime: unknown; driveEstimate: unknown }[];
+      expect(t.driveEstimate).toEqual({ minutes: 190, roadKm: 275, estimated: false });
+      expect(t.driveTime).toEqual(t.driveEstimate);
+    });
+
+    it("a Car leg between two Stops at the same point has no driveTime", async () => {
+      scenario.stops = [
+        { ...STOP, id: "s1", ...A },
+        { ...STOP, id: "s2", name: "Florence", sortOrder: 1, ...A },
+      ];
+      scenario.transports = [{ id: "t1", mode: "CAR", fromStopId: "s1", toStopId: "s2", ...timed, sortOrder: 0 }];
+      await renderPlan();
+      expect(itineraryManagerCapture.props?.initialTransports).toMatchObject([{ driveTime: null }]);
+    });
+
+    it("a timed TRAIN leg has no driveTime", async () => {
+      scenario.stops = stopsAB();
+      scenario.transports = [{ id: "t1", mode: "TRAIN", fromStopId: "s1", toStopId: "s2", ...timed, sortOrder: 0 }];
+      mockDb.travelTime.findMany.mockResolvedValue([row]);
+      await renderPlan();
+      expect(itineraryManagerCapture.props?.initialTransports).toMatchObject([{ driveTime: null }]);
+    });
+  });
+
   it("loads Day titles for the plan's stops and passes a plain dayTitles object to ItineraryManager", async () => {
     scenario.stops = [STOP];
     mockDb.dayTitle.findMany.mockResolvedValue([

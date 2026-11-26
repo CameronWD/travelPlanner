@@ -52,6 +52,11 @@ describe("flagsToFindings (R8: current Flags restated as Findings)", () => {
     expect(unmapped).toEqual([]);
   });
 
+  it("maps a drive that does not fit its times to Logistics", () => {
+    expect(flagsToFindings([{ id: "drive-short-x", severity: "warning", message: "m.", targetType: "DAY", date: "2026-12-05" }])[0])
+      .toMatchObject({ category: "LOGISTICS", title: "Too little time for the drive" });
+  });
+
   it("an unknown Flag still restates, under Logistics", () => {
     expect(flagsToFindings([{ id: "something-new", severity: "info", message: "m.", targetType: "TRIP" }])[0]).toMatchObject({ category: "LOGISTICS", title: "Flag" });
   });

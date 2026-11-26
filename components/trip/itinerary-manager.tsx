@@ -63,6 +63,7 @@ import { suggestResultToast } from "@/lib/suggest-toast";
 import { suggestNextStopDates, formatDayLabel, formatLongDate } from "@/lib/dates";
 import { deleteTransport } from "@/server/actions/transport";
 import { effectiveLocalMode } from "@/lib/travel-times/hops";
+import type { DriveTime } from "@/lib/travel-times/drive-fit";
 import { deleteAccommodation } from "@/server/actions/accommodation";
 import { groupStopsByChapter, sortGroupStops } from "@/lib/chapters";
 import { groupTransportsBySlot, HEAD_SLOT } from "@/lib/transport-anchor";
@@ -163,6 +164,7 @@ export interface ItineraryTransport extends TransportDetails {
   costs?: CostRow[];
   /** Precomputed offline drive estimate; present only for Car legs without real times. */
   driveEstimate?: { minutes: number; roadKm: number; estimated: boolean } | null;
+  driveTime?: DriveTime | null;
 }
 
 export interface ItineraryChapter {

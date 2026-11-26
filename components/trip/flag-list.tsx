@@ -15,7 +15,7 @@ import {
   ChevronRight,
 } from "lucide-react";
 import { cn } from "@/lib/cn";
-import { flagDisplayMessage, isTightFlag, type Flag } from "@/lib/flags";
+import { flagDisplayMessage, canMarkFine, type Flag } from "@/lib/flags";
 import { flagHref } from "@/lib/next-steps";
 import { tripSubPath } from "@/lib/trip-path";
 import { MarkFineButton } from "@/components/trip/marked-fine";
@@ -96,7 +96,7 @@ function FlagRow({ flag, tripId, tripBasePath }: { flag: Flag; tripId: string; t
   const icon = <Icon className={cn("mt-0.5 size-4 shrink-0", config.iconClass)} aria-hidden="true" />;
   const message = flagDisplayMessage(flag);
 
-  if (isTightFlag(flag)) {
+  if (canMarkFine(flag)) {
     const text = cn("leading-snug", config.labelClass);
     return (
       <div className={cn(ROW_CONTAINER, config.containerClass)}>

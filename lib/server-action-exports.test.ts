@@ -78,6 +78,7 @@ const ALLOWLIST: Record<string, string[]> = {
   "day-titles.ts": ["setDayTitle"],
   "devices.ts": ["listDevices", "reconcileDevice", "removeDeviceById"],
   "digest.ts": ["getDigestSettings", "listDigestSettingsForUser", "sendTestDigest", "setDigestEnabled"],
+  "drive-time.ts": ["driveTimeForEnds"],
   "driving-settings.ts": ["updateDrivingSettings"],
   "error-reports.ts": ["clearAllErrorReports", "clearErrorReport", "listErrorReports"],
   "feedback.ts": [

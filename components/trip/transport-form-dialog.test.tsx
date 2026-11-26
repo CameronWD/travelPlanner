@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { render, screen, within, fireEvent, waitFor } from "@testing-library/react";
+import { act, render, screen, within, fireEvent, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 
 vi.mock("@/server/actions/reminders", () => ({ addReminder: vi.fn(), updateReminder: vi.fn(), deleteReminder: vi.fn() }));
@@ -31,6 +31,8 @@ vi.mock("@/lib/tz-point", async (importOriginal) => {
   return { ...actual, pointTimezone: vi.fn(actual.pointTimezone) };
 });
 import { pointTimezone } from "@/lib/tz-point";
+vi.mock("@/server/actions/drive-time", () => ({ driveTimeForEnds: vi.fn(async () => null) }));
+import { driveTimeForEnds } from "@/server/actions/drive-time";
 import { createTransport, updateTransport, saveTransportWithLayover } from "@/server/actions/transport";
 import { deleteAttachment } from "@/server/actions/attachments";
 
@@ -2634,5 +2636,201 @@ describe("TransportFormDialog: a journey with a layover", () => {
     );
     expect(screen.getByRole("combobox", { name: "Layover at" })).toHaveAccessibleDescription("Add where the layover is.");
     expect(baseProps.onOpenChange).not.toHaveBeenCalledWith(false);
+  });
+});
+
+describe("TransportFormDialog: a drive's Travel time", () => {
+  const DRIVE_STOPS = [
+    { id: "bne", name: "Brisbane", timezone: "Australia/Brisbane", lat: -27.4698, lng: 153.0251, arriveDate: "2026-12-01", departDate: "2026-12-05", sortOrder: 0 },
+    { id: "twd", name: "Tweed Heads", timezone: "Australia/Sydney", lat: -28.1766, lng: 153.5414, arriveDate: "2026-12-05", departDate: "2026-12-08", sortOrder: 1 },
+    { id: "gcs", name: "Gold Coast", timezone: "Australia/Brisbane", lat: -28.0167, lng: 153.4, arriveDate: "2026-12-08", departDate: "2026-12-10", sortOrder: 2 },
+  ];
+  const savedDrive: TransportCardTransport = {
+    id: "drive-1", bookingStateSet: false,
+    mode: "CAR",
+    fromStopId: "bne",
+    toStopId: "twd",
+    depAt: new Date("2026-12-04T23:00:00Z"),
+    arrAt: new Date("2026-12-05T00:00:00Z"),
+    sortOrder: 0,
+  };
+  const fixtureProps = { tripId: "trip-1", stops: DRIVE_STOPS, open: true, onOpenChange: vi.fn() };
+  const REAL = { minutes: 72, roadKm: 95, estimated: false };
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.mocked(driveTimeForEnds).mockReset().mockResolvedValue(null);
+  });
+
+  it("a timed drive shows its Travel time and says the times allow 1h", async () => {
+    vi.mocked(driveTimeForEnds).mockResolvedValue(REAL);
+    render(<TransportFormDialog {...fixtureProps} transport={savedDrive} />);
+    expect(await screen.findByText("About 1h 12m · 95 km by road. Your times allow 1h.")).toBeInTheDocument();
+    expect(driveTimeForEnds).toHaveBeenCalledWith("trip-1", null, { stopId: "bne" }, { stopId: "twd" });
+  });
+
+  it("Set arrival fills the arrival in its own zone and saving sends it", async () => {
+    vi.mocked(driveTimeForEnds).mockResolvedValue(REAL);
+    const user = userEvent.setup();
+    render(<TransportFormDialog {...fixtureProps} transport={savedDrive} />);
+    const set = await screen.findByRole("button", { name: "Set arrival to 11:12" });
+    expect(set).toHaveAttribute("type", "button");
+    await user.click(set);
+    expect(screen.getByLabelText("Arrives Tweed Heads")).toHaveValue("2026-12-05T11:12");
+    expect(updateTransport).not.toHaveBeenCalled();
+    expect(screen.queryByRole("button", { name: /^Set arrival to/ })).toBeNull();
+    expect(screen.getByText("About 1h 12m · 95 km by road")).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Save" }));
+    expect(updateTransport).toHaveBeenCalledWith("drive-1", expect.objectContaining({ arrAt: "2026-12-05T11:12", depAt: "2026-12-05T09:00" }));
+  });
+
+  it("a late departure suggests an arrival on the next day", async () => {
+    vi.mocked(driveTimeForEnds).mockResolvedValue(REAL);
+    const user = userEvent.setup();
+    render(<TransportFormDialog {...fixtureProps} defaultFromStopId="bne" defaultToStopId="twd" />);
+    await user.click(screen.getByRole("radio", { name: "Car" }));
+    await user.click(screen.getByRole("button", { name: "Add times" }));
+    await user.type(screen.getByLabelText("Leaves Brisbane"), "2026-12-05T23:30");
+    const set = await screen.findByRole("button", { name: "Set arrival to Sun 6 Dec 01:42" });
+    await user.click(set);
+    expect(screen.getByLabelText("Arrives Tweed Heads")).toHaveValue("2026-12-06T01:42");
+    expect(driveTimeForEnds).toHaveBeenCalledTimes(1);
+  });
+
+  it("a departure with a five-digit year shows the line with no Set arrival button", async () => {
+    vi.mocked(driveTimeForEnds).mockResolvedValue(REAL);
+    render(<TransportFormDialog {...fixtureProps} initialValues={{ mode: "CAR", fromStopId: "bne", toStopId: "twd", depAt: "20261-12-04T09:00" }} />);
+    expect(screen.getByLabelText("Leaves Brisbane")).toBeInTheDocument();
+    expect(await screen.findByText("About 1h 12m · 95 km by road")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /^Set arrival to/ })).toBeNull();
+  });
+
+  it("an estimate shows (estimated) and never says the times allow less", async () => {
+    vi.mocked(driveTimeForEnds).mockResolvedValue({ ...REAL, estimated: true });
+    render(<TransportFormDialog {...fixtureProps} transport={savedDrive} />);
+    expect(await screen.findByText("About 1h 12m · 95 km by road (estimated)")).toBeInTheDocument();
+    expect(screen.queryByText(/Your times allow/)).toBeNull();
+  });
+
+  it("saving an untouched drive sends the same thing whatever the lookup returned", async () => {
+    const user = userEvent.setup();
+    const first = render(<TransportFormDialog {...fixtureProps} transport={savedDrive} />);
+    await waitFor(() => expect(driveTimeForEnds).toHaveBeenCalled());
+    await user.click(screen.getByRole("button", { name: "Save" }));
+    await waitFor(() => expect(updateTransport).toHaveBeenCalledTimes(1));
+    const without = vi.mocked(updateTransport).mock.calls[0];
+    first.unmount();
+    vi.clearAllMocks();
+
+    vi.mocked(driveTimeForEnds).mockResolvedValue(REAL);
+    const onOpenChange = vi.fn();
+    render(<TransportFormDialog {...fixtureProps} transport={savedDrive} onOpenChange={onOpenChange} />);
+    await screen.findByText("About 1h 12m · 95 km by road. Your times allow 1h.");
+    await user.keyboard("{Escape}");
+    expect(onOpenChange).toHaveBeenCalledWith(false);
+    expect(screen.queryByText("Discard changes?")).toBeNull();
+    await user.click(screen.getByRole("button", { name: "Save" }));
+    await waitFor(() => expect(updateTransport).toHaveBeenCalledTimes(1));
+    expect(vi.mocked(updateTransport).mock.calls[0]).toEqual(without);
+    expect(without).toEqual([
+      "drive-1",
+      expect.objectContaining({ mode: "CAR", fromStopId: "bne", toStopId: "twd", depAt: "2026-12-05T09:00", arrAt: "2026-12-05T11:00" }),
+    ]);
+  });
+
+  it("no line or lookup when an end cannot be located", async () => {
+    const user = userEvent.setup();
+    render(<TransportFormDialog {...fixtureProps} transport={{ ...savedDrive, toStopId: null, arrPlace: null }} />);
+    await openComboboxAndTypePlace(user, "^To:", "Byron Bay");
+    expect(screen.getByRole("button", { name: /^To:/ })).toHaveAccessibleName(/Byron Bay/);
+    expect(driveTimeForEnds).not.toHaveBeenCalled();
+    expect(screen.queryByText(/^About /)).toBeNull();
+  });
+
+  it("switching the mode to Train removes the line", async () => {
+    vi.mocked(driveTimeForEnds).mockResolvedValue(REAL);
+    const user = userEvent.setup();
+    render(<TransportFormDialog {...fixtureProps} transport={savedDrive} />);
+    await screen.findByText(/^About 1h 12m/);
+    await user.click(screen.getByRole("radio", { name: "Train" }));
+    expect(screen.queryByText(/^About 1h 12m/)).toBeNull();
+    expect(screen.queryByRole("button", { name: /^Set arrival to/ })).toBeNull();
+    expect(driveTimeForEnds).toHaveBeenCalledTimes(1);
+  });
+
+  it("a stale reply for ends that changed is ignored", async () => {
+    let answerFirst: (d: typeof REAL) => void = () => {};
+    vi.mocked(driveTimeForEnds)
+      .mockImplementationOnce(() => new Promise((resolve) => { answerFirst = resolve; }))
+      .mockResolvedValueOnce({ minutes: 60, roadKm: 80, estimated: false });
+    const user = userEvent.setup();
+    render(<TransportFormDialog {...fixtureProps} transport={savedDrive} />);
+    await waitFor(() => expect(driveTimeForEnds).toHaveBeenCalledTimes(1));
+    await openComboboxAndSelectStop(user, "^To:", "Gold Coast");
+    expect(await screen.findByText("About 1h · 80 km by road")).toBeInTheDocument();
+    expect(driveTimeForEnds).toHaveBeenLastCalledWith("trip-1", null, { stopId: "bne" }, { stopId: "gcs" });
+    await act(async () => answerFirst(REAL));
+    expect(screen.getByText("About 1h · 80 km by road")).toBeInTheDocument();
+    expect(screen.queryByText(/95 km/)).toBeNull();
+  });
+
+  it("a drive's typed times never trigger another lookup", async () => {
+    vi.mocked(driveTimeForEnds).mockResolvedValue(REAL);
+    const user = userEvent.setup();
+    render(<TransportFormDialog {...fixtureProps} transport={savedDrive} />);
+    await screen.findByText(/^About 1h 12m/);
+    await user.clear(screen.getByLabelText("Arrives Tweed Heads"));
+    await user.type(screen.getByLabelText("Arrives Tweed Heads"), "2026-12-05T13:00");
+    expect(screen.getByText("About 1h 12m · 95 km by road")).toBeInTheDocument();
+    expect(driveTimeForEnds).toHaveBeenCalledTimes(1);
+  });
+
+  it("a Stop end with its own saved point is looked up at that point", async () => {
+    render(<TransportFormDialog {...fixtureProps} transport={{ ...savedDrive, depPlace: "Roma Street", depLat: -27.466, depLng: 153.019 }} />);
+    await waitFor(() => expect(driveTimeForEnds).toHaveBeenCalledWith("trip-1", null, { lat: -27.466, lng: 153.019 }, { stopId: "twd" }));
+  });
+
+  it("a Fork's drive is looked up in that Fork", async () => {
+    render(<TransportFormDialog {...fixtureProps} transport={savedDrive} forkId="fork-1" />);
+    await waitFor(() => expect(driveTimeForEnds).toHaveBeenCalledWith("trip-1", "fork-1", { stopId: "bne" }, { stopId: "twd" }));
+  });
+
+  it("a rejected lookup shows no line", async () => {
+    vi.mocked(driveTimeForEnds).mockRejectedValue(new Error("offline"));
+    render(<TransportFormDialog {...fixtureProps} transport={savedDrive} />);
+    await waitFor(() => expect(driveTimeForEnds).toHaveBeenCalled());
+    await act(async () => {});
+    expect(screen.queryByText(/^About /)).toBeNull();
+  });
+
+  it("a timed train shows nothing new and looks nothing up", async () => {
+    vi.mocked(driveTimeForEnds).mockResolvedValue(REAL);
+    render(<TransportFormDialog {...fixtureProps} transport={{ ...savedDrive, mode: "TRAIN" }} />);
+    await act(async () => {});
+    expect(driveTimeForEnds).not.toHaveBeenCalled();
+    expect(screen.queryByText(/^About /)).toBeNull();
+    expect(screen.queryByRole("button", { name: /^Set arrival to/ })).toBeNull();
+  });
+
+  it("a drive with no times keeps its box and looks nothing up", async () => {
+    render(<TransportFormDialog {...fixtureProps} transport={{ ...savedDrive, depAt: null, arrAt: null }} />);
+    await act(async () => {});
+    expect(screen.getByText("The drive estimate will show once it’s saved.")).toBeInTheDocument();
+    expect(driveTimeForEnds).not.toHaveBeenCalled();
+  });
+
+  it("Proposal mode shows no line and looks nothing up", async () => {
+    vi.mocked(driveTimeForEnds).mockResolvedValue(REAL);
+    render(
+      <TransportFormDialog
+        {...fixtureProps}
+        initialValues={{ mode: "CAR", fromStopId: "bne", toStopId: "twd", depAt: "2026-12-05T09:00", arrAt: "2026-12-05T11:00" }}
+        onSubmitOverride={vi.fn(async () => ({ success: true as const }))}
+      />,
+    );
+    await act(async () => {});
+    expect(screen.getByLabelText("Leaves Brisbane")).toHaveValue("2026-12-05T09:00");
+    expect(driveTimeForEnds).not.toHaveBeenCalled();
+    expect(screen.queryByText(/^About /)).toBeNull();
   });
 });

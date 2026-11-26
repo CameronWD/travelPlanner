@@ -26,6 +26,8 @@ import { Badge } from "@/components/ui/badge";
 import { FormError } from "@/components/ui/form-error";
 import { formError } from "@/components/ui/action-failure";
 import { createTransport, saveTransportWithLayover, updateTransport } from "@/server/actions/transport";
+import { driveTimeForEnds, type DriveEnd } from "@/server/actions/drive-time";
+import { driveFit, formDriveLine, setArrivalLabel, type DriveTime } from "@/lib/travel-times/drive-fit";
 import { resolveEndpointZones, instantToWallTimeInput } from "@/lib/time-display";
 import { zonedWallTimeToInstant } from "@/lib/tz";
 import { endZones } from "@/lib/leg-zones";
@@ -115,6 +117,22 @@ function placePoint(value: LocationValue, saved: SavedEnd | null): Point | null 
   if (value.kind === "place" && value.placeId && value.lat !== undefined && value.lng !== undefined) return { lat: value.lat, lng: value.lng };
   const text = value.kind === "place" ? value.name || null : null;
   return saved && samePlaceText(saved.text, text) && saved.lat != null && saved.lng != null ? { lat: saved.lat, lng: saved.lng } : null;
+}
+
+// The end the drive lookup can locate, as the save will hold it (lib/travel-times/hops.ts transportEnds).
+function driveEnd(
+  value: LocationValue,
+  point: string,
+  pick: EndPick | null,
+  saved: SavedEnd | null,
+  savedStopId: string | null,
+): DriveEnd | null {
+  if (value.kind === "home") return { home: true };
+  if (value.kind !== "stop") return placePoint(value, saved);
+  if (!point.trim()) return { stopId: value.stopId };
+  if (pick) return { lat: pick.lat, lng: pick.lng };
+  if (savedStopId !== value.stopId || !saved || !samePlaceText(saved.text, point)) return null;
+  return saved.lat != null && saved.lng != null ? { lat: saved.lat, lng: saved.lng } : { stopId: value.stopId };
 }
 
 function keepsSavedZone(value: LocationValue, saved: SavedEnd | null): saved is SavedEnd {
@@ -762,6 +780,32 @@ function TransportForm({
 
   const showLeavesArrives = mode !== "CAR" || Boolean(depAt) || Boolean(arrAt) || showTimes;
 
+  // The drive's Travel time is looked up for its ends only, so typing a time never asks again.
+  const fromDriveEnd = driveEnd(fromValue, depPoint, depPick, saved?.dep ?? null, transport?.fromStopId ?? null);
+  const toDriveEnd = driveEnd(toValue, arrPoint, arrPick, saved?.arr ?? null, transport?.toStopId ?? null);
+  const driveKey =
+    mode === "CAR" && !onSubmitOverride && showLeavesArrives && fromDriveEnd && toDriveEnd &&
+    !("lat" in fromDriveEnd && "lat" in toDriveEnd && pointKey(fromDriveEnd) === pointKey(toDriveEnd))
+      ? JSON.stringify([fromDriveEnd, toDriveEnd])
+      : null;
+  const [driveReply, setDriveReply] = React.useState<{ key: string; drive: DriveTime | null } | null>(null);
+  React.useEffect(() => {
+    if (!driveKey) return;
+    let current = true;
+    const [from, to] = JSON.parse(driveKey) as [DriveEnd, DriveEnd];
+    React.startTransition(async () => {
+      const drive = await driveTimeForEnds(tripId, forkId ?? null, from, to).catch(() => null);
+      if (current) setDriveReply({ key: driveKey, drive });
+    });
+    return () => {
+      current = false;
+    };
+  }, [driveKey, tripId, forkId]);
+  const drivePending = driveKey !== null && driveReply?.key !== driveKey;
+  const drive = driveKey !== null && driveReply?.key === driveKey ? driveReply.drive : null;
+  const fit = drive ? driveFit(drive, depInstant, arrInstant) : null;
+  const suggestedArrAt = fit?.arriveAt ? instantToWallTimeInput(fit.arriveAt, currentZones.arrTz) : null;
+
   const stopsCombo = (
     <div className="grid gap-4 sm:grid-cols-2">
       <Field label="From" error={errors.fromStopId?.[0]}>
@@ -967,6 +1011,27 @@ function TransportForm({
                   )}
                 </div>
               </div>
+              {/* Room is kept while the lookup is out, so the line lands without moving the form. */}
+              {(drivePending || fit) && (
+                <div
+                  data-drive-time
+                  className={cn("mt-2 flex flex-col items-start gap-1", drivePending && (depAt ? "min-h-11" : "min-h-5"))}
+                >
+                  {fit && (
+                    <p className="text-[13px] font-semibold leading-5 tabular-nums text-muted-foreground">{formDriveLine(fit)}</p>
+                  )}
+                  {fit?.arriveAt && suggestedArrAt && suggestedArrAt !== arrAt && (
+                    <button
+                      type="button"
+                      className="tap-target text-[13px] font-bold leading-5 text-coral-text"
+                      onClick={() => setArrAt(suggestedArrAt)}
+                      disabled={isPending}
+                    >
+                      {setArrivalLabel(fit.arriveAt, currentZones.arrTz, depAt.slice(0, 10))}
+                    </button>
+                  )}
+                </div>
+              )}
             </PresenceDiv>
           )}
         </AnimatePresence>

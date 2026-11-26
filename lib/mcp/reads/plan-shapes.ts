@@ -23,6 +23,7 @@ import { effectiveLocalMode, type LocalMode } from "@/lib/travel-times/hops";
 import { bookingLegLabel, filesForLeg } from "@/lib/booking-files";
 import type { LegStop } from "@/lib/plan/leg-label";
 import type { ConnectionLeg } from "@/lib/connections";
+import type { DriveTime } from "@/lib/travel-times/drive-fit";
 
 const LOCAL_MODE_LABEL: Record<LocalMode, "drive" | "public_transport" | "walk"> = { DRIVE: "drive", TRANSIT: "public_transport", WALK: "walk" };
 import type { McpFileRef } from "./attachments";
@@ -231,6 +232,8 @@ export interface McpTransport {
   /** True when it is Booked, has no file and nothing-to-attach is off: ask the Traveller for the ticket or confirmation. */
   needsBookingConfirmation: boolean;
   files: McpFileRef[];
+  /** A drive's (mode CAR) Travel time: minutes, road km and whether it is an estimate; null when its ends are not located. Absent for any other mode. */
+  travelTime?: { minutes: number; roadKm: number; estimated: boolean } | null;
 }
 
 export interface McpChapter {
@@ -546,7 +549,7 @@ export function buildMcpStops(input: {
 /** One Transport leg, each end in its own zone (`transportTimeDisplay`, the Plan editor's rule). */
 export function toMcpTransport(
   t: McpTransportRow,
-  ctx: { stopNameById: ReadonlyMap<string, string>; tzById: ReadonlyMap<string, string | null>; homeTimezone: string | null; filesFor: FilesFor; needsConfirmation: NeedsConfirmation },
+  ctx: { stopNameById: ReadonlyMap<string, string>; tzById: ReadonlyMap<string, string | null>; homeTimezone: string | null; filesFor: FilesFor; needsConfirmation: NeedsConfirmation; driveTimes?: ReadonlyMap<string, DriveTime> },
 ): McpTransport {
   const endpoint = (stopId: string | null, isHome: boolean): McpTransportEndpoint => {
     if (isHome) return { home: true };
@@ -574,6 +577,7 @@ export function toMcpTransport(
     bookingState: t.bookingState as BookingState, bookBy: t.bookBy,
     nothingToAttach: t.nothingToAttach, needsBookingConfirmation: ctx.needsConfirmation.has(t.id),
     files: ctx.filesFor("TRANSPORT", t.id),
+    ...(t.mode === "CAR" ? { travelTime: ctx.driveTimes?.get(t.id) ?? null } : {}),
   };
 }
 

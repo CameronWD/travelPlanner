@@ -383,3 +383,23 @@ describe("LegCard", () => {
     expect(container.querySelector("[data-station-stub]")).not.toBeNull();
   });
 });
+
+describe("drive line", () => {
+  const DRIVE = { ...FLIGHT, label: "Drive Brisbane → Tweed Heads", sub: "Fri 4 Dec 09:00", arrival: "→ 11:00 · 1h" };
+  it("a short drive line takes the warning colour", () => {
+    const { container } = render(<LegPill label={{ ...DRIVE, drive: { text: "95 km · about 1h 12m driving · longer than your times", tooShort: true } }} onClick={vi.fn()} />);
+    const line = container.querySelector('[data-travel-line="drive"]')!;
+    expect(line).toHaveTextContent("95 km · about 1h 12m driving · longer than your times");
+    expect(line.className).toContain("text-sun-text");
+  });
+  it("a drive line that fits is muted", () => {
+    const { container } = render(<LegPill label={{ ...DRIVE, drive: { text: "95 km · about 1h 12m driving", tooShort: false } }} onClick={vi.fn()} />);
+    const line = container.querySelector('[data-travel-line="drive"]')!;
+    expect(line.className).toContain("text-muted-foreground");
+    expect(line.className).not.toContain("text-sun-text");
+  });
+  it("a LegCard with no drive renders no drive line", () => {
+    const { container } = render(<LegCard label={DRIVE} />);
+    expect(container.querySelector('[data-travel-line="drive"]')).toBeNull();
+  });
+});

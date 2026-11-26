@@ -101,6 +101,66 @@ describe("markFlagFine", () => {
   });
 });
 
+const drive = (fingerprint: string): Flag => ({
+  id: "drive-short-t1",
+  severity: "warning",
+  message: "Drive from Brisbane to Tweed Heads on 2026-12-05: your times allow 1h but the road takes about 1h 12m.",
+  targetType: "DAY",
+  fingerprint,
+  between: { from: "Brisbane", to: "Tweed Heads" },
+});
+
+function transportsOn(trips: Record<string, string>) {
+  requireRowAccessMock.mockImplementation(async (kind: string, id: string, opts: unknown) => {
+    expect(kind).toBe("transport");
+    expect(opts).toEqual({ realPlanOnly: true });
+    if (!(id in trips)) throw new Error("NOT_FOUND");
+    return { row: { id, tripId: trips[id] }, user: { id: "user-1" } };
+  });
+}
+
+describe("a drive Flag", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    transportsOn({ t1: "t1" });
+  });
+
+  it("marks a drive Flag fine after checking the Transport is on the trip", async () => {
+    loadFlagsMock.mockResolvedValue({ shown: [drive("fp")], markedFine: [] });
+    expect(await markFlagFine("t1", "drive-short-t1", "fp")).toEqual({ success: true });
+    expect(requireRowAccessMock).toHaveBeenCalledWith("transport", "t1", { realPlanOnly: true });
+    expect(upsertMock).toHaveBeenCalledWith({
+      where: { tripId_flagId: { tripId: "t1", flagId: "drive-short-t1" } },
+      create: { tripId: "t1", flagId: "drive-short-t1", fingerprint: "fp", markedById: "user-1" },
+      update: { fingerprint: "fp", markedById: "user-1", createdAt: expect.any(Date) },
+    });
+  });
+
+  it("refuses a drive Flag whose Transport is on another trip", async () => {
+    transportsOn({ t1: "t2" });
+    expect(await markFlagFine("t1", "drive-short-t1", "fp")).toEqual({
+      success: false,
+      errors: { _: ["That drive is not on this trip."] },
+    });
+    expect(upsertMock).not.toHaveBeenCalled();
+  });
+
+  it("still refuses a packed-day Flag", async () => {
+    expect(await markFlagFine("t1", "packed-2026-07-02", "fp")).toEqual({
+      success: false,
+      errors: { _: ["Only a travel-time warning can be marked fine."] },
+    });
+    expect(requireRowAccessMock).not.toHaveBeenCalled();
+    expect(upsertMock).not.toHaveBeenCalled();
+  });
+
+  it("unmarks a drive Flag", async () => {
+    expect(await unmarkFlagFine("t1", "drive-short-t1")).toEqual({ success: true });
+    expect(requireRowAccessMock).toHaveBeenCalledWith("transport", "t1", { realPlanOnly: true });
+    expect(deleteManyMock).toHaveBeenCalledWith({ where: { tripId: "t1", flagId: "drive-short-t1" } });
+  });
+});
+
 describe("unmarkFlagFine", () => {
   beforeEach(() => {
     vi.clearAllMocks();

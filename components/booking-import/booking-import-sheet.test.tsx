@@ -8,6 +8,7 @@ const m = vi.hoisted(() => ({ importBooking: vi.fn(), confirmProposal: vi.fn(), 
 vi.mock("@/server/actions/reminders", () => ({ addReminder: vi.fn(), updateReminder: vi.fn(), deleteReminder: vi.fn() }));
 vi.mock("@/server/actions/booking-confirmation", () => ({ setNothingToAttach: vi.fn() }));
 vi.mock("@/server/actions/venue-details", () => ({ venueDetailsForPick: vi.fn().mockResolvedValue(null) }));
+vi.mock("@/server/actions/drive-time", () => ({ driveTimeForEnds: vi.fn(async () => null) }));
 vi.mock("@/server/actions/booking-import", () => ({ importBooking: m.importBooking, confirmProposal: m.confirmProposal, attachImportedBooking: m.attachImportedBooking }));
 vi.mock("@/server/actions/attachments", () => ({ uploadAttachment: vi.fn(), deleteAttachment: vi.fn() }));
 vi.mock("@/server/actions/costs", () => ({ createCost: vi.fn(), updateCost: vi.fn(), deleteCost: vi.fn() }));

@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { MockDb } from "@/test/helpers/db-mock";
 import { driveKey, hopKeys, type Pt } from "@/lib/travel-times/hops";
+import { estimateRoadKm, haversineKm } from "@/lib/geo";
 
 vi.mock("@/lib/db", async () => {
   const { mockDb } = await import("@/test/helpers/db-mock");
@@ -31,6 +32,7 @@ vi.mock("@/lib/surprise-visibility", async (importOriginal) => {
 
 import { db as realDb } from "@/lib/db";
 import { refreshTripTravelTimes } from "./refresh";
+import { loadDriveTimes } from "./read";
 import { loadFlagRows } from "@/lib/flags-loader";
 
 const db = realDb as unknown as MockDb<"trip" | "stop" | "item" | "transport" | "accommodation" | "tripMember" | "travelTime" | "hopMode">;
@@ -187,5 +189,41 @@ describe("loadFlagRows's Travel-time keys", () => {
     } finally {
       vi.useRealTimers();
     }
+  });
+});
+
+describe("loadDriveTimes", () => {
+  const BNE: Pt = { lat: -27.4698, lng: 153.0251 };
+  const TWD: Pt = { lat: -28.1766, lng: 153.5414 };
+  const drive = (id: string, t: Record<string, unknown> = {}) => transport(id, { fromStopId: "bne", toStopId: "twd", ...t });
+  const serve = (transports: Record<string, unknown>[], rows: { key: string; status: string; minutes: number | null; distanceM: number | null }[] = []) => {
+    db.trip.findUnique.mockResolvedValue(TRIP);
+    db.stop.findMany.mockImplementation(async (args) =>
+      project([{ id: "bne", forkId: null, lat: BNE.lat, lng: BNE.lng }, { id: "twd", forkId: null, lat: TWD.lat, lng: TWD.lng }], args),
+    );
+    db.transport.findMany.mockResolvedValue(transports);
+    db.travelTime.findMany.mockResolvedValue(rows.map((r) => ({ polyline: null, ...r })));
+  };
+
+  it("gives each located drive its Travel time", async () => {
+    serve([drive("t1")], [{ key: driveKey(BNE, TWD), status: "OK", minutes: 72, distanceM: 95_000 }]);
+    expect(await loadDriveTimes("t1", [])).toEqual(new Map([["t1", { minutes: 72, roadKm: 95, estimated: false }]]));
+  });
+
+  it("an unlooked-up drive is estimated with the trip's winding factor", async () => {
+    serve([drive("t1")]);
+    const got = (await loadDriveTimes("t1", [])).get("t1")!;
+    expect(got.estimated).toBe(true);
+    expect(got.roadKm).toBe(Math.round(estimateRoadKm(haversineKm(BNE, TWD), 1.5)));
+  });
+
+  it("a same-point drive and a train get no entry", async () => {
+    serve([drive("same", { toStopId: "bne" }), drive("train", { mode: "TRAIN" })]);
+    expect((await loadDriveTimes("t1", [])).size).toBe(0);
+  });
+
+  it("a drive to a Stop the reader may not see has no entry", async () => {
+    serve([drive("t1")]);
+    expect((await loadDriveTimes("t1", ["twd"])).size).toBe(0);
   });
 });

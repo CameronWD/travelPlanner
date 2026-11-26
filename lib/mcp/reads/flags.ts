@@ -1,6 +1,6 @@
 import { requireTripAccess } from "@/lib/guards";
 import { loadFlags } from "@/lib/flags-loader";
-import { isTightFlag } from "@/lib/flags";
+import { canMarkFine } from "@/lib/flags";
 
 /**
  * get_flags: `loadFlags`'s Flags reshaped to the fields a Claude connection
@@ -9,7 +9,7 @@ import { isTightFlag } from "@/lib/flags";
  * its message; `itemId` names the Item an "item" Flag is about (spec
  * 2026-10-17 R7), so Claude can read it with get_item or fix it with
  * set_opening_hours; `flagId` and `fingerprint` are set on a travel-time
- * Flag, the one kind mark_flag_fine takes (with both, so a Flag that changed
+ * or drive Flag, the kinds mark_flag_fine takes (with both, so a Flag that changed
  * since it was read is refused). `markedFine` lists the travel-time Flags a Traveller
  * Marked fine (spec 2026-11-18 T5), from the same Flags, so nothing about a
  * Surprise hidden from the caller is in it.
@@ -24,8 +24,8 @@ export async function loadFlagsForMcp(tripId: string) {
       detail: f.message,
       stopId: f.stopId ?? null,
       itemId: f.targetType === "ITEM" ? (f.targetId ?? null) : null,
-      flagId: isTightFlag(f) ? f.id : null,
-      fingerprint: isTightFlag(f) ? f.fingerprint : null,
+      flagId: canMarkFine(f) ? f.id : null,
+      fingerprint: canMarkFine(f) ? f.fingerprint : null,
     })),
     markedFine: markedFine.map((f) => ({ flagId: f.id, detail: f.message, by: f.markedByName, at: f.markedAt.toISOString() })),
   };

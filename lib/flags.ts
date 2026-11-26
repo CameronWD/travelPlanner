@@ -11,13 +11,17 @@ import { nightsBetween, isDateWithin, addDays, daysBetween, formatLongDate, form
 import { uncoveredNights } from "@/lib/accommodation-coverage";
 import { HARD_END_APPROACHING_NIGHTS } from "@/lib/firm-up"; // threshold lives alongside computeProjectedEnd
 import { instantToZonedDateISO } from "@/lib/tz";
+import { resolveEndpointZones } from "@/lib/time-display";
+import { endZones } from "@/lib/leg-zones";
 import { haversineKm, type LatLng } from "@/lib/geo";
 import {
   byHopOrder,
   hopInputs,
   hopStopsById,
+  pointKey,
   resolveDriveLeg,
   forcedModeFor,
+  samePoint,
   resolveHop,
   toHopItem,
   toPlanTransport,
@@ -34,6 +38,8 @@ import { deadlineNoun, type TripDeadline } from "@/lib/trip-deadline";
 import { hoursOn, type DayHours, type OpeningHours } from "@/lib/opening-hours";
 import { defaultStartFromSlot } from "@/lib/slot-time";
 import { activeBookBy } from "@/lib/booking-state";
+import { driveFit, driveTimeOf, drivingMinutes } from "@/lib/travel-times/drive-fit";
+import { formatDuration } from "@/lib/transport";
 
 // ---------------------------------------------------------------------------
 // Flag shape
@@ -65,9 +71,9 @@ export interface Flag {
   retime?: { itemId: string; startTime: string; endTime: string };
   /** A tight connection's hop: the Items it joins and how it is travelled (spec 2026-11-18 T3). */
   hop?: { fromItemId: string; toItemId: string; mode: HopModeChoice; modeSetByHand: boolean };
-  /** Set only on a tight connection: what a Marked fine row must still match (spec 2026-11-18 T5, lib/flag-dismissals.ts). */
+  /** Set only on a Flag that can be Marked fine (a tight connection, a drive that does not fit its times): what a Marked fine row must still match (spec 2026-11-18 T5, lib/flag-dismissals.ts). */
   fingerprint?: string;
-  /** A tight connection's two things, named as its message names them. */
+  /** A tight connection's two things, or a drive's two ends, named as its message names them. */
   between?: { from: string; to: string };
 }
 
@@ -638,10 +644,11 @@ export function flagSpreadDays(items: FlagItem[]): Flag[] {
 // Rule 10: Long driving day (warning)
 //
 // Accumulates total driving time per calendar day (in the destination's
-// timezone). Uses real dep→arr times when both are present; otherwise the
-// stored DRIVE Travel time between the leg's ends (lib/travel-times/hops.ts
-// transportEnds: a typed point, else the Stop, else Home), else the estimate.
-// Only CAR legs are considered.
+// timezone). Uses real dep→arr times when both are present, unless a real
+// Travel time is shorter (lib/travel-times/drive-fit.ts drivingMinutes);
+// otherwise the stored DRIVE Travel time between the leg's ends
+// (lib/travel-times/hops.ts transportEnds: a typed point, else the Stop, else
+// Home), else the estimate. Only CAR legs are considered.
 // ---------------------------------------------------------------------------
 
 type TravelOpts = {
@@ -675,10 +682,7 @@ export function flagLongDrivingDays(
 
     const dep = toDate(t.depAt ?? null);
     const arr = toDate(t.arrAt ?? null);
-    const leg =
-      dep && arr && arr.getTime() > dep.getTime()
-        ? { minutes: (arr.getTime() - dep.getTime()) / 60000, estimated: false }
-        : resolveDriveLeg(ends.from, ends.to, lookup, opts);
+    const leg = drivingMinutes(resolveDriveLeg(ends.from, ends.to, lookup, opts), dep, arr);
 
     const arrivalZone = (t.arrIsHome && opts.homeTimezone) || to?.timezone || t.arrTimezone || from?.timezone || t.depTimezone;
     const driveDate = dep
@@ -704,6 +708,58 @@ export function flagLongDrivingDays(
         date,
       });
     }
+  }
+  return flags;
+}
+
+// ---------------------------------------------------------------------------
+// A drive that does not fit its times (warning)
+//
+// A CAR leg with both times whose span is shorter than its real Travel time
+// (never the estimate; lib/travel-times/drive-fit.ts driveFit). Dated by the
+// departure's own day, in the zone the Plan card shows it in.
+// ---------------------------------------------------------------------------
+
+const DRIVE_SHORT_PREFIX = "drive-short-";
+
+export function driveShortFlagTransport(flagId: string): string | null {
+  if (!flagId.startsWith(DRIVE_SHORT_PREFIX)) return null;
+  return flagId.slice(DRIVE_SHORT_PREFIX.length) || null;
+}
+
+export function flagDrivesShorterThanTimes(
+  stops: FlagStop[],
+  transports: FlagTransport[],
+  opts: TravelOpts & { home?: HomeBase | null; homePoint?: Pt | null; homeTimezone?: string | null; stopNames?: ReadonlyMap<string, string> },
+): Flag[] {
+  const names = opts.stopNames ?? new Map(stops.map((s) => [s.id, s.name]));
+  const pointsById = hopStopsById(opts.travelStops ?? stops);
+  const lookup: TravelLookup = opts.lookup ?? new Map();
+  const endName = (isHome: boolean | null | undefined, place: string | null | undefined, stopId: string | null | undefined) =>
+    isHome ? (opts.home?.name ?? "Home") : place || (stopId ? names.get(stopId) : undefined) || "a place";
+
+  const flags: Flag[] = [];
+  for (const t of transports) {
+    const dep = toDate(t.depAt);
+    const arr = toDate(t.arrAt);
+    if (t.mode !== "CAR" || !dep || !arr) continue;
+    const ends = transportEnds(toPlanTransport(t), pointsById, opts.homePoint ?? null);
+    if (!ends || samePoint(ends.from, ends.to)) continue;
+    const fit = driveFit(driveTimeOf(resolveDriveLeg(ends.from, ends.to, lookup, opts), opts.windingFactor), dep, arr);
+    if (!fit.tooShort || fit.allowedMinutes === null) continue;
+    const { fromTimezone, toTimezone } = endZones(t, (id) => (id ? pointsById.get(id)?.timezone : null));
+    const { depTz } = resolveEndpointZones(fromTimezone, toTimezone, { depIsHome: t.depIsHome, arrIsHome: t.arrIsHome, homeTimezone: opts.homeTimezone });
+    const date = instantToZonedDateISO(dep, depTz);
+    const between = { from: endName(t.depIsHome, t.depPlace, t.fromStopId), to: endName(t.arrIsHome, t.arrPlace, t.toStopId) };
+    flags.push({
+      id: `drive-short-${t.id}`,
+      severity: "warning",
+      message: `Drive from ${between.from} to ${between.to} on ${date}: your times allow ${formatDuration(fit.allowedMinutes)} but the road takes about ${formatDuration(fit.minutes)}.`,
+      targetType: "DAY",
+      date,
+      between,
+      fingerprint: [dep.toISOString(), arr.toISOString(), pointKey(ends.from), pointKey(ends.to), Math.round(fit.minutes / 5) * 5].join("|"),
+    });
   }
   return flags;
 }
@@ -760,7 +816,13 @@ function tightName(item: FlagItem): string {
 export type TightFlag = Flag & Required<Pick<Flag, "hop" | "fingerprint" | "between">>;
 
 export function isTightFlag(flag: Flag): flag is TightFlag {
-  return flag.fingerprint !== undefined;
+  return flag.fingerprint !== undefined && flag.hop !== undefined;
+}
+
+export type MarkableFlag = Flag & Required<Pick<Flag, "fingerprint" | "between">>;
+
+export function canMarkFine(flag: Flag): flag is MarkableFlag {
+  return flag.fingerprint !== undefined && flag.between !== undefined;
 }
 
 const TIGHT_PREFIX = "tight-";
@@ -1473,6 +1535,7 @@ export function detectFlags({
     ...flagRoughStops(roughStopCount ?? 0),
     ...outsideHidden(flagSpreadDays(items)),
     ...outsideHidden(flagTightConnections(items, transports, travelOpts)),
+    ...outsideHidden(flagDrivesShorterThanTimes(stops, transports, { ...travelOpts, home, homePoint: homePoint ?? null, homeTimezone, stopNames })),
     ...flagLongDrivingDays(stops, transports, { ...travelOpts, home: homePoint ?? null, homeTimezone }),
     ...flagHardEndDate(projectedEnd, effectiveDeadline),
     ...flagMissingConnections(stops, transports),

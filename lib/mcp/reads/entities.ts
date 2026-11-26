@@ -24,6 +24,7 @@ import { loadTripAttachments, type TripAttachmentsResult } from "./attachments";
 import { readMcpCosts, type McpCost } from "./costs";
 import { readMcpNotes, type McpNote } from "./notes";
 import { loadNeedsConfirmation } from "./confirmations";
+import { loadDriveTimes } from "@/lib/travel-times/read";
 import { ownerKey } from "./owners";
 import { withOpeningHours } from "@/lib/opening-hours-stored";
 import { withTryList } from "@/lib/try-list-stored";
@@ -91,7 +92,7 @@ export async function loadTransportForMcp(transportId: string): Promise<McpTrans
     : [];
   const partners = bookingPartners(legs).get(transportId) ?? [];
   const endIds = [t, ...partners].flatMap((l) => [l.fromStopId, l.toStopId]).filter((id): id is string => id !== null);
-  const [ends, files, { costs }] = await Promise.all([
+  const [ends, files, { costs }, driveTimes] = await Promise.all([
     // A hidden Surprise Stop keeps its name (its shell), so no fragment here — same as get_trip_plan's endpoints.
     db.stop.findMany({
       where: { id: { in: endIds }, tripId, ...REAL_PLAN },
@@ -99,6 +100,7 @@ export async function loadTransportForMcp(transportId: string): Promise<McpTrans
     }),
     loadTripAttachments(tripId, v, { targetIds: [transportId, ...partners.map((p) => p.id)] }),
     readMcpCosts(tripId, v, { ownerType: "TRANSPORT", ownerId: transportId }),
+    loadDriveTimes(tripId, v.hiddenStopIds),
   ]);
   return {
     ...toMcpTransport(t, {
@@ -107,6 +109,7 @@ export async function loadTransportForMcp(transportId: string): Promise<McpTrans
       homeTimezone: trip?.homeTimezone ?? null,
       filesFor: withBookingFiles(filesFrom(files), [t, ...partners], ends, trip?.homeName ?? null),
       needsConfirmation,
+      driveTimes,
     }),
     costs,
   };

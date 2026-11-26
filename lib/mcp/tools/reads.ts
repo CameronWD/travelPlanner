@@ -187,7 +187,7 @@ export function registerReadTools(server: McpServer): void {
     {
       title: "Get trip plan",
       description:
-        "Reads the trip's real plan: Stops in order with their nights and dates, Accommodation, Transport, Day titles, things to do or see, and Chapters, each day's things naming their owningStop: on a Changeover day (one day two Stops share) a thing is listed under both Stops but is owned by, and costed against, that one Stop. Each thing's openingHours (same shape as set_opening_hours) is null when not known. Each thing's tryList is its Try list (things to try, see or buy there, each with an id and whether it's been tried; null when it has none). Transport with departure/arrival places and local times (each end in its own zone; a Home end is read in the trip's Home timezone, homeTimezone, when it's set), each Stop's timezone, and the trip's Travellers. A dated thing to do or see that falls on no Stop's days is listed in unplacedDatedItems. Each thing lists its files by title. A Transport also lists the files of the other Transports of its booking (the same booking reference, one arriving where the next leaves), each with filedOn naming the Transport it is filed on. Read one with get_attachment, or see them all with list_attachments. To re-check one thing, use get_stop, get_item, get_transport, get_accommodation or get_day instead of reading the whole plan again.",
+        "Reads the trip's real plan: Stops in order with their nights and dates, Accommodation, Transport, Day titles, things to do or see, and Chapters, each day's things naming their owningStop: on a Changeover day (one day two Stops share) a thing is listed under both Stops but is owned by, and costed against, that one Stop. Each thing's openingHours (same shape as set_opening_hours) is null when not known. Each thing's tryList is its Try list (things to try, see or buy there, each with an id and whether it's been tried; null when it has none). Transport with departure/arrival places and local times (each end in its own zone; a Home end is read in the trip's Home timezone, homeTimezone, when it's set), each Stop's timezone, and the trip's Travellers. A drive (mode CAR) also has travelTime: its minutes, road distance in km and whether it is estimated, or null when its ends are not located. A dated thing to do or see that falls on no Stop's days is listed in unplacedDatedItems. Each thing lists its files by title. A Transport also lists the files of the other Transports of its booking (the same booking reference, one arriving where the next leaves), each with filedOn naming the Transport it is filed on. Read one with get_attachment, or see them all with list_attachments. To re-check one thing, use get_stop, get_item, get_transport, get_accommodation or get_day instead of reading the whole plan again.",
       inputSchema: { tripId: z.string() },
       annotations: { readOnlyHint: true },
     },
@@ -223,7 +223,7 @@ export function registerReadTools(server: McpServer): void {
     {
       title: "Get transport",
       description:
-        "Reads one Transport leg exactly as get_trip_plan shows it (each end with its local time and zone, a Home end in the trip's Home timezone), with its Costs.",
+        "Reads one Transport leg exactly as get_trip_plan shows it (each end with its local time and zone, a Home end in the trip's Home timezone), with its Costs. A drive (mode CAR) also has travelTime: its minutes, road distance in km and whether it is estimated, or null when its ends are not located.",
       inputSchema: { transportId: z.string() },
       annotations: { readOnlyHint: true },
     },
@@ -331,7 +331,7 @@ export function registerReadTools(server: McpServer): void {
     {
       title: "Get flags",
       description:
-        "Reads the trip's health flags: things worth a second look, such as a stop with no accommodation booked, a packed day, a thing to do on a day it is closed, a ticket you would be late for, a booking due soon, or too little time to get between two things to do. A travel-time flag has a flagId; markedFine lists the travel-time flags a Traveller marked fine, by whom and when, which show again when either thing's time or place or the travel time changes.",
+        "Reads the trip's health flags: things worth a second look, such as a stop with no accommodation booked, a packed day, a thing to do on a day it is closed, a ticket you would be late for, a booking due soon, too little time to get between two things to do, or a drive whose times are shorter than the road takes. A drive flag has a flagId, like a travel-time flag; markedFine lists the travel-time flags a Traveller marked fine, by whom and when, which show again when either thing's time or place or the travel time changes.",
       inputSchema: { tripId: z.string() },
       annotations: { readOnlyHint: true },
     },
