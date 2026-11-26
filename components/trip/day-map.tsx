@@ -3,12 +3,14 @@
 import { useMemo, useState } from "react";
 import type { DayMapHop, DayMapModel, DayMapPoint } from "@/lib/day-map";
 import { mapsUrl, appleMapsUrl, googleDirectionsUrl, appleDirectionsUrl } from "@/lib/map/maps";
+import { DayRouteButtons } from "@/components/trip/day-route-buttons";
 import { useTheme } from "@/components/ui/theme-provider";
 import { GoogleMapFrame } from "@/components/map/google-map-frame";
 import { HtmlPin } from "@/components/map/html-pin";
 import { MapPolyline } from "@/components/map/map-polyline";
 import { MapUnavailable } from "@/components/map/map-unavailable";
 import { useFitBounds } from "@/components/map/use-fit-bounds";
+import { travelPhrase } from "@/lib/travel-times/phrase";
 import { pinHtml } from "@/lib/map/pins";
 import { hueHex } from "@/lib/map/palette";
 import { categoryMeta, type Category } from "@/lib/categories";
@@ -36,6 +38,12 @@ function OpenInMaps({ point }: { point: DayMapPoint }) {
       {apple && <a href={apple} target="_blank" rel="noopener noreferrer" className={linkClass}>Apple Maps</a>}
     </span>
   );
+}
+
+function TimeFromPrevious({ point, prev, hops }: { point: DayMapPoint; prev: DayMapPoint | undefined; hops: DayMapHop[] | undefined }) {
+  const hop = point.kind === "item" && prev ? hops?.find((h) => h.toId === point.id) : undefined;
+  if (!hop || !prev || hop.minutes == null || hop.mode == null) return null;
+  return <span className="text-xs">{travelPhrase({ minutes: hop.minutes, mode: hop.mode, estimated: hop.estimated })} from {prev.label}</span>;
 }
 
 function DirectionsFromPrevious({ point, prev }: { point: DayMapPoint; prev: DayMapPoint | undefined }) {
@@ -88,16 +96,12 @@ function DayRoute({ routePoints, hops }: { routePoints: DayMapPoint[]; hops: Day
     if (!hops) return null;
     const at = new Map(routePoints.map((p) => [p.id, { lat: p.lat, lng: p.lng }]));
     const leaving = new Map(routePoints.map((p) => [p.id, p.end ?? { lat: p.lat, lng: p.lng }]));
-    const bed = routePoints[0]?.kind === "accommodation" && routePoints[1] ? [{ key: "bed", path: [path[0], path[1]], polyline: null }] : [];
-    return [
-      ...bed,
-      ...hops.flatMap((h) => {
-        const from = leaving.get(h.fromId);
-        const to = at.get(h.toId);
-        return from && to ? [{ key: `${h.fromId}>${h.toId}`, path: [from, to], polyline: h.polyline }] : [];
-      }),
-    ];
-  }, [hops, routePoints, path]);
+    return hops.flatMap((h) => {
+      const from = leaving.get(h.fromId);
+      const to = at.get(h.toId);
+      return from && to ? [{ key: `${h.fromId}>${h.toId}`, path: [from, to], polyline: h.polyline }] : [];
+    });
+  }, [hops, routePoints]);
   if (!legs) return <MapPolyline path={path} color={ROUTE_COLOR} weight={3} opacity={0.7} dashed />;
   return (
     <>
@@ -139,29 +143,9 @@ export function DayMap({ tripId, model, highlightId, fill = false }: { tripId: s
   }
   if (points.length === 0) return null;
 
-  const googleRouteUrl = googleDirectionsUrl(routePoints);
-  const appleRouteUrl = appleDirectionsUrl(routePoints);
-
-  const routeLinks =
-    googleRouteUrl || appleRouteUrl ? (
-      <div className="flex items-center gap-3 text-sm">
-        <span className="text-muted-foreground font-medium">Open today’s route:</span>
-        {googleRouteUrl && (
-          <a href={googleRouteUrl} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-primary hover:underline">
-            Google Maps
-          </a>
-        )}
-        {appleRouteUrl && (
-          <a href={appleRouteUrl} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-primary hover:underline">
-            Apple Maps
-          </a>
-        )}
-      </div>
-    ) : null;
-
   return (
     <div className={fill ? "flex min-h-0 flex-1 flex-col gap-2" : "flex flex-col gap-2"}>
-      {fill ? null : routeLinks}
+      {fill ? null : <DayRouteButtons routePoints={routePoints} />}
       <GoogleMapFrame
         role="region"
         aria-label={`Day route map for trip ${tripId}`}
@@ -198,13 +182,14 @@ export function DayMap({ tripId, model, highlightId, fill = false }: { tripId: s
               <div className="flex min-w-[min(160px,80vw)] max-w-[min(260px,90vw)] flex-col gap-1 leading-normal">
                 <strong className="text-sm">{point.label}</strong>
                 <OpenInMaps point={point} />
+                <TimeFromPrevious point={point} prev={perItemPrev[point.id]} hops={model.hops} />
                 <DirectionsFromPrevious point={point} prev={perItemPrev[point.id]} />
               </div>
             </HtmlPin>
           );
         })}
       </GoogleMapFrame>
-      {fill ? routeLinks : null}
+      {fill ? <DayRouteButtons routePoints={routePoints} className="lg:hidden" /> : null}
     </div>
   );
 }

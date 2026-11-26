@@ -4,7 +4,7 @@ import { render, screen } from "@testing-library/react";
 // Wishlist page is an async server component with DB calls — pin the
 // PageHeader wiring (Task 22, AUDIT.md): the h1 and the eyebrow.
 
-const { tripFindUniqueMock, forkFindFirstMock, markerFindManyMock, costFindManyMock, noteFindManyMock, voteFindManyMock, itemFindManyMock, attachmentFindManyMock, stopFindManyMock, boardProps } =
+const { tripFindUniqueMock, forkFindFirstMock, markerFindManyMock, costFindManyMock, noteFindManyMock, voteFindManyMock, itemFindManyMock, attachmentFindManyMock, stopFindManyMock, boardProps, menuProps } =
   vi.hoisted(() => ({
     tripFindUniqueMock: vi.fn(),
     forkFindFirstMock: vi.fn(),
@@ -16,6 +16,7 @@ const { tripFindUniqueMock, forkFindFirstMock, markerFindManyMock, costFindManyM
     attachmentFindManyMock: vi.fn().mockResolvedValue([]),
     stopFindManyMock: vi.fn().mockResolvedValue([]),
     boardProps: {} as Record<string, unknown>,
+    menuProps: {} as Record<string, unknown>,
   }));
 
 vi.mock("@/lib/db", () => ({
@@ -61,6 +62,13 @@ vi.mock("@/components/trip/wishlist-board", () => ({
   },
 }));
 
+vi.mock("@/components/trip/wishlist-add-menu", () => ({
+  WishlistAddMenu: (props: Record<string, unknown>) => {
+    Object.assign(menuProps, props);
+    return <button>Add an idea</button>;
+  },
+}));
+
 import WishlistPage from "./page";
 import { NO_SURPRISES } from "@/lib/surprise-visibility";
 import { hiddenVisibility, MARKER_WHERE } from "@/test/helpers/surprise-visibility";
@@ -85,6 +93,7 @@ beforeEach(() => {
   stopFindManyMock.mockResolvedValue([]);
   loadSurpriseVisibilityMock.mockResolvedValue(NO_SURPRISES);
   for (const k of Object.keys(boardProps)) delete boardProps[k];
+  for (const k of Object.keys(menuProps)) delete menuProps[k];
   shell.current = { forksEnabled: false };
   forkFindFirstMock.mockResolvedValue(null);
   tripFindUniqueMock.mockResolvedValue({
@@ -105,6 +114,14 @@ describe("WishlistPage — PageHeader (Task 22, AUDIT.md)", () => {
     expect(screen.getByRole("heading", { level: 1, name: "Wishlist" })).toBeInTheDocument();
     expect(screen.getByText("Europe 2026")).toBeInTheDocument();
     expect(screen.getByTestId("wishlist-board")).toBeInTheDocument();
+  });
+});
+
+describe("WishlistPage — the Add an idea menu", () => {
+  it("is in the header even when the Wishlist is empty, once, with the AI flag", async () => {
+    await renderPage();
+    expect(screen.getAllByRole("button", { name: "Add an idea" })).toHaveLength(1);
+    expect(menuProps).toMatchObject({ tripId: "t1", hasGlobe: false, aiConfigured: false });
   });
 });
 

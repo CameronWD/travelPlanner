@@ -1,7 +1,7 @@
 import type { ReactNode } from "react";
 import type { Route } from "next";
 import Link from "next/link";
-import { Map, Navigation } from "lucide-react";
+import { Bed, Map, Navigation } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { UsageAnchor } from "@/components/usage/usage-anchor";
@@ -17,11 +17,13 @@ export function NowNextCard({
   nowNext,
   dayMapHref,
   localMode = null,
+  directionsBack = null,
 }: {
   nowNext: NowNext;
   tripId: string;
   dayMapHref: Route;
   localMode?: LocalMode | null;
+  directionsBack?: string | null;
 }) {
   const dayMap = (
     <Button asChild variant="secondary" size="md" className="min-h-11">
@@ -32,11 +34,23 @@ export function NowNextCard({
     </Button>
   );
 
+  const back = directionsBack && (
+    <Button asChild variant="secondary" size="md" className="min-h-11">
+      <UsageAnchor action="directions-back-tapped" href={directionsBack} target="_blank" rel="noopener noreferrer">
+        <Bed aria-hidden="true" />
+        Directions back
+      </UsageAnchor>
+    </Button>
+  );
+
   if (nowNext.kind === "nothing") {
     return (
-      <Card className="flex items-center justify-between gap-3 p-3.5">
+      <Card className="flex flex-wrap items-center justify-between gap-3 p-3.5">
         <p className="text-sm font-bold text-muted-foreground">Nothing left today</p>
-        {dayMap}
+        <div className="flex flex-wrap justify-end gap-2">
+          {back}
+          {dayMap}
+        </div>
       </Card>
     );
   }
@@ -50,7 +64,10 @@ export function NowNextCard({
           depZone={zoneLabel(nowNext.departsZone, instantToZonedDateISO(nowNext.departsAt, nowNext.departsZone))}
           label={nowNext.routeLabel}
         />
-        <div className="flex">{dayMap}</div>
+        <div className="flex flex-wrap gap-2">
+          {back}
+          {dayMap}
+        </div>
       </div>
     );
   }
@@ -96,6 +113,7 @@ export function NowNextCard({
             </UsageAnchor>
           </Button>
         )}
+        {back}
         {dayMap}
       </div>
     </Card>

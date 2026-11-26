@@ -1,12 +1,7 @@
-import { describe, expect, it, vi, beforeEach } from "vitest";
-import { render, screen, fireEvent, waitFor } from "@testing-library/react";
+import { describe, expect, it, vi } from "vitest";
+import { render, screen, fireEvent } from "@testing-library/react";
 import { GlobeSuggestionsStrip } from "./globe-suggestions-strip";
 import type { MarkerView } from "@/components/globe/types";
-
-vi.mock("@/server/actions/items", () => ({ addMarkerToWishlist: vi.fn(async () => ({ success: true })) }));
-vi.mock("@/components/ui/use-toast", () => ({ toast: vi.fn() }));
-
-import { addMarkerToWishlist } from "@/server/actions/items";
 
 function marker(id: string): MarkerView {
   return {
@@ -15,57 +10,31 @@ function marker(id: string): MarkerView {
   };
 }
 
-beforeEach(() => vi.clearAllMocks());
-
 describe("GlobeSuggestionsStrip", () => {
+  it("one line and a See them button", () => {
+    const onSeeMore = vi.fn();
+    const { rerender } = render(
+      <GlobeSuggestionsStrip suggestions={["m0", "m1", "m2"].map(marker)} addedMarkerIds={[]} onSeeMore={onSeeMore} />,
+    );
+    expect(screen.getByText("3 places from your Globe are on this route")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "See them" }));
+    expect(onSeeMore).toHaveBeenCalledTimes(1);
+
+    rerender(<GlobeSuggestionsStrip suggestions={[marker("m0")]} addedMarkerIds={[]} onSeeMore={onSeeMore} />);
+    expect(screen.getByText("1 place from your Globe is on this route")).toBeInTheDocument();
+
+    rerender(
+      <GlobeSuggestionsStrip suggestions={["m0", "m1", "m2"].map(marker)} addedMarkerIds={["m1"]} onSeeMore={onSeeMore} />,
+    );
+    expect(screen.getByText("2 places from your Globe are on this route")).toBeInTheDocument();
+  });
+
   it("renders nothing when there are no suggestions", () => {
-    const { container } = render(
-      <GlobeSuggestionsStrip tripId="t1" suggestions={[]} addedMarkerIds={[]} onSeeMore={() => {}} />,
+    const { container, rerender } = render(
+      <GlobeSuggestionsStrip suggestions={[]} addedMarkerIds={[]} onSeeMore={() => {}} />,
     );
     expect(container).toBeEmptyDOMElement();
-  });
-
-  it("shows at most 5 suggestions and a '+N more' control for the overflow", () => {
-    const suggestions = Array.from({ length: 7 }, (_, i) => marker(`m${i}`));
-    const onSeeMore = vi.fn();
-    render(
-      <GlobeSuggestionsStrip tripId="t1" suggestions={suggestions} addedMarkerIds={[]} onSeeMore={onSeeMore} />,
-    );
-    // 5 add buttons visible
-    expect(screen.getAllByRole("button", { name: /^add /i })).toHaveLength(5);
-    fireEvent.click(screen.getByRole("button", { name: /2 more/i }));
-    expect(onSeeMore).toHaveBeenCalled();
-  });
-
-  it("adds a suggestion via the action", async () => {
-    render(
-      <GlobeSuggestionsStrip tripId="t1" suggestions={[marker("m0")]} addedMarkerIds={[]} onSeeMore={() => {}} />,
-    );
-    fireEvent.click(screen.getByRole("button", { name: /add m0/i }));
-    await waitFor(() => expect(addMarkerToWishlist).toHaveBeenCalledWith("m0", "t1"));
-  });
-
-  it("says it is working while the add is unresolved and ignores a second click", async () => {
-    vi.mocked(addMarkerToWishlist).mockReturnValueOnce(new Promise(() => {}));
-    render(
-      <GlobeSuggestionsStrip tripId="t1" suggestions={[marker("m0")]} addedMarkerIds={[]} onSeeMore={() => {}} />,
-    );
-    const chip = screen.getByRole("button", { name: /add m0/i });
-    fireEvent.click(chip);
-    await waitFor(() => expect(chip).toHaveAttribute("aria-busy", "true"));
-    expect(chip).toBeDisabled();
-    fireEvent.click(chip);
-    expect(addMarkerToWishlist).toHaveBeenCalledTimes(1);
-  });
-
-  it("renders a leading teal dot on the 'FROM YOUR GLOBE' eyebrow", () => {
-    const { container } = render(
-      <GlobeSuggestionsStrip tripId="t1" suggestions={[marker("m0")]} addedMarkerIds={[]} onSeeMore={() => {}} />,
-    );
-    const dot = container.querySelector("[data-testid='globe-eyebrow-dot']") as HTMLElement;
-    expect(dot).toBeTruthy();
-    expect(dot.getAttribute("aria-hidden")).toBe("true");
-    expect(dot.className).toContain("rounded-full");
-    expect(dot.className).toContain("bg-accent");
+    rerender(<GlobeSuggestionsStrip suggestions={[marker("m0")]} addedMarkerIds={["m0"]} onSeeMore={() => {}} />);
+    expect(container).toBeEmptyDOMElement();
   });
 });

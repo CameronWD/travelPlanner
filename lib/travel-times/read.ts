@@ -12,6 +12,7 @@ import {
   type Selected,
   type TravelLookup,
 } from "@/lib/travel-times/hops";
+import type { StartAccommodationRow } from "@/lib/travel-times/day-start";
 import { loadTravelTimes } from "@/lib/travel-times/store";
 
 // Keys come only from the rows the caller was allowed to read: a masked viewer's Items never reach here.
@@ -23,6 +24,7 @@ export function loadTravelLookupFor(
     transports: Selected<HopTransportRow>[];
     home: Pt | null;
     hopModes?: ReadonlyMap<string, HopModeChoice>;
+    accommodations?: StartAccommodationRow[];
   },
   now: Date = new Date(),
 ): Promise<TravelLookup> {

@@ -76,7 +76,6 @@ export function AiActivitySuggestions({
       const result = await createItem(tripId, {
         title: suggestion.title,
         category: suggestion.category,
-        stopId,
         notes: suggestion.note,
       });
       if (result.success) {

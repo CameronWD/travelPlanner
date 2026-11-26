@@ -59,7 +59,7 @@ function forkFilter() {
 async function wantedKeys(tripId: string, now: Date): Promise<string[] | null> {
   const trip = await db.trip.findUnique({ where: { id: tripId, deletedAt: null }, select: { homeLat: true, homeLng: true } });
   if (!trip) return null;
-  const [stops, items, transports, views, hopModes] = await Promise.all([
+  const [stops, items, transports, accommodations, views, hopModes] = await Promise.all([
     db.stop.findMany({
       where: { tripId, ...forkFilter() },
       select: { id: true, forkId: true, localTravelMode: true, lat: true, lng: true, timezone: true },
@@ -76,6 +76,10 @@ async function wantedKeys(tripId: string, now: Date): Promise<string[] | null> {
         depLat: true, depLng: true, arrLat: true, arrLng: true, depIsHome: true, arrIsHome: true,
       },
     }),
+    db.accommodation.findMany({
+      where: { tripId, ...forkFilter() },
+      select: { id: true, forkId: true, stopId: true, checkIn: true, checkOut: true, lat: true, lng: true },
+    }),
     hiddenItemViews(tripId, now),
     loadHopModes(tripId),
   ]);
@@ -83,15 +87,17 @@ async function wantedKeys(tripId: string, now: Date): Promise<string[] | null> {
   const home = trip.homeLat != null && trip.homeLng != null ? { lat: trip.homeLat, lng: trip.homeLng } : null;
   const itemsByPlan = groupByFork<PlanItem>(items);
   const transportsByPlan = groupByFork(transports);
+  const accommodationsByPlan = groupByFork(accommodations);
   const forkIds = [...new Set([...itemsByPlan.keys(), ...transportsByPlan.keys()])].filter((f): f is string => f !== null).sort();
 
   const keysByPlan = [null, ...forkIds].map((plan) => {
     const planItems = itemsByPlan.get(plan) ?? [];
     const planTransports = transportsByPlan.get(plan) ?? [];
+    const planAccommodations = accommodationsByPlan.get(plan) ?? [];
     const keys = new Set<string>();
     for (const hidden of views) {
       const viewItems = planItems.filter((i) => !hidden.has(i.id));
-      for (const k of planTravelKeys({ items: viewItems, stops, transports: planTransports, home, hopModes }, now)) keys.add(k);
+      for (const k of planTravelKeys({ items: viewItems, stops, transports: planTransports, home, hopModes, accommodations: planAccommodations }, now)) keys.add(k);
     }
     return keys;
   });

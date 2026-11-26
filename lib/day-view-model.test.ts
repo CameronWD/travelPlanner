@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import type { TripPhase } from "@/lib/trip-phase";
 import { FORECAST_WINDOW_DAYS } from "@/lib/weather";
+import { withDayMapHops } from "@/lib/day-map";
 import { addDays, formatDayLabel } from "@/lib/dates";
 import { dayHeading, dayEyebrow, daySubLine, nightOfStay, tripDays, dotsFor, stopLine, planCountLabel, dayIdeasRows, forecastOpensOn, buildDayModel, buildDayEntryEditor, buildEditorBase, type DayRows } from "@/lib/day-view-model";
 
@@ -259,6 +260,38 @@ describe("buildDayModel (card 3.M)", () => {
     const r = rows();
     expect(buildDayModel(r, "2026-12-11").itinerary).toBe(buildDayModel(r, "2026-12-12").itinerary);
     expect(buildDayModel(rows(), "2026-12-11").itinerary).not.toBe(buildDayModel(r, "2026-12-11").itinerary);
+  });
+
+  const located = (date: string) => item({ id: `i-${date}`, date, startTime: "10:00", lat: 48.582, lng: 7.751 });
+
+  it("a mid-stay day's map starts from the bed", () => {
+    const m = buildDayModel(rows({ items: [located("2026-12-11")] }), "2026-12-11");
+    expect(m.dayMap.routePoints.map((p) => p.id)).toEqual(["a-corbeau", "i-2026-12-11"]);
+    expect(m.dayMap.perItemPrev["i-2026-12-11"]?.id).toBe("a-corbeau");
+  });
+
+  it("an arrival day's map has no start but keeps the bed's pin", () => {
+    const m = buildDayModel(rows({ items: [located("2026-12-10")] }), "2026-12-10");
+    expect(m.dayMap.routePoints.map((p) => p.id)).toEqual(["i-2026-12-10"]);
+    expect(m.dayMap.perItemPrev["i-2026-12-10"]).toBeUndefined();
+    expect(m.dayMap.points.filter((p) => p.kind === "accommodation").map((p) => p.id)).toEqual(["a-corbeau"]);
+  });
+
+  it("a check-out day starts from the bed woken in", () => {
+    const m = buildDayModel(rows({ items: [located("2026-12-13")] }), "2026-12-13");
+    expect(m.tonight).toBeNull();
+    expect(m.dayMap.routePoints.map((p) => p.id)).toEqual(["a-corbeau", "i-2026-12-13"]);
+    expect(m.dayMap.points.filter((p) => p.kind === "accommodation").map((p) => p.id)).toEqual(["a-corbeau"]);
+  });
+
+  it("a check-out day with a new bed tonight pins both and starts from the one woken in", () => {
+    const NEXT = { ...HOTEL, id: "a-petite", name: "Petite France flat", checkIn: "2026-12-13", checkOut: "2026-12-15", lat: 48.581, lng: 7.741 };
+    const r = rows({ items: [located("2026-12-13")], accommodations: [HOTEL, NEXT] });
+    const m = buildDayModel(r, "2026-12-13");
+    expect(m.tonight?.id).toBe("a-petite");
+    expect(m.dayMap.points.filter((p) => p.kind === "accommodation").map((p) => p.id).sort()).toEqual(["a-corbeau", "a-petite"]);
+    expect(m.dayMap.routePoints[0].id).toBe("a-corbeau");
+    expect(withDayMapHops(m.dayMap, r, "2026-12-13", new Map()).hops?.[0].fromId).toBe("a-corbeau");
   });
 
   it("a Trip with Chapters off has no Chapter", () => {

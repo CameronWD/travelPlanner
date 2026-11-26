@@ -7,11 +7,13 @@ import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { createMapLoader } from "@/components/ui/map-loader";
 import { useMediaQuery } from "@/components/ui/use-media-query";
+import { DayRouteButtons } from "@/components/trip/day-route-buttons";
 import { cn } from "@/lib/cn";
 import { dayFromPathname } from "@/lib/day-path";
 import { recordUsageAction } from "@/lib/usage/client";
 import { DayPanelContext, useIsDayInView } from "@/components/trip/day/day-carousel";
-import type { DayMapModel } from "@/lib/day-map";
+import type { DayMapModel, DayMapPoint } from "@/lib/day-map";
+import { travelPhrase } from "@/lib/travel-times/phrase";
 
 const DayMapLoader = createMapLoader<{ tripId: string; model: DayMapModel; highlightId?: string; fill?: boolean }>(() =>
   import("@/components/trip/day-map").then((m) => m.DayMap),
@@ -42,6 +44,20 @@ function setMapParam(open: boolean) {
   mapParamListeners.forEach((l) => l());
 }
 
+function placeRows(model: DayMapModel) {
+  const key = (p: DayMapPoint) => `${p.kind}:${p.id}`;
+  const onRoute = new Set(model.routePoints.map(key));
+  const ordered = [...model.routePoints, ...model.points.filter((p) => !onRoute.has(key(p)))];
+  const seen = new Set<string>();
+  return ordered
+    .filter((p) => !seen.has(key(p)) && seen.add(key(p)))
+    .map((point, i) => {
+      const prev = i > 0 && i < model.routePoints.length ? ordered[i - 1] : undefined;
+      const hop = prev ? model.hops?.find((h) => h.fromId === prev.id && h.toId === point.id) : undefined;
+      return { point, time: hop && hop.minutes != null && hop.mode != null ? travelPhrase({ minutes: hop.minutes, mode: hop.mode, estimated: hop.estimated }) : null };
+    });
+}
+
 export function DayMapDialog({
   open,
   onOpenChange,
@@ -54,6 +70,7 @@ export function DayMapDialog({
   model: DayMapModel;
 }) {
   const [highlightId, setHighlightId] = useState<string | undefined>();
+  const rows = placeRows(model);
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent size="full">
@@ -64,24 +81,28 @@ export function DayMapDialog({
           <div className="flex min-h-0 flex-1 flex-col">
             <DayMapLoader tripId={tripId} model={model} highlightId={highlightId} fill />
           </div>
-          <ol aria-label="Today’s places" className="hidden w-72 shrink-0 flex-col gap-1.5 overflow-y-auto p-1.5 lg:flex">
-            {model.points.map((point) => (
-              <li key={`${point.kind}:${point.id}`}>
-                <button
-                  type="button"
-                  onClick={() => setHighlightId(point.id)}
-                  aria-pressed={highlightId === point.id}
-                  className={cn(
-                    "flex min-h-11 w-full items-center gap-2.5 rounded-md border-2 border-border px-3 text-left text-sm font-bold transition-colors hover:bg-muted",
-                    highlightId === point.id && "bg-muted",
-                  )}
-                >
-                  {point.order ? <span className="text-muted-foreground">{point.order}</span> : null}
-                  <span className="min-w-0 truncate">{point.label}</span>
-                </button>
-              </li>
-            ))}
-          </ol>
+          <div data-testid="places-column" className="hidden w-72 shrink-0 flex-col gap-3 lg:flex">
+            <ol aria-label="Today’s places" className="flex min-h-0 flex-1 flex-col gap-1.5 overflow-y-auto p-1.5">
+              {rows.map(({ point, time }) => (
+                <li key={`${point.kind}:${point.id}`} className="flex flex-col gap-1">
+                  {time ? <p className="px-3 text-xs font-semibold text-muted-foreground">{time}</p> : null}
+                  <button
+                    type="button"
+                    onClick={() => setHighlightId(point.id)}
+                    aria-pressed={highlightId === point.id}
+                    className={cn(
+                      "flex min-h-11 w-full items-center gap-2.5 rounded-md border-2 border-border px-3 text-left text-sm font-bold transition-colors hover:bg-muted",
+                      highlightId === point.id && "bg-muted",
+                    )}
+                  >
+                    {point.order ? <span className="text-muted-foreground">{point.order}</span> : null}
+                    <span className="min-w-0 truncate">{point.label}</span>
+                  </button>
+                </li>
+              ))}
+            </ol>
+            <DayRouteButtons routePoints={model.routePoints} />
+          </div>
         </div>
       </DialogContent>
     </Dialog>

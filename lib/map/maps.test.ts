@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { mapsUrl, appleMapsUrl, googleDirectionsUrl, appleDirectionsUrl, directionsFromHereUrl } from "./maps";
+import { mapsUrl, appleMapsUrl, googleDirectionsUrl, appleDirectionsUrl, directionsFromHereUrl, directionsBackUrl } from "./maps";
 
 // ---------------------------------------------------------------------------
 // mapsUrl
@@ -321,5 +321,24 @@ describe("directionsFromHereUrl", () => {
   it("returns an Apple URL with no source address", () => {
     const { apple } = directionsFromHereUrl({ lat: 1, lng: 2 }, "DRIVE");
     expect(apple).toBe("https://maps.apple.com/?daddr=1%2C2&dirflg=d");
+  });
+});
+
+describe("directionsBackUrl", () => {
+  it("uses coordinates over the address", () => {
+    expect(directionsBackUrl({ lat: 41.8977, lng: 12.4731, address: "Corso Vittorio Emanuele II 184, Roma" }, "WALK")).toBe(
+      "https://www.google.com/maps/dir/?api=1&destination=41.8977%2C12.4731&travelmode=walking",
+    );
+  });
+
+  it("falls back to the address, unset mode meaning transit", () => {
+    expect(directionsBackUrl({ lat: null, lng: null, address: "Corso Vittorio Emanuele II 184, Roma" }, null)).toBe(
+      "https://www.google.com/maps/dir/?api=1&destination=Corso+Vittorio+Emanuele+II+184%2C+Roma&travelmode=transit",
+    );
+  });
+
+  it("is null with neither coordinates nor address, or without an Accommodation", () => {
+    expect(directionsBackUrl({ lat: null, lng: null, address: null }, "WALK")).toBeNull();
+    expect(directionsBackUrl(null, "WALK")).toBeNull();
   });
 });

@@ -90,9 +90,10 @@ describe("DayMap pins", () => {
     expect(container).toBeEmptyDOMElement();
   });
 
-  it("links Open today's route when there are two route points", () => {
+  it("shows the route buttons when there are two route points", () => {
     render(<DayMap tripId="t1" model={MODEL} />);
-    expect(screen.getByText(/Open today’s route/)).toBeInTheDocument();
+    expect(screen.getByText("Open today’s route in")).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Google Maps" })).toBeInTheDocument();
   });
 
   it("labels and sizes the frame itself", () => {
@@ -161,10 +162,11 @@ describe("DayMap route hops", () => {
   });
   const ENCODED = "_p~iF~ps|U_ulLnnqC_mqNvxq`@";
 
-  it("draws solid decoded lines for real hops and dashed straight for the rest, bed segment dashed", () => {
+  it("draws solid decoded lines for real hops and dashed straight for the rest, start hop dashed", () => {
     render(<DayMap tripId="t1" model={withHops([
-      { fromId: "i1", toId: "i2", polyline: ENCODED, estimated: false },
-      { fromId: "i2", toId: "i3", polyline: null, estimated: true },
+      { fromId: "a1", toId: "i1", polyline: null, estimated: true, minutes: 9, mode: "walk" },
+      { fromId: "i1", toId: "i2", polyline: ENCODED, estimated: false, minutes: 20, mode: "drive" },
+      { fromId: "i2", toId: "i3", polyline: null, estimated: true, minutes: 25, mode: "drive" },
     ])} />);
     const opts = mock.recorded.polylines.map((p) => p.options);
     expect(opts).toHaveLength(3);
@@ -178,11 +180,58 @@ describe("DayMap route hops", () => {
   });
 });
 
+describe("DayMap times", () => {
+  const navona = { kind: "accommodation" as const, id: "navona", lat: 41.9, lng: 12.47, label: "The Club Navona" };
+  const pantheon = { kind: "item" as const, id: "pantheon", lat: 41.899, lng: 12.476, label: "Pantheon", order: 1 };
+  const trevi = { kind: "item" as const, id: "trevi", lat: 41.901, lng: 12.483, label: "Trevi Fountain", order: 2 };
+  const model = (hops: NonNullable<DayMapModel["hops"]>): DayMapModel => ({
+    points: [pantheon, trevi, navona],
+    routePoints: [navona, pantheon, trevi],
+    perItemPrev: { pantheon: navona, trevi: pantheon },
+    hops,
+  });
+  const open = (label: string) => {
+    render(<DayMap tripId="t1" model={model([
+      { fromId: "navona", toId: "pantheon", polyline: null, estimated: false, minutes: 6, mode: "walk" },
+      { fromId: "pantheon", toId: "trevi", polyline: null, estimated: true, minutes: 12, mode: "transit" },
+    ])} />);
+    fireEvent.click(screen.getAllByTestId("marker").find((m) => m.getAttribute("title") === label)!);
+    return screen.getByRole("dialog");
+  };
+
+  it("a pin's pop-up says how long from the point before", () => {
+    expect(open("Pantheon")).toHaveTextContent("6 min walk from The Club Navona");
+  });
+
+  it("an estimated hop's pop-up says so", () => {
+    expect(open("Trevi Fountain")).toHaveTextContent("12 min by public transport (estimated) from Pantheon");
+  });
+
+  it("a hop with no minutes shows no time line", () => {
+    render(<DayMap tripId="t1" model={model([{ fromId: "navona", toId: "pantheon", polyline: null, estimated: true, minutes: null, mode: null }])} />);
+    fireEvent.click(screen.getAllByTestId("marker")[0]);
+    expect(screen.getByRole("dialog")).not.toHaveTextContent(/ min /);
+  });
+
+  it("the start hop draws its looked-up route", () => {
+    render(<DayMap tripId="t1" model={model([{ fromId: "navona", toId: "pantheon", polyline: "abc", estimated: false, minutes: 6, mode: "walk" }])} />);
+    expect(mock.recorded.polylines).toHaveLength(1);
+    expect(mock.recorded.polylines[0].options.strokeOpacity).toBeGreaterThan(0);
+  });
+
+  it("the start hop draws a dashed straight line when it has none", () => {
+    render(<DayMap tripId="t1" model={model([{ fromId: "navona", toId: "pantheon", polyline: null, estimated: true, minutes: 6, mode: "walk" }])} />);
+    expect(mock.recorded.polylines).toHaveLength(1);
+    expect(mock.recorded.polylines[0].options.path).toEqual([{ lat: 41.9, lng: 12.47 }, { lat: 41.899, lng: 12.476 }]);
+    expect(mock.recorded.polylines[0].options.strokeOpacity).toBe(0);
+  });
+});
+
 describe("DayMap fill", () => {
-  it("puts the route links under the map instead of above it", () => {
+  it("puts the route buttons under the map instead of above it", () => {
     const withRoute = { ...MODEL, routePoints: MODEL.points.slice(0, 2) };
     const { container, rerender } = render(<DayMap tripId="t1" model={withRoute} />);
-    const links = () => screen.getByText("Open today’s route:");
+    const links = () => screen.getByText("Open today’s route in");
     const map = () => screen.getByRole("region");
     expect(links().compareDocumentPosition(map()) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     rerender(<DayMap tripId="t1" model={withRoute} fill />);
@@ -198,7 +247,7 @@ describe("DayMap Ends at", () => {
     points: [walk, NEXT],
     routePoints: [walk, NEXT],
     perItemPrev: {},
-    hops: [{ fromId: "w", toId: "n", polyline: null, estimated: true }],
+    hops: [{ fromId: "w", toId: "n", polyline: null, estimated: true, minutes: 8, mode: "walk" }],
   });
 
   it("draws a smaller second pin at the end", () => {

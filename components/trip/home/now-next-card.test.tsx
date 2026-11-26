@@ -197,3 +197,53 @@ describe("NowNextCard Directions is recorded", () => {
     expect(recordUsageAction).toHaveBeenCalledWith("directions-tapped");
   });
 });
+
+describe("NowNextCard Directions back", () => {
+  const back = "https://www.google.com/maps/dir/?api=1&destination=Home&travelmode=transit";
+  const departure = (withinDay: boolean): NowNext => ({
+    kind: "next-departure",
+    transportId: "tr1",
+    mode: "TRAIN",
+    routeLabel: "Paris to London",
+    departsAt: new Date(Date.now() + (withinDay ? 3 : 48) * 3_600_000).toISOString(),
+    departsZone: "Europe/Paris",
+    withinDay,
+  });
+  const next: NowNext = {
+    kind: "next-thing",
+    target: { type: "item", id: "i1" },
+    title: "Louvre",
+    startsAt: null,
+    zone: "Europe/Paris",
+    place: { lat: 48.86, lng: 2.33 },
+    address: null,
+  };
+
+  beforeEach(() => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(new Date("2026-12-19T08:00:00.000Z"));
+  });
+  afterEach(() => vi.useRealTimers());
+
+  it.each([
+    ["nothing left today", { kind: "nothing" }],
+    ["the departure countdown", departure(true)],
+    ["the main card", next],
+  ] as [string, NowNext][])("shows a Directions back link in %s", (_, nowNext) => {
+    render(<NowNextCard nowNext={nowNext} {...props} directionsBack={back} />);
+    const link = screen.getByRole("link", { name: "Directions back" });
+    expect(link).toHaveAttribute("href", back);
+    expect(link).toHaveAttribute("target", "_blank");
+  });
+
+  it("sits after Directions and before Day map on the main card", () => {
+    render(<NowNextCard nowNext={next} {...props} directionsBack={back} />);
+    const names = screen.getAllByRole("link").map((l) => l.textContent?.trim());
+    expect(names).toEqual(["Directions", "Directions back", "Day map"]);
+  });
+
+  it("has no such link without it", () => {
+    render(<NowNextCard nowNext={next} {...props} />);
+    expect(screen.queryByRole("link", { name: "Directions back" })).toBeNull();
+  });
+});

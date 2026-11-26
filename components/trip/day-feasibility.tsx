@@ -4,6 +4,7 @@ import * as React from "react";
 import { AlertTriangle, ChevronRight, Clock } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import type { DayHopEntry } from "@/lib/day-view-loader";
+import { travelPhrase } from "@/lib/travel-times/phrase";
 import { HopModeChooser, type HopModeChooserProps } from "@/components/trip/day/hop-mode-chooser";
 import { MarkFineButton, MarkedFineList, type MarkedFineEntry, type MarkFineTarget } from "@/components/trip/marked-fine";
 
@@ -14,8 +15,6 @@ export interface DayFeasibilityEntry {
   hop?: HopModeChooserProps;
 }
 
-const TRAVEL_PHRASE = { walk: "walk", drive: "drive", transit: "by public transport" } as const;
-
 function hopKey(h: { fromItemId: string; toItemId: string }): string {
   return `${h.fromItemId}|${h.toItemId}`;
 }
@@ -25,13 +24,9 @@ function HopRow({ hop }: { hop: DayHopEntry }) {
     <div className="flex flex-wrap items-center gap-x-2 gap-y-1.5 text-[13px] font-medium sm:flex-nowrap">
       <p className="min-w-0 flex-1 basis-full sm:basis-0">
         {hop.fromTitle} → {hop.toTitle}
-        <span className="text-muted-foreground">
-          {" "}
-          · {hop.minutes} min {TRAVEL_PHRASE[hop.travel]}
-          {hop.estimated ? " (estimated)" : ""}
-        </span>
+        <span className="text-muted-foreground"> · {travelPhrase({ minutes: hop.minutes, mode: hop.travel, estimated: hop.estimated })}</span>
       </p>
-      <HopModeChooser fromItemId={hop.fromItemId} toItemId={hop.toItemId} mode={hop.mode} modeSetByHand={hop.modeSetByHand} />
+      {hop.start ? null : <HopModeChooser fromItemId={hop.fromItemId} toItemId={hop.toItemId} mode={hop.mode} modeSetByHand={hop.modeSetByHand} />}
     </div>
   );
 }
