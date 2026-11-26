@@ -1,3 +1,4 @@
+import { paidCurrencyOf } from "@/lib/money/paid-currency";
 import { netCostMinor, netPaidMinor } from "@/lib/money/refund";
 
 /**
@@ -14,6 +15,7 @@ export type CostRow = {
   currency: string;
   rateToHome: number | null;
   paidAt: Date | null;
+  paidCurrency?: string | null;
   /** A Refund on a paid Cost (lib/money/refund.ts). Optional so a select that omits it reads as no Refund. */
   refundMinor?: number | null;
   refundedAt?: Date | null;
@@ -42,4 +44,9 @@ export function costNetMinor(c: Amounts): number {
 export function shownCostMinor(c: Amounts): number {
   const b = bearing(c);
   return b.paidAt != null ? (netPaidMinor(b) ?? netCostMinor(b)) : c.costMinor;
+}
+
+export function shownCost(c: Amounts & { currency: string; paidCurrency?: string | null }): { minor: number; currency: string } {
+  const paidWithAmount = c.paidAt != null && c.paidMinor != null;
+  return { minor: shownCostMinor(c), currency: paidWithAmount ? paidCurrencyOf(c) : c.currency.toUpperCase() };
 }

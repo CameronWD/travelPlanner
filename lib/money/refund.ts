@@ -1,3 +1,5 @@
+import { paysInOwnCurrency } from "@/lib/money/paid-currency";
+
 type When = Date | string | null | undefined;
 
 export interface RefundBearing {
@@ -6,6 +8,8 @@ export interface RefundBearing {
   paidAt: When;
   refundMinor: number | null | undefined;
   refundedAt: When;
+  currency?: string;
+  paidCurrency?: string | null;
 }
 
 export type RefundState = "none" | "expected" | "received";
@@ -25,6 +29,8 @@ export function receivedRefundMinor(
 }
 
 export function netCostMinor(c: RefundBearing): number {
+  // A Refund is in the paid currency; when that is not the Cost's own, it cannot come off the cost amount here.
+  if (c.currency !== undefined && !paysInOwnCurrency({ currency: c.currency, paidCurrency: c.paidCurrency })) return c.costMinor;
   return Math.max(0, c.costMinor - receivedRefundMinor(c));
 }
 

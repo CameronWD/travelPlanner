@@ -51,4 +51,17 @@ describe("refund rules", () => {
   it("allows a Refund above the cost amount when the paid amount covers it", () => {
     expect(refundProblem({ ...paid, paidMinor: 22000, refundMinor: 21000 })).toBeNull();
   });
+  it("netCostMinor leaves the cost amount alone when the Refund is in another currency", () => {
+    const homePaid = { costMinor: 55000, paidMinor: 90512, paidAt: "2026-07-26", refundMinor: 10000, refundedAt: "2026-12-01", currency: "EUR", paidCurrency: "AUD" };
+    expect(netCostMinor(homePaid)).toBe(55000);
+    expect(netPaidMinor(homePaid)).toBe(80512);
+    expect(receivedRefundMinor(homePaid)).toBe(10000);
+  });
+  it("netCostMinor subtracts as before when no currency is given", () => {
+    const part = { ...paid, refundMinor: 5000, refundedAt: "2026-12-01" };
+    expect(netCostMinor(part)).toBe(15000);
+    expect(netCostMinor({ ...part, currency: "EUR" })).toBe(15000);
+    expect(netCostMinor({ ...part, currency: "EUR", paidCurrency: null })).toBe(15000);
+    expect(netCostMinor({ ...part, currency: "EUR", paidCurrency: "eur" })).toBe(15000);
+  });
 });

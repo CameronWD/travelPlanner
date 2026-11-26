@@ -9,6 +9,8 @@ import {
   stopIdForCost,
   buildBudget,
   applyFxRatesToCosts,
+  missingRateCurrency,
+  withPaidRates,
   type BudgetCost,
   type BudgetStop,
   type BudgetStopWithDates,
@@ -17,6 +19,8 @@ import {
   type BudgetTransport,
   type BuildBudgetInput,
 } from "./budget";
+import { buildSpendSoFar } from "./spend-so-far";
+import { convertMinor } from "./money";
 
 // ---------------------------------------------------------------------------
 // Fixtures
@@ -1032,6 +1036,18 @@ describe("buildBudget — byChapter", () => {
     expect(result.costCount).toBe(7);
   });
 
+  it("a budget of existing Costs is identical with paidCurrency null on every one", () => {
+    const costs = [
+      ...refundedCosts,
+      makeCost({ id: "cost-eur", costMinor: 55000, paidMinor: 61000, paidAt: "2026-07-12", currency: "EUR", rateToHome: 1.65, ownerType: "ITEM", ownerId: "item-it", refundMinor: 10000, refundedAt: REFUNDED }),
+      makeCost({ id: "cost-jpy", costMinor: 55000, paidMinor: 55000, paidAt: "2026-07-12", currency: "JPY", rateToHome: null, ownerType: "OTHER" }),
+    ];
+    const without = buildBudget({ ...chapterInput, costs });
+    expect(buildBudget({ ...chapterInput, costs: costs.map((c) => ({ ...c, paidCurrency: null })) })).toEqual(without);
+    expect(buildBudget({ ...chapterInput, costs: costs.map((c) => ({ ...c, paidCurrency: c.currency.toLowerCase() })) })).toEqual(without);
+    expect(without.missingRates).toEqual(["JPY"]);
+  });
+
   it("when chapters is omitted, byChapter is empty and all non-OTHER costs fall into ungrouped, OTHER into otherCosts", () => {
     const inputNoChapters: BuildBudgetInput = {
       ...chapterInput,
@@ -1093,5 +1109,160 @@ describe("applyFxRatesToCosts", () => {
   it("does not create an inverse entry for a zero rate", () => {
     const [c] = applyFxRatesToCosts({ costs: [raw({ currency: "AUD", rateToHome: null })], exchangeRates: [{ base: "EUR", quote: "AUD", rate: 0 }], homeCurrency: "EUR" });
     expect(c.rateToHome).toBeNull();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Paid currency (spec 2026-11-26-paid-currency)
+// ---------------------------------------------------------------------------
+
+// A frozen copy of convertCostToHome and the Refund netting as they were before
+// the paid currency, so a regression in refund.ts cannot hide on both sides.
+function legacyConvertCostToHome(cost: BudgetCost, homeCurrency: string) {
+  const from = cost.currency.toUpperCase();
+  const home = homeCurrency.toUpperCase();
+  const refund = cost.paidMinor === null ? 0 : cost.paidAt != null && cost.refundedAt != null ? (cost.refundMinor ?? 0) : 0;
+  const costMinor = Math.max(0, cost.costMinor - refund);
+  const paidMinor = cost.paidAt != null ? (cost.paidMinor == null ? null : Math.max(0, cost.paidMinor - refund)) : null;
+  if (from === home) return { costHome: costMinor, paidHome: paidMinor };
+  if (typeof cost.rateToHome !== "number") return { costHome: null, paidHome: null };
+  const rate = cost.rateToHome;
+  return {
+    costHome: convertMinor(costMinor, from, home, rate),
+    paidHome: paidMinor !== null ? convertMinor(paidMinor, from, home, rate) : null,
+  };
+}
+
+describe("convertCostToHome — paid currency", () => {
+  const PAID = "2026-06-04";
+  const RECEIVED = new Date("2026-06-20");
+
+  it("a Cost with no paid currency converts exactly as before", () => {
+    const currencies = [
+      { currency: "AUD", rateToHome: null },
+      { currency: "EUR", rateToHome: 1.65 },
+      { currency: "EUR", rateToHome: null },
+      { currency: "JPY", rateToHome: 0.0102 },
+    ];
+    const payments = [
+      { paidMinor: null, paidAt: null },
+      { paidMinor: 55000, paidAt: PAID },
+      { paidMinor: 52000, paidAt: PAID },
+      { paidMinor: 61000, paidAt: PAID },
+      { paidMinor: 55000, paidAt: null },
+    ];
+    const refunds = (paidMinor: number | null) => [
+      { refundMinor: null, refundedAt: null },
+      { refundMinor: 10000, refundedAt: null },
+      { refundMinor: 10000, refundedAt: RECEIVED },
+      { refundMinor: paidMinor ?? 55000, refundedAt: RECEIVED },
+    ];
+    const paidCurrencies = (currency: string): Partial<BudgetCost>[] => [
+      {}, { paidCurrency: null }, { paidCurrency: currency }, { paidCurrency: currency.toLowerCase() },
+    ];
+    let cases = 0;
+    for (const cur of currencies) for (const pay of payments) for (const ref of refunds(pay.paidMinor)) for (const pc of paidCurrencies(cur.currency)) {
+      const c = makeCost({ costMinor: 55000, ...cur, ...pay, ...ref, ...pc });
+      expect(convertCostToHome(c, "AUD"), JSON.stringify(c)).toEqual(legacyConvertCostToHome(c, "AUD"));
+      cases += 1;
+    }
+    expect(cases).toBe(320);
+  });
+
+  const homePaid = makeCost({ costMinor: 55000, currency: "EUR", rateToHome: 1.65, paidMinor: 90512, paidAt: PAID, paidCurrency: "AUD" });
+
+  it("a EUR cost paid in Home counts the typed amount", () => {
+    expect(convertCostToHome(homePaid, "AUD")).toEqual({ costHome: 90750, paidHome: 90512 });
+    const spend = buildSpendSoFar({ costs: [homePaid], homeCurrency: "AUD", today: "2026-06-05" });
+    expect(spend.paidSoFarMinor).toBe(90512);
+    expect(spend.paidCostMinor).toBe(90750);
+    expect(spend.varianceMinor).toBe(-238);
+  });
+
+  it("a received Refund in Home comes off both at face value", () => {
+    const refunded = { ...homePaid, refundMinor: 10000, refundedAt: RECEIVED };
+    expect(convertCostToHome(refunded, "AUD")).toEqual({ costHome: 80750, paidHome: 80512 });
+  });
+
+  it("a Refund larger than the converted cost leaves the cost at zero", () => {
+    const yen = makeCost({ costMinor: 1000, currency: "JPY", rateToHome: 0.011, paidMinor: 5000, paidAt: PAID, paidCurrency: "AUD", refundMinor: 4000, refundedAt: RECEIVED });
+    expect(convertCostToHome(yen, "AUD")).toEqual({ costHome: 0, paidHome: 1000 });
+  });
+
+  const oldHome = makeCost({ costMinor: 55000, currency: "EUR", rateToHome: 0.85, paidMinor: 90512, paidAt: PAID, paidCurrency: "AUD" });
+  const gbpTrip: BuildBudgetInput = {
+    homeCurrency: "GBP", costs: [], stops: [], items: [], accommodations: [], transports: [],
+    tripStart: "2026-07-01", tripEnd: "2026-07-03",
+  };
+
+  it("paid in an old Home currency converts at the Trip's rate for it", () => {
+    expect(convertCostToHome({ ...oldHome, paidRateToHome: 0.5 }, "GBP")).toEqual({ costHome: 46750, paidHome: 45256 });
+  });
+
+  it("paid in an old Home currency with no rate for it, the Cost is left out and AUD is the missing rate", () => {
+    expect(convertCostToHome(oldHome, "GBP")).toEqual({ costHome: null, paidHome: null });
+    const budget = buildBudget({ ...gbpTrip, costs: [oldHome] });
+    expect(budget.missingRates).toEqual(["AUD"]);
+    expect(budget.costCount).toBe(0);
+    expect(budget.grandTotal.costTotalMinor).toBe(0);
+  });
+
+  it("paid in an old Home currency, unpaid with no Refund, it needs no rate", () => {
+    const unpaid = { ...oldHome, paidAt: null };
+    expect(convertCostToHome(unpaid, "GBP")).toEqual({ costHome: 46750, paidHome: null });
+    const budget = buildBudget({ ...gbpTrip, costs: [unpaid] });
+    expect(budget.missingRates).toEqual([]);
+    expect(budget.grandTotal.costTotalMinor).toBe(46750);
+    expect(budget.grandTotal.paidTotalMinor).toBe(0);
+  });
+
+  it("a Home-paid Cost whose own currency has no rate is left out like any Cost with no rate", () => {
+    const noRate = { ...homePaid, rateToHome: null };
+    expect(convertCostToHome(noRate, "AUD")).toEqual({ costHome: null, paidHome: null });
+    const budget = buildBudget({ ...gbpTrip, homeCurrency: "AUD", costs: [noRate] });
+    expect(budget.missingRates).toEqual(["EUR"]);
+    expect(budget.costCount).toBe(0);
+  });
+});
+
+describe("missingRateCurrency", () => {
+  it("names the Cost's own currency when its rate is missing, as before", () => {
+    expect(missingRateCurrency(makeCost({ currency: "eur", rateToHome: null }), "AUD")).toBe("EUR");
+    expect(missingRateCurrency(makeCost({ currency: "EUR", rateToHome: null, paidCurrency: "AUD", paidMinor: 1, paidAt: "2026-06-04" }), "GBP")).toBe("EUR");
+  });
+  it("names the paid currency when only its rate is missing", () => {
+    expect(missingRateCurrency(makeCost({ currency: "EUR", rateToHome: 0.85, paidCurrency: "AUD", paidMinor: 1, paidAt: "2026-06-04" }), "GBP")).toBe("AUD");
+  });
+  it("is null when nothing is missing", () => {
+    expect(missingRateCurrency(makeCost({ currency: "AUD" }), "AUD")).toBeNull();
+    expect(missingRateCurrency(makeCost({ currency: "EUR", rateToHome: 1.65, paidCurrency: "AUD", paidMinor: 1, paidAt: "2026-06-04" }), "AUD")).toBeNull();
+    expect(missingRateCurrency(makeCost({ currency: "EUR", rateToHome: 0.85, paidCurrency: "AUD", paidMinor: 1, paidAt: null }), "GBP")).toBeNull();
+    expect(missingRateCurrency(makeCost({ currency: "EUR", rateToHome: 0.85, paidCurrency: "AUD", paidMinor: 1, paidAt: "2026-06-04", paidRateToHome: 0.5 }), "GBP")).toBeNull();
+  });
+});
+
+describe("withPaidRates", () => {
+  it("withPaidRates fills a rate only for a third currency", () => {
+    const costs = [
+      { currency: "EUR" },
+      { currency: "EUR", paidCurrency: null },
+      { currency: "EUR", paidCurrency: "GBP" },
+      { currency: "EUR", paidCurrency: "AUD" },
+      { currency: "JPY", paidCurrency: "USD" },
+    ];
+    const rates = [{ base: "GBP", quote: "AUD", rate: 2 }, { base: "EUR", quote: "GBP", rate: 0.85 }, { base: "USD", quote: "GBP", rate: 0.8 }];
+    expect(withPaidRates(costs, rates, "GBP").map((c) => c.paidRateToHome)).toEqual([null, null, null, 0.5, 0.8]);
+    expect(withPaidRates(costs, [], "GBP").map((c) => c.paidRateToHome)).toEqual([null, null, null, null, null]);
+  });
+
+  it("applyFxRatesToCosts carries the paid rate", () => {
+    const raw = {
+      id: "c1", costMinor: 1000, paidMinor: 1000, currency: "EUR", rateToHome: null, ownerType: "OTHER", ownerId: null,
+      label: "x", category: null, paidAt: "2026-06-04", refundMinor: null, refundedAt: null, paidCurrency: "AUD",
+    };
+    const [c] = applyFxRatesToCosts({ costs: [raw], exchangeRates: [{ base: "AUD", quote: "GBP", rate: 0.5 }, { base: "EUR", quote: "GBP", rate: 0.85 }], homeCurrency: "GBP" });
+    expect(c.rateToHome).toBe(0.85);
+    expect(c.paidRateToHome).toBe(0.5);
+    expect(convertCostToHome(c, "GBP")).toEqual({ costHome: 850, paidHome: 500 });
   });
 });
