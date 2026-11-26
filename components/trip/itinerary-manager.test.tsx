@@ -3308,6 +3308,20 @@ describe("a journey home or out in more than one leg", () => {
       expect(screen.getByTestId(testId).querySelectorAll("[data-leg-kind='legs']")[0]).toBe(row);
     },
   );
+
+  it("on a one-way trip, with no return bookend, the onward leg after the layover is still drawn once", () => {
+    renderPlan(
+      <ItineraryManager {...baseProps} initialStops={[PARIS, ROME]} initialTransports={[toDoha, { ...dohaHome, arrIsHome: false }]} homeBaseName="Gold Coast" roundTrip={false} />,
+    );
+    expect(screen.getAllByRole("button", { name: /^Flight from Doha \(DOH\) to Brisbane/ })).toHaveLength(1);
+  });
+
+  it("with no Home base, the first leg of a journey in to the first Stop is still drawn once", () => {
+    renderPlan(
+      <ItineraryManager {...baseProps} initialStops={[PARIS, ROME]} initialTransports={[dohaParis, { ...homeDoha, depIsHome: false }]} />,
+    );
+    expect(screen.getAllByRole("button", { name: /^Flight from Brisbane \(BNE\) to Doha/ })).toHaveLength(1);
+  });
 });
 
 describe("one Stop list per breakpoint (spec 2026-10-06 §D)", () => {

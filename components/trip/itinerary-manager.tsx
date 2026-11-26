@@ -1271,10 +1271,15 @@ export function ItineraryManager({
   // after the last Stop and no standalone "Add transport" below it (ADR 0032
   // amendment 2026-09-29 — at most one prompt per bookend).
   const hasReturnBookend = hasHomeBase && Boolean(roundTrip) && lastStop != null;
-  const bookendLegIds = React.useMemo(
-    () => new Set([...outboundJourney, ...returnJourney].map((t) => t.id)),
-    [outboundJourney, returnJourney],
-  );
+  // A journey's seed leg stays out of the Stop slots even with no bookend to
+  // draw it (as before journeys); its Connections only join a drawn bookend.
+  const bookendLegIds = React.useMemo(() => {
+    const legs = [
+      ...(hasHomeBase ? outboundJourney : outboundJourney.slice(-1)),
+      ...(hasReturnBookend ? returnJourney : returnJourney.slice(0, 1)),
+    ];
+    return new Set(legs.map((t) => t.id));
+  }, [outboundJourney, returnJourney, hasHomeBase, hasReturnBookend]);
 
   /**
    * Transports grouped by their anchor slot (stop id or HEAD_SLOT).
