@@ -35,7 +35,8 @@ vi.mock("@/lib/what-if", () => ({
 }));
 
 import { db as realDb } from "@/lib/db";
-import { refreshTripTravelTimes } from "./refresh";
+import { dailyCap } from "@/lib/google-budget";
+import { driveTimeNow, refreshTripTravelTimes } from "./refresh";
 
 const db = realDb as unknown as MockDb<"trip" | "stop" | "item" | "transport" | "tripMember" | "travelTime" | "hopMode" | "accommodation">;
 
@@ -467,5 +468,78 @@ describe("refreshTripTravelTimes", () => {
     expect(m.takeGoogleQuota).not.toHaveBeenCalled();
     expect(m.computeRoute).not.toHaveBeenCalled();
     expect(db.travelTime.upsert).not.toHaveBeenCalled();
+  });
+});
+
+describe("driveTimeNow", () => {
+  const BNE: Pt = { lat: -27.4698, lng: 153.0251 };
+  const TWD: Pt = { lat: -28.1766, lng: 153.5414 };
+  const OPTS = { windingFactor: 1.5, avgSpeedKph: 80 };
+  const KEY = driveKey(BNE, TWD);
+  const row = (r: Partial<Row>): Row => ({ key: KEY, mode: "DRIVE", status: "OK", minutes: 72, distanceM: 95_000, polyline: null, fetchedAt: NOW, ...r });
+  const expectEstimateOnly = (hop: Awaited<ReturnType<typeof driveTimeNow>>) => {
+    expect(hop.estimated).toBe(true);
+    expect(hop.mode).toBe("drive");
+    expect(m.computeRoute).not.toHaveBeenCalled();
+    expect(db.travelTime.upsert).not.toHaveBeenCalled();
+  };
+
+  it("driveTimeNow returns a stored real time without calling Google", async () => {
+    table.set(KEY, row({}));
+    expect(await driveTimeNow(BNE, TWD, OPTS, NOW)).toMatchObject({ minutes: 72, distanceKm: 95, estimated: false });
+    expect(m.computeRoute).not.toHaveBeenCalled();
+    expect(m.takeGoogleQuota).not.toHaveBeenCalled();
+  });
+
+  it("fetches and stores a missing drive within the daily cap", async () => {
+    m.computeRoute.mockResolvedValue({ status: "ok", minutes: 72, distanceM: 95000, polyline: "" });
+    const hop = await driveTimeNow(BNE, TWD, OPTS, NOW);
+    expect(m.takeGoogleQuota).toHaveBeenCalledWith("routes", dailyCap("routes"));
+    expect(m.computeRoute).toHaveBeenCalledTimes(1);
+    expect(m.computeRoute.mock.calls[0][2]).toBe("DRIVE");
+    expect(db.travelTime.upsert).toHaveBeenCalledTimes(1);
+    expect(db.travelTime.upsert).toHaveBeenCalledWith(expect.objectContaining({ where: { key: KEY } }));
+    expect(table.get(KEY)).toMatchObject({ status: "OK", mode: "DRIVE", minutes: 72, distanceM: 95000, polyline: null });
+    expect(hop).toMatchObject({ minutes: 72, distanceKm: 95, estimated: false });
+  });
+
+  it("returns the estimate with no Google call and no write when the cap refuses", async () => {
+    m.takeGoogleQuota.mockResolvedValue(false);
+    expectEstimateOnly(await driveTimeNow(BNE, TWD, OPTS, NOW));
+  });
+
+  it("returns the estimate with no Google call and no write when there is no server key", async () => {
+    m.hasServerKey.mockReturnValue(false);
+    expectEstimateOnly(await driveTimeNow(BNE, TWD, OPTS, NOW));
+    expect(m.takeGoogleQuota).not.toHaveBeenCalled();
+  });
+
+  it("returns the estimate with no Google call and no write when a NONE row is stored", async () => {
+    table.set(KEY, row({ status: "NONE", minutes: null, distanceM: null }));
+    expectEstimateOnly(await driveTimeNow(BNE, TWD, OPTS, NOW));
+    expect(m.takeGoogleQuota).not.toHaveBeenCalled();
+  });
+
+  it("returns the estimate with no Google call and no write for an ERROR row under 24 hours old", async () => {
+    table.set(KEY, row({ status: "ERROR", minutes: null, distanceM: null, fetchedAt: new Date(NOW.getTime() - 23 * 3600_000) }));
+    expectEstimateOnly(await driveTimeNow(BNE, TWD, OPTS, NOW));
+  });
+
+  it("re-fetches an ERROR row older than 24 hours", async () => {
+    table.set(KEY, row({ status: "ERROR", minutes: null, distanceM: null, fetchedAt: new Date(NOW.getTime() - 25 * 3600_000) }));
+    m.computeRoute.mockResolvedValue({ status: "ok", minutes: 72, distanceM: 95000, polyline: "" });
+    expect(await driveTimeNow(BNE, TWD, OPTS, NOW)).toMatchObject({ minutes: 72, distanceKm: 95, estimated: false });
+    expect(table.get(KEY)).toMatchObject({ status: "OK", minutes: 72 });
+  });
+
+  it("stores a failed fetch as ERROR and returns the estimate", async () => {
+    m.computeRoute.mockResolvedValue({ status: "error" });
+    expect((await driveTimeNow(BNE, TWD, OPTS, NOW)).estimated).toBe(true);
+    expect(table.get(KEY)).toMatchObject({ status: "ERROR", minutes: null });
+  });
+
+  it("returns the estimate when the fetch throws", async () => {
+    m.computeRoute.mockRejectedValue(new Error("network"));
+    expect((await driveTimeNow(BNE, TWD, OPTS, NOW)).estimated).toBe(true);
   });
 });

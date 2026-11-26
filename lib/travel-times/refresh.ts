@@ -4,11 +4,14 @@ import { REAL_PLAN, WHAT_IF_PLANS_HIDDEN } from "@/lib/plan-scope";
 import { dailyCap } from "@/lib/google-budget";
 import { hasServerKey } from "@/lib/google-fetch";
 import { takeGoogleQuota } from "@/lib/google-usage";
-import { computeRoute } from "@/lib/routes";
+import { computeRoute, type RouteResult } from "@/lib/routes";
 import { loadHopModes } from "@/lib/hop-modes";
 import { loadSurpriseVisibility } from "@/lib/surprise-visibility";
-import { ITEM_HOP_ORDER, parseHopKey, planTravelKeys, type HopItem } from "@/lib/travel-times/hops";
-import { saveTravelTime, settledTravelKeys } from "@/lib/travel-times/store";
+import {
+  ITEM_HOP_ORDER, driveKey, parseHopKey, planTravelKeys, resolveDriveLeg,
+  type HopItem, type Pt, type ResolvedHop, type TravelLookup, type TravelMode,
+} from "@/lib/travel-times/hops";
+import { loadTravelTimes, saveTravelTime, settledTravelKeys } from "@/lib/travel-times/store";
 
 const MAX_CALLS_PER_RUN = 40;
 const CONCURRENCY = 4;
@@ -104,6 +107,16 @@ async function wantedKeys(tripId: string, now: Date): Promise<string[] | null> {
   return fetchOrder(keysByPlan);
 }
 
+async function fetchAndStore(key: string, mode: TravelMode, from: Pt, to: Pt, departure: Date | null): Promise<RouteResult> {
+  const res = await computeRoute(from, to, mode, departure ?? undefined);
+  if (res.status === "ok") {
+    await saveTravelTime(key, { mode, status: "OK", minutes: res.minutes, distanceM: Math.round(res.distanceM), polyline: res.polyline || null });
+  } else {
+    await saveTravelTime(key, { mode, status: res.status === "none" ? "NONE" : "ERROR", minutes: null, distanceM: null, polyline: null });
+  }
+  return res;
+}
+
 export async function refreshTripTravelTimes(tripId: string, opts: { now?: Date; dryRun?: boolean; dailyCap?: number } = {}): Promise<RefreshCounts> {
   const now = opts.now ?? new Date();
   const counts: RefreshCounts = { wanted: 0, fetched: 0, skippedQuota: 0, failed: 0 };
@@ -125,12 +138,7 @@ export async function refreshTripTravelTimes(tripId: string, opts: { now?: Date;
 
   async function fetchOne({ key, mode, from, to, departure }: (typeof queue)[number]): Promise<void> {
     try {
-      const res = await computeRoute(from, to, mode, departure ?? undefined);
-      if (res.status === "ok") {
-        await saveTravelTime(key, { mode, status: "OK", minutes: res.minutes, distanceM: Math.round(res.distanceM), polyline: res.polyline || null });
-      } else {
-        await saveTravelTime(key, { mode, status: res.status === "none" ? "NONE" : "ERROR", minutes: null, distanceM: null, polyline: null });
-      }
+      const res = await fetchAndStore(key, mode, from, to, departure);
       if (res.status === "error") counts.failed++;
       else counts.fetched++;
     } catch {
@@ -154,4 +162,25 @@ export async function refreshTripTravelTimes(tripId: string, opts: { now?: Date;
   await Promise.all(Array.from({ length: CONCURRENCY }, worker));
   if (refused) counts.skippedQuota = batch - attempted;
   return counts;
+}
+
+export async function driveTimeNow(
+  from: Pt,
+  to: Pt,
+  estimateOpts: { windingFactor: number; avgSpeedKph: number },
+  now: Date = new Date(),
+): Promise<ResolvedHop> {
+  const key = driveKey(from, to);
+  const stored = resolveDriveLeg(from, to, await loadTravelTimes([key]), estimateOpts);
+  if (!stored.estimated || !hasServerKey()) return stored;
+  if ((await settledTravelKeys([key], now)).has(key)) return stored;
+  if (!(await takeGoogleQuota("routes", dailyCap("routes")))) return stored;
+  try {
+    const res = await fetchAndStore(key, "DRIVE", from, to, null);
+    if (res.status !== "ok") return stored;
+    const fetched: TravelLookup = new Map([[key, { status: "OK", minutes: res.minutes, distanceM: Math.round(res.distanceM), polyline: res.polyline || null }]]);
+    return resolveDriveLeg(from, to, fetched, estimateOpts);
+  } catch {
+    return stored;
+  }
 }

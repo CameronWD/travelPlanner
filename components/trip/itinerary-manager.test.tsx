@@ -17,6 +17,7 @@ vi.mock("@/components/booking-import/booking-import-sheet", () => ({ BookingImpo
 vi.mock("@/components/trip/make-it-fit", () => ({ MakeItFit: () => null }));
 vi.mock("@/server/actions/trips", () => ({ setTripHardEndDate: vi.fn() }));
 vi.mock("@/server/actions/venue-details", () => ({ venueDetailsForPick: vi.fn().mockResolvedValue(null) }));
+vi.mock("@/server/actions/drive-time", () => ({ driveTimeForEnds: vi.fn(async () => null) }));
 vi.mock("@/server/actions/stops", () => ({
   deleteStop: vi.fn().mockResolvedValue({ success: true }),
   // ARCH-DAT-4: DeleteStopDialog fetches this preview on open. Default to an
