@@ -1557,6 +1557,21 @@ describe("getPromotionPreview", () => {
       for (const label of labels) expect(label).not.toMatch(/cmv5tglj/);
     });
 
+    it("the promotion loss list names a Cost paid in Home in Home", async () => {
+      costFindManyMock.mockImplementation((args: { where: { forkId: string | null } }) => {
+        if (args.where.forkId === null) {
+          return Promise.resolve([
+            { id: "c1", label: "Hotel", paidAt: "2026-05-01", paidMinor: 90512, paidCurrency: "AUD", costMinor: 55000, currency: "EUR", rateToHome: 1.65, ownerType: "OTHER", ownerId: null, category: null },
+          ]);
+        }
+        return Promise.resolve([]);
+      });
+
+      const result = await getPromotionPreview("fork-9");
+
+      expect(result.lossList.filter((l) => l.kind === "PAID_COST").map((l) => l.label)).toEqual([`Hotel · ${formatMoney(90512, "AUD")}`]);
+    });
+
     it("does NOT include a PAID_COST entry for a cost with paidAt === null", async () => {
       costFindManyMock.mockResolvedValue([
         { id: "cost-unpaid", label: "Visa fee", paidAt: null, ownerType: "OTHER", ownerId: null },

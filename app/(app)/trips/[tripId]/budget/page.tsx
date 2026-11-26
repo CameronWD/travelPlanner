@@ -11,7 +11,7 @@ import { Button } from "@/components/ui/button";
 import { buildBudgetFromRows } from "@/lib/money/budget-loader";
 import { isRateStale } from "@/lib/money/fx";
 import type { RateEntry } from "@/components/trip/rates-panel";
-import type { BudgetStopWithDates } from "@/lib/money/budget";
+import { withPaidRates, type BudgetStopWithDates } from "@/lib/money/budget";
 import { buildSpendSoFar } from "@/lib/money/spend-so-far";
 import type { SpendCost } from "@/lib/money/spend-so-far";
 import { nightsBetween } from "@/lib/dates";
@@ -172,6 +172,7 @@ export default async function BudgetPage({
   const budget = buildBudgetFromRows({
     homeCurrency,
     costs: allCosts,
+    exchangeRates,
     stops: budgetStops,
     items,
     accommodations,
@@ -186,10 +187,12 @@ export default async function BudgetPage({
   });
 
   // Build SpendCost[] — same shape as a budget cost but with paidAt from allCosts
-  const spendCosts: SpendCost[] = allCosts.map((c) => ({
+  const spendCosts: SpendCost[] = withPaidRates(allCosts, exchangeRates, homeCurrency).map((c) => ({
     id: c.id,
     costMinor: c.costMinor,
     paidMinor: c.paidMinor,
+    paidCurrency: c.paidCurrency,
+    paidRateToHome: c.paidRateToHome,
     currency: c.currency,
     rateToHome: c.rateToHome,
     ownerType: c.ownerType as SpendCost["ownerType"],
@@ -216,7 +219,8 @@ export default async function BudgetPage({
   const foreignCurrencies = [
     ...new Set(
       allCosts
-        .map((c) => c.currency.toUpperCase())
+        .flatMap((c) => [c.currency, c.paidCurrency])
+        .flatMap((c) => (c ? [c.toUpperCase()] : []))
         .filter((c) => c !== homeCurrency.toUpperCase()),
     ),
   ].sort();
@@ -271,8 +275,9 @@ export default async function BudgetPage({
     allCosts
       .filter(
         (c) =>
-          c.currency.toUpperCase() !== homeCurrency.toUpperCase() &&
-          missingRateCurrencies.has(c.currency.toUpperCase()),
+          [c.currency, c.paidCurrency].some(
+            (code) => code && code.toUpperCase() !== homeCurrency.toUpperCase() && missingRateCurrencies.has(code.toUpperCase()),
+          ),
       )
       .map((c) => c.category ?? "Other"),
   );

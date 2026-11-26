@@ -69,6 +69,16 @@ describe("missingRatesLine", () => {
   it("is null when nothing is missing", () => {
     expect(missingRatesLine(costs, [])).toBeNull();
   });
+  it("a Cost whose paid currency has no rate is counted under that currency", () => {
+    expect(missingRatesLine([{ currency: "EUR", paidCurrency: "AUD" }], ["AUD"])).toBe(
+      "1 AUD cost left out of totals until you set a rate.",
+    );
+  });
+  it("an existing Cost is counted as before", () => {
+    expect(missingRatesLine([{ currency: "IDR", paidCurrency: null }, { currency: "IDR" }], ["IDR"])).toBe(
+      "2 IDR costs left out of totals until you set a rate.",
+    );
+  });
 });
 
 describe("ratesUpdatedNote", () => {
