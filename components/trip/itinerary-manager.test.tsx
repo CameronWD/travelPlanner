@@ -3208,6 +3208,23 @@ describe("metro-line legs (spec 2026-10-05 §F)", () => {
     },
   );
 
+  it("two flights meeting at a place show the layover and its wait between their cards", () => {
+    const f1 = makeTransport({ id: "f1", mode: "FLIGHT", fromStopId: "par", anchorStopId: "par", depPlace: "Paris", arrPlace: "Bangkok (BKK)", depAt: new Date("2026-12-15T06:00:00Z"), arrAt: new Date("2026-12-15T12:00:00Z"), sortOrder: 0 });
+    const f2 = makeTransport({ id: "f2", mode: "FLIGHT", toStopId: "rom", anchorStopId: "par", depPlace: "Bangkok (BKK)", arrPlace: "Rome", depAt: new Date("2026-12-15T14:35:00Z"), arrAt: new Date("2026-12-15T20:00:00Z"), sortOrder: 1 });
+    renderPlan(<ItineraryManager {...baseProps} initialStops={[PARIS, ROME]} initialTransports={[f1, f2]} />);
+    const stations = [...screen.getByTestId("plan-desktop-list").querySelectorAll("[data-leg-station]")] as HTMLElement[];
+    expect(within(stations[1]).getByText("Layover in Bangkok · 2h 35m")).toHaveAttribute("data-changeover");
+    expect(stations[0].querySelector("[data-changeover]")).toBeNull();
+  });
+
+  it("two trains meeting at a place show Change at … with the wait", () => {
+    const t1 = { ...legA, depAt: new Date("2026-12-15T08:00:00Z"), arrAt: new Date("2026-12-15T10:00:00Z") };
+    const t2 = { ...legB, depAt: new Date("2026-12-15T10:12:00Z"), arrAt: new Date("2026-12-15T12:00:00Z") };
+    renderPlan(<ItineraryManager {...baseProps} initialStops={[PARIS, ROME]} initialTransports={[t1, t2]} />);
+    const stations = [...screen.getByTestId("plan-desktop-list").querySelectorAll("[data-leg-station]")] as HTMLElement[];
+    expect(within(stations[1]).getByText("Change at Milano Centrale · 12m")).toHaveAttribute("data-changeover");
+  });
+
   it("an unknown change-over place shows nothing", () => {
     const elsewhere = { ...legB, depPlace: "Milano Rogoredo" };
     renderPlan(<ItineraryManager {...baseProps} initialStops={[PARIS, ROME]} initialTransports={[legA, elsewhere]} />);

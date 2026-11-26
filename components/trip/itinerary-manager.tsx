@@ -25,7 +25,8 @@ import { stopHue } from "@/lib/stop-colours";
 import { usePlanBody, useRegisterPlanActions } from "@/components/plan/plan-body";
 import { claimDragHint, daySectionId } from "@/components/plan/day-section";
 import { planCollisionDetection, POINTER_ACTIVATION, resolveItemDrop, scheduleInputFor, TOUCH_ACTIVATION, type ItemDrop } from "@/components/plan/plan-dnd";
-import { changeoverPlaces, legLabel, missingLegLabel, legSlotKind } from "@/lib/plan/leg-label";
+import { changeLabels } from "@/lib/connections";
+import { legLabel, missingLegLabel, legSlotKind } from "@/lib/plan/leg-label";
 import { daySlots, type DaySlot } from "@/lib/plan/day-density";
 import { planDateRange, stayStatus } from "@/lib/plan/plan-model";
 import { AddStopSheet } from "@/components/plan/mobile/add-stop-sheet";
@@ -145,6 +146,8 @@ export interface ItineraryTransport extends TransportDetails {
   arrIsHome?: boolean | null;
   depPlace?: string | null;
   arrPlace?: string | null;
+  depPlaceId?: string | null;
+  arrPlaceId?: string | null;
   depAt?: Date | null;
   arrAt?: Date | null;
   reference?: string | null;
@@ -1416,11 +1419,11 @@ export function ItineraryManager({
   }
 
   // A strip of one or more legs, metro-style (spec 2026-10-05 §F): legs stack
-  // in slot (travel) order and a change-over shows only where one leg's
+  // in slot (travel) order and a change-over line shows only where one leg's
   // arrival place is already the next one's departure place.
   function renderLegStack(legs: ItineraryTransport[], compact?: boolean) {
     return (
-      <LegRow kind="legs" compact={compact} changeovers={changeoverPlaces(legs)}>
+      <LegRow kind="legs" compact={compact} changeovers={changeLabels(legs)}>
         {legs.map((t) => renderLegPill(t, compact))}
       </LegRow>
     );

@@ -12,10 +12,7 @@ export interface LegRowProps {
   kind: "legs" | "missing" | "line";
   compact?: boolean;
   children?: React.ReactNode;
-  /**
-   * Spec 2026-10-05 §F: per child, the change-over place shown by its station
-   * dot (`changeoverPlaces` in lib/plan/leg-label). Null/absent = nothing.
-   */
+  /** Per child, the finished line printed above it (`changeLabels` in lib/connections). Null/absent = nothing. */
   changeovers?: readonly (string | null)[];
 }
 
@@ -58,7 +55,7 @@ export function LegRow({ kind, compact, children, changeovers }: LegRowProps) {
               >
                 {changeover ? (
                   <span data-changeover className="text-[11px] font-semibold leading-tight text-muted-foreground">
-                    Change at {changeover}
+                    {changeover}
                   </span>
                 ) : null}
                 <div className="relative flex min-w-0 max-w-full max-md:w-full">

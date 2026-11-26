@@ -123,16 +123,16 @@ describe("LegRow — metro line (spec 2026-10-05 §F)", () => {
     expect(container.querySelectorAll("[data-station-dot]")).toHaveLength(3);
   });
 
-  it("a known change-over shows as small text by that leg's dot", () => {
+  it("the line above a leg is printed as given", () => {
     const { container } = render(
-      <LegRow kind="legs" changeovers={[null, "Milano Centrale", null]}>
+      <LegRow kind="legs" changeovers={[null, "Layover in Bangkok · 2h 35m", null]}>
         <LegPill key="a" label={TRAIN_A} onClick={vi.fn()} />
         <LegPill key="b" label={TRAIN_B} onClick={vi.fn()} />
         <LegPill key="c" label={TRAIN_C} onClick={vi.fn()} />
       </LegRow>,
     );
     const stations = [...container.querySelectorAll("[data-leg-station]")] as HTMLElement[];
-    const note = within(stations[1]).getByText("Change at Milano Centrale");
+    const note = within(stations[1]).getByText("Layover in Bangkok · 2h 35m");
     expect(note).toHaveAttribute("data-changeover");
     expect(note.className).toContain("text-muted-foreground");
     expect(stations[0].querySelector("[data-changeover]")).toBeNull();
