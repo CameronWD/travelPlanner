@@ -57,7 +57,7 @@ export function LegRow({ kind, compact, children, changeovers }: LegRowProps) {
               data-leg-run
               className={cn("flex min-w-0 max-w-full flex-col items-start max-md:w-full", run.length > 1 && "w-fit")}
             >
-              {run.map(({ node, key, joined, changeover }, n) => {
+              {run.map(({ node, key, joined, changeover }) => {
                 const label = React.isValidElement<LegPillProps>(node) ? node.props.label : null;
                 const Icon = label && !label.missing ? label.icon : null;
                 return (
@@ -73,7 +73,7 @@ export function LegRow({ kind, compact, children, changeovers }: LegRowProps) {
                         run.length > 1 && "w-full [&>[data-travel-row]]:w-full",
                       )}
                     >
-                      {legs && n === 0 && label && !label.missing ? (
+                      {legs && label && !label.missing ? (
                         // The marker sits on the connector, centred on the row. Row start
                         // minus line centre: compact 53 - 21 = 32px, desktop 63 - 27 = 36px.
                         // Tile edges 7..35 (compact) / 11..43; the stub fills tile edge to
@@ -96,18 +96,6 @@ export function LegRow({ kind, compact, children, changeovers }: LegRowProps) {
                           </span>
                         </>
                       ) : null}
-                      {legs && n > 0 && label && !label.missing ? (
-                        <span
-                          data-station-dot-minor
-                          aria-hidden
-                          className={cn(
-                            "absolute top-1/2 flex -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-md border-2 border-border bg-background text-foreground ring-2 ring-background",
-                            compact ? "left-[-32px] size-[18px]" : "left-[-36px] size-5",
-                          )}
-                        >
-                          {Icon ? <Icon className="size-3" /> : null}
-                        </span>
-                      ) : null}
                       {node}
                     </div>
                   </div>
@@ -122,21 +110,33 @@ export function LegRow({ kind, compact, children, changeovers }: LegRowProps) {
 }
 
 export function JourneyJoin({ label, compact }: { label: string; compact?: boolean }) {
-  // pt clears the card above's offset shadow; the line sits through the
-  // clock's centre: pill inset (ml) + border (2px) + padding (10px) + half the icon (7px).
+  // pt clears the card above's offset shadow; the row then holds the pill with
+  // 8px above and below it.
   return (
-    <div className={cn("relative flex w-full min-w-0 items-center", compact ? "h-11 pt-[3px]" : "h-12 pt-1")}>
-      <span aria-hidden className={cn("absolute inset-y-0 border-l-2 border-border", compact ? "left-[34px]" : "left-[38px]")} />
-      <span
-        data-changeover
-        className={cn(
-          "relative z-10 inline-flex min-w-0 max-w-[calc(100%-1.25rem)] cursor-default items-center gap-1.5 rounded-full border-2 border-border bg-background px-2.5 py-0.5 text-xs font-bold text-foreground",
-          compact ? "ml-4" : "ml-5",
-        )}
-      >
-        <Clock className="size-3.5 shrink-0" aria-hidden />
-        {label}
-      </span>
+    <div className={cn("w-full min-w-0", compact ? "pt-[3px]" : "pt-1")}>
+      <div className="relative flex h-10 items-center">
+        <span
+          data-layover-stub
+          aria-hidden
+          className={cn("absolute top-1/2 h-0.5 -translate-y-1/2 bg-border", compact ? "left-[-22px] w-[22px]" : "left-[-24px] w-6")}
+        />
+        <span
+          data-layover-dot
+          aria-hidden
+          className={cn(
+            "absolute top-1/2 flex -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full border-2 border-border bg-background text-foreground ring-2 ring-background",
+            compact ? "left-[-32px] size-5" : "left-[-36px] size-6",
+          )}
+        >
+          <Clock className={compact ? "size-3" : "size-3.5"} />
+        </span>
+        <span
+          data-changeover
+          className="relative max-w-full cursor-default rounded-full border-2 border-border bg-background px-2.5 py-0.5 text-xs font-bold text-foreground"
+        >
+          {label}
+        </span>
+      </div>
     </div>
   );
 }

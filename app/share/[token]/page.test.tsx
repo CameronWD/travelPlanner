@@ -999,8 +999,8 @@ describe("SharePage — travel legs", () => {
     expect(first.compareDocumentPosition(line) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     expect(second.compareDocumentPosition(line) & Node.DOCUMENT_POSITION_PRECEDING).toBeTruthy();
     expect(container.querySelectorAll("[data-changeover]")).toHaveLength(1);
-    expect(line.querySelector("svg[aria-hidden]")).not.toBeNull();
-    expect(stack.querySelectorAll("[data-station-dot]")).toHaveLength(1);
+    expect(stack.querySelectorAll("[data-station-dot]")).toHaveLength(2);
+    expect(stack.querySelectorAll("[data-layover-dot]")).toHaveLength(1);
   });
 
   it("lists no leg between two Stops when the legs leaving one do not reach the next", async () => {

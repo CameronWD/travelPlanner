@@ -3192,7 +3192,7 @@ describe("metro-line legs (spec 2026-10-05 §F)", () => {
   const legB = makeTransport({ id: "leg-b", bookingStateSet: false, mode: "TRAIN", toStopId: "rom", anchorStopId: "par", depPlace: "Milano Centrale", sortOrder: 1 });
 
   it.each([["plan-desktop-list", true], ["plan-mobile-list", false]] as const)(
-    "%s: legs stack in travel order, one marker for a joined pair, the change-over on the join",
+    "%s: legs stack in travel order, a marker each, the layover sits on the line between them",
     (testId, lgUp) => {
       if (!lgUp) setMatchMedia((q) => q === "(min-width: 640px)");
       // Passed out of order: the strip follows sortOrder, not array order.
@@ -3202,7 +3202,8 @@ describe("metro-line legs (spec 2026-10-05 §F)", () => {
       expect(stations).toHaveLength(2);
       expect(within(stations[0]).getByRole("button", { name: /^Train from Paris to Milano Centrale/ })).toBeInTheDocument();
       expect(within(stations[1]).getByRole("button", { name: /^Train from Milano Centrale to Rome/ })).toBeInTheDocument();
-      expect(row.querySelectorAll("[data-station-dot]")).toHaveLength(1);
+      expect(row.querySelectorAll("[data-station-dot]")).toHaveLength(2);
+      expect(row.querySelectorAll("[data-layover-dot]")).toHaveLength(1);
       expect(within(stations[1]).getByText("Change at Milano Centrale")).toHaveAttribute("data-changeover");
       expect(stations[0].querySelector("[data-changeover]")).toBeNull();
     },

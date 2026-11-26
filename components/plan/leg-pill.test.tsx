@@ -133,28 +133,41 @@ describe("LegRow — metro line (spec 2026-10-05 §F)", () => {
       </LegRow>,
     );
 
-  it("a joined card has no marker of its own", () => {
+  it("a layover sits on the rail between two flights", () => {
     const { container } = journey([null, JOURNEY]);
-    const stations = [...container.querySelectorAll("[data-leg-station]")] as HTMLElement[];
-    expect(container.querySelectorAll("[data-station-dot]")).toHaveLength(1);
-    expect(stations[0].querySelector("[data-station-dot]")).not.toBeNull();
-    expect(stations[1].querySelector("[data-station-dot]")).toBeNull();
-    expect(stations[1].querySelector("[data-station-stub]")).toBeNull();
+    expect(container.querySelectorAll("[data-station-dot]")).toHaveLength(2);
+    expect(container.querySelectorAll("[data-station-stub]")).toHaveLength(2);
+    const layover = container.querySelectorAll("[data-layover-dot]");
+    expect(layover).toHaveLength(1);
+    expect(layover[0]).toHaveAttribute("aria-hidden");
+    const [d1, d2] = [...container.querySelectorAll("[data-station-dot]")];
+    expect(d1.compareDocumentPosition(layover[0]) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(layover[0].compareDocumentPosition(d2) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    const pill = container.querySelector("[data-changeover]") as HTMLElement;
+    expect(pill.textContent).toBe(JOURNEY);
+    expect(pill.querySelector("svg")).toBeNull();
+    expect(pill.className).toContain("rounded-full");
+    expect(pill.className).not.toContain("hover:");
+    expect(container.querySelector("[data-layover-stub]")).not.toBeNull();
   });
 
-  it("the join carries the label in a pill with a clock", () => {
-    const { container } = journey([null, JOURNEY]);
-    const pill = container.querySelector("[data-changeover]") as HTMLElement;
-    expect(pill).toHaveTextContent(JOURNEY);
-    expect(pill.querySelector("svg[aria-hidden]")).not.toBeNull();
-    expect(pill.className).toContain("rounded-full");
-    expect(pill.className).toContain("border-border");
-    expect(pill.className).not.toContain("hover:");
+  it("an unjoined pair has no layover marker", () => {
+    const { container } = journey([null, null]);
+    expect(container.querySelector("[data-layover-dot]")).toBeNull();
+    expect(container.querySelector("[data-changeover]")).toBeNull();
+    expect(container.querySelectorAll("[data-station-dot]")).toHaveLength(2);
+  });
+
+  it("a single card is unchanged", () => {
+    const { container } = render(<LegRow kind="legs"><LegPill label={FLIGHT} onClick={vi.fn()} /></LegRow>);
+    expect(container.querySelectorAll("[data-station-dot]")).toHaveLength(1);
+    expect(container.querySelector("[data-layover-dot]")).toBeNull();
+    expect(container.querySelector("[data-station-dot-minor]")).toBeNull();
   });
 
   it("an unjoined card after a journey keeps its own marker and gap", () => {
     const { container } = journey([null, JOURNEY, null], true);
-    expect(container.querySelectorAll("[data-station-dot]")).toHaveLength(2);
+    expect(container.querySelectorAll("[data-station-dot]")).toHaveLength(3);
     const stations = [...container.querySelectorAll("[data-leg-station]")] as HTMLElement[];
     expect(stations[2].querySelector("[data-station-dot]")).not.toBeNull();
     expect(stations[2].closest("[data-leg-run]")).not.toBe(stations[1].closest("[data-leg-run]"));
@@ -172,24 +185,6 @@ describe("LegRow — metro line (spec 2026-10-05 §F)", () => {
     expect(runs[1].className).not.toContain("w-fit");
     const single = runs[1].querySelector("[data-leg-station]") as HTMLElement;
     expect(single.className.split(" ")).not.toContain("w-full");
-  });
-
-  it("a joined card has a minor marker and no stub", () => {
-    const { container } = journey([null, JOURNEY]);
-    const stations = [...container.querySelectorAll("[data-leg-station]")] as HTMLElement[];
-    expect(container.querySelectorAll("[data-station-dot]")).toHaveLength(1);
-    expect(container.querySelectorAll("[data-station-stub]")).toHaveLength(1);
-    expect(container.querySelectorAll("[data-station-dot-minor]")).toHaveLength(1);
-    const minor = stations[1].querySelector("[data-station-dot-minor]") as HTMLElement;
-    expect(minor).toHaveAttribute("aria-hidden");
-    expect(minor.className).not.toContain("bg-sun");
-    expect(minor.className).not.toContain("island");
-    expect(minor.querySelector("svg")).not.toBeNull();
-  });
-
-  it("a single card has no minor marker", () => {
-    const { container } = render(<LegRow kind="legs"><LegPill label={FLIGHT} onClick={vi.fn()} /></LegRow>);
-    expect(container.querySelector("[data-station-dot-minor]")).toBeNull();
   });
 
   it("the label is read between the two cards", () => {
