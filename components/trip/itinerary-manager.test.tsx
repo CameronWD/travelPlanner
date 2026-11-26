@@ -3322,6 +3322,22 @@ describe("a journey home or out in more than one leg", () => {
     );
     expect(screen.getAllByRole("button", { name: /^Flight from Brisbane \(BNE\) to Doha/ })).toHaveLength(1);
   });
+
+  it("an undated round trip via one hub both ways draws each of its four Transports once, the journey out above the first Stop and the journey home below the last", () => {
+    const undated = [homeDoha, dohaParis, toDoha, dohaHome].map((t) => ({ ...t, depAt: null, arrAt: null }));
+    renderPlan(<ItineraryManager {...baseProps} initialStops={[PARIS, ROME]} initialTransports={undated} homeBaseName="Gold Coast" roundTrip />);
+    const names = [/^Flight from Gold Coast to Doha/, /^Flight from Doha \(DOH\) to Paris/, /^Flight from Rome to Doha/, /^Flight from Doha \(DOH\) to Gold Coast/];
+    const [out1, out2, home1, home2] = names.map((name) => {
+      const found = screen.getAllByRole("button", { name });
+      expect(found).toHaveLength(1);
+      return found[0];
+    });
+    expect(rowOf(out2)).toBe(rowOf(out1));
+    expect(rowOf(home2)).toBe(rowOf(home1));
+    expect(rowOf(out1).compareDocumentPosition(desktop().getByRole("heading", { name: "Paris" })) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(rowOf(home1).compareDocumentPosition(document.getElementById("home-base-bottom")!) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(desktop().getByRole("heading", { name: "Rome" }).compareDocumentPosition(rowOf(home1)) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  });
 });
 
 describe("one Stop list per breakpoint (spec 2026-10-06 §D)", () => {

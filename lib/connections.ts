@@ -87,6 +87,17 @@ export function bookingPartners<T extends ConnectionLeg>(legs: readonly T[]): Ma
   return partners;
 }
 
+const byLatestArrival = (x: ConnectionLeg, y: ConnectionLeg) => {
+  const tx = x.arrAt?.getTime();
+  const ty = y.arrAt?.getTime();
+  if (tx !== ty) {
+    if (tx === undefined) return 1;
+    if (ty === undefined) return -1;
+    return ty - tx;
+  }
+  return x.id < y.id ? -1 : x.id > y.id ? 1 : 0;
+};
+
 export function journeyHome<T extends ConnectionLeg>(legs: readonly T[], lastStopId: string | null): T[] {
   const first = findReturnLeg(legs, lastStopId);
   if (!first) return [];
@@ -94,7 +105,7 @@ export function journeyHome<T extends ConnectionLeg>(legs: readonly T[], lastSto
   for (;;) {
     const last = journey[journey.length - 1];
     const next = legs
-      .filter((n) => !journey.includes(n) && isConnection(last, n))
+      .filter((n) => !n.toStopId && !journey.includes(n) && isConnection(last, n))
       .sort(byDeparture)[0];
     if (!next) return journey;
     journey.push(next);
@@ -108,9 +119,24 @@ export function journeyOut<T extends ConnectionLeg>(legs: readonly T[], firstSto
   for (;;) {
     const head = journey[0];
     const prev = legs
-      .filter((p) => !journey.includes(p) && isConnection(p, head))
-      .sort((x, y) => (y.arrAt?.getTime() ?? -Infinity) - (x.arrAt?.getTime() ?? -Infinity))[0];
+      .filter((p) => !p.fromStopId && !journey.includes(p) && isConnection(p, head))
+      .sort(byLatestArrival)[0];
     if (!prev) return journey;
     journey.unshift(prev);
   }
+}
+
+export function journeyBetween<T extends ConnectionLeg>(legs: readonly T[], fromStopId: string, toStopId: string): T[] {
+  const last = findOutboundLeg(legs.filter((t) => !t.depIsHome), toStopId);
+  if (!last) return [];
+  const journey: T[] = [last];
+  while (!journey[0].fromStopId) {
+    const head = journey[0];
+    const prev = legs
+      .filter((p) => (!p.fromStopId || p.fromStopId === fromStopId) && !journey.includes(p) && isConnection(p, head))
+      .sort(byLatestArrival)[0];
+    if (!prev) break;
+    journey.unshift(prev);
+  }
+  return journey.length > 1 && journey[0].fromStopId === fromStopId ? journey : [];
 }

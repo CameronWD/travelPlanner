@@ -157,7 +157,7 @@ describe("flagDisplayMessage", () => {
     const dep = makeTransport({ id: "t1", fromStopId: "s1", depAt: new Date("2026-07-20T10:00:00Z") });
     const arr = makeTransport({ id: "t2", toStopId: "s1", depAt: new Date("2026-07-12T10:00:00Z"), arrAt: new Date("2026-07-20T10:00:00Z") });
     const hardEnd = flagReturnLegAfterHardEnd(
-      [{ arrIsHome: true, fromStopId: "s2", toStopId: null, arrAt: new Date("2026-07-13T06:00:00Z") }],
+      [{ id: "ret", mode: "FLIGHT", arrIsHome: true, fromStopId: "s2", toStopId: null, arrAt: new Date("2026-07-13T06:00:00Z") }],
       "2026-07-12",
       "s2",
     );
@@ -1317,17 +1317,17 @@ describe("Flag deep-link fields (spec 2026-10-06 §F)", () => {
 
 describe("flagReturnLegAfterHardEnd", () => {
   it("warns when the return leg lands after the hard end date", () => {
-    const transports = [{ arrIsHome: true, fromStopId: "s2", toStopId: null, arrAt: new Date("2026-07-13T06:00:00Z") }];
+    const transports = [{ id: "ret", mode: "FLIGHT", arrIsHome: true, fromStopId: "s2", toStopId: null, arrAt: new Date("2026-07-13T06:00:00Z") }];
     const flags = flagReturnLegAfterHardEnd(transports, "2026-07-12", "s2");
     expect(flags).toHaveLength(1);
     expect(flags[0]).toMatchObject({ id: "return-after-hard-end", severity: "warning" });
   });
   it("is silent when the return lands on/before the hard end date", () => {
-    const transports = [{ arrIsHome: true, fromStopId: "s2", toStopId: null, arrAt: new Date("2026-07-12T06:00:00Z") }];
+    const transports = [{ id: "ret", mode: "FLIGHT", arrIsHome: true, fromStopId: "s2", toStopId: null, arrAt: new Date("2026-07-12T06:00:00Z") }];
     expect(flagReturnLegAfterHardEnd(transports, "2026-07-12", "s2")).toEqual([]);
   });
   it("a free-text return leg (not home-flagged) past the hard end date still raises the flag (ADR 0032 amendment)", () => {
-    const transports = [{ fromStopId: "s2", toStopId: null, arrIsHome: false, arrAt: new Date("2026-07-13T06:00:00Z") }];
+    const transports = [{ id: "ret", mode: "FLIGHT", fromStopId: "s2", toStopId: null, arrIsHome: false, arrAt: new Date("2026-07-13T06:00:00Z") }];
     const flags = flagReturnLegAfterHardEnd(transports, "2026-07-12", "s2");
     expect(flags).toHaveLength(1);
     expect(flags[0]).toMatchObject({ id: "return-after-hard-end", severity: "warning" });
@@ -1335,14 +1335,14 @@ describe("flagReturnLegAfterHardEnd", () => {
 
   it("lands a free-text return leg with its own zone on that zone's calendar date, not the UTC one", () => {
     // 2027-01-07T22:30:00Z is 2027-01-07 UTC but 2027-01-08 in Asia/Tokyo.
-    const transports = [{ fromStopId: "s2", toStopId: null, arrIsHome: false, arrTimezone: "Asia/Tokyo", arrAt: new Date("2027-01-07T22:30:00Z") }];
+    const transports = [{ id: "ret", mode: "FLIGHT", fromStopId: "s2", toStopId: null, arrIsHome: false, arrTimezone: "Asia/Tokyo", arrAt: new Date("2027-01-07T22:30:00Z") }];
     expect(flagReturnLegAfterHardEnd(transports, "2027-01-07", "s2")).toHaveLength(1);
     expect(flagReturnLegAfterHardEnd([{ ...transports[0], arrTimezone: null }], "2027-01-07", "s2")).toEqual([]);
   });
 
   it("lands an arrIsHome leg on its homeTimezone calendar date, not the UTC one (spec 2026-10-14)", () => {
     // 2027-01-07T22:30:00Z is 2027-01-07 UTC but 2027-01-08 in Australia/Brisbane.
-    const transports = [{ arrIsHome: true, fromStopId: "s2", toStopId: null, arrAt: new Date("2027-01-07T22:30:00Z") }];
+    const transports = [{ id: "ret", mode: "FLIGHT", arrIsHome: true, fromStopId: "s2", toStopId: null, arrAt: new Date("2027-01-07T22:30:00Z") }];
     // Silent against the UTC date (on/before the hard end) when homeTimezone is omitted.
     expect(flagReturnLegAfterHardEnd(transports, "2027-01-07", "s2")).toEqual([]);
     // The Brisbane calendar date (2027-01-08) is after the hard end date, so it warns.

@@ -4,6 +4,7 @@ import {
   changeLabel,
   changeLabels,
   isConnection,
+  journeyBetween,
   journeyHome,
   journeyOut,
   meetingPlace,
@@ -228,5 +229,47 @@ describe("journeyOut", () => {
   });
   it("nothing reaches the first Stop", () => {
     expect(journeyOut([out1], "first")).toEqual([]);
+  });
+});
+
+describe("one hub both ways, with no times", () => {
+  const homeDoha: ConnectionLeg = { id: "o1", mode: "FLIGHT", depIsHome: true, depPlace: "Brisbane", arrPlace: "Doha" };
+  const dohaParis: ConnectionLeg = { id: "o2", mode: "FLIGHT", depPlace: "Doha", arrPlace: "Paris", toStopId: "par" };
+  const romeDoha: ConnectionLeg = { id: "r1", mode: "FLIGHT", fromStopId: "rom", depPlace: "Rome", arrPlace: "Doha" };
+  const dohaHome: ConnectionLeg = { id: "r2", mode: "FLIGHT", depPlace: "Doha", arrPlace: "Brisbane", arrIsHome: true };
+
+  it.each([
+    ["in plan order", [homeDoha, dohaParis, romeDoha, dohaHome]],
+    ["reversed", [dohaHome, romeDoha, dohaParis, homeDoha]],
+  ])("an undated round trip through one hub keeps the journeys apart (%s)", (_, legs) => {
+    expect(journeyOut(legs, "par").map((l) => l.id)).toEqual(["o1", "o2"]);
+    expect(journeyHome(legs, "rom").map((l) => l.id)).toEqual(["r1", "r2"]);
+  });
+
+  it("journeyOut's order does not depend on input order when times are missing", () => {
+    const fromSydney: ConnectionLeg = { id: "o9", mode: "FLIGHT", depPlace: "Sydney", arrPlace: "Doha" };
+    expect(journeyOut([fromSydney, homeDoha, dohaParis], "par").map((l) => l.id)).toEqual(["o1", "o2"]);
+    expect(journeyOut([homeDoha, fromSydney, dohaParis], "par").map((l) => l.id)).toEqual(["o1", "o2"]);
+  });
+});
+
+describe("journeyBetween", () => {
+  const parisMilan: ConnectionLeg = { id: "b1", mode: "TRAIN", fromStopId: "par", depPlace: "Paris", arrPlace: "Milano Centrale" };
+  const milanRome: ConnectionLeg = { id: "b2", mode: "TRAIN", depPlace: "Milano Centrale", arrPlace: "Rome", toStopId: "rom" };
+
+  it("the two legs in order, from one Stop through a hub to the next", () => {
+    expect(journeyBetween([milanRome, parisMilan], "par", "rom").map((l) => l.id)).toEqual(["b1", "b2"]);
+  });
+  it("nothing when the chain starts at a different Stop", () => {
+    expect(journeyBetween([{ ...parisMilan, fromStopId: "lyo" }, milanRome], "par", "rom")).toEqual([]);
+  });
+  it("nothing when the chain starts at Home", () => {
+    expect(journeyBetween([{ ...parisMilan, fromStopId: null, depIsHome: true }, milanRome], "par", "rom")).toEqual([]);
+  });
+  it("nothing for a direct leg alone", () => {
+    expect(journeyBetween([{ ...parisMilan, toStopId: "rom", arrPlace: "Rome" }], "par", "rom")).toEqual([]);
+  });
+  it("nothing when no leg arrives at the next Stop", () => {
+    expect(journeyBetween([parisMilan, { ...milanRome, toStopId: null }], "par", "rom")).toEqual([]);
   });
 });

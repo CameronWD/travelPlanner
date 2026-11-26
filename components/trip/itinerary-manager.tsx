@@ -1258,7 +1258,7 @@ export function ItineraryManager({
   // ── Home base bookends (see ADR 0032) ──
   // The Home base frames the plan: its card is pinned above the first stop
   // (with the journey out) and, on a round trip, below the last (with the
-  // journey home). Every journey leg is excluded from legsBySlot via bookendLegIds.
+  // journey home). bookendLegIds keeps the legs a bookend draws out of legsBySlot.
   const hasHomeBase = Boolean(homeBaseName);
   const firstStop = stops.length > 0 ? stops[0] : null;
   const lastStop = stops.length > 0 ? stops[stops.length - 1] : null;

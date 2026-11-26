@@ -3,7 +3,7 @@ import { formatDayLabel } from "@/lib/dates";
 import { transportTimeDisplay } from "@/lib/time-display";
 import { wallClock } from "./wall-clock";
 import { durationMinutes, formatDuration } from "@/lib/transport";
-import { changeLabels, journeyHome, journeyOut } from "@/lib/connections";
+import { changeLabels, journeyBetween, journeyHome, journeyOut } from "@/lib/connections";
 import { MODE_LABELS } from "./share-rows";
 
 export interface ShareLegInput {
@@ -103,11 +103,9 @@ function shareJourneyLeg(t: ShareTransportRow, ctx: ShareRouteContext): ShareLeg
   );
 }
 
-function journeyBetween<T extends ShareTransportRow>(legs: readonly T[], fromStopId: string, toStopId: string): T[] {
+function legsBetween<T extends ShareTransportRow>(legs: readonly T[], fromStopId: string, toStopId: string): T[] {
   const direct = legs.find((t) => t.fromStopId === fromStopId && t.toStopId === toStopId);
-  if (direct) return [direct];
-  const journey = journeyOut(legs.filter((t) => !t.depIsHome), toStopId);
-  return journey.length > 1 && journey[0].fromStopId === fromStopId ? journey : [];
+  return direct ? [direct] : journeyBetween(legs, fromStopId, toStopId);
 }
 
 export function shareRouteLegs(rows: readonly ShareTransportRow[], ctx: ShareRouteContext): ShareRouteLegs {
@@ -121,7 +119,7 @@ export function shareRouteLegs(rows: readonly ShareTransportRow[], ctx: ShareRou
   // Listed only when the far end is flagged Home, so an unflagged address is never printed as one.
   return {
     out: out[0]?.depIsHome ? stack(out) : null,
-    between: ids.slice(1).map((to, i) => stack(journeyBetween(legs, ids[i], to))),
+    between: ids.slice(1).map((to, i) => stack(legsBetween(legs, ids[i], to))),
     back: back.at(-1)?.arrIsHome ? stack(back) : null,
   };
 }

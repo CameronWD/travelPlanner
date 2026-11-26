@@ -1061,15 +1061,14 @@ export function flagMissingHomeConnection(
 // ---------------------------------------------------------------------------
 
 export function flagReturnLegAfterHardEnd(
-  transports: (Pick<FlagTransport, "arrIsHome" | "fromStopId" | "toStopId" | "arrAt"> &
-    Partial<Pick<FlagTransport, "id" | "mode" | "depAt" | "depIsHome" | "depPlace" | "arrPlace" | "depPlaceId" | "arrPlaceId" | "arrTimezone">>)[],
+  transports: FlagTransport[],
   hardEndDate: string | null | undefined,
   lastStopId: string | null,
   /** The Trip's Home base timezone (spec 2026-10-14) — an arrIsHome leg lands on this zone's calendar date instead of the raw UTC one. */
   homeTimezone?: string | null,
 ): Flag[] {
   if (!hardEndDate) return [];
-  const legs = transports.map((t) => ({ ...t, id: t.id ?? "", mode: t.mode ?? "", depAt: toDate(t.depAt), arrAt: toDate(t.arrAt) }));
+  const legs = transports.map((t) => ({ ...t, depAt: toDate(t.depAt), arrAt: toDate(t.arrAt) }));
   const ret = journeyHome(legs, lastStopId).at(-1);
   if (!ret?.arrAt) return [];
   const landZone = (ret.arrIsHome && homeTimezone) || (!ret.arrIsHome && !ret.toStopId && ret.arrTimezone);
