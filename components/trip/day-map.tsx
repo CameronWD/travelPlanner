@@ -10,6 +10,7 @@ import { HtmlPin } from "@/components/map/html-pin";
 import { MapPolyline } from "@/components/map/map-polyline";
 import { MapUnavailable } from "@/components/map/map-unavailable";
 import { useFitBounds } from "@/components/map/use-fit-bounds";
+import { travelPhrase } from "@/lib/travel-times/phrase";
 import { pinHtml } from "@/lib/map/pins";
 import { hueHex } from "@/lib/map/palette";
 import { categoryMeta, type Category } from "@/lib/categories";
@@ -37,6 +38,12 @@ function OpenInMaps({ point }: { point: DayMapPoint }) {
       {apple && <a href={apple} target="_blank" rel="noopener noreferrer" className={linkClass}>Apple Maps</a>}
     </span>
   );
+}
+
+function TimeFromPrevious({ point, prev, hops }: { point: DayMapPoint; prev: DayMapPoint | undefined; hops: DayMapHop[] | undefined }) {
+  const hop = point.kind === "item" && prev ? hops?.find((h) => h.toId === point.id) : undefined;
+  if (!hop || !prev || hop.minutes == null || hop.mode == null) return null;
+  return <span className="text-xs">{travelPhrase({ minutes: hop.minutes, mode: hop.mode, estimated: hop.estimated })} from {prev.label}</span>;
 }
 
 function DirectionsFromPrevious({ point, prev }: { point: DayMapPoint; prev: DayMapPoint | undefined }) {
@@ -89,16 +96,12 @@ function DayRoute({ routePoints, hops }: { routePoints: DayMapPoint[]; hops: Day
     if (!hops) return null;
     const at = new Map(routePoints.map((p) => [p.id, { lat: p.lat, lng: p.lng }]));
     const leaving = new Map(routePoints.map((p) => [p.id, p.end ?? { lat: p.lat, lng: p.lng }]));
-    const bed = routePoints[0]?.kind === "accommodation" && routePoints[1] ? [{ key: "bed", path: [path[0], path[1]], polyline: null }] : [];
-    return [
-      ...bed,
-      ...hops.flatMap((h) => {
-        const from = leaving.get(h.fromId);
-        const to = at.get(h.toId);
-        return from && to ? [{ key: `${h.fromId}>${h.toId}`, path: [from, to], polyline: h.polyline }] : [];
-      }),
-    ];
-  }, [hops, routePoints, path]);
+    return hops.flatMap((h) => {
+      const from = leaving.get(h.fromId);
+      const to = at.get(h.toId);
+      return from && to ? [{ key: `${h.fromId}>${h.toId}`, path: [from, to], polyline: h.polyline }] : [];
+    });
+  }, [hops, routePoints]);
   if (!legs) return <MapPolyline path={path} color={ROUTE_COLOR} weight={3} opacity={0.7} dashed />;
   return (
     <>
@@ -179,6 +182,7 @@ export function DayMap({ tripId, model, highlightId, fill = false }: { tripId: s
               <div className="flex min-w-[min(160px,80vw)] max-w-[min(260px,90vw)] flex-col gap-1 leading-normal">
                 <strong className="text-sm">{point.label}</strong>
                 <OpenInMaps point={point} />
+                <TimeFromPrevious point={point} prev={perItemPrev[point.id]} hops={model.hops} />
                 <DirectionsFromPrevious point={point} prev={perItemPrev[point.id]} />
               </div>
             </HtmlPin>

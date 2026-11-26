@@ -162,8 +162,9 @@ describe("DayMap route hops", () => {
   });
   const ENCODED = "_p~iF~ps|U_ulLnnqC_mqNvxq`@";
 
-  it("draws solid decoded lines for real hops and dashed straight for the rest, bed segment dashed", () => {
+  it("draws solid decoded lines for real hops and dashed straight for the rest, start hop dashed", () => {
     render(<DayMap tripId="t1" model={withHops([
+      { fromId: "a1", toId: "i1", polyline: null, estimated: true, minutes: 9, mode: "walk" },
       { fromId: "i1", toId: "i2", polyline: ENCODED, estimated: false, minutes: 20, mode: "drive" },
       { fromId: "i2", toId: "i3", polyline: null, estimated: true, minutes: 25, mode: "drive" },
     ])} />);
@@ -176,6 +177,53 @@ describe("DayMap route hops", () => {
     expect(opts[1].icons).toEqual([]);
     expect(opts[2].strokeOpacity).toBe(0);
     expect(opts[2].path).toEqual([{ lat: 35.66, lng: 139.75 }, { lat: 35.67, lng: 139.76 }]);
+  });
+});
+
+describe("DayMap times", () => {
+  const navona = { kind: "accommodation" as const, id: "navona", lat: 41.9, lng: 12.47, label: "The Club Navona" };
+  const pantheon = { kind: "item" as const, id: "pantheon", lat: 41.899, lng: 12.476, label: "Pantheon", order: 1 };
+  const trevi = { kind: "item" as const, id: "trevi", lat: 41.901, lng: 12.483, label: "Trevi Fountain", order: 2 };
+  const model = (hops: NonNullable<DayMapModel["hops"]>): DayMapModel => ({
+    points: [pantheon, trevi, navona],
+    routePoints: [navona, pantheon, trevi],
+    perItemPrev: { pantheon: navona, trevi: pantheon },
+    hops,
+  });
+  const open = (label: string) => {
+    render(<DayMap tripId="t1" model={model([
+      { fromId: "navona", toId: "pantheon", polyline: null, estimated: false, minutes: 6, mode: "walk" },
+      { fromId: "pantheon", toId: "trevi", polyline: null, estimated: true, minutes: 12, mode: "transit" },
+    ])} />);
+    fireEvent.click(screen.getAllByTestId("marker").find((m) => m.getAttribute("title") === label)!);
+    return screen.getByRole("dialog");
+  };
+
+  it("a pin's pop-up says how long from the point before", () => {
+    expect(open("Pantheon")).toHaveTextContent("6 min walk from The Club Navona");
+  });
+
+  it("an estimated hop's pop-up says so", () => {
+    expect(open("Trevi Fountain")).toHaveTextContent("12 min by public transport (estimated) from Pantheon");
+  });
+
+  it("a hop with no minutes shows no time line", () => {
+    render(<DayMap tripId="t1" model={model([{ fromId: "navona", toId: "pantheon", polyline: null, estimated: true, minutes: null, mode: null }])} />);
+    fireEvent.click(screen.getAllByTestId("marker")[0]);
+    expect(screen.getByRole("dialog")).not.toHaveTextContent(/ min /);
+  });
+
+  it("the start hop draws its looked-up route", () => {
+    render(<DayMap tripId="t1" model={model([{ fromId: "navona", toId: "pantheon", polyline: "abc", estimated: false, minutes: 6, mode: "walk" }])} />);
+    expect(mock.recorded.polylines).toHaveLength(1);
+    expect(mock.recorded.polylines[0].options.strokeOpacity).toBeGreaterThan(0);
+  });
+
+  it("the start hop draws a dashed straight line when it has none", () => {
+    render(<DayMap tripId="t1" model={model([{ fromId: "navona", toId: "pantheon", polyline: null, estimated: true, minutes: 6, mode: "walk" }])} />);
+    expect(mock.recorded.polylines).toHaveLength(1);
+    expect(mock.recorded.polylines[0].options.path).toEqual([{ lat: 41.9, lng: 12.47 }, { lat: 41.899, lng: 12.476 }]);
+    expect(mock.recorded.polylines[0].options.strokeOpacity).toBe(0);
   });
 });
 
