@@ -161,6 +161,19 @@ describe("LegRow — metro line (spec 2026-10-05 §F)", () => {
     expect(stations[0].closest("[data-leg-run]")).toBe(stations[1].closest("[data-leg-run]"));
   });
 
+  it("the cards of a joined run are the same width", () => {
+    const { container } = journey([null, JOURNEY, null], true);
+    const runs = [...container.querySelectorAll("[data-leg-run]")] as HTMLElement[];
+    expect(runs[0].className).toContain("w-fit");
+    for (const station of runs[0].querySelectorAll("[data-leg-station]")) {
+      expect(station.className).toContain("w-full");
+      expect(station.querySelector("[data-travel-row]")!.parentElement!.className).toContain("w-full");
+    }
+    expect(runs[1].className).not.toContain("w-fit");
+    const single = runs[1].querySelector("[data-leg-station]") as HTMLElement;
+    expect(single.className.split(" ")).not.toContain("w-full");
+  });
+
   it("the label is read between the two cards", () => {
     const { container } = journey([null, JOURNEY]);
     const nodes = [...container.querySelectorAll("button, [data-changeover]")];

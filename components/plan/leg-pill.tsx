@@ -52,14 +52,27 @@ export function LegRow({ kind, compact, children, changeovers }: LegRowProps) {
           )}
         >
           {runs.map((run) => (
-            <div key={run[0].key} data-leg-run className="flex min-w-0 max-w-full flex-col items-start max-md:w-full">
+            <div
+              key={run[0].key}
+              data-leg-run
+              className={cn("flex min-w-0 max-w-full flex-col items-start max-md:w-full", run.length > 1 && "w-fit")}
+            >
               {run.map(({ node, key, joined, changeover }, n) => {
                 const label = React.isValidElement<LegPillProps>(node) ? node.props.label : null;
                 const Icon = label && !label.missing ? label.icon : null;
                 return (
-                  <div key={key} data-leg-station className="flex min-w-0 max-w-full flex-col items-start max-md:w-full">
+                  <div
+                    key={key}
+                    data-leg-station
+                    className={cn("flex min-w-0 max-w-full flex-col items-start max-md:w-full", run.length > 1 && "w-full")}
+                  >
                     {joined && changeover ? <JourneyJoin label={changeover} compact={compact} /> : null}
-                    <div className="relative flex min-w-0 max-w-full max-md:w-full">
+                    <div
+                      className={cn(
+                        "relative flex min-w-0 max-w-full max-md:w-full",
+                        run.length > 1 && "w-full [&>[data-travel-row]]:w-full",
+                      )}
+                    >
                       {legs && n === 0 && label && !label.missing ? (
                         // The marker sits on the connector, centred on the row. Row start
                         // minus line centre: compact 53 - 21 = 32px, desktop 63 - 27 = 36px.
@@ -97,12 +110,17 @@ export function LegRow({ kind, compact, children, changeovers }: LegRowProps) {
 }
 
 export function JourneyJoin({ label, compact }: { label: string; compact?: boolean }) {
+  // pt clears the card above's offset shadow; the line sits through the
+  // clock's centre: pill inset (ml) + border (2px) + padding (10px) + half the icon (7px).
   return (
-    <div className={cn("relative flex w-full min-w-0 items-center", compact ? "h-6" : "h-7")}>
-      <span aria-hidden className="absolute inset-y-0 left-10 border-l-2 border-border" />
+    <div className={cn("relative flex w-full min-w-0 items-center", compact ? "h-11 pt-[3px]" : "h-12 pt-1")}>
+      <span aria-hidden className={cn("absolute inset-y-0 border-l-2 border-border", compact ? "left-[34px]" : "left-[38px]")} />
       <span
         data-changeover
-        className="relative z-10 ml-4 inline-flex min-w-0 max-w-[calc(100%-1rem)] cursor-default items-center gap-1.5 rounded-full border-2 border-border bg-background px-2.5 py-0.5 text-xs font-bold text-foreground"
+        className={cn(
+          "relative z-10 inline-flex min-w-0 max-w-[calc(100%-1.25rem)] cursor-default items-center gap-1.5 rounded-full border-2 border-border bg-background px-2.5 py-0.5 text-xs font-bold text-foreground",
+          compact ? "ml-4" : "ml-5",
+        )}
       >
         <Clock className="size-3.5 shrink-0" aria-hidden />
         {label}
