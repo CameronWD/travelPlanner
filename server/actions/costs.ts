@@ -13,7 +13,8 @@ import { type ActionResult, validationResult, formFail } from "@/lib/action-resu
 import { revalidateTrip } from "@/lib/revalidate";
 import { WHAT_IF_PLANS_HIDDEN } from "@/lib/what-if";
 import { notFound } from "next/navigation";
-import { mergeCostPatch, refundGuard } from "@/lib/money/cost-patch";
+import { mergeCostPatch, paidCurrencyMoved, refundGuard } from "@/lib/money/cost-patch";
+import { paidCurrencyProblem, storedPaidCurrency } from "@/lib/money/paid-currency";
 import { refundProblem, refundState, REFUND_MESSAGES } from "@/lib/money/refund";
 import { type Patch } from "@/lib/patch";
 
@@ -22,6 +23,15 @@ import { type Patch } from "@/lib/patch";
 // ---------------------------------------------------------------------------
 
 export type CostActionResult = ActionResult<{ cost?: Pick<Cost, "id"> }>;
+
+function paidCurrencyRefusal(
+  next: string | null,
+  cost: { currency: string; storedPaidCurrency: string | null },
+  homeCurrency: string,
+): CostActionResult | null {
+  const problem = paidCurrencyProblem(next, cost, homeCurrency);
+  return problem ? { success: false, errors: { paidCurrency: [problem] } } : null;
+}
 
 // ---------------------------------------------------------------------------
 // Internal helpers
@@ -153,6 +163,10 @@ export async function createCost(
     return formFail("Trip not found");
   }
 
+  const paidCurrency = data.paidMinor != null ? storedPaidCurrency(data.paidCurrency, data.currency) : null;
+  const paidCurrencyBreak = paidCurrencyRefusal(paidCurrency, { currency: data.currency, storedPaidCurrency: null }, trip.homeCurrency);
+  if (paidCurrencyBreak) return paidCurrencyBreak;
+
   // Resolve the rate (incl. any network fetch) BEFORE opening a transaction —
   // a network call must never hold a DB transaction open (ADR 0007).
   const resolved = await resolveRateForTrip(tripId, data.currency, trip.homeCurrency, { db });
@@ -169,6 +183,7 @@ export async function createCost(
         forkId: plan,
         costMinor: data.costMinor,
         paidMinor: data.paidMinor ?? null,
+        ...(paidCurrency != null ? { paidCurrency } : {}),
         currency: data.currency,
         rateToHome: resolved.rate,
         paidAt: data.paidAt ?? null,
@@ -205,15 +220,14 @@ export async function updateCost(
   const before = await db.cost.findUnique({ where: { id: costId } });
   if (!before) notFound();
 
-  const merged = mergeCostPatch(before, patch);
+  const trip = await db.trip.findUnique({
+    where: { id: existing.tripId },
+    select: { homeCurrency: true },
+  });
+
+  // Refund refusals are form-level inside the merge, so the dialog shows them; the schema's own refine is the backstop.
+  const merged = mergeCostPatch(before, patch, trip?.homeCurrency ?? null);
   if ("success" in merged) return merged;
-  // Form-level, so the dialog shows it; the schema's own refine is the backstop.
-  const refundBreak = refundGuard(
-    { paidMinor: merged.paidMinor ?? null, paidAt: merged.paidAt },
-    { refundMinor: merged.refundMinor, refundedAt: merged.refundedAt },
-  );
-  if (refundBreak) return formFail(refundBreak);
-  if (merged.refundMinor != null && merged.currency !== before.currency) return formFail(REFUND_MESSAGES.currencyBlocked);
   const parsed = costSchema.safeParse(merged);
   if (!parsed.success) {
     return validationResult(parsed.error);
@@ -227,14 +241,16 @@ export async function updateCost(
     if (err) return err;
   }
 
-  // Look up the trip's home currency
-  const trip = await db.trip.findUnique({
-    where: { id: existing.tripId },
-    select: { homeCurrency: true },
-  });
   if (!trip) {
     return formFail("Trip not found");
   }
+
+  const paidCurrencyBreak = paidCurrencyRefusal(
+    data.paidCurrency ?? null,
+    { currency: data.currency, storedPaidCurrency: before.paidCurrency },
+    trip.homeCurrency,
+  );
+  if (paidCurrencyBreak) return paidCurrencyBreak;
 
   const resolved = await resolveRateForTrip(existing.tripId, data.currency, trip.homeCurrency, { db });
 
@@ -265,10 +281,11 @@ export async function updateCost(
         // the key here leaves Prisma's existing value untouched instead of
         // nulling it out.
         ...(data.paidMinor !== undefined && { paidMinor: data.paidMinor }),
-        // A preserved (history) paid amount is denominated in the OLD currency; a
-        // currency change with no accompanying payment invalidates it (P3-3).
-        ...(data.currency !== existing.currency && data.paidMinor === undefined && !data.paidAt
-          ? { paidMinor: null }
+        ...(data.paidCurrency !== undefined && { paidCurrency: data.paidCurrency }),
+        // A preserved (history) paid amount is denominated in the OLD paid currency; a
+        // change of it with no accompanying payment invalidates it (P3-3).
+        ...(paidCurrencyMoved(before, { currency: data.currency, paidCurrency: data.paidCurrency ?? null }) && data.paidMinor === undefined && !data.paidAt
+          ? { paidMinor: null, ...(data.paidCurrency !== undefined && { paidCurrency: null }) }
           : {}),
       },
     });
@@ -309,10 +326,11 @@ export async function markCostPaid(
   costId: string,
   paidMinor: number,
   paidAt: string,
+  paidCurrency?: string | null,
 ): Promise<CostActionResult> {
   const cost = await db.cost.findUnique({
     where: { id: costId },
-    select: { id: true, tripId: true, forkId: true, ownerType: true, ownerId: true, refundMinor: true, refundedAt: true },
+    select: { id: true, tripId: true, forkId: true, ownerType: true, ownerId: true, refundMinor: true, refundedAt: true, currency: true, paidCurrency: true },
   });
   if (!cost || (WHAT_IF_PLANS_HIDDEN && cost.forkId)) return formFail("Cost not found");
   const { user } = await requireTripAccess(cost.tripId);
@@ -331,6 +349,21 @@ export async function markCostPaid(
     return { success: false, errors: { paidAt: ["Enter when you paid"] } };
   }
 
+  const nextPaidCurrency = paidCurrency === undefined ? undefined : storedPaidCurrency(paidCurrency, cost.currency);
+  if (nextPaidCurrency != null) {
+    const trip = await db.trip.findUnique({ where: { id: cost.tripId }, select: { homeCurrency: true } });
+    if (!trip) return formFail("Trip not found");
+    const paidCurrencyBreak = paidCurrencyRefusal(
+      nextPaidCurrency,
+      { currency: cost.currency, storedPaidCurrency: cost.paidCurrency },
+      trip.homeCurrency,
+    );
+    if (paidCurrencyBreak) return paidCurrencyBreak;
+  }
+  if (nextPaidCurrency !== undefined && cost.refundMinor != null && paidCurrencyMoved(cost, { currency: cost.currency, paidCurrency: nextPaidCurrency })) {
+    return formFail(REFUND_MESSAGES.currencyBlocked);
+  }
+
   const problem = refundGuard({ paidMinor, paidAt: parsedDate.data }, cost);
   if (problem) return formFail(problem);
 
@@ -338,7 +371,7 @@ export async function markCostPaid(
     "COST",
     db.cost,
     costId,
-    { paidMinor, paidAt: new Date(parsedDate.data) },
+    { paidMinor, paidAt: new Date(parsedDate.data), ...(nextPaidCurrency !== undefined && { paidCurrency: nextPaidCurrency }) },
     cost.forkId ?? null,
   );
   revalidateTrip(cost.tripId, "money");

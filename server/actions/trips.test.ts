@@ -2506,3 +2506,22 @@ describe("leaveTrip", () => {
     expect(requireTripAccessMock).toHaveBeenCalledOnce();
   });
 });
+
+describe("updateTrip and the Costs", () => {
+  it("changing the Home currency leaves every Cost's paid currency and paid amount as they were", async () => {
+    const { db } = await import("@/lib/db");
+    const cost = { update: vi.fn(), updateMany: vi.fn(), create: vi.fn(), createMany: vi.fn(), upsert: vi.fn(), delete: vi.fn(), deleteMany: vi.fn() };
+    Object.assign(db, { cost });
+    tripFindUniqueMock.mockResolvedValue({ name: "Europe", homeCurrency: "AUD" });
+    tripUpdateMock.mockResolvedValue({});
+    try {
+      expect((await updateTrip(TRIP_ID, { name: "Europe", homeCurrency: "GBP" })).success).toBe(true);
+      const data = tripUpdateMock.mock.calls[0][0].data;
+      expect(data.homeCurrency).toBe("GBP");
+      expect(data).not.toHaveProperty("costs");
+      for (const write of Object.values(cost)) expect(write).not.toHaveBeenCalled();
+    } finally {
+      Reflect.deleteProperty(db, "cost");
+    }
+  });
+});

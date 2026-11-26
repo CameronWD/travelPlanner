@@ -126,6 +126,7 @@ vi.mock("@/lib/guards", () => ({
 
 import { createCost, updateCost, deleteCost, markCostPaid, markCostUnpaid, recordRefund, markRefundReceived, clearRefund } from "./costs";
 import { REFUND_MESSAGES } from "@/lib/money/refund";
+import { PAID_CURRENCY_MESSAGE } from "@/lib/money/paid-currency";
 import { recordActivity } from "@/lib/activity-record";
 
 // ---------------------------------------------------------------------------
@@ -1246,5 +1247,133 @@ describe("Refund actions", () => {
     costUpdateMock.mockResolvedValue({});
     await updateCost("c1", { refundMinor: null });
     expect(costUpdateMock.mock.calls[0][0].data).toMatchObject({ refundMinor: null, refundedAt: null });
+  });
+});
+
+// ---------------------------------------------------------------------------
+// The paid currency (spec 2026-11-26 §2)
+// ---------------------------------------------------------------------------
+
+describe("the paid currency", () => {
+  const refused = { success: false, errors: { paidCurrency: [PAID_CURRENCY_MESSAGE] } };
+  const paidInput = { costMinor: 55000, currency: "EUR", paidMinor: 90512, paidAt: "2026-06-01", ownerType: "OTHER" as const, label: "Hotel" };
+  const eurRow = {
+    id: "c1", tripId: "trip-1", forkId: null, costMinor: 55000, currency: "EUR", paidMinor: 90512, paidAt: new Date("2026-06-01T00:00:00Z"),
+    paidCurrency: "AUD", refundMinor: null, refundedAt: null, dueDate: null, ownerType: "OTHER", ownerId: null, label: "Hotel", category: null, settlement: "BEFORE",
+  };
+
+  function seed(homeCurrency = "AUD") {
+    tripFindUniqueMock.mockResolvedValue({ homeCurrency });
+    resolveRateForTripMock.mockResolvedValue({ rate: 1.6, persist: null });
+    costCreateMock.mockResolvedValue({ id: "c1" });
+    costUpdateMock.mockResolvedValue({ id: "c1", tripId: "trip-1", label: "Hotel" });
+  }
+
+  afterEach(() => {
+    costFindUniqueMock.mockReset();
+  });
+
+  it("createCost stores a Home paid currency", async () => {
+    seed();
+    expect((await createCost("trip-1", { ...paidInput, paidCurrency: "aud" })).success).toBe(true);
+    expect(costCreateMock.mock.calls[0][0].data).toMatchObject({ currency: "EUR", paidMinor: 90512, paidCurrency: "AUD" });
+  });
+
+  it("createCost stores null when it equals the Cost's currency", async () => {
+    seed();
+    expect((await createCost("trip-1", { ...paidInput, paidMinor: 55000, paidCurrency: "eur" })).success).toBe(true);
+    expect(costCreateMock.mock.calls[0][0].data.paidCurrency ?? null).toBeNull();
+  });
+
+  it("createCost refuses a third currency with the message", async () => {
+    seed();
+    expect(await createCost("trip-1", { ...paidInput, paidCurrency: "GBP" })).toEqual(refused);
+    expect(costCreateMock).not.toHaveBeenCalled();
+  });
+
+  it("updateCost keeps a Home paid amount when the currency changes and nothing is paid in the patch", async () => {
+    costFindUniqueMock.mockResolvedValue({ ...eurRow, paidAt: null });
+    seed();
+    expect((await updateCost("c1", { currency: "JPY" })).success).toBe(true);
+    const data = costUpdateMock.mock.calls[0][0].data;
+    expect(data).not.toHaveProperty("paidMinor");
+    expect(data).toMatchObject({ currency: "JPY", paidCurrency: "AUD" });
+  });
+
+  it("updateCost still clears a history paid amount in the Cost's own currency, as before", async () => {
+    costFindUniqueMock.mockResolvedValue({ ...eurRow, paidMinor: 9000, paidAt: null, paidCurrency: null });
+    seed();
+    expect((await updateCost("c1", { currency: "GBP" })).success).toBe(true);
+    const data = costUpdateMock.mock.calls[0][0].data;
+    expect(data).toMatchObject({ currency: "GBP", paidMinor: null });
+    expect(data).not.toHaveProperty("paidCurrency");
+  });
+
+  it("updateCost accepts an unchanged old-Home paid currency when only the label changes", async () => {
+    costFindUniqueMock.mockResolvedValue(eurRow);
+    seed("GBP");
+    expect((await updateCost("c1", { label: "Hotel Ibis" })).success).toBe(true);
+    expect(costUpdateMock.mock.calls[0][0].data).toMatchObject({ label: "Hotel Ibis", paidMinor: 90512, paidCurrency: "AUD" });
+  });
+
+  it("updateCost refuses a third paid currency with the message", async () => {
+    costFindUniqueMock.mockResolvedValue({ ...eurRow, paidCurrency: null });
+    seed();
+    expect(await updateCost("c1", { paidCurrency: "GBP", paidMinor: 40000 })).toEqual(refused);
+    expect(costUpdateMock).not.toHaveBeenCalled();
+  });
+
+  it("an existing unpaid AUD Cost changed to EUR through updateCost stores no paid currency, and a later markCostPaid with none records the payment in EUR", async () => {
+    const audUnpaid = { ...eurRow, currency: "AUD", paidMinor: null, paidAt: null, paidCurrency: null };
+    costFindUniqueMock.mockResolvedValue(audUnpaid);
+    seed();
+    expect((await updateCost("c1", { currency: "EUR" })).success).toBe(true);
+    expect(costUpdateMock.mock.calls[0][0].data).not.toHaveProperty("paidCurrency");
+
+    costFindUniqueMock.mockResolvedValue({ ...audUnpaid, currency: "EUR" });
+    expect((await markCostPaid("c1", 55000, "2026-06-04")).success).toBe(true);
+    expect(costUpdateMock.mock.calls[1][0]).toEqual({ where: { id: "c1" }, data: { paidMinor: 55000, paidAt: new Date("2026-06-04") } });
+  });
+
+  it("markCostPaid with no paid currency keeps the stored one", async () => {
+    costFindUniqueMock.mockResolvedValue(eurRow);
+    seed();
+    expect((await markCostPaid("c1", 90000, "2026-06-04")).success).toBe(true);
+    expect(costUpdateMock.mock.calls[0][0].data).toEqual({ paidMinor: 90000, paidAt: new Date("2026-06-04") });
+  });
+
+  it("markCostPaid in Home stores it", async () => {
+    costFindUniqueMock.mockResolvedValue({ ...eurRow, paidMinor: null, paidAt: null, paidCurrency: null });
+    seed();
+    expect((await markCostPaid("c1", 90512, "2026-06-04", "aud")).success).toBe(true);
+    expect(costUpdateMock.mock.calls[0][0].data).toEqual({ paidMinor: 90512, paidAt: new Date("2026-06-04"), paidCurrency: "AUD" });
+  });
+
+  it("markCostPaid with null pays in the Cost's own currency", async () => {
+    costFindUniqueMock.mockResolvedValue(eurRow);
+    seed();
+    expect((await markCostPaid("c1", 55000, "2026-06-04", null)).success).toBe(true);
+    expect(costUpdateMock.mock.calls[0][0].data).toEqual({ paidMinor: 55000, paidAt: new Date("2026-06-04"), paidCurrency: null });
+  });
+
+  it("markCostPaid refuses a third currency", async () => {
+    costFindUniqueMock.mockResolvedValue({ ...eurRow, paidCurrency: null });
+    seed();
+    expect(await markCostPaid("c1", 40000, "2026-06-04", "GBP")).toEqual(refused);
+    expect(costUpdateMock).not.toHaveBeenCalled();
+  });
+
+  it("markCostPaid refuses a change of paid currency while a Refund exists", async () => {
+    costFindUniqueMock.mockResolvedValue({ ...eurRow, refundMinor: 5000 });
+    seed();
+    expect(await markCostPaid("c1", 55000, "2026-06-04", "EUR")).toEqual({ success: false, errors: { _: [REFUND_MESSAGES.currencyBlocked] } });
+    expect(costUpdateMock).not.toHaveBeenCalled();
+  });
+
+  it("markCostUnpaid keeps the paid amount and its currency", async () => {
+    costFindUniqueMock.mockResolvedValue(eurRow);
+    seed();
+    expect((await markCostUnpaid("c1")).success).toBe(true);
+    expect(costUpdateMock.mock.calls[0][0]).toEqual({ where: { id: "c1" }, data: { paidAt: null } });
   });
 });

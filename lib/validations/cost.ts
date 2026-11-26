@@ -52,6 +52,14 @@ export const paidAtDateOnlySchema = isoDateWith("paidAt must be YYYY-MM-DD", "pa
  */
 const dueDateSchema = isoDateWith("Due date must be YYYY-MM-DD", "Due date must be a real calendar date");
 
+export const paidCurrencySchema = z
+  .string()
+  .length(3, "Currency must be a 3-letter ISO 4217 code")
+  .toUpperCase()
+  .refine((c) => CURRENCY_CODES.includes(c), { message: "Unsupported currency code" })
+  .nullable()
+  .optional();
+
 /**
  * Zod schema for creating or updating a Cost.
  *
@@ -92,6 +100,8 @@ export const costSchema = z
       }),
 
     paidAt: paidAtStringSchema.transform((s) => new Date(s)).optional(),
+
+    paidCurrency: paidCurrencySchema,
 
     refundMinor: z
       .number()
