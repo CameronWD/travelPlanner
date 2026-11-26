@@ -11,8 +11,12 @@ import type { CostRow } from "@/lib/money/cost-row";
 import userEvent from "@testing-library/user-event";
 
 // Mock WishlistMapLoader so the map never touches jsdom.
+const lastMapLoaderProps: { items?: { id: string }[] } = {};
 vi.mock("./wishlist-map-loader", () => ({
-  WishlistMapLoader: () => <div data-testid="wishlist-map" />,
+  WishlistMapLoader: ({ items }: { items: { id: string }[] }) => {
+    lastMapLoaderProps.items = items;
+    return <div data-testid="wishlist-map" />;
+  },
 }));
 
 // ── Mock server actions ────────────────────────────────────────────────────────
@@ -50,7 +54,7 @@ vi.mock("@/server/actions/costs", () => ({
 // pinned here and ItemCard's rendering of them is pinned in item-card.test.
 vi.mock("./item-card", () => ({
   ItemCard: ({ item, onSchedule, onEdit, onDelete, placed, tone }: {
-    item: { id: string; title: string };
+    item: { id: string; title: string; stopName?: string | null };
     onSchedule?: (item: { id: string; title: string }) => void;
     onEdit?: (item: { id: string; title: string }) => void;
     onDelete?: (itemId: string) => void;
@@ -59,6 +63,7 @@ vi.mock("./item-card", () => ({
   }) => (
     <div data-testid={`stub-card-${item.id}`} data-tone={tone ?? "white"}>
       <span>{item.title}</span>
+      {item.stopName && <span>{item.stopName}</span>}
       {placed && <span data-testid={`placed-marker-${item.id}`}>in this plan</span>}
       {onEdit && (
         <button onClick={() => onEdit(item)}>Edit {item.title}</button>
@@ -72,7 +77,19 @@ vi.mock("./item-card", () => ({
 }));
 
 vi.mock("./ai-activity-suggestions", () => ({
-  AiActivitySuggestions: () => null,
+  AiActivitySuggestions: () => <div data-testid="ai-suggestions" />,
+}));
+
+const lastAddMenuProps: Record<string, unknown> = {};
+vi.mock("./wishlist-add-menu", () => ({
+  WishlistAddMenu: (props: { variant?: string; className?: string }) => {
+    Object.assign(lastAddMenuProps, props);
+    return (
+      <button data-testid="wishlist-add-menu" data-variant={props.variant ?? "primary"} className={props.className}>
+        Add an idea
+      </button>
+    );
+  },
 }));
 
 // Capture props so tests can assert what the dialogs receive.
@@ -118,6 +135,7 @@ import { dismissToast } from "@/components/ui/use-toast";
 import { WishlistBoard } from "./wishlist-board";
 import { placeIdeaAtStop, deleteItem } from "@/server/actions/items";
 import type { ItemCardItem } from "./item-card";
+import type { VoteView } from "./vote-control";
 
 // ---------------------------------------------------------------------------
 // Fixtures
@@ -408,8 +426,8 @@ describe("WishlistBoard — homeCurrency + costs forwarded to edit dialog", () =
   });
 });
 
-describe("WishlistBoard — Globe suggestions strip", () => {
-  it("renders the 'Suggested from your Globe' heading when hasGlobe and suggestedMarkers are provided", async () => {
+describe("WishlistBoard — Globe line", () => {
+  it("says how many Globe places are on this route when hasGlobe and suggestedMarkers are provided", async () => {
     const oneMarker: MarkerView = {
       id: "m1",
       title: "Senso-ji Temple",
@@ -436,7 +454,8 @@ describe("WishlistBoard — Globe suggestions strip", () => {
       />,
     );
 
-    expect(await screen.findByText(/from your globe/i)).toBeInTheDocument();
+    expect(await screen.findByText("1 place from your Globe is on this route")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "See them" })).toBeInTheDocument();
   });
 });
 
@@ -445,16 +464,6 @@ describe("WishlistBoard — Globe suggestions strip", () => {
 // ---------------------------------------------------------------------------
 
 describe("WishlistBoard — Playground kit", () => {
-  it("uses the kit's 'Add an idea' copy for the in-board dashed tile and mobile block button (Task 22 — the header add moved to WishlistHeaderActions)", () => {
-    render(<WishlistBoard tripId={TRIP_ID} stops={[baseStop]} items={[makeItem({ stopId: null, stopName: null })]} />);
-    const adds = screen.getAllByRole("button", { name: "Add an idea" });
-    expect(adds.length).toBeGreaterThan(0);
-    expect(screen.queryByRole("button", { name: "Add Item" })).not.toBeInTheDocument();
-    const variants = adds.map((b) => b.dataset.variant);
-    expect(variants).toContain("dashed");
-    expect(variants).toContain("secondary");
-  });
-
   it("ends the idea grid with the kit's dashed 'Add an idea' tile", () => {
     render(<WishlistBoard tripId={TRIP_ID} stops={[baseStop]} items={[makeItem({ stopId: null, stopName: null })]} />);
     const dashed = screen
@@ -484,40 +493,9 @@ describe("WishlistBoard — Playground kit", () => {
     expect(panel).not.toBeNull();
     expect(within(panel).getByText("Drop in anything you might want to do. Your people can vote.")).toBeInTheDocument();
     expect(within(panel).getByRole("button", { name: "Add an idea" })).toBeInTheDocument();
-    // One add affordance on an empty board — the EmptyState's.
-    expect(screen.getAllByRole("button", { name: "Add an idea" })).toHaveLength(1);
+    // The EmptyState's add, and the phone menu below md.
+    expect(screen.getAllByRole("button", { name: "Add an idea" })).toHaveLength(2);
     expect(screen.queryByText(/No items yet/)).not.toBeInTheDocument();
-  });
-
-  it("filters the map with kit Chips that report their pressed state", async () => {
-    const user = userEvent.setup();
-    render(
-      <WishlistBoard
-        tripId={TRIP_ID}
-        stops={[baseStop]}
-        items={[makeItem({ lat: 48.85, lng: 2.35 })]}
-      />,
-    );
-    await user.click(screen.getByRole("radio", { name: /map/i }));
-    const all = screen.getByRole("button", { name: "All", pressed: true });
-    expect(all.className).toMatch(/\bborder-2\b/);
-    const paris = screen.getByRole("button", { name: "Paris", pressed: false });
-    await user.click(paris);
-    expect(screen.getByRole("button", { name: "Paris", pressed: true })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "All", pressed: false })).toBeInTheDocument();
-  });
-
-  it("offers Globe suggestions as kit Chips with accessible names", () => {
-    const marker: MarkerView = {
-      id: "m2", title: "Senso-ji Temple", category: "SIGHTSEEING", note: null, link: null, timing: null,
-      lat: 35.71, lng: 139.79, city: "Tokyo", country: "Japan", countryCode: "jp",
-    };
-    render(
-      <WishlistBoard tripId={TRIP_ID} stops={[]} items={[]} hasGlobe globeMarkers={[marker]} addedMarkerIds={[]} suggestedMarkers={[marker]} />,
-    );
-    const chip = screen.getByRole("button", { name: "Add Senso-ji Temple" });
-    expect(chip.className).toMatch(/\bborder-2\b/);
-    expect(chip.className).not.toMatch(/shadow-soft/);
   });
 
   // Fix round 1: with ideas but no stops (Globe adds land with stopId null),
@@ -528,11 +506,7 @@ describe("WishlistBoard — Playground kit", () => {
     expect(adds.some((b) => !/max-sm:hidden/.test(b.getAttribute("class") ?? ""))).toBe(true);
   });
 
-  // Bug: with a trip that has no stops at all, the List view's stop-grouped
-  // section was gated on `stops.length > 0`, so a stop-less idea (stopId
-  // null) never rendered even though it belongs in the "Not tied to a Stop
-  // yet" group.
-  it("renders a stop-less idea in the 'Not tied to a Stop yet' group when the trip has no stops", () => {
+  it("renders a stop-less idea when the trip has no stops", () => {
     render(
       <WishlistBoard
         tripId={TRIP_ID}
@@ -541,23 +515,119 @@ describe("WishlistBoard — Playground kit", () => {
       />,
     );
     expect(screen.getByText("Wander the old town")).toBeInTheDocument();
-    expect(screen.getByRole("heading", { name: "Not tied to a stop yet" })).toBeInTheDocument();
-  });
-
-  it("heads the no-Stop group 'Not tied to a Stop yet' when an idea has no Stop", () => {
-    render(
-      <WishlistBoard
-        tripId={TRIP_ID}
-        stops={[baseStop]}
-        items={[makeItem({ id: "item-61", stopId: null, stopName: null, title: "Somewhere in Tuscany" })]}
-      />,
-    );
-    expect(screen.getByRole("heading", { name: "Not tied to a stop yet" })).toBeInTheDocument();
   });
 
   it("still renders the empty state exactly once with no ideas and no stops", () => {
     render(<WishlistBoard tripId={TRIP_ID} stops={[]} items={[]} />);
     expect(screen.getAllByText("No ideas yet")).toHaveLength(1);
+  });
+});
+
+describe("WishlistBoard — one grid with Near a Stop chips", () => {
+  const ROME = { id: "rome", name: "Rome", arriveDate: "2026-09-01", departDate: "2026-09-04", lat: 41.9, lng: 12.5 };
+  const PARIS = { id: "paris", name: "Paris", arriveDate: "2026-09-05", departDate: "2026-09-08", lat: 48.86, lng: 2.35 };
+  const idea = (id: string, title: string, coords: { lat?: number; lng?: number } = {}) =>
+    makeItem({ id, title, date: null, startTime: null, endTime: null, stopId: null, stopName: null, ...coords });
+  const COLOSSEUM = idea("col", "Colosseum", { lat: 41.89, lng: 12.49 });
+  const LOUVRE = idea("lou", "Louvre", { lat: 48.861, lng: 2.336 });
+  const SENSO_JI = idea("sen", "Senso-ji", { lat: 35.71, lng: 139.79 });
+  const RAMEN = idea("ram", "Ramen somewhere");
+  const FILTER = { name: "Filter ideas by where they are" };
+  const vote = (level: "MUST" | "KEEN" | "MEH"): VoteView => ({
+    userId: "u1", level, user: { id: "u1", name: "Cam", image: null },
+  });
+  const cardIds = () => screen.getAllByTestId(/^stub-card-/).map((c) => c.dataset.testid!.replace("stub-card-", ""));
+
+  it("every idea is in one list, best voted first, with no Stop headings", () => {
+    render(
+      <WishlistBoard
+        tripId={TRIP_ID}
+        stops={[ROME, PARIS]}
+        items={[COLOSSEUM, LOUVRE, RAMEN]}
+        votesByItemId={new Map([["ram", [vote("MUST")]], ["lou", [vote("KEEN")]]])}
+        aiConfigured
+      />,
+    );
+    expect(cardIds()).toEqual(["ram", "lou", "col"]);
+    const lists = new Set(screen.getAllByTestId(/^stub-card-/).map((c) => c.closest("ul")));
+    expect(lists.size).toBe(1);
+    expect(screen.queryByRole("heading", { name: "Rome" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("heading", { name: "Paris" })).not.toBeInTheDocument();
+    expect(screen.queryByText("Not tied to a stop yet")).not.toBeInTheDocument();
+    expect(screen.queryByText(/0 ideas/)).not.toBeInTheDocument();
+  });
+
+  it("chips: All, Near Rome, Elsewhere", async () => {
+    const user = userEvent.setup();
+    render(<WishlistBoard tripId={TRIP_ID} stops={[ROME]} items={[COLOSSEUM, RAMEN]} />);
+    const group = screen.getByRole("group", FILTER);
+    expect(within(group).getAllByRole("button").map((b) => b.textContent)).toEqual(["All", "Near Rome", "Elsewhere"]);
+    const all = within(group).getByRole("button", { name: "All", pressed: true });
+    expect(all.className).toMatch(/\bborder-2\b/);
+
+    await user.click(within(group).getByRole("button", { name: "Near Rome" }));
+    await waitFor(() => expect(cardIds()).toEqual(["col"]));
+    expect(within(group).getByRole("button", { name: "Near Rome", pressed: true })).toBeInTheDocument();
+
+    await user.click(within(group).getByRole("button", { name: "All" }));
+    expect(cardIds()).toEqual(["col", "ram"]);
+  });
+
+  it("no chips when there is nothing to choose between", () => {
+    render(<WishlistBoard tripId={TRIP_ID} stops={[ROME]} items={[RAMEN, SENSO_JI]} />);
+    expect(screen.queryByRole("group", FILTER)).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "All" })).not.toBeInTheDocument();
+  });
+
+  it("a card says what it is near", () => {
+    render(<WishlistBoard tripId={TRIP_ID} stops={[ROME]} items={[COLOSSEUM, RAMEN]} />);
+    expect(within(screen.getByTestId("stub-card-col")).getByText("Near Rome")).toBeInTheDocument();
+    expect(within(screen.getByTestId("stub-card-ram")).queryByText(/Near/)).not.toBeInTheDocument();
+  });
+
+  it("the chips filter the map view too", async () => {
+    const user = userEvent.setup();
+    render(<WishlistBoard tripId={TRIP_ID} stops={[ROME]} items={[COLOSSEUM, SENSO_JI, RAMEN]} />);
+    await user.click(screen.getByRole("radio", { name: /map/i }));
+    expect(lastMapLoaderProps.items?.map((i) => i.id)).toEqual(["col", "sen"]);
+    await user.click(within(screen.getByRole("group", FILTER)).getByRole("button", { name: "Near Rome" }));
+    expect(lastMapLoaderProps.items?.map((i) => i.id)).toEqual(["col"]);
+  });
+
+  it("when the chosen chip empties, the filter returns to All", async () => {
+    const user = userEvent.setup();
+    const { rerender } = render(
+      <WishlistBoard tripId={TRIP_ID} stops={[ROME, PARIS]} items={[COLOSSEUM, LOUVRE, RAMEN]} />,
+    );
+    await user.click(within(screen.getByRole("group", FILTER)).getByRole("button", { name: "Near Rome" }));
+    await waitFor(() => expect(cardIds()).toEqual(["col"]));
+
+    rerender(<WishlistBoard tripId={TRIP_ID} stops={[ROME, PARIS]} items={[LOUVRE, RAMEN]} />);
+    const group = screen.getByRole("group", FILTER);
+    expect(within(group).getByRole("button", { name: "All", pressed: true })).toBeInTheDocument();
+    expect(within(group).queryByRole("button", { name: "Near Rome" })).not.toBeInTheDocument();
+    await waitFor(() => expect(cardIds()).toEqual(["lou", "ram"]));
+  });
+
+  it("below md the add menu is a full-width button under the grid", () => {
+    render(<WishlistBoard tripId={TRIP_ID} stops={[ROME]} items={[COLOSSEUM]} aiConfigured />);
+    const menus = screen.getAllByTestId("wishlist-add-menu");
+    expect(menus).toHaveLength(1);
+    expect(menus[0].dataset.variant).toBe("secondary");
+    expect(menus[0].className).toMatch(/\bmd:hidden\b/);
+    expect(menus[0].className).toMatch(/\bw-full\b/);
+    expect(lastAddMenuProps).toMatchObject({ tripId: TRIP_ID, aiConfigured: true });
+    const grid = screen.getByTestId("stub-card-col").closest("ul")!;
+    expect(grid.compareDocumentPosition(menus[0]) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    cleanup();
+
+    render(<WishlistBoard tripId={TRIP_ID} stops={[ROME]} items={[]} />);
+    expect(screen.getByTestId("wishlist-add-menu").className).toMatch(/\bmd:hidden\b/);
+  });
+
+  it("no AI suggestion rows on the board", () => {
+    render(<WishlistBoard tripId={TRIP_ID} stops={[ROME, PARIS]} items={[COLOSSEUM]} aiConfigured />);
+    expect(screen.queryByTestId("ai-suggestions")).not.toBeInTheDocument();
   });
 });
 

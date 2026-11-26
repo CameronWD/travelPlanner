@@ -14,19 +14,19 @@ import { scheduleDayOptions, type DayOptionStop } from "@/lib/schedule-day-optio
 import type { NoteView } from "./note-thread";
 import type { VoteView } from "./vote-control";
 import { sortItemsByVotes } from "@/lib/votes";
-import { AiActivitySuggestions } from "./ai-activity-suggestions";
 import { AnimatedList, AnimatedItem } from "@/components/ui/animated-list";
 import { useConfirm } from "@/components/ui/confirm-dialog";
 import { useDeletePaid, paidCostsForDelete } from "@/components/money/delete-paid-dialog";
 import type { DeleteRefundAnswer } from "@/lib/money/delete-refund";
 import { toastRefused, toastRejected } from "@/components/ui/action-failure";
 import { Segmented, SegmentedItem } from "@/components/ui/segmented";
-import { Badge } from "@/components/ui/badge";
 import { Chip } from "@/components/ui/chip";
 import { WishlistMapLoader } from "./wishlist-map-loader";
 import type { MarkerView } from "@/components/globe/types";
 import { AddFromGlobeDialog } from "./add-from-globe-dialog";
 import { GlobeSuggestionsStrip } from "./globe-suggestions-strip";
+import { WishlistAddMenu } from "./wishlist-add-menu";
+import { wishlistNear, ALL } from "@/lib/wishlist-near";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -118,9 +118,6 @@ export function WishlistBoard({
   // ── View toggle ──
   const [view, setView] = React.useState<"list" | "map">("list");
 
-  // ── Stop filter (for map view chip row) ──
-  const [mapStopFilter, setMapStopFilter] = React.useState<string>("all");
-
   // ── Dialog state ──
   const [editingItem, setEditingItem] = React.useState<ItemCardItem | null>(null);
   const [schedulingItem, setSchedulingItem] = React.useState<ItemCardItem | null>(null);
@@ -183,60 +180,36 @@ export function WishlistBoard({
     return result;
   }
 
-  // ── Group items by stopId, sorted by combined vote score ──
-  const grouped = React.useMemo(() => {
-    const byStop = new Map<string | null, ItemCardItem[]>();
-    byStop.set(null, []); // Items "Not tied to a Stop yet" — rendered after the Stop groups
+  const near = React.useMemo(() => wishlistNear(items, stops), [items, stops]);
+  const [chosenChip, setChosenChip] = React.useState<string>(ALL);
+  const chip = near.chips.some((c) => c.key === chosenChip) ? chosenChip : ALL;
 
-    for (const item of items) {
-      const key = item.stopId ?? null;
-      const arr = byStop.get(key) ?? [];
-      arr.push(item);
-      byStop.set(key, arr);
-    }
-
-    // Sort each group by combined vote score (desc), tie-break by title
-    if (votesByItemId) {
-      for (const [key, groupItems] of byStop.entries()) {
-        const enriched = groupItems.map((item) => ({
+  const sortedIdeas = React.useMemo(
+    () =>
+      sortItemsByVotes(
+        items.map((item) => ({
           ...item,
-          votes: (votesByItemId.get(item.id) ?? []).map((v) => ({ level: v.level })),
-        }));
-        const sorted = sortItemsByVotes(enriched);
-        byStop.set(key, sorted);
-      }
-    }
-
-    return byStop;
-  }, [items, votesByItemId]);
-
-  // Stops that actually have items (still used for the no-key empty-state variant)
-  const stopsWithItems = stops.filter((s) => (grouped.get(s.id)?.length ?? 0) > 0);
-  const anywhereItems = grouped.get(null) ?? [];
-  // When AI is configured, show all stops (even empty) so users can request suggestions per-stop
-  const stopsToShow = aiConfigured ? stops : stopsWithItems;
+          votes: (votesByItemId?.get(item.id) ?? []).map((v) => ({ level: v.level })),
+        })),
+      ),
+    [items, votesByItemId],
+  );
+  const visibleIdeas = React.useMemo(
+    () => sortedIdeas.filter((item) => near.inChip(item.id, chip)),
+    [sortedIdeas, near, chip],
+  );
 
   const isEmpty = items.length === 0;
 
-  // ── Located items (have lat+lng) — used in map view ──
-  const locatedItems = React.useMemo(
+  const mapItems = React.useMemo(
     () =>
-      items
+      visibleIdeas
         .filter((i) => i.lat != null && i.lng != null)
         .map((i) => ({ id: i.id, title: i.title, category: i.category, lat: i.lat!, lng: i.lng! })),
-    [items],
+    [visibleIdeas],
   );
 
-  // Located items filtered by the stop chip selection
-  const mapItems = React.useMemo(() => {
-    if (mapStopFilter === "all") return locatedItems;
-    return locatedItems.filter((i) => {
-      const found = items.find((item) => item.id === i.id);
-      return found?.stopId === mapStopFilter;
-    });
-  }, [locatedItems, mapStopFilter, items]);
-
-  const unlocatedCount = items.length - locatedItems.length;
+  const unlocatedCount = visibleIdeas.length - mapItems.length;
 
   // ── onSelect handler for the map: opens ScheduleItemDialog ──
   function handleMapSelect(id: string) {
@@ -262,87 +235,49 @@ export function WishlistBoard({
     label: ADD_LABEL,
   };
 
-  function renderIdeaGrid(groupItems: ItemCardItem[], withAddTile: boolean) {
-    return (
-      <AnimatedList
-        as="ul"
-        className="grid grid-cols-1 gap-3 sm:grid-cols-2 sm:gap-[18px] xl:grid-cols-3"
-      >
-        {groupItems.map((item, i) => (
-          <AnimatedItem key={item.id} as="li" className="min-w-0">
-            <div aria-busy={pendingId === item.id || undefined} className="h-full">
-              <ItemCard
-                item={item}
-                mode="wishlist"
-                // Kit rhythm (DWishlist.jsx): every second card of three is sun.
-                tone={i % 3 === 1 ? "sun" : "white"}
-                placed={placedSet.has(item.id)}
-                isPending={pendingId === item.id}
-                onEdit={setEditingItem}
-                onDelete={handleDelete}
-                onSchedule={setSchedulingItem}
-                costs={costsByItemId?.get(item.id)}
-                tripId={tripId}
-                homeCurrency={homeCurrency}
-                notes={notesByItemId?.get(item.id) ?? []}
-                votes={votesByItemId?.get(item.id) ?? []}
-                currentUserId={currentUserId}
-                forkId={activeForkId ?? null}
-              />
-            </div>
-          </AnimatedItem>
-        ))}
-        {withAddTile && (
-          // Desktop: the kit's dashed "+ Add an idea" tile closes the grid.
-          <AnimatedItem key="add-an-idea" as="li" className="hidden min-w-0 sm:block">
-            <AddItemButton
-              {...addProps}
-              variant="dashed"
-              size="md"
-              className="size-full min-h-[170px] rounded-lg text-[15px]"
-            />
-          </AnimatedItem>
-        )}
-      </AnimatedList>
-    );
-  }
-
-  function renderGroupHeader(title: string, count: number) {
-    return (
-      <div className="flex items-center gap-2 px-1">
-        <h3 className="font-display text-lg font-extrabold leading-tight tracking-[-0.03em] text-foreground">{title}</h3>
-        <Badge variant="outline">{count} {count === 1 ? "idea" : "ideas"}</Badge>
-      </div>
-    );
-  }
-
   return (
     <div className="flex flex-col gap-6">
-      {/* Toolbar — the title, badge and add actions now live in the page's
-          PageHeader (WishlistHeaderActions, Task 22); this board keeps only
-          the List/Map view switch, right-aligned. */}
-      <div className="flex justify-end">
-        <Segmented
-          type="single"
-          value={view}
-          onValueChange={(v) => v && setView(v as "list" | "map")}
-          aria-label="Wishlist view"
-        >
-          <SegmentedItem value="list">List</SegmentedItem>
-          <SegmentedItem value="map">Map</SegmentedItem>
-        </Segmented>
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+        {near.chips.length > 0 && (
+          <div
+            role="group"
+            aria-label="Filter ideas by where they are"
+            className="-m-2 flex min-w-0 gap-2 overflow-x-auto p-2 sm:flex-wrap sm:overflow-visible"
+          >
+            {near.chips.map((c) => (
+              <Chip
+                key={c.key}
+                tone={chip === c.key ? "coral" : "white"}
+                selected={chip === c.key}
+                onClick={() => setChosenChip(c.key)}
+                touch
+              >
+                {c.label}
+              </Chip>
+            ))}
+          </div>
+        )}
+        <div className="flex justify-end sm:ml-auto">
+          <Segmented
+            type="single"
+            value={view}
+            onValueChange={(v) => v && setView(v as "list" | "map")}
+            aria-label="Wishlist view"
+          >
+            <SegmentedItem value="list">List</SegmentedItem>
+            <SegmentedItem value="map">Map</SegmentedItem>
+          </Segmented>
+        </div>
       </div>
 
       {hasGlobe && (
         <GlobeSuggestionsStrip
-          tripId={tripId}
           suggestions={suggestedMarkers}
           addedMarkerIds={addedMarkerIds}
           onSeeMore={openGlobeSuggestionsOverflow}
         />
       )}
 
-      {/* Empty state — only in list view (kit states.jsx EMPTY.Wishlist) */}
       {view === "list" && isEmpty && (
         <EmptyState
           icon={Heart}
@@ -353,38 +288,9 @@ export function WishlistBoard({
         />
       )}
 
-      {/* ── Map view ── */}
       {view === "map" && (
         <div className="flex flex-col gap-4">
-          {/* Stop-filter chip row — "All" is always first (kit filter chips) */}
-          {stops.length > 0 && (
-            <div className="flex flex-wrap gap-2" role="group" aria-label="Filter the map by stop">
-              <Chip
-                tone={mapStopFilter === "all" ? "coral" : "white"}
-                selected={mapStopFilter === "all"}
-                onClick={() => setMapStopFilter("all")}
-                touch
-              >
-                All
-              </Chip>
-              {stops.map((stop) => (
-                <Chip
-                  key={stop.id}
-                  tone={mapStopFilter === stop.id ? "coral" : "white"}
-                  selected={mapStopFilter === stop.id}
-                  onClick={() => setMapStopFilter(stop.id)}
-                  touch
-                >
-                  {stop.name}
-                </Chip>
-              ))}
-            </div>
-          )}
-
-          {/* The map itself */}
           <WishlistMapLoader items={mapItems} onSelect={handleMapSelect} />
-
-          {/* Unlocated count — collapsed one-liner */}
           {unlocatedCount > 0 && (
             <p className="text-[13px] font-semibold text-muted-foreground">
               {unlocatedCount} not on the map. Add a location.
@@ -393,41 +299,59 @@ export function WishlistBoard({
         </div>
       )}
 
-      {/* ── List view — Items grouped by stop ── */}
-      {view === "list" && (!isEmpty || aiConfigured) && (stops.length > 0 || anywhereItems.length > 0) && (
-        <div className="flex flex-col gap-6">
-          {/* Stop-grouped sections */}
-          {stopsToShow.map((stop) => {
-            const stopItems = grouped.get(stop.id) ?? [];
-            return (
-              <section key={stop.id} className="flex flex-col gap-3">
-                {renderGroupHeader(stop.name, stopItems.length)}
-                <AiActivitySuggestions
+      {view === "list" && !isEmpty && (
+        <AnimatedList
+          as="ul"
+          className="grid grid-cols-1 gap-3 sm:grid-cols-2 sm:gap-[18px] xl:grid-cols-3"
+        >
+          {visibleIdeas.map((item, i) => (
+            <AnimatedItem key={item.id} as="li" className="min-w-0">
+              <div aria-busy={pendingId === item.id || undefined} className="h-full">
+                <ItemCard
+                  item={{ ...item, stopName: near.nearLabel.get(item.id) ?? null }}
+                  mode="wishlist"
+                  // Kit rhythm (DWishlist.jsx): every second card of three is sun.
+                  tone={i % 3 === 1 ? "sun" : "white"}
+                  placed={placedSet.has(item.id)}
+                  isPending={pendingId === item.id}
+                  onEdit={setEditingItem}
+                  onDelete={handleDelete}
+                  onSchedule={setSchedulingItem}
+                  costs={costsByItemId?.get(item.id)}
                   tripId={tripId}
-                  stopId={stop.id}
-                  stopName={stop.name}
-                  aiConfigured={aiConfigured}
+                  homeCurrency={homeCurrency}
+                  notes={notesByItemId?.get(item.id) ?? []}
+                  votes={votesByItemId?.get(item.id) ?? []}
+                  currentUserId={currentUserId}
+                  forkId={activeForkId ?? null}
                 />
-                {stopItems.length > 0 && renderIdeaGrid(stopItems, false)}
-              </section>
-            );
-          })}
-
-          {/* Not tied to a Stop yet / no stop group */}
-          {anywhereItems.length > 0 && (
-            <section className="flex flex-col gap-3">
-              {renderGroupHeader("Not tied to a stop yet", anywhereItems.length)}
-              {renderIdeaGrid(anywhereItems, true)}
-            </section>
-          )}
-        </div>
+              </div>
+            </AnimatedItem>
+          ))}
+          <AnimatedItem key="add-an-idea" as="li" className="hidden min-w-0 sm:block">
+            <AddItemButton
+              {...addProps}
+              variant="dashed"
+              size="md"
+              className="size-full min-h-[170px] rounded-lg text-[15px]"
+            />
+          </AnimatedItem>
+        </AnimatedList>
       )}
 
-      {/* Mobile: the kit's block "+ Add an idea" under the grid. Outside the
-          stops guard so a phone always has an add in list view (it replaces
-          the header add, which is max-sm:hidden there). */}
-      {view === "list" && !isEmpty && (
-        <AddItemButton {...addProps} variant="secondary" size="md" className="w-full sm:hidden" />
+      {view === "list" && (
+        <WishlistAddMenu
+          tripId={tripId}
+          stops={stopOptions}
+          tripStartDate={tripStartDate}
+          homeCurrency={homeCurrency}
+          hasGlobe={hasGlobe}
+          globeMarkers={globeMarkers}
+          addedMarkerIds={addedMarkerIds}
+          aiConfigured={aiConfigured}
+          variant="secondary"
+          className="w-full md:hidden"
+        />
       )}
 
       {/* ─── Dialogs ─── */}
