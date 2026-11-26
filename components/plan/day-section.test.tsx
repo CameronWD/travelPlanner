@@ -95,6 +95,33 @@ describe("DaySection (PLAN.md §4.3; spec 2026-10-04 §A)", () => {
     expect(grip.className).toContain("tap-target");
   });
 
+  describe("the current number on a row and in the header", () => {
+    const k = (over: object) => ({ id: "k", costMinor: 30000, paidMinor: null, currency: "EUR", rateToHome: 1.6, paidAt: null, dueDate: null, ownerType: "ITEM", ownerId: "b", label: null, category: null, settlement: "BEFORE", ...over });
+    const day = (costs: object[], homeCurrency = "EUR") => renderDay({ homeCurrency, costsById: new Map([["b", costs]]) });
+    const paidAt = new Date("2026-10-01");
+
+    it("a paid Cost shows what was paid, not its cost", () => {
+      day([k({ paidAt, paidMinor: 27500 })]);
+      expect(screen.getAllByText(money(27500, "EUR")).length).toBeGreaterThan(0);
+      expect(screen.queryByText(money(30000, "EUR"))).not.toBeInTheDocument();
+      expect(screen.getByText((t) => t.endsWith(`${money(27500, "EUR")} so far`))).toBeInTheDocument();
+    });
+    it("an unpaid Cost shows its cost", () => {
+      day([k({ paidMinor: 27500 })]);
+      expect(screen.getAllByText(money(30000, "EUR")).length).toBeGreaterThan(0);
+      expect(screen.getByText((t) => t.endsWith(`${money(30000, "EUR")} so far`))).toBeInTheDocument();
+    });
+    it("a Cost paid in Home shows that amount in Home", () => {
+      day([k({ costMinor: 55000, paidAt, paidMinor: 90512, paidCurrency: "AUD" })], "AUD");
+      expect(screen.getAllByText(money(90512, "AUD")).length).toBeGreaterThan(0);
+      expect(screen.getByText((t) => t.endsWith(`${money(90512, "AUD")} so far`))).toBeInTheDocument();
+    });
+    it("a row with Costs in two currencies is not summed as one", () => {
+      day([k({ costMinor: 10000, rateToHome: null, currency: "EUR" }), k({ id: "k2", costMinor: 5000, currency: "JPY", rateToHome: null })], "");
+      expect(screen.getByText(`${money(10000, "EUR")} + ${money(5000, "JPY")}`)).toBeInTheDocument();
+    });
+  });
+
   it("a long plan title truncates with a tooltip and the Booked chip + cost never shrink over it (spec 2026-10-12 W5)", () => {
     const long = "Northern Lights snowmobile hunt across the fells";
     renderDay({ items: [{ ...ITEMS[1], title: long }] });

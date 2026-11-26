@@ -111,6 +111,19 @@ describe("costPaidState / stayCostLabel", () => {
     expect(stayCostLabel([{ ...cost({ paidAt }), paidMinor: 54000, refundMinor: 4000, refundedAt: new Date("2026-10-05") }])).toBe(formatMoney(50000, "EUR"));
     expect(stayCostLabel([{ ...cost({ paidAt }), paidMinor: 54000, refundMinor: 4000, refundedAt: null }])).toBe(formatMoney(54000, "EUR"));
   });
+  it("a paid Cost shows what was paid, not its cost", () => {
+    expect(stayCostLabel([{ ...cost({ costMinor: 30000, paidAt: new Date("2026-10-01") }), paidMinor: 27500 }])).toBe(formatMoney(27500, "EUR"));
+  });
+  it("an unpaid Cost shows its cost", () => {
+    expect(stayCostLabel([{ ...cost({ costMinor: 30000 }), paidMinor: 27500 }])).toBe(formatMoney(30000, "EUR"));
+  });
+  it("a Cost paid in Home shows that amount in Home", () => {
+    expect(stayCostLabel([{ ...cost({ costMinor: 55000, paidAt: new Date("2026-10-01") }), paidMinor: 90512, paidCurrency: "AUD" }], "AUD")).toBe(formatMoney(90512, "AUD"));
+  });
+  it("two Costs, one paid in Home and one unpaid in EUR, total in Home", () => {
+    const paidInHome = { ...cost({ costMinor: 55000, paidAt: new Date("2026-10-01") }), paidMinor: 90512, paidCurrency: "AUD" };
+    expect(stayCostLabel([paidInHome, cost({ costMinor: 10000, rateToHome: 1.6 })], "AUD")).toBe(formatMoney(90512 + 16000, "AUD"));
+  });
   it("one currency sums in it; mixed converts to home; mixed without home lists each", () => {
     expect(stayCostLabel(undefined)).toBeNull();
     expect(stayCostLabel([cost(), cost({ costMinor: 6000 })])).toBe(formatMoney(60000, "EUR"));

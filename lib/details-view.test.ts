@@ -191,6 +191,21 @@ describe("itemDetails", () => {
   });
 });
 
+describe("details cost paid in Home", () => {
+  it("a Cost paid in Home is summed in Home", () => {
+    const v = transportDetails(
+      {
+        id: "t1", mode: "TRAIN", bookingStateSet: false, sortOrder: 0,
+        fromStopName: "Paris", toStopName: "Munich",
+        fromStopTimezone: "Europe/Paris", toStopTimezone: "Europe/Berlin",
+        depAt: new Date("2026-12-05T08:30:00Z"), arrAt: new Date("2026-12-05T15:10:00Z"),
+      },
+      { ...ctx, costs: [cost({ costMinor: 55000, paidMinor: 90512, paidCurrency: "AUD", paidAt: new Date("2026-11-02") }), cost({ id: "c2", costMinor: 3000 })] },
+    );
+    expect(v.cost?.label).toBe(`${formatMoney(90512, "AUD")} + ${formatMoney(3000, "EUR")}`);
+  });
+});
+
 describe("details cost with a Refund", () => {
   it("shows the net and names the Refund", () => {
     const v = transportDetails(

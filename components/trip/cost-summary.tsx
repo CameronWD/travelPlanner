@@ -2,7 +2,8 @@ import * as React from "react";
 import { DollarSign, CheckCircle2 } from "lucide-react";
 import { formatMoney, convertMinor } from "@/lib/money/money";
 import { cn } from "@/lib/cn";
-import { shownCostMinor } from "@/lib/money/cost-row";
+import { shownCost } from "@/lib/money/cost-row";
+import { paysInOwnCurrency } from "@/lib/money/paid-currency";
 import { RefundTag } from "@/components/money/refund-tag";
 import type { CostRow } from "@/server/actions/costs";
 
@@ -33,12 +34,17 @@ export interface CostSummaryProps {
  */
 export function CostSummary({ cost, homeCurrency, className }: CostSummaryProps) {
   const isPaid = Boolean(cost.paidAt);
-  const shownMinor = shownCostMinor(cost);
-  const shownStr = formatMoney(shownMinor, cost.currency);
+  const shown = shownCost(cost);
+  const shownMinor = shown.minor;
+  const paidInOther = isPaid && cost.paidMinor != null && !paysInOwnCurrency(cost);
+  const shownStr = paidInOther
+    ? `${formatMoney(cost.costMinor, cost.currency)} · paid ${formatMoney(shown.minor, shown.currency)}`
+    : formatMoney(shownMinor, cost.currency);
 
   // Home-currency equivalent, computed from the shown amount.
   const rate = cost.rateToHome;
   const homeEquivStr =
+    !paidInOther &&
     homeCurrency != null &&
     rate != null &&
     cost.currency.toUpperCase() !== homeCurrency.toUpperCase()
@@ -71,9 +77,9 @@ export function CostSummary({ cost, homeCurrency, className }: CostSummaryProps)
             />
           )}
           {shownStr}
-          {isPaid && <span>paid</span>}
+          {isPaid && !paidInOther && <span>paid</span>}
         </span>
-        <RefundTag cost={cost} />
+        <RefundTag cost={{ ...cost, currency: shown.currency }} />
         {homeEquivStr && (
           <span className="text-muted-foreground/70">
             ≈&nbsp;{homeEquivStr}
