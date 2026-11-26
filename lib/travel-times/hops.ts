@@ -1,6 +1,7 @@
 import { addDays, isRealCalendarDate } from "@/lib/dates";
 import { estimateDriveMinutes, haversineKm } from "@/lib/geo";
 import { zonedWallTimeToInstant } from "@/lib/tz";
+import { dayStartHop, type StartAccommodationRow } from "@/lib/travel-times/day-start";
 
 export type Pt = { lat: number; lng: number };
 export type LocalMode = "DRIVE" | "TRANSIT" | "WALK";
@@ -67,11 +68,11 @@ export function pointKey(p: Pt): string {
   return `${coord(p.lat)},${coord(p.lng)}`;
 }
 
-function samePoint(from: Pt, to: Pt): boolean {
+export function samePoint(from: Pt, to: Pt): boolean {
   return pointKey(from) === pointKey(to);
 }
 
-function routeKey(mode: TravelMode, from: Pt, to: Pt, departure?: Date): string {
+export function routeKey(mode: TravelMode, from: Pt, to: Pt, departure?: Date): string {
   const base = `${mode}|${pointKey(from)}|${pointKey(to)}`;
   if (mode !== "TRANSIT" || !departure) return base;
   const slot = new Date(Math.floor(departure.getTime() / TRANSIT_SLOT_MS) * TRANSIT_SLOT_MS);
@@ -113,7 +114,7 @@ export function effectiveLocalMode(
   return drives ? "DRIVE" : "TRANSIT";
 }
 
-function located(lat: number | null | undefined, lng: number | null | undefined): Pt | null {
+export function located(lat: number | null | undefined, lng: number | null | undefined): Pt | null {
   return lat != null && lng != null && Number.isFinite(lat) && Number.isFinite(lng) ? { lat, lng } : null;
 }
 
@@ -457,6 +458,7 @@ export function planTravelKeys(
     transports: HopTransportRow[];
     home: Pt | null;
     hopModes?: ReadonlyMap<string, HopModeChoice>;
+    accommodations?: StartAccommodationRow[];
   },
   now: Date,
   opts: { purpose?: KeyPurpose } = {},
@@ -472,6 +474,12 @@ export function planTravelKeys(
   for (const pair of planHops(items, planTransports)) {
     const hop = hopInputs(pair, { stopsById, planTransports });
     if (hop) for (const k of hopKeys(hop.from, hop.to, hop.localMode, hop.departure, now, opts.purpose, forcedModeFor(plan.hopModes, pair))) keys.add(k);
+  }
+  if (plan.accommodations) {
+    for (const date of new Set(items.flatMap((it) => (it.date ? [it.date] : [])))) {
+      const start = dayStartHop({ date, items, accommodations: plan.accommodations, stopsById, planTransports });
+      if (start) for (const k of hopKeys(start.from, start.to, start.localMode, start.departure, now, opts.purpose)) keys.add(k);
+    }
   }
   for (const leg of carLegs(planTransports, stopsById, plan.home)) {
     if (!samePoint(leg.from, leg.to)) keys.add(driveKey(leg.from, leg.to));

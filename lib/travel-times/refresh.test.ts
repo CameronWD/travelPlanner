@@ -4,7 +4,7 @@ import { driveKey, hopKeys, type Pt } from "@/lib/travel-times/hops";
 
 vi.mock("@/lib/db", async () => {
   const { mockDb } = await import("@/test/helpers/db-mock");
-  return { db: mockDb(["trip", "stop", "item", "transport", "tripMember", "travelTime", "hopMode"]) };
+  return { db: mockDb(["trip", "stop", "item", "transport", "tripMember", "travelTime", "hopMode", "accommodation"]) };
 });
 
 const m = vi.hoisted(() => ({
@@ -37,7 +37,7 @@ vi.mock("@/lib/what-if", () => ({
 import { db as realDb } from "@/lib/db";
 import { refreshTripTravelTimes } from "./refresh";
 
-const db = realDb as unknown as MockDb<"trip" | "stop" | "item" | "transport" | "tripMember" | "travelTime" | "hopMode">;
+const db = realDb as unknown as MockDb<"trip" | "stop" | "item" | "transport" | "tripMember" | "travelTime" | "hopMode" | "accommodation">;
 
 const NOW = new Date("2026-11-01T00:00:00Z");
 const DAY = "2026-11-10";
@@ -123,6 +123,7 @@ beforeEach(() => {
     return row;
   });
   db.hopMode.findMany.mockResolvedValue([]);
+  db.accommodation.findMany.mockResolvedValue([]);
   plan({});
 });
 
@@ -159,6 +160,15 @@ describe("refreshTripTravelTimes while What-if plans are hidden", () => {
 });
 
 describe("refreshTripTravelTimes", () => {
+  it("counts the start hop's keys from the Accommodation woken in", async () => {
+    const stay = { id: "navona", forkId: null, stopId: "s1", checkIn: "2026-11-09", checkOut: "2026-11-12", lat: TEMPLE.lat, lng: TEMPLE.lng };
+    plan({ items: [item({ id: "a", at: DINNER, start: "10:00" })] });
+    db.accommodation.findMany.mockResolvedValue([stay]);
+    const out = await refreshTripTravelTimes("t1", { now: NOW, dryRun: true });
+    expect(out.wanted).toBe(hopKeys(TEMPLE, DINNER, "TRANSIT", new Date(`${DAY}T09:30:00+09:00`), NOW).length);
+    expect(hopKeys(TEMPLE, DINNER, "TRANSIT", new Date(`${DAY}T09:30:00+09:00`), NOW)[0]).toMatch(/^WALK\|/);
+  });
+
   it("fetches each missing hop key and stores OK rows", async () => {
     plan({ items: [item({ id: "a", at: TEMPLE, start: "10:00", end: "12:00" }), item({ id: "b", at: DINNER, start: "12:30", end: "14:00" })] });
     const want = keysFor(TEMPLE, DINNER, "TRANSIT", "12:00");

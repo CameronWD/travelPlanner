@@ -17,6 +17,7 @@ import {
   pointKey,
   resolveDriveLeg,
   resolveHop,
+  routeKey,
   transportEnds,
   type HopItem,
   type TravelLookup,
@@ -714,5 +715,28 @@ describe("a forced Hop mode", () => {
     ];
     const keys = [...planTravelKeys({ items, stops, transports: [], home: null, hopModes: new Map([["a|b", "WALK"]]) }, NOW)];
     expect(keys).toEqual([`WALK|${pointKey(A)}|${pointKey(NINE_KM)}`]);
+  });
+});
+
+describe("planTravelKeys with an Accommodation", () => {
+  const bed = { lat: 41.8977, lng: 12.4731 };
+  const pantheon = { lat: 41.8986, lng: 12.4769 };
+  const plan = {
+    items: [{ id: "pantheon", date: "2027-01-03", startTime: "10:00", sortOrder: 0, lat: pantheon.lat, lng: pantheon.lng, stopId: "rome" }],
+    stops: [{ id: "rome", timezone: "Europe/Rome", localTravelMode: null, lat: 41.9, lng: 12.5 }],
+    transports: [],
+    home: null,
+  };
+  const accommodations = [{ id: "navona", stopId: "rome", checkIn: "2027-01-02", checkOut: "2027-01-07", lat: bed.lat, lng: bed.lng }];
+  const now = new Date("2026-12-20T00:00:00Z");
+
+  it("planTravelKeys asks for the start hop's keys when given accommodations", () => {
+    const keys = [...planTravelKeys({ ...plan, accommodations }, now)];
+    expect(keys).toContain(routeKey("WALK", bed, pantheon));
+    expect(keys).toContain(routeKey("TRANSIT", bed, pantheon, new Date("2027-01-03T08:30:00.000Z")));
+  });
+
+  it("planTravelKeys asks for none without accommodations", () => {
+    expect([...planTravelKeys(plan, now)]).toEqual([]);
   });
 });
