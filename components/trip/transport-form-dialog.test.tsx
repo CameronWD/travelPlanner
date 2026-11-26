@@ -2472,7 +2472,7 @@ describe("TransportFormDialog: a journey with a layover", () => {
     expect(screen.getByLabelText("Leave")).toBeInTheDocument();
     expect(screen.getByLabelText("Second train number")).toBeInTheDocument();
     expect(screen.getByLabelText("Second train seat")).toBeInTheDocument();
-    expect(screen.getByText("The details above stay with the first part of the journey.")).toBeInTheDocument();
+    expect(screen.getByText("The details below stay with the first part of the journey.")).toBeInTheDocument();
   });
 
   it("switching from a flight to a train while ticked keeps what was typed and changes the wording", async () => {

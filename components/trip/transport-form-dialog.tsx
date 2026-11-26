@@ -380,7 +380,7 @@ function layoverCopy(mode: TransportMode) {
   const second = SECOND_SERVICE[mode];
   return mode === "FLIGHT"
     ? { box: "This flight includes a layover", place: "Layover at", land: "Land there", noPlace: "Add where the layover is.", noLand: "Add when you land.", second, stays: "Terminal, gate and the first seat stay with the first flight." }
-    : { box: "This journey includes a change", place: "Change at", land: "Arrive there", noPlace: "Add where the change is.", noLand: "Add when you arrive there.", second, stays: "The details above stay with the first part of the journey." };
+    : { box: "This journey includes a change", place: "Change at", land: "Arrive there", noPlace: "Add where the change is.", noLand: "Add when you arrive there.", second, stays: "The details below stay with the first part of the journey." };
 }
 
 export { HOME_ENDPOINT } from "./transport-endpoints";
@@ -1073,7 +1073,6 @@ function TransportForm({
             Departure is on or after arrival. Double-check these times.
           </Badge>
         )}
-
 
         <div data-group="travel-details" role="group" aria-labelledby={detailsHeadingId} className="space-y-2">
           <h3 id={detailsHeadingId} className="text-[11px] font-semibold text-muted-foreground">Travel details</h3>

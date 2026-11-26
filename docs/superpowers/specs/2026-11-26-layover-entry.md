@@ -33,7 +33,7 @@ The save is refused, with the reason beside the field, when: the layover place i
 ## What it does not do
 
 - The box is not shown for a Transport that is already one of two joined flights. After a split each flight is its own card and its own form; unticking does not merge them, and there is nothing to untick.
-- One layover per save. A journey with two is made by ticking the box again on the flight that has the second.
+- One layover per journey through the tick box. A journey with two layovers needs its third flight added as its own Transport, leaving from the second layover; the Plan joins it to the others. Ticking the box again on a flight that is already joined is not offered.
 - The Claude connection is unchanged: it adds two Transports itself.
 - A What-if plan (Fork) behaves as any Transport save does there.
 
