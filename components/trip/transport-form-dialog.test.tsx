@@ -2409,7 +2409,7 @@ describe("TransportFormDialog: a journey with a layover", () => {
     fireEvent.change(screen.getByLabelText("Leaves Denpasar"), { target: { value: "2026-12-05T19:00" } });
     fireEvent.change(screen.getByLabelText("Arrives Munich"), { target: { value: "2026-12-06T06:45" } });
     await user.type(screen.getByLabelText("Flight number"), "TG 440");
-    await user.type(screen.getAllByLabelText("Seat")[0], "32J, 32K");
+    await user.type(screen.getByLabelText("Seat"), "32J, 32K");
     await user.type(screen.getByLabelText(/^Booking ref/), "DHZU24");
   }
 
@@ -2422,8 +2422,8 @@ describe("TransportFormDialog: a journey with a layover", () => {
     await waitFor(() => expect(place).toHaveValue("Bangkok (BKK)"));
     fireEvent.change(screen.getByLabelText("Land there"), { target: { value: "2026-12-05T22:15" } });
     fireEvent.change(screen.getByLabelText("Leave"), { target: { value: "2026-12-06T00:50" } });
-    await user.type(screen.getByLabelText("Second flight"), "TG 924");
-    await user.type(screen.getAllByLabelText("Seat")[1], "44J, 44K");
+    await user.type(screen.getByLabelText("Second flight number"), "TG 924");
+    await user.type(screen.getByLabelText("Second flight seat"), "44J, 44K");
   }
 
   it('a flight offers "This flight includes a layover"; a train offers "This journey includes a change"; a drive offers neither', async () => {
@@ -2443,19 +2443,23 @@ describe("TransportFormDialog: a journey with a layover", () => {
     const user = userEvent.setup();
     render(<TransportFormDialog {...props} />);
     expect(screen.queryByLabelText("Layover at")).toBeNull();
-    expect(screen.getAllByLabelText("Seat")).toHaveLength(1);
     await user.click(box()!);
-    expect(screen.getByRole("combobox", { name: "Layover at" })).toBeInTheDocument();
-    expect(screen.getByLabelText("Land there")).toHaveAttribute("type", "datetime-local");
-    expect(screen.getByLabelText("Leave")).toHaveAttribute("type", "datetime-local");
-    expect(screen.getByLabelText("Second flight")).toBeInTheDocument();
-    expect(screen.getAllByLabelText("Seat")).toHaveLength(2);
+    const group = document.querySelector("[data-group='layover']") as HTMLElement;
+    expect(within(group).getByRole("combobox", { name: "Layover at" })).toBeInTheDocument();
+    expect(within(group).getByLabelText("Land there")).toHaveAttribute("type", "datetime-local");
+    expect(within(group).getByLabelText("Leave")).toHaveAttribute("type", "datetime-local");
+    expect(within(group).getByRole("textbox", { name: "Second flight number" })).toBeInTheDocument();
+    expect(within(group).getByRole("textbox", { name: "Second flight seat" })).toBeInTheDocument();
+    expect(within(group).getByText("Terminal, gate and the first seat stay with the first flight.")).toBeInTheDocument();
+    expect(screen.getAllByRole("textbox", { name: "Seat" })).toHaveLength(1);
+    const details = screen.getByRole("group", { name: "Travel details" });
+    expect(within(details).queryByLabelText(/^Second/)).toBeNull();
     await user.click(box()!);
     expect(screen.queryByLabelText("Layover at")).toBeNull();
     expect(screen.queryByLabelText("Land there")).toBeNull();
     expect(screen.queryByLabelText("Leave")).toBeNull();
-    expect(screen.queryByLabelText("Second flight")).toBeNull();
-    expect(screen.getAllByLabelText("Seat")).toHaveLength(1);
+    expect(screen.queryByLabelText("Second flight number")).toBeNull();
+    expect(screen.queryByLabelText("Second flight seat")).toBeNull();
   });
 
   it("a train's change reads Change at, Arrive there, Leave and Second train", async () => {
@@ -2466,7 +2470,34 @@ describe("TransportFormDialog: a journey with a layover", () => {
     expect(screen.getByRole("combobox", { name: "Change at" })).toBeInTheDocument();
     expect(screen.getByLabelText("Arrive there")).toBeInTheDocument();
     expect(screen.getByLabelText("Leave")).toBeInTheDocument();
-    expect(screen.getByLabelText("Second train")).toBeInTheDocument();
+    expect(screen.getByLabelText("Second train number")).toBeInTheDocument();
+    expect(screen.getByLabelText("Second train seat")).toBeInTheDocument();
+    expect(screen.getByText("The details above stay with the first part of the journey.")).toBeInTheDocument();
+  });
+
+  it("switching from a flight to a train while ticked keeps what was typed and changes the wording", async () => {
+    vi.unstubAllEnvs();
+    const user = userEvent.setup();
+    render(<TransportFormDialog {...props} />);
+    await user.click(box()!);
+    await user.type(screen.getByLabelText("Layover at"), "Lille Europe");
+    fireEvent.change(screen.getByLabelText("Land there"), { target: { value: "2026-12-05T22:15" } });
+    fireEvent.change(screen.getByLabelText("Leave"), { target: { value: "2026-12-06T00:50" } });
+    await user.type(screen.getByLabelText("Second flight number"), "TG 924");
+    await user.type(screen.getByLabelText("Second flight seat"), "44J");
+
+    await user.click(screen.getByRole("radio", { name: "Train" }));
+
+    expect(box()).toBeNull();
+    expect(box("This journey includes a change")).toBeChecked();
+    expect(screen.queryByLabelText("Layover at")).toBeNull();
+    expect(screen.getByLabelText("Change at")).toHaveValue("Lille Europe");
+    expect(screen.queryByLabelText("Land there")).toBeNull();
+    expect(screen.getByLabelText("Arrive there")).toHaveValue("2026-12-05T22:15");
+    expect(screen.getByLabelText("Leave")).toHaveValue("2026-12-06T00:50");
+    expect(screen.queryByLabelText("Second flight number")).toBeNull();
+    expect(screen.getByLabelText("Second train number")).toHaveValue("TG 924");
+    expect(screen.getByLabelText("Second train seat")).toHaveValue("44J");
   });
 
   it("saving with the box ticked sends the whole journey and the layover in one call", async () => {

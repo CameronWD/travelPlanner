@@ -367,18 +367,20 @@ interface TransportFormProps {
   inConnection?: boolean;
 }
 
-const SECOND_SERVICE: Record<Exclude<TransportMode, "CAR">, string> = {
+const SECOND_SERVICE: Record<TransportMode, string> = {
   FLIGHT: "Second flight",
   TRAIN: "Second train",
   BUS: "Second bus",
   FERRY: "Second ferry",
   OTHER: "Second transport",
+  CAR: "Second transport",
 };
 
 function layoverCopy(mode: TransportMode) {
+  const second = SECOND_SERVICE[mode];
   return mode === "FLIGHT"
-    ? { box: "This flight includes a layover", place: "Layover at", land: "Land there", noPlace: "Add where the layover is.", noLand: "Add when you land." }
-    : { box: "This journey includes a change", place: "Change at", land: "Arrive there", noPlace: "Add where the change is.", noLand: "Add when you arrive there." };
+    ? { box: "This flight includes a layover", place: "Layover at", land: "Land there", noPlace: "Add where the layover is.", noLand: "Add when you land.", second, stays: "Terminal, gate and the first seat stay with the first flight." }
+    : { box: "This journey includes a change", place: "Change at", land: "Arrive there", noPlace: "Add where the change is.", noLand: "Add when you arrive there.", second, stays: "The details above stay with the first part of the journey." };
 }
 
 export { HOME_ENDPOINT } from "./transport-endpoints";
@@ -1039,6 +1041,25 @@ function TransportForm({
                 </div>
               ))}
             </div>
+            <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+              <Field label={`${stopover.second} number`}>
+                <Input
+                  value={second.serviceNumber}
+                  onChange={(e) => setSecond((s) => ({ ...s, serviceNumber: e.target.value }))}
+                  maxLength={TRANSPORT_DETAIL_MAX}
+                  disabled={isPending}
+                />
+              </Field>
+              <Field label={`${stopover.second} seat`}>
+                <Input
+                  value={second.seat}
+                  onChange={(e) => setSecond((s) => ({ ...s, seat: e.target.value }))}
+                  maxLength={TRANSPORT_DETAIL_MAX}
+                  disabled={isPending}
+                />
+              </Field>
+            </div>
+            <p className="text-xs text-muted-foreground">{stopover.stays}</p>
           </div>
         )}
 
@@ -1068,26 +1089,6 @@ function TransportForm({
               </Field>
             ))}
           </div>
-          {withLayover && (
-            <div data-group="second-service" className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-              <Field label={SECOND_SERVICE[mode as Exclude<TransportMode, "CAR">]}>
-                <Input
-                  value={second.serviceNumber}
-                  onChange={(e) => setSecond((s) => ({ ...s, serviceNumber: e.target.value }))}
-                  maxLength={TRANSPORT_DETAIL_MAX}
-                  disabled={isPending}
-                />
-              </Field>
-              <Field label="Seat">
-                <Input
-                  value={second.seat}
-                  onChange={(e) => setSecond((s) => ({ ...s, seat: e.target.value }))}
-                  maxLength={TRANSPORT_DETAIL_MAX}
-                  disabled={isPending}
-                />
-              </Field>
-            </div>
-          )}
         </div>
 
         {/* Booking ref + Position in plan — paired from sm (spec 2026-10-05 §D).
