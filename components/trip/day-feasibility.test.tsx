@@ -140,6 +140,17 @@ describe("DayFeasibility", () => {
       expect(within(rows[0].closest("div")!).getByText(/Place 2 → Place 3/)).toBeInTheDocument();
     });
 
+    it("the start hop is a quiet row with no mode chooser", async () => {
+      const start = hop(0, { start: true, fromItemId: "navona", toItemId: "pantheon", fromTitle: "The Club Navona", toTitle: "Pantheon", minutes: 6, mode: "TRANSIT" });
+      render(<DayFeasibility tripId="t1" entries={[]} hops={[start, hop(1)]} />);
+      expect(screen.queryByText(/The Club Navona/)).not.toBeInTheDocument();
+      await userEvent.click(screen.getByRole("button", { name: /All hops \(2\)/ }));
+      const row = screen.getByText(/The Club Navona → Pantheon/);
+      expect(row).toHaveTextContent("6 min walk");
+      expect(within(row.parentElement!).queryByRole("button", { name: /How this hop is travelled/ })).not.toBeInTheDocument();
+      expect(screen.getAllByRole("button", { name: /How this hop is travelled/ })).toHaveLength(1);
+    });
+
     it("renders just the heading and the collapsed disclosure when no hop is flagged or hand-set", () => {
       render(<DayFeasibility tripId="t1" entries={[]} hops={[hop(1)]} />);
       expect(screen.getByRole("heading", { name: "Getting around" })).toBeInTheDocument();

@@ -261,6 +261,28 @@ describe("buildDayModel (card 3.M)", () => {
     expect(buildDayModel(rows(), "2026-12-11").itinerary).not.toBe(buildDayModel(r, "2026-12-11").itinerary);
   });
 
+  const located = (date: string) => item({ id: `i-${date}`, date, startTime: "10:00", lat: 48.582, lng: 7.751 });
+
+  it("a mid-stay day's map starts from the bed", () => {
+    const m = buildDayModel(rows({ items: [located("2026-12-11")] }), "2026-12-11");
+    expect(m.dayMap.routePoints.map((p) => p.id)).toEqual(["a-corbeau", "i-2026-12-11"]);
+    expect(m.dayMap.perItemPrev["i-2026-12-11"]?.id).toBe("a-corbeau");
+  });
+
+  it("an arrival day's map has no start but keeps the bed's pin", () => {
+    const m = buildDayModel(rows({ items: [located("2026-12-10")] }), "2026-12-10");
+    expect(m.dayMap.routePoints.map((p) => p.id)).toEqual(["i-2026-12-10"]);
+    expect(m.dayMap.perItemPrev["i-2026-12-10"]).toBeUndefined();
+    expect(m.dayMap.points.filter((p) => p.kind === "accommodation").map((p) => p.id)).toEqual(["a-corbeau"]);
+  });
+
+  it("a check-out day starts from the bed woken in", () => {
+    const m = buildDayModel(rows({ items: [located("2026-12-13")] }), "2026-12-13");
+    expect(m.tonight).toBeNull();
+    expect(m.dayMap.routePoints.map((p) => p.id)).toEqual(["a-corbeau", "i-2026-12-13"]);
+    expect(m.dayMap.points.filter((p) => p.kind === "accommodation").map((p) => p.id)).toEqual(["a-corbeau"]);
+  });
+
   it("a Trip with Chapters off has no Chapter", () => {
     expect(buildDayModel(rows({ chapters: [] }), "2026-12-11").chapter).toBeNull();
   });

@@ -19,7 +19,7 @@ import { addDays, daysBetween, formatDayLabel } from "@/lib/dates";
 import { instantToZonedTime } from "@/lib/tz";
 import { tripTodayISO } from "@/lib/trip-today";
 import { orderDayEntries, type DayPlan, type OrderedDay } from "@/lib/itinerary";
-import { resolvedPlanHops, withDayMapHops, type DayMapModel, type ItemDirections } from "@/lib/day-map";
+import { resolvedPlanHops, resolvedStartHop, withDayMapHops, type DayMapModel, type ItemDirections } from "@/lib/day-map";
 import type { NearbyResult } from "@/lib/nearby";
 import { flagDisplayMessage, flagTightConnections, type Flag } from "@/lib/flags";
 import { loadHopModes } from "@/lib/hop-modes";
@@ -75,6 +75,7 @@ export interface DayHopEntry {
   estimated: boolean;
   mode: HopModeChoice;
   modeSetByHand: boolean;
+  start?: true;
 }
 
 export interface DayViewData {
@@ -238,7 +239,7 @@ export async function getDays(tripId: string, dates: readonly string[], viewerId
   const [hopModes, travel, holidayLines, markedFine] = await Promise.all([
     hopModesRead,
     hopModesRead.then((modes) =>
-      loadTravelLookupFor({ items: rows.items, stops: rows.stops, transports: rows.transports, home: homePointOf(rows.trip), hopModes: modes }),
+      loadTravelLookupFor({ items: rows.items, stops: rows.stops, transports: rows.transports, home: homePointOf(rows.trip), hopModes: modes, accommodations: rows.accommodations }),
     ),
     loadHolidayLines(tripId, tripDays(rows.startDate, rows.endDate)),
     loadMarkedFineRows(tripId),
@@ -442,24 +443,42 @@ function projectDayView(
   const markedFine = tight.markedFine.map((f) => ({ flagId: f.id, message: flagDisplayMessage(f), markedByName: f.markedByName }));
 
   const titleById = new Map(items.map((it) => [it.id, it.title]));
-  const hops: DayHopEntry[] = resolvedPlanHops({
+  const hopInput = {
     dayItems: items.filter((it) => it.date === date),
     stops: rows.stops,
     transports: rows.transports,
     lookup: shared.travel,
     estimateOpts: { windingFactor: trip.drivingWindingFactor, avgSpeedKph: trip.drivingAvgSpeedKph },
     hopModes: shared.hopModes,
-  }).map(({ fromId, toId, resolved, forced }) => ({
-    fromItemId: fromId,
-    toItemId: toId,
-    fromTitle: titleById.get(fromId) ?? "",
-    toTitle: titleById.get(toId) ?? "",
-    minutes: Math.round(resolved.minutes),
-    travel: resolved.mode,
-    estimated: resolved.estimated,
-    mode: forced ?? (resolved.mode === "walk" ? "WALK" : resolved.mode === "drive" ? "DRIVE" : "TRANSIT"),
-    modeSetByHand: forced !== undefined,
-  }));
+  };
+  const startHop = resolvedStartHop({ ...hopInput, accommodations: rows.accommodations, date });
+  const hops: DayHopEntry[] = [
+    ...(startHop
+      ? [{
+          start: true as const,
+          fromItemId: startHop.fromId,
+          toItemId: startHop.toId,
+          fromTitle: rows.accommodations.find((a) => a.id === startHop.fromId)?.name ?? "",
+          toTitle: titleById.get(startHop.toId) ?? "",
+          minutes: Math.round(startHop.resolved.minutes),
+          travel: startHop.resolved.mode,
+          estimated: startHop.resolved.estimated,
+          mode: startHop.localMode,
+          modeSetByHand: false,
+        }]
+      : []),
+    ...resolvedPlanHops(hopInput).map(({ fromId, toId, resolved, forced }) => ({
+      fromItemId: fromId,
+      toItemId: toId,
+      fromTitle: titleById.get(fromId) ?? "",
+      toTitle: titleById.get(toId) ?? "",
+      minutes: Math.round(resolved.minutes),
+      travel: resolved.mode,
+      estimated: resolved.estimated,
+      mode: forced ?? (resolved.mode === "walk" ? "WALK" : resolved.mode === "drive" ? "DRIVE" : "TRANSIT"),
+      modeSetByHand: forced !== undefined,
+    })),
+  ];
 
   const stopTimezone = dayStop?.timezone ?? "UTC";
   const isFirst = date === startDate;

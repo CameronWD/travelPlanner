@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { buildDayMapModel, buildItemDirections, dayMapHops, withDayMapHops, DayMapItemInput, DayMapAccommodationInput, DayMapTransportInput } from "./day-map";
-import { driveKey, itemRouteKey } from "@/lib/travel-times/hops";
+import { driveKey, itemRouteKey, routeKey } from "@/lib/travel-times/hops";
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -179,14 +179,16 @@ describe("buildDayMapModel", () => {
     expect(result.points.find((p) => p.kind === "transport-arr")).toBeUndefined();
   });
 
-  it("routePoints starts with accommodation then ordered items", () => {
+  it("routePoints starts with the Accommodation woken in then ordered items", () => {
+    const bed = makeAccommodation({ id: "a1", name: "Hotel", lat: 9, lng: 19 });
     const result = buildDayMapModel({
       date: "2026-06-24",
       items: [
         makeItem({ id: "i1", title: "Stop A", sortOrder: 1, startTime: "09:00", lat: 10, lng: 20 }),
         makeItem({ id: "i2", title: "Stop B", sortOrder: 2, startTime: "10:00", lat: 11, lng: 21 }),
       ],
-      accommodation: makeAccommodation({ id: "a1", name: "Hotel", lat: 9, lng: 19 }),
+      accommodation: bed,
+      start: bed,
       transports: [],
     });
     expect(result.routePoints).toHaveLength(3);
@@ -207,13 +209,13 @@ describe("buildDayMapModel", () => {
     expect(result.routePoints[0].kind).toBe("item");
   });
 
-  it("perItemPrev: first located item maps to accommodation", () => {
+  it("perItemPrev: first located item maps to the Accommodation woken in", () => {
     const result = buildDayMapModel({
       date: "2026-06-24",
       items: [
         makeItem({ id: "i1", title: "Stop A", sortOrder: 1, lat: 10, lng: 20 }),
       ],
-      accommodation: makeAccommodation({ id: "a1", name: "Hotel", lat: 9, lng: 19 }),
+      start: makeAccommodation({ id: "a1", name: "Hotel", lat: 9, lng: 19 }),
       transports: [],
     });
     expect(result.perItemPrev["i1"]).toBeDefined();
@@ -227,7 +229,7 @@ describe("buildDayMapModel", () => {
         makeItem({ id: "i1", title: "Stop A", sortOrder: 1, startTime: "09:00", lat: 10, lng: 20 }),
         makeItem({ id: "i2", title: "Stop B", sortOrder: 2, startTime: "10:00", lat: 11, lng: 21 }),
       ],
-      accommodation: makeAccommodation({ id: "a1", name: "Hotel", lat: 9, lng: 19 }),
+      start: makeAccommodation({ id: "a1", name: "Hotel", lat: 9, lng: 19 }),
       transports: [],
     });
     expect(result.perItemPrev["i1"]!.kind).toBe("accommodation");
@@ -298,7 +300,7 @@ describe("buildItemDirections", () => {
       items: [
         makeItem({ id: "i1", title: "Museum", sortOrder: 1, lat: 48.86, lng: 2.35 }),
       ],
-      accommodation: makeAccommodation({ id: "a1", name: "Hotel", lat: 48.85, lng: 2.34 }),
+      start: makeAccommodation({ id: "a1", name: "Hotel", lat: 48.85, lng: 2.34 }),
       transports: [],
     });
     const dirs = buildItemDirections(model);
@@ -341,7 +343,7 @@ describe("buildItemDirections", () => {
         makeItem({ id: "i1", title: "Stop A", sortOrder: 1, startTime: "09:00", lat: 48.85, lng: 2.34 }),
         makeItem({ id: "i2", title: "Stop B", sortOrder: 2, startTime: "11:00", lat: 48.87, lng: 2.36 }),
       ],
-      accommodation: makeAccommodation({ id: "a1", name: "Hotel", lat: 48.84, lng: 2.33 }),
+      start: makeAccommodation({ id: "a1", name: "Hotel", lat: 48.84, lng: 2.33 }),
       transports: [],
     });
     const dirs = buildItemDirections(model);
@@ -355,10 +357,12 @@ describe("buildItemDirections", () => {
 
 describe("place ids in the Day map", () => {
   it("carries Item, stay and Transport place ids onto points, and into the hop link", () => {
+    const stay = { id: "a1", name: "Hotel", lat: 2, lng: 2, placeId: "STAY" };
     const model = buildDayMapModel({
       date: "2026-06-10",
       items: [{ id: "i1", title: "Ramen", lat: 1, lng: 1, sortOrder: 0, placeId: "ITEM" }],
-      accommodation: { id: "a1", name: "Hotel", lat: 2, lng: 2, placeId: "STAY" },
+      accommodation: stay,
+      start: stay,
       transports: [{ id: "t1", depLat: 3, depLng: 3, depPlaceId: "DEP", arrLat: 4, arrLng: 4, arrPlaceId: "ARR" }],
     });
     expect(model.points.map((p) => p.placeId)).toEqual(["ITEM", "STAY", "DEP", "ARR"]);
@@ -388,8 +392,8 @@ describe("dayMapHops", () => {
     const items = [row("i1", A, "09:00"), row("i2", B, "10:00"), row("i3", C, "11:00")];
     const lookup = new Map([[driveKey(A, B), real("abc")]]);
     expect(dayMapHops(modelFor(items), { dayItems: items, stops, transports: [], lookup, estimateOpts })).toEqual([
-      { fromId: "i1", toId: "i2", polyline: "abc", estimated: false },
-      { fromId: "i2", toId: "i3", polyline: null, estimated: true },
+      { fromId: "i1", toId: "i2", polyline: "abc", estimated: false, minutes: 30, mode: "drive" },
+      { fromId: "i2", toId: "i3", polyline: null, estimated: true, minutes: expect.any(Number), mode: "drive" },
     ]);
   });
 
@@ -404,6 +408,68 @@ describe("dayMapHops", () => {
     const transports = [{ id: "t1", mode: "CAR", fromStopId: "s1", toStopId: "s2" }];
     const lookup = new Map([[driveKey(A, B), real("abc")]]);
     expect(dayMapHops(modelFor(items), { dayItems: items, stops, transports, lookup, estimateOpts })[0]).toMatchObject({ polyline: null, estimated: true });
+  });
+
+  it("hops between things carry their minutes and mode", () => {
+    const items = [row("i1", A, "09:00"), row("i2", B, "10:00", "s1"), row("i3", C, "11:00", "s2")];
+    const transports = [{ id: "t1", mode: "CAR", fromStopId: "s1", toStopId: "s2" }];
+    const lookup = new Map([[driveKey(A, B), real("abc")]]);
+    expect(dayMapHops(modelFor(items), { dayItems: items, stops, transports, lookup, estimateOpts }).map(({ minutes, mode }) => ({ minutes, mode }))).toEqual([
+      { minutes: 30, mode: "drive" },
+      { minutes: null, mode: null },
+    ]);
+  });
+});
+
+describe("the start of the day", () => {
+  const NAVONA = { lat: 41.8992, lng: 12.4731 };
+  const PANTHEON = { lat: 41.8986, lng: 12.4769 };
+  const bed = makeAccommodation({ id: "navona", name: "The Club Navona", ...NAVONA });
+  const things = [
+    makeItem({ id: "pantheon", title: "Pantheon", sortOrder: 0, startTime: "10:00", ...PANTHEON }),
+    makeItem({ id: "trevi", title: "Trevi", sortOrder: 1, startTime: "12:00", lat: 41.9009, lng: 12.4833 }),
+  ];
+
+  it("with a start, the route begins at it and the first thing's previous point is it", () => {
+    const model = buildDayMapModel({ date: "2026-12-11", items: things, accommodation: bed, start: bed, transports: [] });
+    expect(model.routePoints.map((p) => p.id)).toEqual(["navona", "pantheon", "trevi"]);
+    expect(model.perItemPrev["pantheon"]?.id).toBe("navona");
+    expect(model.points.filter((p) => p.kind === "accommodation")).toHaveLength(1);
+  });
+
+  it("with no start, the route is the things alone and tonight's Accommodation is still a point", () => {
+    const model = buildDayMapModel({ date: "2026-12-10", items: things, accommodation: bed, transports: [] });
+    expect(model.routePoints.map((p) => p.id)).toEqual(["pantheon", "trevi"]);
+    expect(model.perItemPrev["pantheon"]).toBeUndefined();
+    expect(model.points.filter((p) => p.kind === "accommodation").map((p) => p.id)).toEqual(["navona"]);
+  });
+
+  it("a start that is not tonight's Accommodation is its own point", () => {
+    const tonight = makeAccommodation({ id: "trastevere", name: "Trastevere flat", lat: 41.8897, lng: 12.4694 });
+    const model = buildDayMapModel({ date: "2026-12-13", items: things, accommodation: tonight, start: bed, transports: [] });
+    const beds = model.points.filter((p) => p.kind === "accommodation");
+    expect(beds).toHaveLength(2);
+    expect(new Set(beds.map((p) => p.id)).size).toBe(2);
+    expect(model.routePoints[0].id).toBe("navona");
+  });
+
+  const stops = [{ id: "rome", localTravelMode: null, timezone: "Europe/Rome" }];
+  const dayItems = [{ id: "pantheon", date: "2026-12-11", startTime: "10:00", endTime: null, sortOrder: 0, ...PANTHEON, stopId: "rome" }];
+  const accommodations = [{ id: "navona", stopId: "rome", checkIn: "2026-12-10", checkOut: "2026-12-13", ...NAVONA }];
+  const startModel = buildDayMapModel({ date: "2026-12-11", items: [things[0]], accommodation: bed, start: bed, transports: [] });
+  const estimateOpts = { windingFactor: 1.3, avgSpeedKph: 60 };
+
+  it("dayMapHops puts the start hop first with its minutes and mode", () => {
+    const lookup = new Map([[routeKey("WALK", NAVONA, PANTHEON), { status: "OK" as const, minutes: 6, distanceM: 450, polyline: "abc" }]]);
+    expect(dayMapHops(startModel, { dayItems, stops, transports: [], lookup, estimateOpts, accommodations, date: "2026-12-11" })[0]).toEqual({
+      fromId: "navona", toId: "pantheon", minutes: 6, mode: "walk", estimated: false, polyline: "abc",
+    });
+  });
+
+  it("a start hop with nothing looked up is an estimate", () => {
+    const [hop] = dayMapHops(startModel, { dayItems, stops, transports: [], lookup: new Map(), estimateOpts, accommodations, date: "2026-12-11" });
+    expect(hop).toMatchObject({ fromId: "navona", toId: "pantheon", estimated: true, polyline: null });
+    expect(hop.minutes).toBeGreaterThan(0);
   });
 });
 
@@ -427,7 +493,7 @@ describe("buildItemDirections from here", () => {
     const withBed = buildDayMapModel({
       date: "2026-06-24",
       items: [makeItem({ id: "i1", title: "Museum", sortOrder: 1, lat: 48.86, lng: 2.35 })],
-      accommodation: makeAccommodation({ id: "a1", name: "Hotel", lat: 48.85, lng: 2.34 }),
+      start: makeAccommodation({ id: "a1", name: "Hotel", lat: 48.85, lng: 2.34 }),
       transports: [],
     });
     const g = new URL(buildItemDirections(withBed, { fromHere: false, mode: null })["i1"].google!).searchParams;
@@ -444,6 +510,7 @@ describe("Ends at on the Day map", () => {
     items: [{ ...item, date: "2026-01-02", startTime: "10:00", sortOrder: 0, stopId: "s1" }],
     stops: [{ id: "s1", localTravelMode: "WALK", timezone: "UTC" }],
     transports: [],
+    accommodations: [],
     trip: { drivingWindingFactor: 1.3, drivingAvgSpeedKph: 60 },
   });
   const key = itemRouteKey(walk)!;

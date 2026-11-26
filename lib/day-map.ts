@@ -3,7 +3,7 @@
  *
  * Produces everything the UI needs for a single day's map view:
  * - `points`       – all located entities for the day
- * - `routePoints`  – ordered route: accommodation → items (for polyline drawing)
+ * - `routePoints`  – ordered route: the Accommodation woken in → items (for polyline drawing)
  * - `perItemPrev`  – predecessor located point for each located item (for hop distances)
  *
  * No React, no Prisma, no network — fully unit-testable.
@@ -11,6 +11,7 @@
 
 import { googleDirectionsUrl, appleDirectionsUrl, directionsFromHereUrl } from "@/lib/map/maps";
 import type { LocalMode } from "@/lib/travel-times/hops";
+import { dayStartHop, type StartAccommodationRow } from "@/lib/travel-times/day-start";
 import {
   byHopOrder,
   itemRouteKey,
@@ -93,6 +94,8 @@ export interface DayMapHop {
   toId: string;
   polyline: string | null;
   estimated: boolean;
+  minutes: number | null;
+  mode: "walk" | "drive" | "transit" | null;
 }
 
 export interface DayMapModel {
@@ -119,9 +122,10 @@ export function buildDayMapModel(input: {
   date: string;
   items: DayMapItemInput[];
   accommodation?: DayMapAccommodationInput | null;
+  start?: DayMapAccommodationInput | null;
   transports: DayMapTransportInput[];
 }): DayMapModel {
-  const { items, accommodation, transports } = input;
+  const { items, accommodation, start, transports } = input;
 
   // ------------------------------------------------------------------
   // 1. Located items — sorted by (startTime ?? "99:99") then sortOrder
@@ -149,20 +153,10 @@ export function buildDayMapModel(input: {
   }));
 
   // ------------------------------------------------------------------
-  // 2. Accommodation point (optional)
+  // 2. Accommodation points: tonight's, and the one woken in (optional)
   // ------------------------------------------------------------------
-  let accommodationPoint: DayMapPoint | undefined;
-  if (accommodation && isLocated(accommodation.lat, accommodation.lng)) {
-    accommodationPoint = {
-      kind: "accommodation",
-      id: accommodation.id,
-      lat: accommodation.lat as number,
-      lng: accommodation.lng as number,
-      label: accommodation.name,
-      address: accommodation.address,
-      placeId: accommodation.placeId,
-    };
-  }
+  const accommodationPoint = accommodationPointOf(accommodation);
+  const startPoint = start && start.id === accommodationPoint?.id ? accommodationPoint : accommodationPointOf(start);
 
   // ------------------------------------------------------------------
   // 3. Transport dep/arr points
@@ -196,15 +190,16 @@ export function buildDayMapModel(input: {
   // ------------------------------------------------------------------
   const points: DayMapPoint[] = [
     ...itemPoints,
+    ...(startPoint && startPoint !== accommodationPoint ? [startPoint] : []),
     ...(accommodationPoint ? [accommodationPoint] : []),
     ...transportPoints,
   ];
 
   // ------------------------------------------------------------------
-  // 5. `routePoints` = [accommodation (if located), ...orderedItems]
+  // 5. `routePoints` = [start (if located), ...orderedItems]
   // ------------------------------------------------------------------
   const routePoints: DayMapPoint[] = [
-    ...(accommodationPoint ? [accommodationPoint] : []),
+    ...(startPoint ? [startPoint] : []),
     ...itemPoints,
   ];
 
@@ -215,14 +210,18 @@ export function buildDayMapModel(input: {
   for (let i = 0; i < itemPoints.length; i++) {
     const point = itemPoints[i];
     if (i === 0) {
-      // First located item: predecessor is accommodation (if located), else undefined
-      perItemPrev[point.id] = accommodationPoint;
+      perItemPrev[point.id] = startPoint;
     } else {
       perItemPrev[point.id] = leavingPoint(itemPoints[i - 1]);
     }
   }
 
   return { points, routePoints, perItemPrev };
+}
+
+function accommodationPointOf(a: DayMapAccommodationInput | null | undefined): DayMapPoint | undefined {
+  if (!a || !isLocated(a.lat, a.lng)) return undefined;
+  return { kind: "accommodation", id: a.id, lat: a.lat as number, lng: a.lng as number, label: a.name, address: a.address, placeId: a.placeId };
 }
 
 // The next thing is reached from where the previous one finishes, not where it starts.
@@ -237,6 +236,8 @@ type DayHopInput = {
   lookup: TravelLookup;
   estimateOpts: { windingFactor: number; avgSpeedKph: number };
   hopModes?: ReadonlyMap<string, HopModeChoice>;
+  accommodations?: StartAccommodationRow[];
+  date?: string;
 };
 
 /** Each consecutive located pair on the Day map, with its resolved travel when the pair is a planned hop. One source for the map and the Claude connection. */
@@ -279,11 +280,34 @@ export function resolvedPlanHops(
   });
 }
 
-export function dayMapHops(model: DayMapModel, input: DayHopInput): DayMapHop[] {
-  return resolvedDayHops(model, input).map(({ fromId, toId, resolved }) => {
-    const polyline = resolved && !resolved.estimated && resolved.polyline ? resolved.polyline : null;
-    return { fromId, toId, polyline, estimated: polyline === null };
+/** The hop from the Accommodation woken in to the day's first located thing, resolved; the map and the hop list share it. */
+export function resolvedStartHop(
+  input: DayHopInput,
+): { fromId: string; toId: string; resolved: ResolvedHop; localMode: LocalMode } | null {
+  if (!input.accommodations || !input.date) return null;
+  const start = dayStartHop({
+    date: input.date,
+    items: input.dayItems.map(toHopItem).sort(byHopOrder),
+    accommodations: input.accommodations,
+    stopsById: hopStopsById(input.stops),
+    planTransports: input.transports.map(toPlanTransport),
   });
+  if (!start) return null;
+  const resolved = resolveHop(start.from, start.to, start.localMode, start.departure, input.lookup, input.estimateOpts);
+  return { fromId: start.accommodationId, toId: start.toItemId, resolved, localMode: start.localMode };
+}
+
+function toDayMapHop(fromId: string, toId: string, resolved: ResolvedHop | null): DayMapHop {
+  const polyline = resolved && !resolved.estimated && resolved.polyline ? resolved.polyline : null;
+  return { fromId, toId, polyline, estimated: polyline === null, minutes: resolved ? Math.round(resolved.minutes) : null, mode: resolved?.mode ?? null };
+}
+
+export function dayMapHops(model: DayMapModel, input: DayHopInput): DayMapHop[] {
+  const start = resolvedStartHop(input);
+  return [
+    ...(start ? [toDayMapHop(start.fromId, start.toId, start.resolved)] : []),
+    ...resolvedDayHops(model, input).map(({ fromId, toId, resolved }) => toDayMapHop(fromId, toId, resolved)),
+  ];
 }
 
 function withItemRoutes(points: DayMapPoint[], lookup: TravelLookup): DayMapPoint[] {
@@ -300,6 +324,7 @@ export function withDayMapHops(
     items: HopItemRow[];
     stops: HopStopRow[];
     transports: (HopTransportRow & { id: string })[];
+    accommodations: StartAccommodationRow[];
     trip: { drivingWindingFactor: number; drivingAvgSpeedKph: number };
   },
   date: string,
@@ -316,6 +341,8 @@ export function withDayMapHops(
       lookup,
       estimateOpts: { windingFactor: rows.trip.drivingWindingFactor, avgSpeedKph: rows.trip.drivingAvgSpeedKph },
       hopModes,
+      accommodations: rows.accommodations,
+      date,
     }),
   };
 }

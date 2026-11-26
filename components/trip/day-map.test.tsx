@@ -164,8 +164,8 @@ describe("DayMap route hops", () => {
 
   it("draws solid decoded lines for real hops and dashed straight for the rest, bed segment dashed", () => {
     render(<DayMap tripId="t1" model={withHops([
-      { fromId: "i1", toId: "i2", polyline: ENCODED, estimated: false },
-      { fromId: "i2", toId: "i3", polyline: null, estimated: true },
+      { fromId: "i1", toId: "i2", polyline: ENCODED, estimated: false, minutes: 20, mode: "drive" },
+      { fromId: "i2", toId: "i3", polyline: null, estimated: true, minutes: 25, mode: "drive" },
     ])} />);
     const opts = mock.recorded.polylines.map((p) => p.options);
     expect(opts).toHaveLength(3);
@@ -199,7 +199,7 @@ describe("DayMap Ends at", () => {
     points: [walk, NEXT],
     routePoints: [walk, NEXT],
     perItemPrev: {},
-    hops: [{ fromId: "w", toId: "n", polyline: null, estimated: true }],
+    hops: [{ fromId: "w", toId: "n", polyline: null, estimated: true, minutes: 8, mode: "walk" }],
   });
 
   it("draws a smaller second pin at the end", () => {

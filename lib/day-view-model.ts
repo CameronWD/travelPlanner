@@ -5,7 +5,8 @@ import { findOutboundLeg, findReturnLeg } from "@/lib/home-base";
 import { buildItinerary, pickDayPlan, isFreeFormDay, dayHasEntries, type DayPlan } from "@/lib/itinerary";
 import { buildDayMapModel, buildItemDirections, type DayMapModel } from "@/lib/day-map";
 import { nearbyWishlistItems, dayIdeasWishlist, type NearbyResult, type DayIdeaResult } from "@/lib/nearby";
-import { effectiveLocalMode } from "@/lib/travel-times/hops";
+import { byHopOrder, effectiveLocalMode, hopStopsById, toHopItem, toPlanTransport } from "@/lib/travel-times/hops";
+import { dayStartHop } from "@/lib/travel-times/day-start";
 import { chapterForDate } from "@/lib/chapters";
 import { titlesByDate } from "@/lib/day-titles";
 import { itemPhotoUrl } from "@/lib/item-photo";
@@ -351,6 +352,15 @@ export function buildDayModel(rows: DayRows, date: string, opts?: { fromHere: bo
   const accommodations = rows.accommodations.filter((a) => a.checkIn <= date && a.checkOut >= date);
   const tonight = accommodations.find((a) => a.checkOut > date) ?? null;
   const bed = tonight ? { id: tonight.id, name: tonight.name, lat: tonight.lat, lng: tonight.lng, address: tonight.address, placeId: tonight.placeId } : null;
+  const startHop = dayStartHop({
+    date,
+    items: rows.items.map(toHopItem).sort(byHopOrder),
+    accommodations: rows.accommodations,
+    stopsById: hopStopsById(rows.stops),
+    planTransports: rows.transports.map(toPlanTransport),
+  });
+  const woke = startHop ? rows.accommodations.find((a) => a.id === startHop.accommodationId)! : null;
+  const start = woke ? { id: woke.id, name: woke.name, lat: woke.lat, lng: woke.lng, address: woke.address, placeId: woke.placeId } : null;
 
   const dayItems = rows.items
     .filter((i) => i.date === date)
@@ -360,6 +370,7 @@ export function buildDayModel(rows: DayRows, date: string, opts?: { fromHere: bo
     date,
     items: dayItems,
     accommodation: bed,
+    start,
     transports: rows.transports
       .filter((t) => legIds.has(t.id))
       .map((t) => ({ id: t.id, depPlace: t.depPlace, arrPlace: t.arrPlace, depLat: t.depLat, depLng: t.depLng, depPlaceId: t.depPlaceId, arrLat: t.arrLat, arrLng: t.arrLng, arrPlaceId: t.arrPlaceId })),

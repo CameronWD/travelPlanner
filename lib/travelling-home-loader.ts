@@ -100,7 +100,7 @@ async function loadTravellingHomeUncached(tripId: string, userId: string | null)
   const hopModesRead = loadHopModes(tripId);
   const [hopModes, travel, holidayLines] = await Promise.all([
     hopModesRead,
-    hopModesRead.then((modes) => loadTravelLookupFor({ items, stops, transports, home: homePointOf(trip), hopModes: modes })),
+    hopModesRead.then((modes) => loadTravelLookupFor({ items, stops, transports, home: homePointOf(trip), hopModes: modes, accommodations })),
     loadHolidayLines(tripId, [effectiveDate]),
   ]);
 

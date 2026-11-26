@@ -23,6 +23,7 @@ const {
   getDayWeatherMock,
   loadSurpriseVisibilityMock,
   loadHolidayLinesMock,
+  travelTimeFindManyMock,
 } = vi.hoisted(() => ({
   tripFindUniqueMock: vi.fn(),
   stopFindManyMock: vi.fn(),
@@ -40,6 +41,7 @@ const {
   getDayWeatherMock: vi.fn(),
   loadSurpriseVisibilityMock: vi.fn(),
   loadHolidayLinesMock: vi.fn(),
+  travelTimeFindManyMock: vi.fn(),
 }));
 
 vi.mock("@/lib/db", () => ({
@@ -54,7 +56,7 @@ vi.mock("@/lib/db", () => ({
     cost: { findMany: costFindManyMock },
     dayTitle: { findMany: dayTitleFindManyMock },
     chapter: { findMany: chapterFindManyMock },
-    travelTime: { findMany: vi.fn().mockResolvedValue([]) },
+    travelTime: { findMany: travelTimeFindManyMock },
     flagDismissal: { findMany: flagDismissalFindManyMock },
   },
 }));
@@ -79,6 +81,7 @@ import { NO_SURPRISES } from "@/lib/surprise-visibility";
 import { hiddenVisibility, placeholderItem, MARKER_WHERE, SURPRISED_VIEW } from "@/test/helpers/surprise-visibility";
 import { expectAccessCheckedBeforeWrite } from "@/test/helpers/access-order";
 import { zoneLabel } from "@/lib/time-display";
+import { routeKey } from "@/lib/travel-times/hops";
 
 const { loadHopModesMock, flagDismissalFindManyMock } = vi.hoisted(() => ({ loadHopModesMock: vi.fn(), flagDismissalFindManyMock: vi.fn() }));
 vi.mock("@/lib/hop-modes", () => ({ loadHopModes: loadHopModesMock }));
@@ -213,6 +216,7 @@ beforeEach(() => {
   loadHopModesMock.mockResolvedValue(new Map());
   loadHolidayLinesMock.mockResolvedValue(new Map());
   flagDismissalFindManyMock.mockResolvedValue([]);
+  travelTimeFindManyMock.mockResolvedValue([]);
   setup();
 });
 
@@ -457,6 +461,7 @@ describe("getDays — hops", () => {
     useItems(located);
     const d = await loadDay("2026-12-11");
     expect(d.hops).toEqual([
+      expect.objectContaining({ start: true, fromItemId: HOTEL.id, toItemId: "h1", fromTitle: HOTEL.name, toTitle: "Item h1", modeSetByHand: false }),
       expect.objectContaining({ fromItemId: "h1", toItemId: "h2", fromTitle: "Item h1", toTitle: "Item h2", estimated: true, modeSetByHand: false }),
       expect.objectContaining({ fromItemId: "h2", toItemId: "h3", modeSetByHand: false }),
     ]);
@@ -466,8 +471,8 @@ describe("getDays — hops", () => {
     useItems(located);
     loadHopModesMock.mockResolvedValue(new Map([["h1|h2", "DRIVE"]]));
     const d = await loadDay("2026-12-11");
-    expect(d.hops[0]).toMatchObject({ fromItemId: "h1", travel: "drive", mode: "DRIVE", modeSetByHand: true });
-    expect(d.hops[1].modeSetByHand).toBe(false);
+    expect(d.hops[1]).toMatchObject({ fromItemId: "h1", travel: "drive", mode: "DRIVE", modeSetByHand: true });
+    expect(d.hops[2].modeSetByHand).toBe(false);
   });
 
   it("a hand-set pair that exists only in the Flags' order (an untimed-end Item between) still has a row", async () => {
@@ -522,10 +527,27 @@ describe("getDays — hops", () => {
     });
   });
 
+  it("the day's hops begin with the start hop", async () => {
+    const ROME = { ...stop({ id: "s-rome", name: "Rome", arriveDate: "2026-12-10", departDate: "2026-12-13", sortOrder: 0, lat: 41.9028, lng: 12.4964 }), country: "Italy", countryCode: "IT", timezone: "Europe/Rome" };
+    const NAVONA = { ...HOTEL, id: "navona", stopId: ROME.id, name: "The Club Navona", address: null, checkIn: "2026-12-10", checkOut: "2026-12-13", lat: 41.8992, lng: 12.4731 };
+    const pantheon = { ...datedItem("pantheon", "2026-12-11", "10:00"), title: "Pantheon", stopId: ROME.id, lat: 41.8986, lng: 12.4769 };
+    stopFindManyMock.mockResolvedValue([ROME]);
+    accommodationFindManyMock.mockResolvedValue([NAVONA]);
+    useItems([pantheon]);
+    const walk = routeKey("WALK", NAVONA, pantheon);
+    travelTimeFindManyMock.mockImplementation(async ({ where }: { where: { key: { in: string[] } } }) =>
+      where.key.in.includes(walk) ? [{ key: walk, status: "OK", minutes: 6, distanceM: 450, polyline: "abc" }] : [],
+    );
+    const d = await loadDay("2026-12-11");
+    expect(d.hops).toEqual([
+      { start: true, fromItemId: "navona", toItemId: "pantheon", fromTitle: "The Club Navona", toTitle: "Pantheon", minutes: 6, travel: "walk", estimated: false, mode: "TRANSIT", modeSetByHand: false },
+    ]);
+  });
+
   it("a hop touching a hidden Surprise is not listed (the placeholder has no place)", async () => {
     useItems([located[0], { ...located[1], lat: null, lng: null, title: "Surprise" }, located[2]]);
     const d = await loadDay("2026-12-11");
-    expect(d.hops.map((h) => [h.fromItemId, h.toItemId])).toEqual([["h1", "h3"]]);
+    expect(d.hops.map((h) => [h.fromItemId, h.toItemId])).toEqual([[HOTEL.id, "h1"], ["h1", "h3"]]);
   });
 });
 
