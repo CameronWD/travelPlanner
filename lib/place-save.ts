@@ -23,6 +23,9 @@ export function pickedPlace(input: { placeId?: string; lat?: number; lng?: numbe
   return { placeId: input.placeId, lat: input.lat, lng: input.lng, countryCode: input.countryCode?.toLowerCase() ?? null, region: input.region ?? null };
 }
 
+export const samePlaceText = (a: string | null | undefined, b: string | null | undefined) =>
+  (a ?? "").trim().toLowerCase() === (b ?? "").trim().toLowerCase();
+
 // Every Google lookup is billed, so a located row whose text is unchanged keeps its place.
 export async function placeForSave({
   text,
@@ -36,7 +39,7 @@ export async function placeForSave({
   lookUp: (text: string) => Promise<GeoCandidate | null>;
 }): Promise<{ place: SavedPlace; source: PlaceSource }> {
   if (pick) return { place: pick, source: "pick" };
-  if (before && (before.text || null) === (text || null) && before.place.lat != null && before.place.lng != null) {
+  if (before && samePlaceText(before.text, text) && before.place.lat != null && before.place.lng != null) {
     return { place: before.place, source: "kept" };
   }
   if (!text) return { place: NO_PLACE, source: "none" };

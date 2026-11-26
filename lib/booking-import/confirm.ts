@@ -136,9 +136,9 @@ export async function confirmProposalFor(
     // wall time), keep the original string rather than dropping it to
     // undefined (fix round 1, #4): createTransport's own validation then
     // sees it, the same as it would for a typed entry.
-    // An end with no Stop is a place: createTransport reads it in the zone it
-    // stores for that place, and the guess is only its fallback when the
-    // place is not found, so the instant and the stored zone always agree.
+    // An end with no Stop is a place: createTransport reads and stores it in
+    // the zone at the place's point, or in this guess when the place is not
+    // found, so the instant and the stored zone always agree.
     const ordered = await stopsOnPlan();
     const zoneless = (stopId: string | undefined): boolean => {
       if (!stopId) return true;

@@ -10,7 +10,7 @@ import { endZones } from "@/lib/leg-zones";
 import { pointTimezone } from "@/lib/tz-point";
 import { isValidTimeZone } from "@/lib/tz";
 import { geocodePlaceDetailed } from "@/lib/geocode";
-import { pickedPlace, placeForSave, type SavedPlace } from "@/lib/place-save";
+import { pickedPlace, placeForSave, samePlaceText, type SavedPlace } from "@/lib/place-save";
 import { auditedUpdate, recordPlanActivity } from "@/lib/activity-guard";
 import { entityLabel } from "@/lib/activity";
 import { planScope, type PlanId } from "@/lib/plan-scope";
@@ -123,7 +123,6 @@ type SentEnds = { depPlace: string | null; arrPlace: string | null; depPick: Sav
 
 const sameCoord = (a: number | null | undefined, b: number | null) =>
   a == null || b == null ? a == null && b == null : Math.round(a * 1e5) === Math.round(b * 1e5);
-const samePlaceText = (a: string | null | undefined, b: string | null) => (a ?? "").trim().toLowerCase() === (b ?? "").trim().toLowerCase();
 
 type HeldEnd = { wasPlace: boolean; text?: string | null; lat?: number | null; lng?: number | null; zone?: string | null };
 type SentEnd = { text: string | null; pick: SavedPlace | null };
@@ -211,15 +210,14 @@ export async function createTransport(
     : null;
   // Home endpoints are not looked up — coords resolve from the trip at read time.
   const ends = await endPlaces(data, { depPlace, arrPlace });
-  const zones = placeEndZones({ fromStopId, toStopId, depIsHome, arrIsHome }, ends);
-  // The booking import's zone for an end with no Stop reads its time only when no point zone was found; it is never stored.
-  const fallback = (isPlace: boolean, zone: string | undefined) => (isPlace && zone && isValidTimeZone(zone) ? zone : null);
-  const { fromTimezone, toTimezone } = endZones({
-    fromStopId,
-    toStopId,
-    depTimezone: zones.depTimezone ?? fallback(!fromStopId && !depIsHome, importZones?.depTimezone),
-    arrTimezone: zones.arrTimezone ?? fallback(!toStopId && !arrIsHome, importZones?.arrTimezone),
-  }, tzOf);
+  const pointZones = placeEndZones({ fromStopId, toStopId, depIsHome, arrIsHome }, ends);
+  // The booking import's country zone for a place it could not find: a guess, but it shows the time on the ticket.
+  const importZone = (isPlace: boolean, zone: unknown) => (isPlace && typeof zone === "string" && isValidTimeZone(zone) ? zone : null);
+  const zones = {
+    depTimezone: pointZones.depTimezone ?? importZone(!fromStopId && !depIsHome, importZones?.depTimezone),
+    arrTimezone: pointZones.arrTimezone ?? importZone(!toStopId && !arrIsHome, importZones?.arrTimezone),
+  };
+  const { fromTimezone, toTimezone } = endZones({ fromStopId, toStopId, ...zones }, tzOf);
   const { depTz, arrTz } = resolveEndpointZones(fromTimezone, toTimezone, {
     depIsHome,
     arrIsHome,

@@ -916,13 +916,30 @@ describe("a place end's own zone", () => {
         expect(created().arrAt.toISOString()).toBe("2026-12-04T06:15:00.000Z");
       });
 
-      it("a place it cannot find reads the typed time in the import's zone and stores no zone", async () => {
+      const shownArrival = (row: { fromStopId?: string | null; arrAt: Date | null; arrTimezone?: string | null }) =>
+        transportTimeDisplay({ depAt: null, arrAt: row.arrAt, ...endZones(row, (id) => (id === OOL.id ? OOL.timezone : null)) }).arr;
+
+      it("a place it cannot find reads the typed time in the import's zone, stores that zone, and shows the typed time", async () => {
         stopFindManyMock.mockResolvedValue([OOL]);
 
         await createTransport("trip-1", toDenpasar, undefined, { arrTimezone: "Asia/Jakarta" });
 
-        expect(created()).toMatchObject({ arrLat: null, arrTimezone: null });
+        expect(created()).toMatchObject({ arrLat: null, arrTimezone: "Asia/Jakarta" });
         expect(created().arrAt.toISOString()).toBe("2026-12-04T07:15:00.000Z");
+        expect(shownArrival(created())?.time).toBe("14:15");
+      });
+
+      it.each([
+        ["a number", 7],
+        ["an object", { zone: "Asia/Jakarta" }],
+        ["a string that is not a zone", "Not/AZone"],
+      ])("a non-string or invalid importZones value is ignored (%s)", async (_name, bad) => {
+        stopFindManyMock.mockResolvedValue([OOL]);
+
+        await createTransport("trip-1", toDenpasar, undefined, { arrTimezone: bad } as never);
+
+        expect(created()).toMatchObject({ arrTimezone: null });
+        expect(created().arrAt.toISOString()).toBe("2026-12-04T04:15:00.000Z");
       });
     });
 
