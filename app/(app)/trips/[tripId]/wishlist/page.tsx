@@ -6,7 +6,7 @@ import { REAL_PLAN, planScope } from "@/lib/plan-scope";
 import { resolvePlanParam } from "@/lib/plan-reads";
 import { isAiConfigured } from "@/lib/ai";
 import { WishlistBoard } from "@/components/trip/wishlist-board";
-import { WishlistHeaderActions } from "@/components/trip/wishlist-header-actions";
+import { WishlistAddMenu } from "@/components/trip/wishlist-add-menu";
 import { AddItemFromUrl } from "@/components/trip/add-item-from-url";
 import { VariantBanner } from "@/components/trip/variant-banner";
 import { getUserGlobe } from "@/lib/globe";
@@ -350,7 +350,7 @@ export default async function WishlistPage({
         title="Wishlist"
         meta={items.length ? `${items.length} idea${items.length === 1 ? "" : "s"}` : undefined}
         actions={
-          <WishlistHeaderActions
+          <WishlistAddMenu
             tripId={trip.id}
             stops={trip.stops}
             tripStartDate={trip.startDate}
@@ -358,30 +358,12 @@ export default async function WishlistPage({
             hasGlobe={globe !== null}
             globeMarkers={globeMarkers}
             addedMarkerIds={addedMarkerIds}
-            showAdd={items.length > 0}
+            aiConfigured={isAiConfigured()}
           />
         }
         trailing={<TripHeaderTrailing tripId={trip.id} slug={slug} />}
       />
       <AddItemFromUrl tripId={trip.id} stops={trip.stops} tripStartDate={trip.startDate} homeCurrency={trip.homeCurrency} />
-      {globe !== null && (
-        <div className="md:hidden">
-          {/* "Add from Globe" is hidden below md inside PageHeader's `actions`
-              (AUDIT.md's controller ruling) — this phone-only copy keeps it
-              reachable there. `showAdd={false}`: "Add an idea" already has a
-              mobile-reachable copy inside WishlistBoard itself. */}
-          <WishlistHeaderActions
-            tripId={trip.id}
-            stops={trip.stops}
-            tripStartDate={trip.startDate}
-            homeCurrency={trip.homeCurrency}
-            hasGlobe
-            globeMarkers={globeMarkers}
-            addedMarkerIds={addedMarkerIds}
-            showAdd={false}
-          />
-        </div>
-      )}
       <WishlistBoard
         tripId={trip.id}
         tripStartDate={trip.startDate}
