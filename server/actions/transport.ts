@@ -1,9 +1,10 @@
 "use server";
 
 import { notFound } from "next/navigation";
+import type { Prisma, Transport } from "@prisma/client";
 import { db } from "@/lib/db";
 import { requirePlanAccess, requireRowAccess } from "@/lib/guards";
-import { transportSchema, type TransportInput } from "@/lib/validations/transport";
+import { layoverSchema, transportSchema, type LayoverInput, type TransportInput } from "@/lib/validations/transport";
 import { wallTimeToInstant } from "@/lib/wall-time";
 import { resolveEndpointZones } from "@/lib/time-display";
 import { endZones } from "@/lib/leg-zones";
@@ -11,24 +12,26 @@ import { pointTimezone } from "@/lib/tz-point";
 import { isValidTimeZone } from "@/lib/tz";
 import { geocodePlaceDetailed } from "@/lib/geocode";
 import { pickedPlace, placeForSave, samePlaceText, type SavedPlace } from "@/lib/place-save";
-import { auditedUpdate, recordPlanActivity } from "@/lib/activity-guard";
+import { auditedUpdate, recordPlanActivity, recordUpdate } from "@/lib/activity-guard";
 import { entityLabel } from "@/lib/activity";
 import { planScope, type PlanId } from "@/lib/plan-scope";
 import { resolveRateForTrip, persistRate } from "@/lib/money/fx";
-import { type ActionFailure, type ActionResult, validationResult, formFail } from "@/lib/action-result";
+import { type ActionFailure, type ActionResult, type FieldErrors, validationResult, formFail, fail } from "@/lib/action-result";
 import { mergeTransportPatch, type TransportPatch } from "@/lib/transport-patch";
-import { completeInlineCost, OWNED_COST_SELECT } from "@/lib/money/cost-patch";
+import { completeInlineCost, OWNED_COST_SELECT, type OwnedCostRow } from "@/lib/money/cost-patch";
 import { cleanupTargetSideDataTx } from "@/server/actions/target-cleanup";
 import { deleteOwnedCostsTx, deleteRefundsProblemTx } from "@/server/actions/owned-costs";
 import type { DeleteRefundAnswer } from "@/lib/money/delete-refund";
 import { lockPlanTransportsTx } from "@/server/actions/stop-flow";
 import { growTripEndTx, tripWindowScopes } from "@/server/actions/trip-window";
 import { revalidateTrip } from "@/lib/revalidate";
-import { resolveBookingWrite } from "@/lib/booking-state-patch";
+import { resolveBookingWrite, type BookingFields } from "@/lib/booking-state-patch";
 import { transportBookingSubject } from "@/lib/booking-state";
 import { TRANSPORT_DETAIL_KEYS, type TransportDetailKey } from "@/lib/transport-details";
+import { toPatch } from "@/lib/patch";
+import { transportClearable } from "@/lib/transport-clearable";
 
-function detailColumns(data: Partial<Record<TransportDetailKey, string>>) {
+function detailColumns(data: Partial<Record<TransportDetailKey, string | null>>) {
   return Object.fromEntries(TRANSPORT_DETAIL_KEYS.map((k) => [k, data[k] || null])) as Record<TransportDetailKey, string | null>;
 }
 
@@ -153,30 +156,69 @@ function placeEndZones(ends: EndKinds, coords: EndCoords, before?: HeldEnds, sen
   };
 }
 
-// ---------------------------------------------------------------------------
-// Actions
-// ---------------------------------------------------------------------------
+type PlaceZones = { depTimezone: string | null; arrTimezone: string | null };
+type RowEnds = EndKinds & { anchorStopId: string | null; depPlace: string | null; arrPlace: string | null };
+type EndPlaceColumns = Awaited<ReturnType<typeof endPlaces>>;
 
-/**
- * Create a new transport for a trip.
- *
- * sortOrder = max existing + 1.
- * If fromStopId/toStopId are provided they must belong to the same trip.
- */
-export async function createTransport(
+// Interpret wall-time strings in the endpoint Stop's timezone, or the
+// Trip's Home timezone for a Home end (P0-1; home-timezone-departure-points).
+async function wallZones(tripId: string, ends: EndKinds) {
+  const endpointIds = [ends.fromStopId, ends.toStopId].filter((v): v is string => v !== null);
+  const endpointStops = endpointIds.length
+    ? await db.stop.findMany({ where: { id: { in: endpointIds } }, select: { id: true, timezone: true } })
+    : [];
+  const tzOf = (id: string | null | undefined) =>
+    id ? endpointStops.find((s) => s.id === id)?.timezone ?? null : null;
+  const home = ends.depIsHome || ends.arrIsHome
+    ? await db.trip.findUnique({ where: { id: tripId }, select: { homeTimezone: true } })
+    : null;
+  return (zones: PlaceZones) => {
+    const { fromTimezone, toTimezone } = endZones({ fromStopId: ends.fromStopId, toStopId: ends.toStopId, ...zones }, tzOf);
+    return resolveEndpointZones(fromTimezone, toTimezone, {
+      depIsHome: ends.depIsHome,
+      arrIsHome: ends.arrIsHome,
+      homeTimezone: home?.homeTimezone ?? null,
+    });
+  };
+}
+
+function rowColumns(
+  data: Pick<TransportInput, "mode" | "notes"> & { reference?: string | null } & Partial<Record<TransportDetailKey, string | null>>,
+  ends: RowEnds,
+  times: { depAt: Date | null; arrAt: Date | null },
+  places: EndPlaceColumns,
+  zones: PlaceZones,
+  booking: BookingFields,
+) {
+  return {
+    mode: data.mode,
+    depIsHome: ends.depIsHome,
+    arrIsHome: ends.arrIsHome,
+    fromStopId: ends.fromStopId,
+    toStopId: ends.toStopId,
+    anchorStopId: ends.anchorStopId,
+    depPlace: ends.depPlace,
+    depAt: times.depAt,
+    arrPlace: ends.arrPlace,
+    arrAt: times.arrAt,
+    reference: data.reference ?? null,
+    ...detailColumns(data),
+    notes: data.notes ?? null,
+    ...places,
+    ...zones,
+    ...booking,
+  };
+}
+
+type PreparedRow = { columns: ReturnType<typeof rowColumns>; arrTz: string };
+type PreparedUpdate = PreparedRow & { data: TransportInput; owned: OwnedCostRow[] };
+
+async function prepareCreateRow(
   tripId: string,
-  input: TransportInput,
-  forkId?: PlanId,
+  plan: PlanId,
+  data: TransportInput,
   importZones?: { depTimezone?: string; arrTimezone?: string },
-): Promise<ActionResult<{ id: string }>> {
-  const { plan } = await requirePlanAccess(tripId, forkId);
-
-  const parsed = transportSchema.safeParse(input);
-  if (!parsed.success) {
-    return validationResult(parsed.error);
-  }
-
-  const data = parsed.data;
+): Promise<ActionFailure | PreparedRow> {
   // CONTEXT.md "Booking state": stored as the effective state (a reference implies Booked).
   const booking = resolveBookingWrite(transportBookingSubject(data.mode), null, { bookingState: data.bookingState, bookBy: data.bookBy }, data.reference);
   if ("success" in booking) return booking;
@@ -197,128 +239,31 @@ export async function createTransport(
   const stopError = await validateStopBelongsToTrip(tripId, [fromStopId, toStopId, anchorStopId], plan);
   if (stopError) return stopError;
 
-  // Interpret wall-time strings in the endpoint Stop's timezone, or the
-  // Trip's Home timezone for a Home end (P0-1; home-timezone-departure-points).
-  const endpointIds = [fromStopId, toStopId].filter((v): v is string => v !== null);
-  const endpointStops = endpointIds.length
-    ? await db.stop.findMany({ where: { id: { in: endpointIds } }, select: { id: true, timezone: true } })
-    : [];
-  const tzOf = (id: string | null | undefined) =>
-    id ? endpointStops.find((s) => s.id === id)?.timezone ?? null : null;
-  const home = depIsHome || arrIsHome
-    ? await db.trip.findUnique({ where: { id: tripId }, select: { homeTimezone: true } })
-    : null;
+  const kinds = { fromStopId, toStopId, depIsHome, arrIsHome };
+  const readZones = await wallZones(tripId, kinds);
   // Home endpoints are not looked up — coords resolve from the trip at read time.
   const ends = await endPlaces(data, { depPlace, arrPlace });
-  const pointZones = placeEndZones({ fromStopId, toStopId, depIsHome, arrIsHome }, ends);
+  const pointZones = placeEndZones(kinds, ends);
   // The booking import's country zone for a place it could not find: a guess, but it shows the time on the ticket.
   const importZone = (isPlace: boolean, zone: unknown) => (isPlace && typeof zone === "string" && isValidTimeZone(zone) ? zone : null);
   const zones = {
     depTimezone: pointZones.depTimezone ?? importZone(!fromStopId && !depIsHome, importZones?.depTimezone),
     arrTimezone: pointZones.arrTimezone ?? importZone(!toStopId && !arrIsHome, importZones?.arrTimezone),
   };
-  const { fromTimezone, toTimezone } = endZones({ fromStopId, toStopId, ...zones }, tzOf);
-  const { depTz, arrTz } = resolveEndpointZones(fromTimezone, toTimezone, {
-    depIsHome,
-    arrIsHome,
-    homeTimezone: home?.homeTimezone ?? null,
-  });
-  const depAtInstant = wallTimeToInstant(data.depAt, depTz);
-  const arrAtInstant = wallTimeToInstant(data.arrAt, arrTz);
-
-  // Determine sort order
-  const maxTransport = await db.transport.findFirst({
-    where: { tripId, ...planScope(plan) },
-    orderBy: { sortOrder: "desc" },
-    select: { sortOrder: true },
-  });
-  const sortOrder = (maxTransport?.sortOrder ?? -1) + 1;
-
-  const created = await db.transport.create({
-    data: {
-      tripId,
-      forkId: plan,
-      mode: data.mode,
-      depIsHome,
-      arrIsHome,
-      fromStopId,
-      toStopId,
-      anchorStopId,
-      depPlace,
-      depAt: depAtInstant,
-      arrPlace,
-      arrAt: arrAtInstant,
-      reference: data.reference ?? null,
-      ...detailColumns(data),
-      notes: data.notes ?? null,
-      sortOrder,
-      ...ends,
-      ...zones,
-      ...booking,
-    },
-  });
-  // F4: a dated return leg can push the soft end to the day it lands home
-  // (real plan only; never shrinks — the helper's write is conditional).
-  const grownTo = await growTripEndTx(db, tripId, plan);
-
-  // If an inline cost was supplied, create a single transport-owned Cost.
-  // Resolve the FX rate BEFORE opening a transaction (network must not hold a
-  // DB transaction open — ADR 0007).
-  if (data.costMinor !== undefined && data.currency) {
-    const trip = await db.trip.findUnique({
-      where: { id: tripId },
-      select: { homeCurrency: true },
-    });
-    if (trip) {
-      const resolved = await resolveRateForTrip(tripId, data.currency, trip.homeCurrency, { db });
-      await db.$transaction(async (tx) => {
-        if (resolved.persist) {
-          await persistRate(tx, tripId, resolved.persist);
-        }
-        await (tx as typeof db).cost.create({
-          data: {
-            tripId,
-            forkId: plan,
-            ownerType: "TRANSPORT",
-            ownerId: created.id,
-            costMinor: data.costMinor!,
-            paidMinor: data.paidMinor ?? null,
-            currency: data.currency!,
-            rateToHome: resolved.rate,
-            paidAt: data.paidAt ? new Date(data.paidAt) : null,
-            label: null,
-            category: null,
-            settlement: data.settlement ?? "BEFORE",
-          },
-        });
-      });
-    }
-  }
-
-  await recordPlanActivity(plan, { tripId, verb: "CREATED", entityType: "TRANSPORT", entityId: created.id, entityLabel: entityLabel("TRANSPORT", created) });
-  revalidateTrip(tripId, "plan", "money", ...tripWindowScopes(grownTo));
-  return { success: true, id: created.id };
+  const { depTz, arrTz } = readZones(zones);
+  const times = { depAt: wallTimeToInstant(data.depAt, depTz), arrAt: wallTimeToInstant(data.arrAt, arrTz) };
+  return { columns: rowColumns(data, { ...kinds, anchorStopId, depPlace, arrPlace }, times, ends, zones, booking), arrTz };
 }
 
-/**
- * Update a Transport (PATCH, ADR 0075): merges onto the held row
- * (`lib/transport-patch.ts` — the endpoint rules); an inline Cost completes
- * from its single owned Cost.
- *
- * Looks up the transport → requireTripAccess(transport.tripId).
- */
-export async function updateTransport(
-  transportId: string,
+async function prepareUpdateRow(
+  transport: { tripId: string; forkId: string | null },
+  before: Transport,
   patch: TransportPatch,
-): Promise<TransportActionResult> {
-  const transport = await requireTransportAccess(transportId);
-  const before = await db.transport.findUnique({ where: { id: transportId } });
-  if (!before) notFound();
-
+): Promise<ActionFailure | PreparedUpdate> {
   const merged = mergeTransportPatch(before, patch);
   if ("success" in merged) return merged;
   const owned = patch.costMinor != null || patch.currency != null
-    ? await db.cost.findMany({ where: { ownerType: "TRANSPORT", ownerId: transportId }, select: OWNED_COST_SELECT })
+    ? await db.cost.findMany({ where: { ownerType: "TRANSPORT", ownerId: before.id }, select: OWNED_COST_SELECT })
     : [];
   const inlineCost = completeInlineCost(patch, owned);
   if (inlineCost && "success" in inlineCost) return inlineCost;
@@ -368,52 +313,152 @@ export async function updateTransport(
   );
   if (stopError) return stopError;
 
-  // Interpret wall-time strings in the endpoint Stop's timezone, or the
-  // Trip's Home timezone for a Home end (P0-1; home-timezone-departure-points).
-  const endpointIds = [fromStopId, toStopId].filter((v): v is string => v !== null);
-  const endpointStops = endpointIds.length
-    ? await db.stop.findMany({ where: { id: { in: endpointIds } }, select: { id: true, timezone: true } })
-    : [];
-  const tzOf = (id: string | null | undefined) =>
-    id ? endpointStops.find((s) => s.id === id)?.timezone ?? null : null;
-  const home = depIsHome || arrIsHome
-    ? await db.trip.findUnique({ where: { id: transport.tripId }, select: { homeTimezone: true } })
-    : null;
+  const kinds = { fromStopId, toStopId, depIsHome, arrIsHome };
+  const readZones = await wallZones(transport.tripId, kinds);
   // Home endpoints are not looked up — coords resolve from the trip at read time.
   const ends = await endPlaces(data, { depPlace, arrPlace }, before);
-  const zones = placeEndZones({ fromStopId, toStopId, depIsHome, arrIsHome }, ends, before, {
+  const zones = placeEndZones(kinds, ends, before, {
     depPlace,
     arrPlace,
     depPick: depPlace ? pickedPlace({ placeId: data.depPlaceId, lat: data.depLat, lng: data.depLng }) : null,
     arrPick: arrPlace ? pickedPlace({ placeId: data.arrPlaceId, lat: data.arrLat, lng: data.arrLng }) : null,
   });
-  const { fromTimezone, toTimezone } = endZones({ fromStopId, toStopId, ...zones }, tzOf);
-  const { depTz, arrTz } = resolveEndpointZones(fromTimezone, toTimezone, {
-    depIsHome,
-    arrIsHome,
-    homeTimezone: home?.homeTimezone ?? null,
-  });
-  const depAtInstant = wallTimeToInstant(data.depAt, depTz);
-  const arrAtInstant = wallTimeToInstant(data.arrAt, arrTz);
+  const { depTz, arrTz } = readZones(zones);
+  const times = { depAt: wallTimeToInstant(data.depAt, depTz), arrAt: wallTimeToInstant(data.arrAt, arrTz) };
+  return { columns: rowColumns(data, { ...kinds, anchorStopId, depPlace, arrPlace }, times, ends, zones, booking), arrTz, data, owned };
+}
 
-  await auditedUpdate("TRANSPORT", db.transport, transportId, {
-    mode: data.mode,
-    depIsHome,
-    arrIsHome,
-    fromStopId,
-    toStopId,
-    anchorStopId,
-    depPlace,
-    depAt: depAtInstant,
-    arrPlace,
-    arrAt: arrAtInstant,
-    reference: data.reference ?? null,
-    ...detailColumns(data),
-    notes: data.notes ?? null,
-    ...ends,
-    ...zones,
-    ...booking,
-  }, transport.forkId ?? null, { before });
+type InlineCostFields = Pick<TransportInput, "costMinor" | "currency" | "paidMinor" | "paidAt" | "settlement">;
+type InlineCostRate = Awaited<ReturnType<typeof resolveRateForTrip>>;
+
+// Resolve the FX rate BEFORE opening a transaction (network must not hold a
+// DB transaction open — ADR 0007).
+async function inlineCostRate(tripId: string, data: InlineCostFields): Promise<InlineCostRate | null> {
+  if (data.costMinor === undefined || !data.currency) return null;
+  const trip = await db.trip.findUnique({
+    where: { id: tripId },
+    select: { homeCurrency: true },
+  });
+  return trip ? resolveRateForTrip(tripId, data.currency, trip.homeCurrency, { db }) : null;
+}
+
+async function writeInlineCostTx(
+  tx: Prisma.TransactionClient,
+  cost: { tripId: string; plan: PlanId; ownerId: string; data: InlineCostFields; existing: readonly OwnedCostRow[]; rate: InlineCostRate },
+) {
+  const { tripId, plan, ownerId, data, existing, rate } = cost;
+  if (rate.persist) {
+    await persistRate(tx, tripId, rate.persist);
+  }
+  if (existing.length === 0) {
+    await tx.cost.create({
+      data: {
+        tripId,
+        forkId: plan,
+        ownerType: "TRANSPORT",
+        ownerId,
+        costMinor: data.costMinor!,
+        paidMinor: data.paidMinor ?? null,
+        currency: data.currency!,
+        rateToHome: rate.rate,
+        paidAt: data.paidAt ? new Date(data.paidAt) : null,
+        label: null,
+        category: null,
+        settlement: data.settlement ?? "BEFORE",
+      },
+    });
+  } else {
+    // exactly 1 existing cost. paidMinor is included only when the
+    // caller actually provided a value — un-ticking Paid sends
+    // paidMinor: undefined (never null) so the paid amount survives
+    // as history (CONTEXT.md "Paid"); omitting the key here leaves
+    // Prisma's existing value untouched instead of nulling it out.
+    await tx.cost.update({
+      where: { id: existing[0].id },
+      data: {
+        costMinor: data.costMinor!,
+        currency: data.currency!,
+        rateToHome: rate.rate,
+        paidAt: data.paidAt ? new Date(data.paidAt) : null,
+        ...(data.paidMinor !== undefined && { paidMinor: data.paidMinor }),
+        ...(data.settlement !== undefined && { settlement: data.settlement }),
+      },
+    });
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Actions
+// ---------------------------------------------------------------------------
+
+/**
+ * Create a new transport for a trip.
+ *
+ * sortOrder = max existing + 1.
+ * If fromStopId/toStopId are provided they must belong to the same trip.
+ */
+export async function createTransport(
+  tripId: string,
+  input: TransportInput,
+  forkId?: PlanId,
+  importZones?: { depTimezone?: string; arrTimezone?: string },
+): Promise<ActionResult<{ id: string }>> {
+  const { plan } = await requirePlanAccess(tripId, forkId);
+
+  const parsed = transportSchema.safeParse(input);
+  if (!parsed.success) {
+    return validationResult(parsed.error);
+  }
+
+  const data = parsed.data;
+  const row = await prepareCreateRow(tripId, plan, data, importZones);
+  if ("success" in row) return row;
+
+  // Determine sort order
+  const maxTransport = await db.transport.findFirst({
+    where: { tripId, ...planScope(plan) },
+    orderBy: { sortOrder: "desc" },
+    select: { sortOrder: true },
+  });
+  const sortOrder = (maxTransport?.sortOrder ?? -1) + 1;
+
+  const created = await db.transport.create({
+    data: { tripId, forkId: plan, ...row.columns, sortOrder },
+  });
+  // F4: a dated return leg can push the soft end to the day it lands home
+  // (real plan only; never shrinks — the helper's write is conditional).
+  const grownTo = await growTripEndTx(db, tripId, plan);
+
+  // If an inline cost was supplied, create a single transport-owned Cost.
+  const rate = await inlineCostRate(tripId, data);
+  if (rate) {
+    await db.$transaction((tx) => writeInlineCostTx(tx, { tripId, plan, ownerId: created.id, data, existing: [], rate }));
+  }
+
+  await recordPlanActivity(plan, { tripId, verb: "CREATED", entityType: "TRANSPORT", entityId: created.id, entityLabel: entityLabel("TRANSPORT", created) });
+  revalidateTrip(tripId, "plan", "money", ...tripWindowScopes(grownTo));
+  return { success: true, id: created.id };
+}
+
+/**
+ * Update a Transport (PATCH, ADR 0075): merges onto the held row
+ * (`lib/transport-patch.ts` — the endpoint rules); an inline Cost completes
+ * from its single owned Cost.
+ *
+ * Looks up the transport → requireTripAccess(transport.tripId).
+ */
+export async function updateTransport(
+  transportId: string,
+  patch: TransportPatch,
+): Promise<TransportActionResult> {
+  const transport = await requireTransportAccess(transportId);
+  const before = await db.transport.findUnique({ where: { id: transportId } });
+  if (!before) notFound();
+
+  const row = await prepareUpdateRow(transport, before, patch);
+  if ("success" in row) return row;
+
+  await auditedUpdate("TRANSPORT", db.transport, transportId, row.columns, transport.forkId ?? null, { before });
   // F4: re-dating (or re-homing) a leg can push the soft end to the day it lands home.
   const grownTo = await growTripEndTx(db, transport.tripId, transport.forkId ?? null);
 
@@ -422,64 +467,182 @@ export async function updateTransport(
   // 1 existing cost + amount provided → update it
   // >1 existing costs → refused above (completeInlineCost); CostEditor is authoritative
   // No amount provided → skip
-  if (data.costMinor !== undefined && data.currency) {
-    // Loaded above whenever the patch touches the Cost — the only way
-    // costMinor/currency reach `data`.
-    const existingCosts = owned;
-
-    if (existingCosts.length <= 1) {
-      const trip = await db.trip.findUnique({
-        where: { id: transport.tripId },
-        select: { homeCurrency: true },
-      });
-      if (trip) {
-        const resolved = await resolveRateForTrip(transport.tripId, data.currency, trip.homeCurrency, { db });
-        await db.$transaction(async (tx) => {
-          if (resolved.persist) {
-            await persistRate(tx, transport.tripId, resolved.persist);
-          }
-          if (existingCosts.length === 0) {
-            await (tx as typeof db).cost.create({
-              data: {
-                tripId: transport.tripId,
-                forkId: transport.forkId ?? null,
-                ownerType: "TRANSPORT",
-                ownerId: transportId,
-                costMinor: data.costMinor!,
-                paidMinor: data.paidMinor ?? null,
-                currency: data.currency!,
-                rateToHome: resolved.rate,
-                paidAt: data.paidAt ? new Date(data.paidAt) : null,
-                label: null,
-                category: null,
-                settlement: data.settlement ?? "BEFORE",
-              },
-            });
-          } else {
-            // exactly 1 existing cost. paidMinor is included only when the
-            // caller actually provided a value — un-ticking Paid sends
-            // paidMinor: undefined (never null) so the paid amount survives
-            // as history (CONTEXT.md "Paid"); omitting the key here leaves
-            // Prisma's existing value untouched instead of nulling it out.
-            await (tx as typeof db).cost.update({
-              where: { id: existingCosts[0].id },
-              data: {
-                costMinor: data.costMinor!,
-                currency: data.currency!,
-                rateToHome: resolved.rate,
-                paidAt: data.paidAt ? new Date(data.paidAt) : null,
-                ...(data.paidMinor !== undefined && { paidMinor: data.paidMinor }),
-                ...(data.settlement !== undefined && { settlement: data.settlement }),
-              },
-            });
-          }
-        });
-      }
+  if (row.owned.length <= 1) {
+    const rate = await inlineCostRate(transport.tripId, row.data);
+    if (rate) {
+      await db.$transaction((tx) =>
+        writeInlineCostTx(tx, { tripId: transport.tripId, plan: transport.forkId ?? null, ownerId: transportId, data: row.data, existing: row.owned, rate }),
+      );
     }
   }
 
   revalidateTrip(transport.tripId, "plan", "money", ...tripWindowScopes(grownTo));
   return { success: true };
+}
+
+const DAY_MS = 24 * 60 * 60 * 1000;
+
+function layoverFieldRefusal(errors: FieldErrors, stopover: string): ActionFailure {
+  return fail(Object.fromEntries(Object.entries(errors).map(([key, messages]) =>
+    key === "place"
+      ? ["layoverPlace", [`Add where the ${stopover} is.`]]
+      : [`layover${key[0].toUpperCase()}${key.slice(1)}`, messages],
+  )));
+}
+
+function layoverTimeRefusals(
+  stopover: string,
+  t: { departs: Date | null; lands: Date | null; leaves: Date | null; arrives: Date | null },
+): FieldErrors | null {
+  const errors: FieldErrors = {};
+  const add = (key: string, message: string) => (errors[key] ??= []).push(message);
+  if (t.departs && t.lands && t.lands <= t.departs) add("layoverLandAt", "Landing must be after you depart.");
+  if (t.lands && t.leaves) {
+    if (t.leaves < t.lands) add("layoverLeaveAt", "You can't leave before you land.");
+    else if (t.leaves.getTime() - t.lands.getTime() >= DAY_MS) add("layoverLeaveAt", "A layover is under a day. For a longer stay, add a Stop.");
+  }
+  if (t.leaves && t.arrives && t.arrives <= t.leaves) add("layoverLeaveAt", `Arriving must be after you leave the ${stopover}.`);
+  return Object.keys(errors).length > 0 ? errors : null;
+}
+
+async function layoverTarget(target: { tripId: string; forkId?: string } | { transportId: string }) {
+  if ("tripId" in target) {
+    const { plan } = await requirePlanAccess(target.tripId, target.forkId);
+    return { tripId: target.tripId, plan, held: null };
+  }
+  const transport = await requireTransportAccess(target.transportId);
+  const before = await db.transport.findUnique({ where: { id: target.transportId } });
+  if (!before) notFound();
+  return { tripId: transport.tripId, plan: transport.forkId ?? null, held: { transport, before } };
+}
+
+async function prepareSecondRow(
+  tripId: string,
+  plan: PlanId,
+  journey: TransportInput,
+  layover: LayoverInput,
+  first: PreparedRow,
+  before: Transport | null,
+): Promise<ActionFailure | PreparedRow> {
+  const arrIsHome = journey.arrIsHome ?? false;
+  const ends: RowEnds = {
+    fromStopId: null,
+    depIsHome: false,
+    depPlace: first.columns.arrPlace,
+    toStopId: arrIsHome ? null : (journey.toStopId || null),
+    arrIsHome,
+    arrPlace: arrIsHome ? null : (journey.arrPlace || null),
+    anchorStopId: first.columns.anchorStopId,
+  };
+  const stopError = await validateStopBelongsToTrip(tripId, [ends.toStopId], plan);
+  if (stopError) return stopError;
+
+  const readZones = await wallZones(tripId, ends);
+  // An edit hands the journey's arrival end over from the edited row: held as that row held it.
+  const heldArrival = before && { ...before, depPlace: null, depLat: null, depLng: null, depPlaceId: null };
+  const resolved = await endPlaces(
+    { ...journey, depPlaceId: undefined, depLat: undefined, depLng: undefined },
+    { depPlace: null, arrPlace: ends.arrPlace },
+    heldArrival ?? undefined,
+  );
+  const { arrTimezone } = placeEndZones(ends, resolved, heldArrival ?? undefined, heldArrival ? {
+    depPlace: null,
+    arrPlace: ends.arrPlace,
+    depPick: null,
+    arrPick: ends.arrPlace ? pickedPlace({ placeId: journey.arrPlaceId, lat: journey.arrLat, lng: journey.arrLng }) : null,
+  } : undefined);
+  const places = {
+    ...resolved,
+    depLat: first.columns.arrLat,
+    depLng: first.columns.arrLng,
+    depPlaceId: first.columns.arrPlaceId,
+    depCountryCode: first.columns.arrCountryCode,
+    depRegion: first.columns.arrRegion,
+  };
+  const zones = { depTimezone: first.columns.arrTimezone, arrTimezone };
+  const { arrTz } = readZones(zones);
+  const { mode, reference, carrier, bookingState, bookingStateSet, bookBy } = first.columns;
+  const times = { depAt: wallTimeToInstant(layover.leaveAt, first.arrTz), arrAt: wallTimeToInstant(journey.arrAt, arrTz) };
+  const details = { carrier, serviceNumber: layover.serviceNumber?.trim(), seat: layover.seat?.trim() };
+  return {
+    columns: rowColumns({ mode, reference, ...details }, ends, times, places, zones, { bookingState, bookingStateSet, bookBy }),
+    arrTz,
+  };
+}
+
+export async function saveTransportWithLayover(
+  target: { tripId: string; forkId?: string } | { transportId: string },
+  input: TransportInput,
+  layover: LayoverInput,
+): Promise<ActionResult<{ firstId: string; secondId: string }>> {
+  const { tripId, plan, held } = await layoverTarget(target);
+
+  const parsed = transportSchema.safeParse(input);
+  if (!parsed.success) return validationResult(parsed.error);
+  const journey = parsed.data;
+  const stopover = journey.mode === "FLIGHT" ? "layover" : "change";
+  const parsedLayover = layoverSchema.safeParse(layover);
+  if (!parsedLayover.success) return layoverFieldRefusal(validationResult(parsedLayover.error).errors, stopover);
+  const stop = parsedLayover.data;
+
+  const pick = pickedPlace({ placeId: stop.placeId, lat: stop.lat, lng: stop.lng });
+  const firstInput: TransportInput = {
+    ...journey,
+    toStopId: undefined,
+    arrIsHome: false,
+    arrPlace: stop.place,
+    arrPlaceId: pick ? stop.placeId : undefined,
+    arrLat: pick ? stop.lat : undefined,
+    arrLng: pick ? stop.lng : undefined,
+    arrCountryCode: undefined,
+    arrRegion: undefined,
+    arrAt: stop.landAt,
+  };
+  const first: ActionFailure | PreparedUpdate = held
+    ? await prepareUpdateRow(held.transport, held.before, toPatch(firstInput, transportClearable(firstInput)))
+    : await prepareCreateRow(tripId, plan, firstInput).then((row) => ("success" in row ? row : { ...row, data: firstInput, owned: [] }));
+  if ("success" in first) return first;
+  const second = await prepareSecondRow(tripId, plan, journey, stop, first, held?.before ?? null);
+  if ("success" in second) return second;
+
+  const refusals = layoverTimeRefusals(stopover, {
+    departs: first.columns.depAt,
+    lands: first.columns.arrAt,
+    leaves: second.columns.depAt,
+    arrives: second.columns.arrAt,
+  });
+  if (refusals) return fail(refusals);
+
+  const rate = first.owned.length <= 1 ? await inlineCostRate(tripId, first.data) : null;
+
+  // Activity rows are written outside this transaction, so they wait for it to commit.
+  const saved = await db.$transaction(async (tx) => {
+    const locked = await lockPlanTransportsTx(tx, tripId, plan);
+    let firstRow: Transport;
+    if (held) {
+      firstRow = await tx.transport.update({ where: { id: held.before.id }, data: first.columns });
+      await tx.transport.updateMany({
+        where: { tripId, ...planScope(plan), sortOrder: { gt: held.before.sortOrder } },
+        data: { sortOrder: { increment: 1 } },
+      });
+    } else {
+      const sortOrder = Math.max(-1, ...locked.map((r) => r.sortOrder)) + 1;
+      firstRow = await tx.transport.create({ data: { tripId, forkId: plan, ...first.columns, sortOrder } });
+    }
+    const secondRow = await tx.transport.create({
+      data: { tripId, forkId: plan, ...second.columns, sortOrder: firstRow.sortOrder + 1 },
+    });
+    if (rate) await writeInlineCostTx(tx, { tripId, plan, ownerId: firstRow.id, data: first.data, existing: first.owned, rate });
+    const grownTo = await growTripEndTx(tx, tripId, plan);
+    return { firstRow, secondRow, grownTo };
+  });
+
+  const { firstRow, secondRow, grownTo } = saved;
+  if (held) await recordUpdate("TRANSPORT", { tripId, plan, entityId: firstRow.id, before: held.before, after: firstRow });
+  else await recordPlanActivity(plan, { tripId, verb: "CREATED", entityType: "TRANSPORT", entityId: firstRow.id, entityLabel: entityLabel("TRANSPORT", firstRow) });
+  await recordPlanActivity(plan, { tripId, verb: "CREATED", entityType: "TRANSPORT", entityId: secondRow.id, entityLabel: entityLabel("TRANSPORT", secondRow) });
+  revalidateTrip(tripId, "plan", "money", ...tripWindowScopes(grownTo));
+  return { success: true, firstId: firstRow.id, secondId: secondRow.id };
 }
 
 /**

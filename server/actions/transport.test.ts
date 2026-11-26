@@ -189,7 +189,9 @@ import {
   updateTransport,
   deleteTransport,
   reorderTransports,
+  saveTransportWithLayover,
 } from "./transport";
+import { isConnection, sameBooking } from "@/lib/connections";
 import { recordActivity } from "@/lib/activity-record";
 import { transportTimeDisplay } from "@/lib/time-display";
 import { endZones } from "@/lib/leg-zones";
@@ -2077,5 +2079,377 @@ describe("deleteTransport with refund answers", () => {
       },
     });
     expect(costDeleteManyMock).toHaveBeenCalledWith({ where: { id: { in: ["c2"] } } });
+  });
+});
+
+describe("saveTransportWithLayover", () => {
+  const DPS = { id: "stop-dps", tripId: "trip-1", forkId: null, timezone: "Asia/Makassar" };
+  const MUC = { id: "stop-muc", tripId: "trip-1", forkId: null, timezone: "Europe/Berlin" };
+  const JOURNEY = {
+    mode: "FLIGHT" as const,
+    fromStopId: "stop-dps",
+    toStopId: "stop-muc",
+    anchorStopId: "stop-dps",
+    depAt: "2026-12-05T19:00",
+    arrAt: "2026-12-06T06:45",
+    reference: "ABC123",
+    carrier: "Thai Airways",
+    serviceNumber: "TG 432",
+    seat: "12A",
+  };
+  const LAYOVER = {
+    place: "Bangkok (BKK)",
+    placeId: "bkk",
+    lat: 13.69,
+    lng: 100.7501,
+    landAt: "2026-12-05T22:15",
+    leaveAt: "2026-12-06T00:50",
+    serviceNumber: "TG 924",
+    seat: "44J",
+  };
+
+  type Row = Record<string, unknown> & { id: string; sortOrder: number };
+  let committed: Map<string, Row>;
+  let createdCount: number;
+  const txCreateMock = vi.fn();
+  const txUpdateMock = vi.fn();
+  const txUpdateManyMock = vi.fn();
+  const originalTransaction = transactionMock.getMockImplementation();
+  const originalFindUnique = transportFindUniqueMock.getMockImplementation();
+
+  const rows = () => [...committed.values()].sort((a, b) => a.sortOrder - b.sortOrder);
+  const transportCreatedId = () => `t-new-${++createdCount}`;
+
+  beforeEach(() => {
+    committed = new Map();
+    createdCount = 0;
+    stopFindManyMock.mockResolvedValue([DPS, MUC]);
+    tripFindUniqueMock.mockResolvedValue({ homeTimezone: "Australia/Brisbane", homeCurrency: "AUD" });
+    transportFindUniqueMock.mockImplementation(async (args?: { where: { id: string } }) => committed.get(args?.where.id ?? "t-edit") ?? null);
+    txCreateMock.mockReset();
+    txUpdateMock.mockReset();
+    txUpdateManyMock.mockReset();
+    transactionMock.mockImplementation(async (arg: unknown) => {
+      if (typeof arg !== "function") return originalTransaction!(arg);
+      const draft = new Map([...committed].map(([id, row]) => [id, { ...row }]));
+      txCreateMock.mockImplementation(async ({ data }: { data: Record<string, unknown> }) => {
+        const row = { id: transportCreatedId(), ...data } as Row;
+        draft.set(row.id, row);
+        return row;
+      });
+      txUpdateMock.mockImplementation(async ({ where, data }: { where: { id: string }; data: Record<string, unknown> }) => {
+        const row = { ...draft.get(where.id)!, ...data };
+        draft.set(where.id, row);
+        return row;
+      });
+      txUpdateManyMock.mockImplementation(async ({ where, data }: { where: { sortOrder: { gt: number } }; data: { sortOrder: { increment: number } } }) => {
+        let count = 0;
+        for (const row of draft.values()) {
+          if (row.sortOrder > where.sortOrder.gt) {
+            row.sortOrder += data.sortOrder.increment;
+            count++;
+          }
+        }
+        return { count };
+      });
+      const tx = {
+        $queryRaw: vi.fn(async () => [...draft.values()].map(({ id, sortOrder }) => ({ id, sortOrder }))),
+        transport: { create: txCreateMock, update: txUpdateMock, updateMany: txUpdateManyMock },
+        cost: { create: costCreateMock, update: costUpdateMock },
+      };
+      const out = await (arg as (tx: unknown) => unknown)(tx);
+      committed = draft;
+      return out;
+    });
+  });
+
+  afterEach(() => {
+    transactionMock.mockImplementation(originalTransaction!);
+    if (originalFindUnique) transportFindUniqueMock.mockImplementation(originalFindUnique);
+    else transportFindUniqueMock.mockReset();
+  });
+
+  const EXISTING: Row = {
+    id: "t-edit", tripId: "trip-1", forkId: null, mode: "FLIGHT",
+    fromStopId: "stop-dps", toStopId: "stop-muc", anchorStopId: "stop-dps", depIsHome: false, arrIsHome: false,
+    depPlace: null, arrPlace: null, depPlaceId: null, arrPlaceId: null, depLat: null, depLng: null, arrLat: null, arrLng: null,
+    depCountryCode: null, depRegion: null, arrCountryCode: null, arrRegion: null, depTimezone: null, arrTimezone: null,
+    depAt: new Date("2026-12-05T11:00:00Z"), arrAt: new Date("2026-12-06T05:45:00Z"),
+    reference: "ABC123", notes: "Window seat please", carrier: "Thai Airways", serviceNumber: "TG 432", seat: "12A",
+    terminal: null, gate: null, coach: null, platform: null,
+    bookingState: "BOOKED", bookingStateSet: false, bookBy: null, nothingToAttach: false, sortOrder: 3,
+  };
+
+  it("adding a journey with a layover saves two Transports", async () => {
+    const result = await saveTransportWithLayover({ tripId: "trip-1" }, JOURNEY, LAYOVER);
+
+    expect(result).toEqual({ success: true, firstId: "t-new-1", secondId: "t-new-2" });
+    const first = committed.get("t-new-1")!;
+    const second = committed.get("t-new-2")!;
+    expect(first).toMatchObject({
+      tripId: "trip-1", forkId: null, mode: "FLIGHT",
+      fromStopId: "stop-dps", toStopId: null, arrIsHome: false,
+      arrPlace: "Bangkok (BKK)", arrPlaceId: "bkk", arrLat: 13.69, arrLng: 100.7501,
+      depTimezone: null, arrTimezone: "Asia/Bangkok",
+      serviceNumber: "TG 432", seat: "12A",
+    });
+    expect((first.depAt as Date).toISOString()).toBe("2026-12-05T11:00:00.000Z");
+    expect((first.arrAt as Date).toISOString()).toBe("2026-12-05T15:15:00.000Z");
+    expect(second).toMatchObject({
+      tripId: "trip-1", forkId: null,
+      fromStopId: null, depIsHome: false, toStopId: "stop-muc",
+      depPlace: "Bangkok (BKK)", depPlaceId: "bkk", depLat: 13.69, depLng: 100.7501,
+      depTimezone: "Asia/Bangkok", arrTimezone: null,
+      serviceNumber: "TG 924", seat: "44J",
+      reference: first.reference, carrier: first.carrier, mode: first.mode, anchorStopId: first.anchorStopId,
+      bookingState: first.bookingState, bookingStateSet: first.bookingStateSet, bookBy: first.bookBy,
+      notes: null, terminal: null, gate: null,
+    });
+    expect((second.depAt as Date).toISOString()).toBe("2026-12-05T17:50:00.000Z");
+    expect((second.arrAt as Date).toISOString()).toBe("2026-12-06T05:45:00.000Z");
+    expect(second.sortOrder).toBe(first.sortOrder + 1);
+    const leg = (r: Row) => r as unknown as Parameters<typeof isConnection>[0];
+    expect(isConnection(leg(first), leg(second))).toBe(true);
+    expect(sameBooking(leg(first), leg(second))).toBe(true);
+    expect(transportCreateMock).not.toHaveBeenCalled();
+    expect(transportUpdateMock).not.toHaveBeenCalled();
+  });
+
+  it("looks the layover up once when it was typed rather than picked", async () => {
+    geocodePlaceMock.mockResolvedValue({ lat: 13.69, lng: 100.7501, placeId: "bkk-found", countryCode: "TH", region: "Bangkok" });
+
+    await saveTransportWithLayover({ tripId: "trip-1" }, JOURNEY, { ...LAYOVER, placeId: undefined, lat: undefined, lng: undefined });
+
+    expect(geocodePlaceMock).toHaveBeenCalledTimes(1);
+    const [first, second] = [committed.get("t-new-1")!, committed.get("t-new-2")!];
+    expect(first).toMatchObject({ arrPlaceId: "bkk-found", arrLat: 13.69, arrLng: 100.7501, arrCountryCode: "th", arrRegion: "Bangkok", arrTimezone: "Asia/Bangkok" });
+    expect(second).toMatchObject({ depPlaceId: "bkk-found", depLat: 13.69, depLng: 100.7501, depCountryCode: "th", depRegion: "Bangkok", depTimezone: "Asia/Bangkok" });
+  });
+
+  it("in a What-if plan both Transports are saved in that plan, and nothing is recorded", async () => {
+    stopFindManyMock.mockResolvedValue([{ ...DPS, forkId: "fork-1" }, { ...MUC, forkId: "fork-1" }]);
+
+    const result = await saveTransportWithLayover({ tripId: "trip-1", forkId: "fork-1" }, JOURNEY, LAYOVER);
+
+    expect(result.success).toBe(true);
+    expect(requirePlanAccessMock).toHaveBeenCalledWith("trip-1", "fork-1");
+    expect(rows().map((r) => r.forkId)).toEqual(["fork-1", "fork-1"]);
+    expect(stopFindManyMock).toHaveBeenCalledWith(expect.objectContaining({ where: expect.objectContaining({ forkId: "fork-1" }) }));
+    expect(recordActivity).not.toHaveBeenCalled();
+  });
+
+  it("refuses a journey Stop from another trip, and writes nothing", async () => {
+    stopFindManyMock.mockResolvedValue([DPS, { ...MUC, tripId: "trip-2" }]);
+
+    const result = await saveTransportWithLayover({ tripId: "trip-1" }, JOURNEY, LAYOVER);
+
+    expect(result.success).toBe(false);
+    expect(transactionMock).not.toHaveBeenCalled();
+  });
+
+  it("the Cost entered on the form goes on the first Transport only", async () => {
+    const result = await saveTransportWithLayover({ tripId: "trip-1" }, { ...JOURNEY, costMinor: 90000, currency: "AUD" }, LAYOVER);
+
+    expect(result.success).toBe(true);
+    expect(costCreateMock).toHaveBeenCalledTimes(1);
+    expect(costCreateMock).toHaveBeenCalledWith({
+      data: expect.objectContaining({ ownerType: "TRANSPORT", ownerId: "t-new-1", costMinor: 90000, currency: "AUD", forkId: null }),
+    });
+    expect(transactionMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("editing an existing Transport turns it into the first of the two and keeps its Cost, files, notes and reminders", async () => {
+    committed.set("t-edit", { ...EXISTING });
+
+    const result = await saveTransportWithLayover({ transportId: "t-edit" }, { ...JOURNEY, notes: "Window seat please" }, LAYOVER);
+
+    expect(result).toEqual({ success: true, firstId: "t-edit", secondId: "t-new-1" });
+    expect(committed.size).toBe(2);
+    const first = committed.get("t-edit")!;
+    const second = committed.get("t-new-1")!;
+    expect(first).toMatchObject({
+      fromStopId: "stop-dps", toStopId: null, arrPlace: "Bangkok (BKK)", arrPlaceId: "bkk",
+      arrTimezone: "Asia/Bangkok", notes: "Window seat please", sortOrder: 3, serviceNumber: "TG 432",
+    });
+    expect((first.arrAt as Date).toISOString()).toBe("2026-12-05T15:15:00.000Z");
+    expect(second).toMatchObject({ depPlace: "Bangkok (BKK)", depTimezone: "Asia/Bangkok", toStopId: "stop-muc", notes: null, sortOrder: 4 });
+    expect((second.depAt as Date).toISOString()).toBe("2026-12-05T17:50:00.000Z");
+    expect(costCreateMock).not.toHaveBeenCalled();
+    expect(costUpdateMock).not.toHaveBeenCalled();
+    expect(attachmentFindManyMock).not.toHaveBeenCalled();
+    expect(attachmentDeleteManyMock).not.toHaveBeenCalled();
+    expect(noteDeleteManyMock).not.toHaveBeenCalled();
+    expect(txUpdateMock).toHaveBeenCalledTimes(1);
+    expect(txUpdateMock).toHaveBeenCalledWith(expect.objectContaining({ where: { id: "t-edit" } }));
+    const leg = (r: Row) => r as unknown as Parameters<typeof isConnection>[0];
+    expect(sameBooking(leg(first), leg(second))).toBe(true);
+  });
+
+  it("editing a Transport with a paid Cost updates that Cost in place and gives the second none", async () => {
+    committed.set("t-edit", { ...EXISTING });
+    costFindManyMock.mockResolvedValueOnce([
+      { id: "cost-9", costMinor: 90000, currency: "AUD", paidMinor: 90000, paidAt: new Date("2026-10-01"), refundMinor: null, refundedAt: null },
+    ]);
+
+    const result = await saveTransportWithLayover(
+      { transportId: "t-edit" },
+      { ...JOURNEY, costMinor: 90000, currency: "AUD", paidMinor: 90000, paidAt: "2026-10-01" },
+      LAYOVER,
+    );
+
+    expect(result.success).toBe(true);
+    expect(costCreateMock).not.toHaveBeenCalled();
+    expect(costUpdateMock).toHaveBeenCalledTimes(1);
+    expect(costUpdateMock).toHaveBeenCalledWith(expect.objectContaining({ where: { id: "cost-9" } }));
+    expect(costUpdateMock.mock.calls[0][0].data).not.toHaveProperty("ownerId");
+  });
+
+  it("a journey home: the second Transport arrives Home, the first does not", async () => {
+    const result = await saveTransportWithLayover(
+      { tripId: "trip-1" },
+      { ...JOURNEY, toStopId: undefined, arrIsHome: true, arrAt: "2026-12-06T10:00" },
+      LAYOVER,
+    );
+
+    expect(result.success).toBe(true);
+    const first = committed.get("t-new-1")!;
+    const second = committed.get("t-new-2")!;
+    expect(first).toMatchObject({ arrIsHome: false, toStopId: null, arrPlace: "Bangkok (BKK)" });
+    expect(second).toMatchObject({ arrIsHome: true, toStopId: null, arrPlace: null, depPlace: "Bangkok (BKK)" });
+    expect((second.arrAt as Date).toISOString()).toBe("2026-12-06T00:00:00.000Z");
+  });
+
+  it("the second lands directly after the first and later Transports in the slot keep their order", async () => {
+    committed.set("t-before", { ...EXISTING, id: "t-before", sortOrder: 2 });
+    committed.set("t-edit", { ...EXISTING });
+    committed.set("t-later-a", { ...EXISTING, id: "t-later-a", sortOrder: 4 });
+    committed.set("t-later-b", { ...EXISTING, id: "t-later-b", sortOrder: 5 });
+
+    await saveTransportWithLayover({ transportId: "t-edit" }, JOURNEY, LAYOVER);
+
+    expect(rows().map((r) => [r.id, r.sortOrder])).toEqual([
+      ["t-before", 2],
+      ["t-edit", 3],
+      ["t-new-1", 4],
+      ["t-later-a", 5],
+      ["t-later-b", 6],
+    ]);
+    expect(txUpdateManyMock).toHaveBeenCalledWith({
+      where: { tripId: "trip-1", forkId: null, sortOrder: { gt: 3 } },
+      data: { sortOrder: { increment: 1 } },
+    });
+  });
+
+  describe("nothing is saved when the second write fails", () => {
+    const failSecondCreate = () => {
+      const create = txCreateMock.getMockImplementation()!;
+      let calls = 0;
+      txCreateMock.mockImplementation(async (args: { data: Record<string, unknown> }) => {
+        if (args.data.toStopId === "stop-muc" && ++calls === 1) throw new Error("Foreign key constraint violated: toStopId");
+        return create(args);
+      });
+    };
+
+    beforeEach(() => {
+      const begin = transactionMock.getMockImplementation()!;
+      transactionMock.mockImplementation(async (arg: unknown) => begin(async (tx: unknown) => {
+        failSecondCreate();
+        return (arg as (tx: unknown) => unknown)(tx);
+      }));
+    });
+
+    it("on add, no Transport exists", async () => {
+      await expect(saveTransportWithLayover({ tripId: "trip-1" }, { ...JOURNEY, costMinor: 90000, currency: "AUD" }, LAYOVER)).rejects.toThrow();
+
+      expect(committed.size).toBe(0);
+      expect(transportCreateMock).not.toHaveBeenCalled();
+      expect(recordActivity).not.toHaveBeenCalled();
+      expect(revalidateTripMock).not.toHaveBeenCalled();
+    });
+
+    it("on edit, the existing row is unchanged", async () => {
+      committed.set("t-edit", { ...EXISTING });
+      committed.set("t-later", { ...EXISTING, id: "t-later", sortOrder: 4 });
+
+      await expect(saveTransportWithLayover({ transportId: "t-edit" }, JOURNEY, LAYOVER)).rejects.toThrow();
+
+      expect(committed.get("t-edit")).toEqual(EXISTING);
+      expect(committed.get("t-later")!.sortOrder).toBe(4);
+      expect(committed.size).toBe(2);
+      expect(transportUpdateMock).not.toHaveBeenCalled();
+      expect(recordActivity).not.toHaveBeenCalled();
+    });
+  });
+
+  describe("refusals", () => {
+    const refused = async (journey: Partial<typeof JOURNEY>, layover: Partial<typeof LAYOVER>) => {
+      const result = await saveTransportWithLayover({ tripId: "trip-1" }, { ...JOURNEY, ...journey }, { ...LAYOVER, ...layover });
+      expect(transactionMock).not.toHaveBeenCalled();
+      expect(committed.size).toBe(0);
+      return result;
+    };
+
+    it("missing place", async () => {
+      expect(await refused({}, { place: " ", placeId: undefined, lat: undefined, lng: undefined })).toEqual({
+        success: false, errors: { layoverPlace: ["Add where the layover is."] },
+      });
+    });
+
+    it("missing place on a train says change", async () => {
+      expect(await refused({ mode: "TRAIN" as never }, { place: "" })).toEqual({
+        success: false, errors: { layoverPlace: ["Add where the change is."] },
+      });
+    });
+
+    it("landing not after departure", async () => {
+      expect(await refused({}, { landAt: "2026-12-05T18:00" })).toEqual({
+        success: false, errors: { layoverLandAt: ["Landing must be after you depart."] },
+      });
+    });
+
+    it("leaving before landing", async () => {
+      expect(await refused({}, { leaveAt: "2026-12-05T21:00" })).toEqual({
+        success: false, errors: { layoverLeaveAt: ["You can't leave before you land."] },
+      });
+    });
+
+    it("arriving not after leaving", async () => {
+      expect(await refused({}, { leaveAt: "2026-12-06T13:00" })).toEqual({
+        success: false, errors: { layoverLeaveAt: ["Arriving must be after you leave the layover."] },
+      });
+    });
+
+    it("arriving not after leaving, on a train, says change", async () => {
+      expect(await refused({ mode: "TRAIN" as never }, { leaveAt: "2026-12-06T13:00" })).toEqual({
+        success: false, errors: { layoverLeaveAt: ["Arriving must be after you leave the change."] },
+      });
+    });
+
+    it("a wait of a day or more", async () => {
+      expect(await refused({ arrAt: "2026-12-07T06:45" }, { leaveAt: "2026-12-06T22:15" })).toEqual({
+        success: false, errors: { layoverLeaveAt: ["A layover is under a day. For a longer stay, add a Stop."] },
+      });
+    });
+  });
+
+  it("both writes are audited, and the trip is revalidated once", async () => {
+    await saveTransportWithLayover({ tripId: "trip-1" }, JOURNEY, LAYOVER);
+
+    expect(recordActivity).toHaveBeenCalledTimes(2);
+    expect(recordActivity).toHaveBeenCalledWith(expect.objectContaining({ verb: "CREATED", entityType: "TRANSPORT", entityId: "t-new-1" }));
+    expect(recordActivity).toHaveBeenCalledWith(expect.objectContaining({ verb: "CREATED", entityType: "TRANSPORT", entityId: "t-new-2" }));
+    expect(revalidateTripMock).toHaveBeenCalledTimes(1);
+    expect(revalidateTripMock).toHaveBeenCalledWith("trip-1", "plan", "money");
+  });
+
+  it("an edit is audited as an update of the existing Transport and a new one", async () => {
+    committed.set("t-edit", { ...EXISTING });
+
+    await saveTransportWithLayover({ transportId: "t-edit" }, JOURNEY, LAYOVER);
+
+    expect(recordActivity).toHaveBeenCalledTimes(2);
+    expect(recordActivity).toHaveBeenCalledWith(expect.objectContaining({ verb: "UPDATED", entityType: "TRANSPORT", entityId: "t-edit" }));
+    expect(recordActivity).toHaveBeenCalledWith(expect.objectContaining({ verb: "CREATED", entityType: "TRANSPORT", entityId: "t-new-1" }));
+    expect(revalidateTripMock).toHaveBeenCalledTimes(1);
   });
 });
