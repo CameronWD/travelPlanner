@@ -6,7 +6,9 @@ const PARIS = { id: "p", name: "Paris", timezone: "Europe/Paris", arriveDate: "2
 const ROME = { id: "r", name: "Rome", timezone: "Europe/Rome", arriveDate: "2026-12-15", departDate: "2026-12-22" };
 const FLORENCE = { id: "f", name: "Florence", timezone: "Europe/Rome", arriveDate: "2026-12-22", departDate: "2026-12-27" };
 const MUNICH = { id: "m", name: "Munich", timezone: null, arriveDate: null, departDate: null };
-const STOPS = [PARIS, ROME, FLORENCE, MUNICH];
+const BNE = { id: "bne", name: "Brisbane", timezone: "Australia/Brisbane", arriveDate: "2026-12-01", departDate: "2026-12-05" };
+const TWD = { id: "twd", name: "Tweed Heads", timezone: "Australia/Sydney", arriveDate: "2026-12-05", departDate: "2026-12-08" };
+const STOPS = [PARIS, ROME, FLORENCE, MUNICH, BNE, TWD];
 
 describe("placeCode", () => {
   it("pulls a three-letter code out of a place, else keeps the place", () => {
@@ -187,5 +189,32 @@ describe("legSlotKind", () => {
     expect(legSlotKind(PARIS, ROME, 0)).toBe("missing");
     expect(legSlotKind(FLORENCE, MUNICH, 0)).toBe("line");
     expect(legSlotKind(MUNICH, MUNICH, 2)).toBe("legs");
+  });
+});
+
+describe("legLabel drive line", () => {
+  const drive = { mode: "CAR", fromStopId: "bne", toStopId: "twd", depAt: new Date("2026-12-04T23:00:00Z"), arrAt: new Date("2026-12-05T00:00:00Z"), driveTime: { minutes: 72, roadKm: 95, estimated: false } } as const;
+  it("a timed drive keeps its times and gains the drive line, short when the times allow less", () => {
+    const l = legLabel(drive, STOPS);
+    expect(l.arrival).toBe("→ 11:00 · 1h");
+    expect(l.drive).toEqual({ text: "95 km · about 1h 12m driving", tooShort: true });
+    expect(l.accessibleName).toContain("95 km · about 1h 12m driving.");
+  });
+  it("an estimated drive line is never short", () => {
+    expect(legLabel({ ...drive, driveTime: { ...drive.driveTime, estimated: true } }, STOPS).drive).toEqual({ text: "95 km · about 1h 12m driving (estimated)", tooShort: false });
+  });
+  it("times that allow the drive are not short", () => {
+    expect(legLabel({ ...drive, arrAt: new Date("2026-12-05T01:00:00Z") }, STOPS).drive?.tooShort).toBe(false);
+  });
+  it("a drive with a departure but no arrival shows the line and never the warning", () => {
+    expect(legLabel({ ...drive, arrAt: null }, STOPS).drive).toEqual({ text: "95 km · about 1h 12m driving", tooShort: false });
+  });
+  it("a drive with no times reads exactly as before and has no drive line", () => {
+    const l = legLabel({ mode: "CAR", fromStopId: "bne", toStopId: "twd", driveTime: drive.driveTime, driveEstimate: drive.driveTime }, STOPS);
+    expect(l.sub).toBe("1h 12m · 95 km");
+    expect(l.drive).toBeUndefined();
+  });
+  it("a timed train has no drive line", () => {
+    expect(legLabel({ ...drive, mode: "TRAIN" }, STOPS).drive).toBeUndefined();
   });
 });

@@ -13,8 +13,8 @@ import { ItineraryManager } from "@/components/trip/itinerary-manager";
 import type { TransportMode } from "@/lib/enum-values";
 import type { NoteView } from "@/components/trip/note-thread";
 import type { AttachmentView } from "@/components/trip/attachment-list";
-import { estimateRoadKm } from "@/lib/geo";
-import { carLegs, hopStopsById, homePointOf, resolveDriveLeg, routeLegPaths, toPlanTransport } from "@/lib/travel-times/hops";
+import { carLegs, hopStopsById, homePointOf, resolveDriveLeg, routeLegPaths, samePoint, toPlanTransport } from "@/lib/travel-times/hops";
+import { driveTimeOf } from "@/lib/travel-times/drive-fit";
 import { loadTravelLookupFor } from "@/lib/travel-times/read";
 import { summarizePlan, showFitTile } from "@/lib/plan-overview";
 import { resolveTripDeadline } from "@/lib/trip-deadline";
@@ -306,7 +306,10 @@ export default async function TripPlanPage({
   const driveLegs = new Map(
     carLegs(transports.map(toPlanTransport), hopStopsById(rows.stops), homePointOf(trip)).map((leg) => [
       leg.transportId,
-      resolveDriveLeg(leg.from, leg.to, travel, { windingFactor, avgSpeedKph: trip.drivingAvgSpeedKph ?? 80 }),
+      {
+        hop: resolveDriveLeg(leg.from, leg.to, travel, { windingFactor, avgSpeedKph: trip.drivingAvgSpeedKph ?? 80 }),
+        samePoint: samePoint(leg.from, leg.to),
+      },
     ]),
   );
 
@@ -442,20 +445,15 @@ export default async function TripPlanPage({
               initialTransports={transports.map((t) => {
                 const hasTimes = t.depAt != null && t.arrAt != null;
                 const leg = driveLegs.get(t.id);
-                const driveEstimate =
-                  t.mode === "CAR" && !hasTimes && leg
-                    ? {
-                        minutes: Math.round(leg.minutes),
-                        roadKm: Math.round(leg.estimated ? estimateRoadKm(leg.distanceKm, windingFactor) : leg.distanceKm),
-                        estimated: leg.estimated,
-                      }
-                    : null;
+                const driveEstimate = t.mode === "CAR" && !hasTimes && leg ? driveTimeOf(leg.hop, windingFactor) : null;
+                const driveTime = t.mode === "CAR" && leg && !leg.samePoint ? driveTimeOf(leg.hop, windingFactor) : null;
                 return {
                   ...t,
                   mode: t.mode as TransportMode,
                   anchorStopId: t.anchorStopId,
                   costs: costsByOwnerId.get(t.id) ?? [],
                   driveEstimate,
+                  driveTime,
                 };
               })}
             />

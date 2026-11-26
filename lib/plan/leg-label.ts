@@ -5,6 +5,7 @@ import { transportDetailsLine, type TransportDetails } from "@/lib/transport-det
 import { transportTimeDisplay } from "@/lib/time-display";
 import { endZones } from "@/lib/leg-zones";
 import { formatDayLabel } from "@/lib/dates";
+import { driveFit, planDriveLine, type DriveTime } from "@/lib/travel-times/drive-fit";
 
 export interface LegTransport extends TransportDetails {
   mode: TransportMode;
@@ -20,6 +21,7 @@ export interface LegTransport extends TransportDetails {
   arrTimezone?: string | null;
   reference?: string | null;
   driveEstimate?: { minutes: number; roadKm: number; estimated: boolean } | null;
+  driveTime?: DriveTime | null;
 }
 
 export interface LegStop {
@@ -38,6 +40,7 @@ export interface LegLabel {
   accessibleName: string;
   arrival: string;
   detail: string;
+  drive?: { text: string; tooShort: boolean };
 }
 
 const SPOKEN_DAY = new Intl.DateTimeFormat("en-GB", { weekday: "long", day: "numeric", month: "long", timeZone: "UTC" });
@@ -97,6 +100,7 @@ export function legLabel(
   let spoken = "";
   let arrival = "";
   let arrivalSpoken = "";
+  let drive: LegLabel["drive"];
   if (t.depAt) {
     if (fromShort && toShort) {
       const e = ends(fromShort, toShort);
@@ -121,6 +125,10 @@ export function legLabel(
       const plus = dayDelta === 0 ? "" : ` ${dayDelta > 0 ? "+" : "−"}${Math.abs(dayDelta)}`;
       arrival = `→ ${arr.time}${plus}${mins ? ` · ${formatDuration(mins)}` : ""}`;
       arrivalSpoken = ` Arrives ${arr.time}${plus}.`;
+    }
+    if (isCar && t.driveTime) {
+      drive = { text: planDriveLine(t.driveTime), tooShort: driveFit(t.driveTime, t.depAt, t.arrAt ?? null).tooShort };
+      arrivalSpoken += ` ${drive.text}.`;
     }
   } else if (isCar && t.driveEstimate) {
     sub = `${t.driveEstimate.estimated ? "~" : ""}${formatDuration(t.driveEstimate.minutes)} · ${t.driveEstimate.roadKm} km${t.driveEstimate.estimated ? " (estimated)" : ""}`;
@@ -147,6 +155,7 @@ export function legLabel(
     accessibleName: `${word}${route}${spoken ? `, ${spoken}` : ""}.${arrivalSpoken}${detail ? ` ${detail}.` : ""} Edit.`,
     arrival,
     detail,
+    ...(drive ? { drive } : {}),
   };
 }
 

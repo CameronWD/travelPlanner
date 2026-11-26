@@ -230,6 +230,7 @@ function TravelRowText({
         <BookingStateBadge state={bookingState} bookBy={bookBy} compact hidden className="ml-auto text-xs" />
       </span>
       {when ? <span data-travel-line="when" className="text-xs font-semibold tabular-nums text-foreground">{when}</span> : null}
+      {label.drive ? <span data-travel-line="drive" className={cn("text-xs tabular-nums", label.drive.tooShort ? "font-bold text-sun-text" : "font-medium text-muted-foreground")}>{label.drive.text}</span> : null}
       {label.detail ? <span data-travel-line="detail" className="break-words text-xs font-medium text-muted-foreground">
           {(() => {
             const parts = label.detail.split(" · ");
