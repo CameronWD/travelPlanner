@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { Paperclip, Plus } from "lucide-react";
+import { Clock, Paperclip, Plus } from "lucide-react";
 import { cn } from "@/lib/cn";
 import type { LegLabel } from "@/lib/plan/leg-label";
 import { BookingStateBadge } from "@/components/trip/booking-state-badge";
@@ -12,7 +12,7 @@ export interface LegRowProps {
   kind: "legs" | "missing" | "line";
   compact?: boolean;
   children?: React.ReactNode;
-  /** Per child, the finished line printed above it (`changeLabels` in lib/connections). Null/absent = nothing. */
+  /** Per child, the finished line (`changeLabels` in lib/connections). Non-null joins that card to the one above, with the line on the join. */
   changeovers?: readonly (string | null)[];
 }
 
@@ -26,6 +26,14 @@ export interface LegRowProps {
 export function LegRow({ kind, compact, children, changeovers }: LegRowProps) {
   const stations = React.Children.toArray(children);
   const legs = kind === "legs";
+  const runs: { node: React.ReactNode; key: React.Key; joined: boolean; changeover: string | null }[][] = [];
+  stations.forEach((node, i) => {
+    const changeover = changeovers?.[i] ?? null;
+    const joined = changeover !== null && i > 0;
+    const entry = { node, key: React.isValidElement(node) && node.key != null ? node.key : i, joined, changeover };
+    if (joined) runs[runs.length - 1].push(entry);
+    else runs.push([entry]);
+  });
   return (
     <div data-leg-kind={kind} className={cn("flex items-stretch", compact ? "min-h-10" : "min-h-[52px]")}>
       <span
@@ -43,52 +51,62 @@ export function LegRow({ kind, compact, children, changeovers }: LegRowProps) {
             legs ? (compact ? "ml-[31px] gap-3 py-4" : "ml-[35px] gap-3 py-5") : cn("gap-1.5 py-2", compact ? "ml-3" : "ml-[18px]"),
           )}
         >
-          {stations.map((node, i) => {
-            const changeover = changeovers?.[i] ?? null;
-            const label = React.isValidElement<LegPillProps>(node) ? node.props.label : null;
-            const Icon = label && !label.missing ? label.icon : null;
-            return (
-              <div
-                key={React.isValidElement(node) && node.key != null ? node.key : i}
-                data-leg-station
-                className="flex min-w-0 max-w-full flex-col items-start gap-0.5 max-md:w-full"
-              >
-                {changeover ? (
-                  <span data-changeover className="text-[11px] font-semibold leading-tight text-muted-foreground">
-                    {changeover}
-                  </span>
-                ) : null}
-                <div className="relative flex min-w-0 max-w-full max-md:w-full">
-                  {legs && label && !label.missing ? (
-                    // The marker sits on the connector, centred on the row. Row start
-                    // minus line centre: compact 53 - 21 = 32px, desktop 63 - 27 = 36px.
-                    // Tile edges 7..35 (compact) / 11..43; the stub fills tile edge to
-                    // row: 18px / 20px.
-                    <>
-                      <span
-                        data-station-stub
-                        aria-hidden
-                        className={cn("absolute top-1/2 h-0.5 -translate-y-1/2 bg-border", compact ? "left-[-18px] w-[18px]" : "left-[-20px] w-5")}
-                      />
-                      <span
-                        data-station-dot
-                        aria-hidden
-                        className={cn(
-                          "island absolute top-1/2 flex -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-lg bg-sun text-on-accent ring-2 ring-background",
-                          compact ? "left-[-32px] size-7" : "left-[-36px] size-8",
-                        )}
-                      >
-                        {Icon ? <Icon className="size-4" /> : null}
-                      </span>
-                    </>
-                  ) : null}
-                  {node}
-                </div>
-              </div>
-            );
-          })}
+          {runs.map((run) => (
+            <div key={run[0].key} data-leg-run className="flex min-w-0 max-w-full flex-col items-start max-md:w-full">
+              {run.map(({ node, key, joined, changeover }, n) => {
+                const label = React.isValidElement<LegPillProps>(node) ? node.props.label : null;
+                const Icon = label && !label.missing ? label.icon : null;
+                return (
+                  <div key={key} data-leg-station className="flex min-w-0 max-w-full flex-col items-start max-md:w-full">
+                    {joined && changeover ? <JourneyJoin label={changeover} compact={compact} /> : null}
+                    <div className="relative flex min-w-0 max-w-full max-md:w-full">
+                      {legs && n === 0 && label && !label.missing ? (
+                        // The marker sits on the connector, centred on the row. Row start
+                        // minus line centre: compact 53 - 21 = 32px, desktop 63 - 27 = 36px.
+                        // Tile edges 7..35 (compact) / 11..43; the stub fills tile edge to
+                        // row: 18px / 20px.
+                        <>
+                          <span
+                            data-station-stub
+                            aria-hidden
+                            className={cn("absolute top-1/2 h-0.5 -translate-y-1/2 bg-border", compact ? "left-[-18px] w-[18px]" : "left-[-20px] w-5")}
+                          />
+                          <span
+                            data-station-dot
+                            aria-hidden
+                            className={cn(
+                              "island absolute top-1/2 flex -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-lg bg-sun text-on-accent ring-2 ring-background",
+                              compact ? "left-[-32px] size-7" : "left-[-36px] size-8",
+                            )}
+                          >
+                            {Icon ? <Icon className="size-4" /> : null}
+                          </span>
+                        </>
+                      ) : null}
+                      {node}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          ))}
         </div>
       ) : null}
+    </div>
+  );
+}
+
+export function JourneyJoin({ label, compact }: { label: string; compact?: boolean }) {
+  return (
+    <div className={cn("relative flex w-full min-w-0 items-center", compact ? "h-6" : "h-7")}>
+      <span aria-hidden className="absolute inset-y-0 left-10 border-l-2 border-border" />
+      <span
+        data-changeover
+        className="relative z-10 ml-4 inline-flex min-w-0 max-w-[calc(100%-1rem)] cursor-default items-center gap-1.5 rounded-full border-2 border-border bg-background px-2.5 py-0.5 text-xs font-bold text-foreground"
+      >
+        <Clock className="size-3.5 shrink-0" aria-hidden />
+        {label}
+      </span>
     </div>
   );
 }

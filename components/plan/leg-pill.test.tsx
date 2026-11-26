@@ -123,20 +123,52 @@ describe("LegRow — metro line (spec 2026-10-05 §F)", () => {
     expect(container.querySelectorAll("[data-station-dot]")).toHaveLength(3);
   });
 
-  it("the line above a leg is printed as given", () => {
-    const { container } = render(
-      <LegRow kind="legs" changeovers={[null, "Layover in Bangkok · 2h 35m", null]}>
+  const JOURNEY = "Layover in Bangkok · 2h 35m";
+  const journey = (changeovers: (string | null)[], third = false) =>
+    render(
+      <LegRow kind="legs" changeovers={changeovers}>
         <LegPill key="a" label={TRAIN_A} onClick={vi.fn()} />
         <LegPill key="b" label={TRAIN_B} onClick={vi.fn()} />
-        <LegPill key="c" label={TRAIN_C} onClick={vi.fn()} />
+        {third ? <LegPill key="c" label={TRAIN_C} onClick={vi.fn()} /> : null}
       </LegRow>,
     );
+
+  it("a joined card has no marker of its own", () => {
+    const { container } = journey([null, JOURNEY]);
     const stations = [...container.querySelectorAll("[data-leg-station]")] as HTMLElement[];
-    const note = within(stations[1]).getByText("Layover in Bangkok · 2h 35m");
-    expect(note).toHaveAttribute("data-changeover");
-    expect(note.className).toContain("text-muted-foreground");
-    expect(stations[0].querySelector("[data-changeover]")).toBeNull();
-    expect(stations[2].querySelector("[data-changeover]")).toBeNull();
+    expect(container.querySelectorAll("[data-station-dot]")).toHaveLength(1);
+    expect(stations[0].querySelector("[data-station-dot]")).not.toBeNull();
+    expect(stations[1].querySelector("[data-station-dot]")).toBeNull();
+    expect(stations[1].querySelector("[data-station-stub]")).toBeNull();
+  });
+
+  it("the join carries the label in a pill with a clock", () => {
+    const { container } = journey([null, JOURNEY]);
+    const pill = container.querySelector("[data-changeover]") as HTMLElement;
+    expect(pill).toHaveTextContent(JOURNEY);
+    expect(pill.querySelector("svg[aria-hidden]")).not.toBeNull();
+    expect(pill.className).toContain("rounded-full");
+    expect(pill.className).toContain("border-border");
+    expect(pill.className).not.toContain("hover:");
+  });
+
+  it("an unjoined card after a journey keeps its own marker and gap", () => {
+    const { container } = journey([null, JOURNEY, null], true);
+    expect(container.querySelectorAll("[data-station-dot]")).toHaveLength(2);
+    const stations = [...container.querySelectorAll("[data-leg-station]")] as HTMLElement[];
+    expect(stations[2].querySelector("[data-station-dot]")).not.toBeNull();
+    expect(stations[2].closest("[data-leg-run]")).not.toBe(stations[1].closest("[data-leg-run]"));
+    expect(stations[0].closest("[data-leg-run]")).toBe(stations[1].closest("[data-leg-run]"));
+  });
+
+  it("the label is read between the two cards", () => {
+    const { container } = journey([null, JOURNEY]);
+    const nodes = [...container.querySelectorAll("button, [data-changeover]")];
+    expect(nodes.map((n) => n.getAttribute("data-changeover") !== null ? "join" : n.getAttribute("aria-label"))).toEqual([
+      TRAIN_A.accessibleName,
+      "join",
+      TRAIN_B.accessibleName,
+    ]);
   });
 
   it("an unknown change-over shows nothing", () => {
