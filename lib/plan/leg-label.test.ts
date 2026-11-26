@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { Car, Plane, Train } from "lucide-react";
-import { changeoverPlaces, legLabel, legSlotKind, missingLegLabel, placeCode } from "./leg-label";
+import { legLabel, legSlotKind, missingLegLabel, placeCode } from "./leg-label";
 
 const PARIS = { id: "p", name: "Paris", timezone: "Europe/Paris", arriveDate: "2026-12-10", departDate: "2026-12-15" };
 const ROME = { id: "r", name: "Rome", timezone: "Europe/Rome", arriveDate: "2026-12-15", departDate: "2026-12-22" };
@@ -105,6 +105,23 @@ describe("legLabel", () => {
   });
 });
 
+describe("legLabel at a place with its own zone", () => {
+  const DPS = { id: "dps", name: "Denpasar", timezone: "Asia/Makassar", arriveDate: "2026-12-01", departDate: "2026-12-05" };
+  const toBangkok = { mode: "FLIGHT" as const, fromStopId: "dps", arrPlace: "Bangkok (BKK)", depAt: new Date("2026-12-05T11:00:00Z"), arrAt: new Date("2026-12-05T15:15:00Z") };
+
+  it("a leg to a place with its own zone shows the arrival in that zone", () => {
+    const l = legLabel({ ...toBangkok, arrTimezone: "Asia/Bangkok" }, [DPS]);
+    expect(l.sub).toBe("Sat 5 Dec 19:00");
+    expect(l.arrival).toBe("→ 22:15 · 4h 15m");
+  });
+
+  it("a leg with no stored zone reads exactly as before", () => {
+    const l = legLabel({ ...toBangkok, arrTimezone: null }, [DPS]);
+    expect(l.sub).toBe("Sat 5 Dec 19:00");
+    expect(l.arrival).toBe("→ 23:15 · 4h 15m");
+  });
+});
+
 describe("legLabel arrival and detail", () => {
   const train = { mode: "TRAIN" as const, fromStopId: "r", toStopId: "f", depAt: new Date("2026-12-22T08:28:00Z"), arrAt: new Date("2026-12-22T12:05:00Z") };
   const flight = (arrAt: string) => ({ mode: "FLIGHT" as const, fromStopId: "p", toStopId: "r", depAt: new Date("2026-12-15T22:00:00Z"), arrAt: new Date(arrAt) });
@@ -170,42 +187,5 @@ describe("legSlotKind", () => {
     expect(legSlotKind(PARIS, ROME, 0)).toBe("missing");
     expect(legSlotKind(FLORENCE, MUNICH, 0)).toBe("line");
     expect(legSlotKind(MUNICH, MUNICH, 2)).toBe("legs");
-  });
-});
-
-describe("changeoverPlaces (spec 2026-10-05 §F)", () => {
-  it("names the place where one leg arrives and the next departs", () => {
-    expect(
-      changeoverPlaces([
-        { depPlace: "Paris Gare de Lyon", arrPlace: "Milano Centrale" },
-        { depPlace: "Milano Centrale", arrPlace: "Roma Termini" },
-      ]),
-    ).toEqual([null, "Milano Centrale"]);
-  });
-
-  it("matches trimmed and case-insensitively, showing the arriving leg's spelling", () => {
-    expect(changeoverPlaces([{ arrPlace: " Milano Centrale " }, { depPlace: "milano centrale" }])).toEqual([null, "Milano Centrale"]);
-  });
-
-  it("three legs: each change-over sits with the leg that leaves from it", () => {
-    expect(
-      changeoverPlaces([
-        { arrPlace: "Milano Centrale" },
-        { depPlace: "Milano Centrale", arrPlace: "Bologna" },
-        { depPlace: "Bologna" },
-      ]),
-    ).toEqual([null, "Milano Centrale", "Bologna"]);
-  });
-
-  it("unknown or mismatched places show nothing", () => {
-    expect(changeoverPlaces([{ arrPlace: "Milano Centrale" }, { depPlace: "Milano Rogoredo" }])).toEqual([null, null]);
-    expect(changeoverPlaces([{ arrPlace: null }, { depPlace: null }])).toEqual([null, null]);
-    expect(changeoverPlaces([{ arrPlace: "Milano Centrale" }, {}])).toEqual([null, null]);
-    expect(changeoverPlaces([{ arrPlace: "  " }, { depPlace: "  " }])).toEqual([null, null]);
-  });
-
-  it("a single leg or none has no change-over", () => {
-    expect(changeoverPlaces([{ depPlace: "CDG", arrPlace: "FCO" }])).toEqual([null]);
-    expect(changeoverPlaces([])).toEqual([]);
   });
 });

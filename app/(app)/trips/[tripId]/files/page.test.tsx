@@ -170,3 +170,21 @@ describe("Files — Surprise (CONTEXT.md \"Surprise\", ADR 0051)", () => {
     );
   });
 });
+
+describe("Files and one booking", () => {
+  it("lists a ticket of one booking once, under the Transport it is filed on", async () => {
+    const { db } = await import("@/lib/db");
+    (db.transport.findMany as ReturnType<typeof vi.fn>).mockResolvedValue([
+      { id: "t1", mode: "FLIGHT", fromStopId: "s1", toStopId: null, depPlace: null, arrPlace: "Bangkok", reference: "DHZU24", depAt: new Date("2030-06-05T03:00:00Z"), arrAt: new Date("2030-06-05T07:00:00Z") },
+      { id: "t2", mode: "FLIGHT", fromStopId: null, toStopId: "s2", depPlace: "Bangkok", arrPlace: null, reference: "DHZU24", depAt: new Date("2030-06-05T09:00:00Z"), arrAt: new Date("2030-06-05T20:00:00Z") },
+    ]);
+    (db.attachment.findMany as ReturnType<typeof vi.fn>).mockResolvedValue([
+      { id: "f1", filename: "eticket.pdf", title: null, mime: "application/pdf", size: 1, url: "/u/1", targetType: "TRANSPORT", targetId: "t2", uploadedById: "u1", createdAt: new Date() },
+    ]);
+    loadFileOwnersMock.mockResolvedValue(new Map([["TRANSPORT:t2", { label: "Flight Bangkok → Munich", href: null }]]));
+    render(await FilesPage({ params: Promise.resolve({ tripId: "t1" }) }));
+    expect(screen.getAllByText("eticket.pdf")).toHaveLength(1);
+    expect(screen.getByTestId("list-TRANSPORT")).toHaveTextContent("eticket.pdfFlight Bangkok → Munich");
+    (db.transport.findMany as ReturnType<typeof vi.fn>).mockResolvedValue([]);
+  });
+});

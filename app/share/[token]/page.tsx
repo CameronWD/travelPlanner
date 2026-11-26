@@ -48,7 +48,7 @@ import { RightNowCard, NextRow, type RightNowPlace } from "./right-now-card";
 import { ShareTally } from "./share-tally";
 import { ShareRouteList } from "./share-route-list";
 import { DayByDay, type DayByDayStop } from "./day-by-day";
-import { buildShareLeg } from "./share-leg";
+import { shareRouteLegs } from "./share-leg";
 import { stopSummary } from "./stop-summary";
 import { JournalPolaroids, buildJournalCards, type JournalPolaroidsProps } from "./journal-polaroids";
 import { ShareCta, ShareFooter } from "./share-cta";
@@ -201,6 +201,11 @@ export default async function SharePage({
             sortOrder: true,
             depIsHome: true,
             arrIsHome: true,
+            // Server-only: read into times and the Connection line here, never passed to a client component.
+            depTimezone: true,
+            arrTimezone: true,
+            depPlaceId: true,
+            arrPlaceId: true,
             depLat: true,
             depLng: true,
             arrLat: true,
@@ -363,6 +368,8 @@ export default async function SharePage({
       arrAt: t.arrAt,
       depIsHome: t.depIsHome,
       arrIsHome: t.arrIsHome,
+      depTimezone: t.depTimezone,
+      arrTimezone: t.arrTimezone,
     })),
     accommodations: accommodations.map((a) => ({
       id: a.id,
@@ -422,8 +429,8 @@ export default async function SharePage({
   // A Home end has no Stop of its own (CONTEXT.md "Home base"): its zone is
   // the Trip's `homeTimezone` — used only to compute times here, never
   // rendered as its own field (the Share link is public).
-  const zoneOfEnd = (stopId: string | null, isHome: boolean | null | undefined) =>
-    (isHome && trip.homeTimezone) || scheduled.find((s) => s.id === stopId)?.timezone || zone;
+  const zoneOfEnd = (stopId: string | null, isHome: boolean | null | undefined, placeZone?: string | null) =>
+    (isHome && trip.homeTimezone) || scheduled.find((s) => s.id === stopId)?.timezone || placeZone || zone;
 
   // ── Right now (During) ──
   let place: RightNowPlace = { kind: "none" };
@@ -434,7 +441,7 @@ export default async function SharePage({
       toName: to?.name ?? (leg.arrIsHome ? "home" : leg.arrPlace) ?? "the next stop",
       toHome: Boolean(leg.arrIsHome),
       mode: leg.mode,
-      landsAt: leg.arrAt ? instantToZonedTime(leg.arrAt, zoneOfEnd(leg.toStopId, leg.arrIsHome)) : null,
+      landsAt: leg.arrAt ? instantToZonedTime(leg.arrAt, zoneOfEnd(leg.toStopId, leg.arrIsHome, leg.arrTimezone)) : null,
     };
   } else if (currentStop) {
     place = {
@@ -455,7 +462,7 @@ export default async function SharePage({
     rightNowRows = [
       {
         key: `transport-departure-${leg.id}`,
-        time: leg.depAt ? instantToZonedTime(leg.depAt, zoneOfEnd(leg.fromStopId, leg.depIsHome)) : null,
+        time: leg.depAt ? instantToZonedTime(leg.depAt, zoneOfEnd(leg.fromStopId, leg.depIsHome, leg.depTimezone)) : null,
         title: `${MODE_LABELS[leg.mode] ?? "Transport"}${place.kind === "leg" && place.toHome ? " home" : toName ? ` to ${toName}` : ""}`,
         sub: null,
         kind: "transport",
@@ -486,13 +493,11 @@ export default async function SharePage({
 
   // ── The route ──
   const daysByStop = groupDaysByStop(itinerary, scheduled.map((s) => s.id));
+  const routeLegs = shareRouteLegs(
+    transports.map((t) => ({ ...t, mode: t.mode as TransportMode })),
+    { stops: scheduled, homeTimezone: trip.homeTimezone, zone },
+  );
   const dayStops: DayByDayStop[] = scheduled.map((s, i) => {
-    const following = scheduled[i + 1];
-    const t = following ? transports.find((tr) => tr.fromStopId === s.id && tr.toStopId === following.id) : undefined;
-    const legAfter =
-      t && following
-        ? buildShareLeg({ ...t, mode: t.mode as TransportMode }, { dep: zoneOfEnd(s.id, false), arr: zoneOfEnd(following.id, false) }, `${MODE_LABELS[t.mode] ?? "Transport"} to ${following.name}`)
-        : null;
     const days = (daysByStop.get(s.id) ?? []).map((day) => ({
         dateISO: day.dateISO,
         isToday: stage === "during" && day.dateISO === todayISO,
@@ -517,24 +522,12 @@ export default async function SharePage({
         includeDailyPlans: scope.includeDailyPlans,
         country: s.country,
       }),
-      legAfter,
+      legAfter: routeLegs.between[i] ?? null,
     };
   });
   const roughStops = stops
     .filter((s) => s.arriveDate === null || s.departDate === null)
     .map((s) => ({ id: s.id, name: s.name, country: s.country, nights: s.nights }));
-  const firstStop = scheduled[0];
-  const lastStop = scheduled[scheduled.length - 1];
-  const outbound = firstStop ? transports.find((t) => t.depIsHome && t.toStopId === firstStop.id) : undefined;
-  const homeOut =
-    outbound && firstStop
-      ? buildShareLeg({ ...outbound, mode: outbound.mode as TransportMode }, { dep: trip.homeTimezone ?? zoneOfEnd(firstStop.id, false), arr: zoneOfEnd(firstStop.id, false) }, `${MODE_LABELS[outbound.mode] ?? "Transport"} to ${firstStop.name}`, { hideDepPlace: true })
-      : null;
-  const inbound = lastStop ? transports.find((t) => t.arrIsHome && t.fromStopId === lastStop.id) : undefined;
-  const homeBack =
-    inbound && lastStop
-      ? buildShareLeg({ ...inbound, mode: inbound.mode as TransportMode }, { dep: zoneOfEnd(lastStop.id, false), arr: trip.homeTimezone ?? zoneOfEnd(lastStop.id, false) }, `${MODE_LABELS[inbound.mode] ?? "Transport"} home`, { hideArrPlace: true })
-      : null;
   // Computed here so the client's first render matches (current stop during,
   // first stop before, everything folded after).
   const initialOpenId =
@@ -664,8 +657,8 @@ export default async function SharePage({
         return <DayByDay
             stops={dayStops}
             initialOpenId={initialOpenId}
-            homeOut={homeOut}
-            homeBack={homeBack}
+            homeOut={routeLegs.out}
+            homeBack={routeLegs.back}
             homeName={homeMapPoint(trip)?.name ?? null}
             roughStops={roughStops}
           />;

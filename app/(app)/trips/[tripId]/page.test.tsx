@@ -561,6 +561,22 @@ describe("Trip Home, composed with its layout", () => {
       expect(screen.getByTestId("desktop-home").textContent).toContain("Mon 1 Jun · Sydney → Denpasar, Bali");
     });
 
+    it("dates a first leg leaving a place with its own zone in that zone", async () => {
+      mockDb.trip.findUnique.mockResolvedValue({ ...BASE_TRIP, ...FUTURE, homeName: "Sydney" });
+      mockDb.transport.findFirst.mockResolvedValue({
+        // 2099-06-01T20:00Z is Tue 2 Jun 03:00 in Bangkok.
+        depAt: new Date("2099-06-01T20:00:00Z"),
+        depPlace: "Bangkok (BKK)",
+        arrPlace: null,
+        depIsHome: false,
+        depTimezone: "Asia/Bangkok",
+        fromStop: null,
+        toStop: { name: "Denpasar, Bali" },
+      });
+      await renderTripHome();
+      expect(screen.getByTestId("desktop-home").textContent).toContain("Tue 2 Jun · Bangkok (BKK) → Denpasar, Bali");
+    });
+
     it("counts rough Chapters too in the countdown tile's Chapters stat", async () => {
       mockDb.trip.findUnique.mockResolvedValue({ ...BASE_TRIP, ...FUTURE });
       loaderData.current = {

@@ -150,6 +150,10 @@ export default async function CalendarPage({
         notes: t.notes,
         depIsHome: t.depIsHome,
         arrIsHome: t.arrIsHome,
+        depTimezone: t.depTimezone,
+        depPlaceId: t.depPlaceId,
+        arrPlaceId: t.arrPlaceId,
+        arrTimezone: t.arrTimezone,
       })),
       accommodations: accommodations.map((a) => ({
         id: a.id,

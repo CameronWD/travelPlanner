@@ -93,6 +93,7 @@ export interface BudgetTransport {
   depAt: Date | string | null;
   /** This departure is the Trip's Home base, not a Stop (spec 2026-10-14) — its cost day reads the Trip's homeTimezone. */
   depIsHome?: boolean | null;
+  depTimezone?: string | null;
 }
 
 // ---------------------------------------------------------------------------
@@ -800,12 +801,12 @@ function placeCostOnDays(
  * fromStop's timezone; else 'UTC'.
  */
 function getTransportTimezone(
-  transport: Pick<BudgetTransport, "fromStopId" | "depIsHome">,
+  transport: Pick<BudgetTransport, "fromStopId" | "depIsHome" | "depTimezone">,
   stopById: Record<string, BudgetStop>,
   homeTimezone?: string | null,
 ): string {
   if (transport.depIsHome && homeTimezone) return homeTimezone;
-  if (!transport.fromStopId) return "UTC";
+  if (!transport.fromStopId) return transport.depTimezone ?? "UTC";
   const stop = stopById[transport.fromStopId];
   return stop?.timezone ?? "UTC";
 }

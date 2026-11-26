@@ -28,7 +28,8 @@ import {
   type ResolvedHop,
   type TravelLookup,
 } from "@/lib/travel-times/hops";
-import { hasOutboundLeg, hasReturnLeg, findReturnLeg, type HomeBase } from "@/lib/home-base";
+import { hasOutboundLeg, hasReturnLeg, type HomeBase } from "@/lib/home-base";
+import { journeyBetween, journeyHome } from "@/lib/connections";
 import { deadlineNoun, type TripDeadline } from "@/lib/trip-deadline";
 import { hoursOn, type DayHours, type OpeningHours } from "@/lib/opening-hours";
 import { defaultStartFromSlot } from "@/lib/slot-time";
@@ -102,10 +103,16 @@ export interface FlagTransport {
   mode: string;
   depIsHome?: boolean | null;
   arrIsHome?: boolean | null;
+  depPlace?: string | null;
+  arrPlace?: string | null;
+  depPlaceId?: string | null;
+  arrPlaceId?: string | null;
   depLat?: number | null;
   depLng?: number | null;
   arrLat?: number | null;
   arrLng?: number | null;
+  depTimezone?: string | null;
+  arrTimezone?: string | null;
   /** CONTEXT.md "Booking state" (the stored, effective state) and its book-by date, "YYYY-MM-DD" (spec 2026-10-17 R2). */
   bookingState?: string | null;
   bookBy?: string | null;
@@ -304,14 +311,14 @@ export function flagEmptyDays(
     const depDate = toDate(t.depAt);
     if (depDate) {
       const fromStop = t.fromStopId ? stopById.get(t.fromStopId) : undefined;
-      const depTz = (t.depIsHome && homeTimezone) || tzOf(fromStop);
+      const depTz = (t.depIsHome && homeTimezone) || (!fromStop && t.depTimezone) || tzOf(fromStop);
       const depDay = instantToZonedDateISO(depDate, depTz);
       if (depDay >= tripStart && depDay <= tripEnd) activeDays.add(depDay);
     }
     const arrDate = toDate(t.arrAt);
     if (arrDate) {
       const toStop = t.toStopId ? stopById.get(t.toStopId) : undefined;
-      const arrTz = (t.arrIsHome && homeTimezone) || tzOf(toStop ?? (t.fromStopId ? stopById.get(t.fromStopId) : undefined));
+      const arrTz = (t.arrIsHome && homeTimezone) || (!toStop && t.arrTimezone) || tzOf(toStop ?? (t.fromStopId ? stopById.get(t.fromStopId) : undefined));
       const arrDay = instantToZonedDateISO(arrDate, arrTz);
       if (arrDay >= tripStart && arrDay <= tripEnd) activeDays.add(arrDay);
     }
@@ -673,7 +680,7 @@ export function flagLongDrivingDays(
         ? { minutes: (arr.getTime() - dep.getTime()) / 60000, estimated: false }
         : resolveDriveLeg(ends.from, ends.to, lookup, opts);
 
-    const arrivalZone = (t.arrIsHome && opts.homeTimezone) || to?.timezone || from?.timezone;
+    const arrivalZone = (t.arrIsHome && opts.homeTimezone) || to?.timezone || t.arrTimezone || from?.timezone || t.depTimezone;
     const driveDate = dep
       ? instantToZonedDateISO(dep, arrivalZone ?? "UTC")
       : t.arrIsHome
@@ -965,8 +972,9 @@ export function flagAccommodationCoverageGaps(
 // ---------------------------------------------------------------------------
 // Rule 13: Missing connection between consecutive stops (info)
 //
-// For each pair of consecutive stops (by sortOrder) that have no transport
-// linking them in either direction, fire an info flag on the TRANSPORT target
+// For each pair of consecutive stops (by sortOrder) that have no transport, nor
+// journey of Connections (lib/connections.ts), linking them in either
+// direction, fire an info flag on the TRANSPORT target
 // type to prompt the user to book a connection.
 // ---------------------------------------------------------------------------
 
@@ -976,10 +984,12 @@ export function flagMissingConnections(stops: FlagStop[], transports: FlagTransp
   for (const t of transports) {
     if (t.fromStopId && t.toStopId) linked.add(`${t.fromStopId}|${t.toStopId}`);
   }
+  const legs = transports.map((t) => ({ ...t, depAt: toDate(t.depAt), arrAt: toDate(t.arrAt) }));
   const flags: Flag[] = [];
   for (let i = 0; i < sorted.length - 1; i++) {
     const a = sorted[i], b = sorted[i + 1];
     if (linked.has(`${a.id}|${b.id}`) || linked.has(`${b.id}|${a.id}`)) continue;
+    if (journeyBetween(legs, a.id, b.id).length > 0 || journeyBetween(legs, b.id, a.id).length > 0) continue;
     flags.push({
       id: `missing-connection-${a.id}-${b.id}`,
       severity: "info",
@@ -1048,23 +1058,24 @@ export function flagMissingHomeConnection(
 // ---------------------------------------------------------------------------
 // Rule 16: Return leg after hard end date (warning)
 //
-// If the return leg — as lib/home-base.ts defines it (by shape, ADR 0032
-// amendment) — has an arrAt timestamp after the trip's hard end date, warn
-// the traveller.
+// If the journey home (lib/connections.ts: the return leg as lib/home-base.ts
+// defines it, plus any Connections after it) lands after the trip's hard end
+// date, warn the traveller.
 // ---------------------------------------------------------------------------
 
 export function flagReturnLegAfterHardEnd(
-  transports: Pick<FlagTransport, "arrIsHome" | "fromStopId" | "toStopId" | "arrAt">[],
+  transports: FlagTransport[],
   hardEndDate: string | null | undefined,
   lastStopId: string | null,
   /** The Trip's Home base timezone (spec 2026-10-14) — an arrIsHome leg lands on this zone's calendar date instead of the raw UTC one. */
   homeTimezone?: string | null,
 ): Flag[] {
   if (!hardEndDate) return [];
-  const ret = findReturnLeg(transports, lastStopId);
-  if (!ret || !ret.arrAt) return [];
-  const landDate = new Date(ret.arrAt);
-  const landISO = ret.arrIsHome && homeTimezone ? instantToZonedDateISO(landDate, homeTimezone) : formatISODate(landDate);
+  const legs = transports.map((t) => ({ ...t, depAt: toDate(t.depAt), arrAt: toDate(t.arrAt) }));
+  const ret = journeyHome(legs, lastStopId).at(-1);
+  if (!ret?.arrAt) return [];
+  const landZone = (ret.arrIsHome && homeTimezone) || (!ret.arrIsHome && !ret.toStopId && ret.arrTimezone);
+  const landISO = landZone ? instantToZonedDateISO(ret.arrAt, landZone) : formatISODate(ret.arrAt);
   if (landISO <= hardEndDate) return [];
   return [
     {
@@ -1288,7 +1299,7 @@ function legDepartureDay(t: FlagTransport, stopById: Map<string, FlagStop>, home
   if (!dep) return null;
   const from = t.fromStopId ? stopById.get(t.fromStopId) : undefined;
   const to = t.toStopId ? stopById.get(t.toStopId) : undefined;
-  return instantToZonedDateISO(dep, (t.depIsHome && homeTimezone) || from?.timezone || to?.timezone || "UTC");
+  return instantToZonedDateISO(dep, (t.depIsHome && homeTimezone) || from?.timezone || t.depTimezone || to?.timezone || t.arrTimezone || "UTC");
 }
 
 function bookingSubjects(

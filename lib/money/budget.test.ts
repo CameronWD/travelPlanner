@@ -619,6 +619,19 @@ describe("buildBudget", () => {
     expect(jan8?.costTotalMinor).toBe(25000);
   });
 
+  it("a departure from a place with its own zone puts its cost on that zone's calendar date", () => {
+    // 2027-01-07T22:30:00Z is 2027-01-07 UTC but 2027-01-08 in Asia/Tokyo.
+    const transports: BudgetTransport[] = [
+      { id: "t-place", fromStopId: null, toStopId: "stop-paris", depAt: new Date("2027-01-07T22:30:00Z"), depTimezone: "Asia/Tokyo" },
+    ];
+    const costs: BudgetCost[] = [
+      makeCost({ id: "c1", costMinor: 25000, paidMinor: null, currency: "AUD", ownerType: "TRANSPORT", ownerId: "t-place", label: null }),
+    ];
+    const result = buildBudget({ ...baseInput, costs, transports, tripStart: "2027-01-07", tripEnd: "2027-01-08" });
+    expect(result.byDay.find((d) => d.dateISO === "2027-01-07")?.costTotalMinor).toBe(0);
+    expect(result.byDay.find((d) => d.dateISO === "2027-01-08")?.costTotalMinor).toBe(25000);
+  });
+
   it("transport cost with no depAt → not placed on any day (still counted in grandTotal)", () => {
     const transports: BudgetTransport[] = [
       { id: "t-1", fromStopId: "stop-london", toStopId: "stop-paris", depAt: null },

@@ -64,8 +64,14 @@ export interface TransportCardTransport extends TransportDetails {
   anchorStopId?: string | null;
   depIsHome?: boolean | null;
   arrIsHome?: boolean | null;
+  depTimezone?: string | null;
+  arrTimezone?: string | null;
   depPlace?: string | null;
   arrPlace?: string | null;
+  depLat?: number | null;
+  depLng?: number | null;
+  arrLat?: number | null;
+  arrLng?: number | null;
   depAt?: Date | null;
   arrAt?: Date | null;
   reference?: string | null;

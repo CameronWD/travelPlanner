@@ -26,6 +26,7 @@ export interface McpFileRef {
   id: string;
   /** title ?? filename */
   title: string;
+  filedOn?: string;
 }
 
 export interface McpAttachment {

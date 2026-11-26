@@ -138,6 +138,12 @@ describe("buildDuplicatePlan", () => {
     expect(buildDuplicatePlan(SOURCE, "x", "me").transports[0].data).toMatchObject({ depCountryCode: null, depRegion: null, arrCountryCode: null, arrRegion: null });
   });
 
+  it("copies a place end's own zone; none copies as null", () => {
+    const plan = buildDuplicatePlan({ ...SOURCE, transports: [{ ...SOURCE.transports[0], arrTimezone: "Asia/Bangkok" }] }, "x", "me");
+    expect(plan.transports[0].data).toMatchObject({ depTimezone: null, arrTimezone: "Asia/Bangkok" });
+    expect(buildDuplicatePlan(SOURCE, "x", "me").transports[0].data).toMatchObject({ depTimezone: null, arrTimezone: null });
+  });
+
   it("carries a null countryCode through when the source item has none", () => {
     const plan = buildDuplicatePlan(SOURCE, "x", "me");
     const gelato = plan.items[1];
@@ -177,6 +183,7 @@ describe("buildDuplicatePlan", () => {
       carrier: null, serviceNumber: null, seat: null, terminal: null, gate: null, coach: null, platform: null,
       depLat: 41.9, depLng: 12.5, arrLat: 43.7, arrLng: 11.2, depPlaceId: null, arrPlaceId: null,
       depCountryCode: null, depRegion: null, arrCountryCode: null, arrRegion: null, sortOrder: 0,
+      depTimezone: null, arrTimezone: null,
       bookingState: "TO_BOOK", bookingStateSet: false,
     });
   });

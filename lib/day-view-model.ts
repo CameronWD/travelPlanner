@@ -10,6 +10,7 @@ import { dayStartHop } from "@/lib/travel-times/day-start";
 import { chapterForDate } from "@/lib/chapters";
 import { titlesByDate } from "@/lib/day-titles";
 import { itemPhotoUrl } from "@/lib/item-photo";
+import { bookingLegLabel, filesForLeg } from "@/lib/booking-files";
 import type { SurpriseView } from "@/lib/surprise";
 import type { OpeningHours } from "@/lib/opening-hours";
 import type { TryList } from "@/lib/try-list";
@@ -190,6 +191,7 @@ interface DayTransportRow extends TransportDetails {
   depAt: Date | null; arrAt: Date | null; depLat: number | null; depLng: number | null; arrLat: number | null; arrLng: number | null;
   depPlaceId: string | null; arrPlaceId: string | null;
   reference: string | null; notes: string | null; sortOrder: number; anchorStopId: string | null; depIsHome: boolean; arrIsHome: boolean;
+  depTimezone?: string | null; arrTimezone?: string | null;
   bookingState: BookingState; bookingStateSet: boolean; nothingToAttach?: boolean; bookBy: string | null;
 }
 interface DayAccommodationRow {
@@ -201,7 +203,7 @@ interface DayAccommodationRow {
 interface DayWishlistRow { id: string; title: string; category: string; lat: number | null; lng: number | null; countryCode: string | null }
 interface DayAttachmentRow {
   id: string; filename: string; title: string | null; mime: string; size: number; url: string;
-  uploadedById: string; createdAt: Date; targetId: string | null;
+  uploadedById: string; createdAt: Date; targetId: string | null; filedOn?: string;
 }
 interface DayChapterRow { id: string; name: string; colour: string; startDate: string | null; endDate: string | null; sortOrder: number }
 interface DayTitleRow { stopId: string; dayIndex: number; title: string }
@@ -291,6 +293,11 @@ function deriveTrip(rows: DayRows): TripDerived {
   const attachmentsById = new Map(rows.attachments.map((a) => [a.id, { url: a.url }]));
   const attachmentsByTarget: Record<string, DayAttachmentRow[]> = {};
   for (const a of rows.attachments) if (a.targetId) (attachmentsByTarget[a.targetId] ??= []).push(a);
+  const ownFiles = { ...attachmentsByTarget };
+  for (const t of rows.transports) {
+    const files = filesForLeg(t, rows.transports, (id) => ownFiles[id] ?? [], (p) => bookingLegLabel({ ...p, mode: p.mode as TransportMode }, rows.stops, rows.trip.homeName));
+    if (files.length) attachmentsByTarget[t.id] = files.map(({ attachment, filedOn }) => (filedOn ? { ...attachment, filedOn } : attachment));
+  }
   const derived: TripDerived = {
     attachmentsById,
     attachmentsByTarget,
@@ -318,6 +325,8 @@ function deriveTrip(rows: DayRows): TripDerived {
         id: t.id, mode: t.mode as TransportMode, fromStopId: t.fromStopId, toStopId: t.toStopId,
         depPlace: t.depPlace, arrPlace: t.arrPlace, depAt: t.depAt, arrAt: t.arrAt,
         reference: t.reference, notes: t.notes, depIsHome: t.depIsHome, arrIsHome: t.arrIsHome,
+        depTimezone: t.depTimezone, arrTimezone: t.arrTimezone,
+        depPlaceId: t.depPlaceId, arrPlaceId: t.arrPlaceId,
         bookingState: t.bookingState, bookingStateSet: t.bookingStateSet, nothingToAttach: t.nothingToAttach, bookBy: t.bookBy,
         ...pickTransportDetails(t),
       })),

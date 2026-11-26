@@ -10,6 +10,7 @@ import { Button } from "@/components/ui/button";
 import { Field } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { PlaceCombobox, type PickedPlace } from "@/components/ui/place-combobox";
+import { samePlaceText } from "@/lib/place-save";
 import { Textarea } from "@/components/ui/textarea";
 import {
   Select,
@@ -26,6 +27,7 @@ import { formError } from "@/components/ui/action-failure";
 import { createTransport, updateTransport } from "@/server/actions/transport";
 import { resolveEndpointZones, instantToWallTimeInput } from "@/lib/time-display";
 import { zonedWallTimeToInstant } from "@/lib/tz";
+import { endZones } from "@/lib/leg-zones";
 import type { TransportCardTransport } from "./transport-card";
 import { HOME_ENDPOINT } from "./transport-endpoints";
 import type { CostRow } from "@/server/actions/costs";
@@ -41,6 +43,7 @@ import { fail, type ActionResult } from "@/lib/action-result";
 import type { ProposedTransportInput } from "@/lib/booking-import/types";
 import { useDraftReporter } from "@/components/ui/use-draft-reporter";
 import { AttachmentList, type AttachmentView } from "@/components/trip/attachment-list";
+import { AttachmentLinks } from "@/components/trip/attachment-links";
 import { LocationCombobox, type LocationValue } from "@/components/trip/location-combobox";
 import { NoteThread, type NoteView } from "@/components/trip/note-thread";
 import { ReminderList } from "@/components/trip/reminder-list";
@@ -80,6 +83,53 @@ function nearStop(stop?: StopOption) {
 
 function endPick(p: PickedPlace): EndPick {
   return { placeId: p.placeId, lat: p.lat, lng: p.lng, countryCode: p.countryCode, region: p.region };
+}
+
+interface SavedEnd {
+  wasPlace: boolean;
+  text: string | null;
+  lat: number | null;
+  lng: number | null;
+  zone: string | null;
+}
+type Point = { lat: number; lng: number };
+
+function savedEnds(t: TransportCardTransport | null | undefined): { dep: SavedEnd; arr: SavedEnd } | null {
+  if (!t) return null;
+  return {
+    dep: { wasPlace: !t.fromStopId && !t.depIsHome, text: t.depPlace || null, lat: t.depLat ?? null, lng: t.depLng ?? null, zone: t.depTimezone ?? null },
+    arr: { wasPlace: !t.toStopId && !t.arrIsHome, text: t.arrPlace || null, lat: t.arrLat ?? null, lng: t.arrLng ?? null, zone: t.arrTimezone ?? null },
+  };
+}
+
+const round5 = (n: number) => Math.round(n * 1e5);
+const pointKey = (p: Point) => `${round5(p.lat)},${round5(p.lng)}`;
+const samePoint = (a: number | null | undefined, b: number | null | undefined) =>
+  a == null || b == null ? a == null && b == null : round5(a) === round5(b);
+
+// The point the save will hold (lib/place-save.ts): a pick's, else the saved one while the text is unchanged.
+// Typed text the server geocodes is out of the form's sight, so it has no point here.
+function placePoint(value: LocationValue, saved: SavedEnd | null): Point | null {
+  if (value.kind === "stop" || value.kind === "home") return null;
+  if (value.kind === "place" && value.placeId && value.lat !== undefined && value.lng !== undefined) return { lat: value.lat, lng: value.lng };
+  const text = value.kind === "place" ? value.name || null : null;
+  return saved && samePlaceText(saved.text, text) && saved.lat != null && saved.lng != null ? { lat: saved.lat, lng: saved.lng } : null;
+}
+
+function keepsSavedZone(value: LocationValue, saved: SavedEnd | null): saved is SavedEnd {
+  if (!saved?.wasPlace) return false;
+  const name = value.kind === "place" ? value.name || null : null;
+  if (name && value.kind === "place" && value.placeId && value.lat !== undefined && value.lng !== undefined) {
+    return samePoint(saved.lat, value.lat) && samePoint(saved.lng, value.lng);
+  }
+  return samePlaceText(saved.text, name);
+}
+
+function placeEndZone(value: LocationValue, saved: SavedEnd | null, pointZones: Record<string, string | null>): string | null {
+  if (value.kind === "stop" || value.kind === "home") return null;
+  if (keepsSavedZone(value, saved)) return saved.zone;
+  const at = placePoint(value, saved);
+  return at ? (pointZones[pointKey(at)] ?? null) : null;
 }
 
 export interface StopOption {
@@ -129,6 +179,7 @@ export interface TransportFormDialogProps {
   homeTimezone?: string | null;
   /** Existing attachments for this transport (edit mode only). */
   attachments?: AttachmentView[];
+  partnerFiles?: AttachmentView[];
   /** Reminders about this leg (edit mode, real plan only — spec F8). */
   reminders?: ReminderItem[];
   /** Opens Add a Reminder about this leg; omitted on a Fork's leg. */
@@ -204,6 +255,7 @@ export function TransportFormDialog({
   homeBaseName,
   homeTimezone,
   attachments,
+  partnerFiles,
   reminders,
   onAddReminder,
   onDelete,
@@ -255,6 +307,7 @@ export function TransportFormDialog({
         homeBaseName={homeBaseName}
         homeTimezone={homeTimezone}
         attachments={attachments}
+        partnerFiles={partnerFiles}
         reminders={reminders}
         onAddReminder={onAddReminder}
         onDelete={onDelete}
@@ -291,6 +344,7 @@ interface TransportFormProps {
   homeBaseName?: string | null;
   homeTimezone?: string | null;
   attachments?: AttachmentView[];
+  partnerFiles?: AttachmentView[];
   /** Reminders about this leg (edit mode, real plan only — spec F8). */
   reminders?: ReminderItem[];
   /** Opens Add a Reminder about this leg; omitted on a Fork's leg. */
@@ -324,6 +378,7 @@ function TransportForm({
   homeBaseName,
   homeTimezone,
   attachments,
+  partnerFiles,
   reminders,
   onAddReminder,
   onDelete,
@@ -428,12 +483,23 @@ function TransportForm({
   // A point picked in THIS dialog session; an unchanged save never resends the row's own place.
   const [depPick, setDepPick] = React.useState<EndPick | null>(null);
   const [arrPick, setArrPick] = React.useState<EndPick | null>(null);
+  const saved = savedEnds(transport);
+  const [pointZones, setPointZones] = React.useState<Record<string, string | null>>({});
+  function lookUpPlaceZone(next: LocationValue, savedEnd: SavedEnd | null) {
+    if (next.kind === "stop" || next.kind === "home" || keepsSavedZone(next, savedEnd)) return;
+    const at = placePoint(next, savedEnd);
+    if (!at || pointKey(at) in pointZones) return;
+    import("@/lib/tz-point")
+      .then(({ pointTimezone }) => setPointZones((z) => ({ ...z, [pointKey(at)]: pointTimezone(at.lat, at.lng) })))
+      .catch(() => {});
+  }
   const handleFromChange = (next: LocationValue) => {
     const sameStop = next.kind === "stop" && fromValue.kind === "stop" && next.stopId === fromValue.stopId;
     if (!sameStop) {
       setDepPoint("");
       setDepPick(null);
     }
+    lookUpPlaceZone(next, saved?.dep ?? null);
     setFromValue(next);
   };
   const handleToChange = (next: LocationValue) => {
@@ -442,6 +508,7 @@ function TransportForm({
       setArrPoint("");
       setArrPick(null);
     }
+    lookUpPlaceZone(next, saved?.arr ?? null);
     setToValue(next);
   };
 
@@ -474,14 +541,16 @@ function TransportForm({
     return defaultAnchorStopId || (creationAnchor({ fromStopId: liveFromStopId, toStopId: liveToStopId }, stops) ?? undefined);
   }
 
-  // Render the stored instants in the endpoint stops' own timezones (P0-1
+  // Render the stored instants in the ends' own timezones (P0-1
   // client) — not the device's local timezone — so editing shows back what
   // was typed, even when the device and the leg are in different zones.
-  const initialZones = resolveEndpointZones(
-    stops.find((s) => s.id === transport?.fromStopId)?.timezone ?? null,
-    stops.find((s) => s.id === transport?.toStopId)?.timezone ?? null,
-    { depIsHome: transport?.depIsHome, arrIsHome: transport?.arrIsHome, homeTimezone },
-  );
+  const stopZone = (id: string | null | undefined) => (id ? stops.find((s) => s.id === id)?.timezone : null) ?? null;
+  const initialEnds = endZones(transport ?? {}, stopZone);
+  const initialZones = resolveEndpointZones(initialEnds.fromTimezone, initialEnds.toTimezone, {
+    depIsHome: transport?.depIsHome,
+    arrIsHome: transport?.arrIsHome,
+    homeTimezone,
+  });
   const [depAt, setDepAt] = React.useState(
     proposed?.depAt
       ? proposed.depAt
@@ -595,11 +664,20 @@ function TransportForm({
   // selected* endpoints' timezones, not the raw datetime-local strings — a
   // cross-zone leg can have an earlier wall-clock arrival string while still
   // landing later in absolute time (things-to-fix P0-1).
-  const currentZones = resolveEndpointZones(
-    fromValue.kind === "stop" ? (stops.find((s) => s.id === fromValue.stopId)?.timezone ?? null) : null,
-    toValue.kind === "stop" ? (stops.find((s) => s.id === toValue.stopId)?.timezone ?? null) : null,
-    { depIsHome: fromValue.kind === "home", arrIsHome: toValue.kind === "home", homeTimezone },
+  const currentEnds = endZones(
+    {
+      fromStopId: liveFromStopId,
+      toStopId: liveToStopId,
+      depTimezone: placeEndZone(fromValue, saved?.dep ?? null, pointZones),
+      arrTimezone: placeEndZone(toValue, saved?.arr ?? null, pointZones),
+    },
+    stopZone,
   );
+  const currentZones = resolveEndpointZones(currentEnds.fromTimezone, currentEnds.toTimezone, {
+    depIsHome: fromValue.kind === "home",
+    arrIsHome: toValue.kind === "home",
+    homeTimezone,
+  });
   const depInstant = depAt ? zonedWallTimeToInstant(depAt.slice(0, 10), depAt.slice(11, 16), currentZones.depTz) : null;
   const arrInstant = arrAt ? zonedWallTimeToInstant(arrAt.slice(0, 10), arrAt.slice(11, 16), currentZones.arrTz) : null;
 
@@ -952,20 +1030,23 @@ function TransportForm({
         {/* Attachments */}
         <Field label="Attachments">
           {transport?.id ? (
-            <AttachmentList
-              tripId={tripId}
-              targetType="TRANSPORT"
-              targetId={transport.id}
-              attachments={attachments ?? []}
-              compact
-            />
+            <>
+              <AttachmentList
+                tripId={tripId}
+                targetType="TRANSPORT"
+                targetId={transport.id}
+                attachments={attachments ?? []}
+                compact
+              />
+              <AttachmentLinks attachments={partnerFiles ?? []} />
+            </>
           ) : (
             <p className="text-xs text-muted-foreground">
               Save this transport first, then reopen it to attach files.
             </p>
           )}
         </Field>
-        {!forkId && transport?.id && bookingField.shown === "BOOKED" && (nothingToAttach || !hasBookingConfirmation((attachments ?? []).map((a) => a.id))) && (
+        {!forkId && transport?.id && bookingField.shown === "BOOKED" && (nothingToAttach || !hasBookingConfirmation([...(attachments ?? []), ...(partnerFiles ?? [])].map((a) => a.id))) && (
           <NothingToAttachSwitch kind="TRANSPORT" id={transport.id} value={nothingToAttach} onChange={setNothingToAttach} />
         )}
 

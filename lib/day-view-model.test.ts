@@ -200,6 +200,28 @@ describe("buildDayModel (card 3.M)", () => {
     expect(dep.transport).toMatchObject({ gate: "B14", seat: "42" });
   });
 
+  it("a Transport lists its own files, then its booking partner's labelled with the Transport they are filed on", () => {
+    const leg = {
+      depLat: null, depLng: null, arrLat: null, arrLng: null, depPlaceId: null, arrPlaceId: null, notes: null, anchorStopId: null,
+      depIsHome: false, arrIsHome: false, bookingState: "BOOKED" as const, bookingStateSet: false, bookBy: null,
+    };
+    const file = (id: string, targetId: string) => ({ id, filename: `${id}.pdf`, title: null, mime: "application/pdf", size: 1, url: `/api/attachments/${id}`, uploadedById: "u-1", createdAt: new Date("2026-11-01T00:00:00Z"), targetId });
+    const m = buildDayModel(
+      rows({
+        transports: [
+          { ...leg, id: "t-1", mode: "TRAIN", fromStopId: "s-paris", toStopId: null, depPlace: null, arrPlace: "Frankfurt", reference: "AB12CD", sortOrder: 0,
+            depAt: new Date("2026-12-10T08:00:00Z"), arrAt: new Date("2026-12-10T11:00:00Z") },
+          { ...leg, id: "t-2", mode: "TRAIN", fromStopId: null, toStopId: "s-stras", depPlace: "Frankfurt", arrPlace: null, reference: "ab12cd", sortOrder: 1,
+            depAt: new Date("2026-12-10T11:40:00Z"), arrAt: new Date("2026-12-10T13:00:00Z") },
+        ],
+        attachments: [file("own", "t-1"), file("eticket", "t-2")],
+      }),
+      "2026-12-10",
+    );
+    expect(m.attachmentsByTarget["t-1"]?.map((a) => [a.id, a.filedOn ?? null])).toEqual([["own", null], ["eticket", "Frankfurt → Strasbourg"]]);
+    expect(m.attachmentsByTarget["t-2"]?.map((a) => [a.id, a.filedOn ?? null])).toEqual([["eticket", null], ["own", "Paris → Frankfurt"]]);
+  });
+
   it("a day's Items carry their Slot time to the Timeline (R3)", () => {
     const model = buildDayModel(rows({ items: [item({ id: "i-slot", date: "2026-12-11", startTime: "11:45", slotTime: "12:00", arriveByMinutes: 15, refundable: false })] }), "2026-12-11");
     const entry = model.dayPlan!.timedItems.find((e) => e.item.id === "i-slot")!;

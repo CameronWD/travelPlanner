@@ -91,6 +91,32 @@ vi.mock("./right-now-card", async (orig) => {
   return { ...actual, RightNowCard: (props: Parameters<typeof actual.RightNowCard>[0]) => { rightNowSpy(props); return actual.RightNowCard(props); } };
 });
 
+// Every client component under the share page records the props it is handed.
+const { clientProps, spyClient } = vi.hoisted(() => {
+  const clientProps: unknown[] = [];
+  const spyClient = (mod: Record<string, unknown>) =>
+    Object.fromEntries(
+      Object.entries(mod).map(([name, x]) => [
+        name,
+        typeof x === "function" && /^[A-Z]/.test(name)
+          ? (props: object) => {
+              clientProps.push(props);
+              return (x as (p: object) => unknown)(props);
+            }
+          : x,
+      ]),
+    );
+  return { clientProps, spyClient };
+});
+vi.mock("./share-travel-row", async (orig) => spyClient(await orig()));
+vi.mock("./day-by-day-client", async (orig) => spyClient(await orig()));
+vi.mock("./viewer-time", async (orig) => spyClient(await orig()));
+vi.mock("./local-clock", async (orig) => spyClient(await orig()));
+vi.mock("./share-reveal", async (orig) => spyClient(await orig()));
+vi.mock("./share-countdown", async (orig) => spyClient(await orig()));
+vi.mock("./journal-expand", async (orig) => spyClient(await orig()));
+vi.mock("./pending-link", async (orig) => spyClient(await orig()));
+
 vi.mock("@/components/usage/usage-share-opened", () => ({ UsageShareOpened: () => <i data-testid="usage-share-opened" /> }));
 import SharePage, { dynamic, metadata } from "./page";
 import { SHARE_FOOTER_COPY } from "./share-cta";
@@ -147,6 +173,7 @@ afterEach(() => {
 
 beforeEach(() => {
   vi.clearAllMocks();
+  clientProps.length = 0;
   loadSurpriseVisibilityMock.mockResolvedValue(NO_SURPRISES);
   shareFindFirstMock.mockResolvedValue(share());
   stopFindManyMock.mockResolvedValue(STOPS);
@@ -941,7 +968,118 @@ describe("SharePage — travel legs", () => {
     ]);
     await renderPage();
     const { stops } = dayByDaySpy.mock.calls[0][0];
-    expect(Object.keys(stops[0].legAfter).sort()).toEqual(["arrivesAt", "arrivesLocal", "label", "mode", "number", "when"]);
+    expect(Object.keys(stops[0].legAfter)).toEqual(["legs", "changeovers"]);
+    expect(Object.keys(stops[0].legAfter.legs[0]).sort()).toEqual(["arrivesAt", "arrivesLocal", "label", "mode", "number", "when"]);
+  });
+
+  const BEFORE = { startDate: "2099-12-06", endDate: "2099-12-09" };
+  const cardsIn = (el: Element) => Array.from(el.querySelectorAll<HTMLElement>("[data-travel-row]"));
+  const DPS_BKK_MUC = [
+    { ...BASE, ...withSeatAndGate, id: "bkk", mode: "FLIGHT", fromStopId: "s1", toStopId: null, depPlace: "Denpasar (DPS)", arrPlace: "Bangkok (BKK)", arrPlaceId: "PLACE-BKK", arrTimezone: "Asia/Bangkok", depAt: new Date("2099-12-08T12:00:00Z"), arrAt: new Date("2099-12-08T15:40:00Z"), serviceNumber: "TG 440" },
+    { ...BASE, ...withSeatAndGate, id: "muc", mode: "FLIGHT", fromStopId: null, toStopId: "s2", depPlace: "Bangkok Suvarnabhumi", depPlaceId: "PLACE-BKK", depTimezone: "Asia/Bangkok", arrPlace: "Munich (MUC)", depAt: new Date("2099-12-08T18:15:00Z"), arrAt: new Date("2099-12-09T05:30:00Z"), serviceNumber: "TG 924", sortOrder: 1 },
+  ];
+  const DENPASAR_MUNICH = [
+    { ...STOPS[0], id: "s1", name: "Denpasar", country: "Indonesia", timezone: "Asia/Makassar", arriveDate: "2099-12-06", departDate: "2099-12-08" },
+    { ...STOPS[0], id: "s2", sortOrder: 1, arriveDate: "2099-12-09", departDate: "2099-12-09" },
+  ];
+
+  it("two legs that meet at a place show the layover line between their cards", async () => {
+    shareFindFirstMock.mockResolvedValue(share(BEFORE));
+    stopFindManyMock.mockResolvedValue(DENPASAR_MUNICH);
+    transportFindManyMock.mockResolvedValue(DPS_BKK_MUC);
+    const { container } = await renderPage();
+    const stack = container.querySelector("[data-share-stop='s1'] [data-share-leg]")!;
+    const [first, second] = cardsIn(stack);
+    expect(cardsIn(stack)).toHaveLength(2);
+    expect(first).toHaveTextContent("Flight to Bangkok (BKK)");
+    expect(first).toHaveTextContent("Denpasar (DPS) 20:00 → Bangkok (BKK) 22:40");
+    expect(second).toHaveTextContent("Flight to Munich");
+    const line = stack.querySelector("[data-changeover]")!;
+    expect(line).toHaveTextContent(/^Layover in Bangkok · 2h 35m$/);
+    expect(first.compareDocumentPosition(line) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(second.compareDocumentPosition(line) & Node.DOCUMENT_POSITION_PRECEDING).toBeTruthy();
+    expect(container.querySelectorAll("[data-changeover]")).toHaveLength(1);
+    expect(stack.querySelectorAll("[data-station-dot]")).toHaveLength(2);
+    expect(stack.querySelectorAll("[data-layover-dot]")).toHaveLength(1);
+  });
+
+  it("lists no leg between two Stops when the legs leaving one do not reach the next", async () => {
+    shareFindFirstMock.mockResolvedValue(share(BEFORE));
+    stopFindManyMock.mockResolvedValue(DENPASAR_MUNICH);
+    transportFindManyMock.mockResolvedValue([DPS_BKK_MUC[0], { ...DPS_BKK_MUC[1], toStopId: null, arrPlace: "Vienna (VIE)" }]);
+    const { container } = await renderPage();
+    expect(legs(container)).toHaveLength(0);
+  });
+
+  it("the journey home in two legs is listed together at the end of the route, in order", async () => {
+    shareFindFirstMock.mockResolvedValue(share({ ...BEFORE, homeTimezone: "Australia/Sydney" } as never));
+    stopFindManyMock.mockResolvedValue(STAGE_TRIPS.before.stops);
+    transportFindManyMock.mockResolvedValue([
+      { ...BASE, id: "home", mode: "FLIGHT", fromStopId: null, toStopId: null, arrIsHome: true, depPlace: "Doha (DOH)", arrPlace: "12 Home Rd", arrPlaceId: "PLACE-HOME", depAt: new Date("2099-12-09T17:25:00Z"), arrAt: new Date("2099-12-10T07:30:00Z"), sortOrder: 0 },
+      { ...BASE, id: "mid", mode: "FLIGHT", fromStopId: "s1", toStopId: "s2", depPlace: "Munich (MUC)", arrPlace: "London (LHR)", sortOrder: 1 },
+      { ...BASE, id: "doh", mode: "FLIGHT", fromStopId: "s2", toStopId: null, depPlace: "London (LHR)", arrPlace: "Doha (DOH)", depAt: new Date("2099-12-09T07:55:00Z"), arrAt: new Date("2099-12-09T13:05:00Z"), sortOrder: 2 },
+    ]);
+    const { container } = await renderPage();
+    const stacks = legs(container);
+    expect(stacks).toHaveLength(2);
+    expect(cardsIn(container)).toHaveLength(3);
+    const back = stacks[1];
+    const stopItems = container.querySelectorAll("[data-share-stop]");
+    expect(back.compareDocumentPosition(stopItems[stopItems.length - 1]) & Node.DOCUMENT_POSITION_PRECEDING).toBeTruthy();
+    const [toDoha, home] = cardsIn(back);
+    expect(toDoha).toHaveTextContent("Flight to Doha (DOH)");
+    expect(home).toHaveTextContent("Flight home");
+    expect(back.querySelector("[data-changeover]")).toHaveTextContent(/^Layover in Doha · 4h 20m$/);
+    expect(container.innerHTML).not.toContain("Home Rd");
+  });
+
+  it("the journey out in two legs is listed together above the first Stop, naming no Home place", async () => {
+    shareFindFirstMock.mockResolvedValue(share(BEFORE));
+    stopFindManyMock.mockResolvedValue(STAGE_TRIPS.before.stops);
+    transportFindManyMock.mockResolvedValue([
+      { ...BASE, id: "muc", mode: "TRAIN", fromStopId: null, toStopId: "s1", depPlace: "frankfurt (fra)", arrPlace: "München Hbf", depAt: new Date("2099-12-05T20:00:00Z"), arrAt: new Date("2099-12-06T01:00:00Z"), sortOrder: 0 },
+      { ...BASE, id: "fra", mode: "FLIGHT", fromStopId: null, toStopId: null, depIsHome: true, depPlace: "5 Example St", arrPlace: "Frankfurt (FRA)", depAt: new Date("2099-12-05T06:00:00Z"), arrAt: new Date("2099-12-05T18:00:00Z"), sortOrder: 1 },
+    ]);
+    const { container } = await renderPage();
+    const out = legs(container)[0];
+    const first = container.querySelector("[data-share-stop]")!;
+    expect(out.compareDocumentPosition(first) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    const [toFrankfurt, toMunich] = cardsIn(out);
+    expect(cardsIn(out)).toHaveLength(2);
+    expect(toFrankfurt).toHaveTextContent("Flight to Frankfurt (FRA)");
+    expect(toMunich).toHaveTextContent("Train to Munich");
+    expect(out.querySelector("[data-changeover]")).toHaveTextContent(/^Change at Frankfurt · 2h$/);
+    expect(container.innerHTML).not.toContain("Example St");
+  });
+
+  it("no leg hands its booking reference, carrier or seat to a client component", async () => {
+    shareFindFirstMock.mockResolvedValue(share({ ...BEFORE, homeTimezone: "Australia/Sydney" } as never));
+    stopFindManyMock.mockResolvedValue(DENPASAR_MUNICH);
+    transportFindManyMock.mockResolvedValue([
+      { ...BASE, ...withSeatAndGate, id: "out", mode: "FLIGHT", fromStopId: null, toStopId: "s1", depIsHome: true, depPlace: "12 Example St", depPlaceId: "PLACE-HOME", arrPlace: "Denpasar (DPS)", depAt: new Date("2099-12-05T08:00:00Z"), arrAt: new Date("2099-12-05T14:00:00Z") },
+      ...DPS_BKK_MUC,
+    ]);
+    const { container } = await renderPage();
+    expect(cardsIn(container)).toHaveLength(3);
+    expect(clientProps.length).toBeGreaterThan(0);
+    const flatten = (v: unknown, seen = new Set<unknown>()): string[] => {
+      if (v == null || typeof v === "function") return [];
+      if (typeof v !== "object") return [String(v)];
+      if (v instanceof Date) return [v.toISOString()];
+      if (seen.has(v)) return [];
+      seen.add(v);
+      if ("$$typeof" in v) return flatten((v as { props?: unknown }).props, seen);
+      return Object.entries(v).flatMap(([k, x]) => [k, ...flatten(x, seen)]);
+    };
+    const sent = clientProps.flatMap((p) => flatten(p));
+    for (const key of ["reference", "carrier", "seat", "gate", "notes", "depPlaceId", "arrPlaceId", "depTimezone", "arrTimezone"]) {
+      expect(sent).not.toContain(key);
+    }
+    const text = sent.join("\n");
+    for (const secret of ["PNR-ABC123", "CARRIER-X", "SEAT-14C", "GATE-B22", "PLACE-HOME", "PLACE-BKK", "Asia/Bangkok", "Australia/Sydney", "Example St"]) {
+      expect(text).not.toContain(secret);
+      expect(container.innerHTML).not.toContain(secret);
+    }
   });
 
   it("lists no leg at all, Home legs included, when the link leaves transport out", async () => {

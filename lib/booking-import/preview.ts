@@ -4,6 +4,7 @@
  */
 import type { TransportMode } from "@/lib/enum-values";
 import { resolveEndpointZones } from "@/lib/time-display";
+import { endZones } from "@/lib/leg-zones";
 import { wallTimeToInstant } from "@/lib/wall-time";
 import { proposedRef, type ImportContext, type ProposedAccommodationInput, type ProposedTransportInput, type StopProposal } from "./types";
 
@@ -61,8 +62,10 @@ export function transportPreview(
 ): { transport: TransportPreview; homeTimezone: string | null } {
   const from = input.fromStopId ? stops.get(input.fromStopId) : undefined;
   const to = input.toStopId ? stops.get(input.toStopId) : undefined;
-  const fromTz = from?.timezone ?? (input.depIsHome ? null : (input.depTimezone ?? null));
-  const toTz = to?.timezone ?? (input.arrIsHome ? null : (input.arrTimezone ?? null));
+  const { fromTimezone: fromTz, toTimezone: toTz } = endZones(
+    { ...input, depTimezone: input.depIsHome ? null : input.depTimezone, arrTimezone: input.arrIsHome ? null : input.arrTimezone },
+    (id) => (id ? stops.get(id)?.timezone : null),
+  );
   const homeTz = homeTimezone ?? (input.depIsHome ? input.depTimezone : input.arrIsHome ? input.arrTimezone : undefined) ?? null;
   const { depTz, arrTz } = resolveEndpointZones(fromTz, toTz, { depIsHome: input.depIsHome, arrIsHome: input.arrIsHome, homeTimezone: homeTz });
   return {

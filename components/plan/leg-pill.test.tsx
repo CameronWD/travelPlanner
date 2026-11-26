@@ -123,20 +123,105 @@ describe("LegRow — metro line (spec 2026-10-05 §F)", () => {
     expect(container.querySelectorAll("[data-station-dot]")).toHaveLength(3);
   });
 
-  it("a known change-over shows as small text by that leg's dot", () => {
-    const { container } = render(
-      <LegRow kind="legs" changeovers={[null, "Milano Centrale", null]}>
+  const JOURNEY = "Layover in Bangkok · 2h 35m";
+  const journey = (changeovers: (string | null)[], third = false) =>
+    render(
+      <LegRow kind="legs" changeovers={changeovers}>
         <LegPill key="a" label={TRAIN_A} onClick={vi.fn()} />
         <LegPill key="b" label={TRAIN_B} onClick={vi.fn()} />
-        <LegPill key="c" label={TRAIN_C} onClick={vi.fn()} />
+        {third ? <LegPill key="c" label={TRAIN_C} onClick={vi.fn()} /> : null}
       </LegRow>,
     );
+
+  it("a layover sits on the rail between two flights", () => {
+    const { container } = journey([null, JOURNEY]);
+    expect(container.querySelectorAll("[data-station-dot]")).toHaveLength(2);
+    expect(container.querySelectorAll("[data-station-stub]")).toHaveLength(2);
+    const layover = container.querySelectorAll("[data-layover-dot]");
+    expect(layover).toHaveLength(1);
+    expect(layover[0]).toHaveAttribute("aria-hidden");
+    const [d1, d2] = [...container.querySelectorAll("[data-station-dot]")];
+    expect(d1.compareDocumentPosition(layover[0]) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(layover[0].compareDocumentPosition(d2) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    const pill = container.querySelector("[data-changeover]") as HTMLElement;
+    expect(pill.textContent).toBe(JOURNEY);
+    expect(pill.querySelector("svg")).toBeNull();
+    expect(pill.className).toContain("rounded-full");
+    expect(pill.className).not.toContain("hover:");
+    expect(container.querySelector("[data-layover-stub]")).not.toBeNull();
+  });
+
+  it("separate journeys in one stack sit further apart than the cards of one journey", () => {
+    const { container } = journey([null, JOURNEY, null], true);
+    const stack = container.querySelector("[data-leg-stack]") as HTMLElement;
+    expect(stack.className).toContain("gap-14");
+    expect(stack.className).not.toContain("gap-3");
+  });
+
+  it("a stack with no joined cards keeps its gap", () => {
+    const { container } = journey([null, null]);
+    expect((container.querySelector("[data-leg-stack]") as HTMLElement).className).toContain("gap-3");
+  });
+
+  it("an unjoined pair has no layover marker", () => {
+    const { container } = journey([null, null]);
+    expect(container.querySelector("[data-layover-dot]")).toBeNull();
+    expect(container.querySelector("[data-changeover]")).toBeNull();
+    expect(container.querySelectorAll("[data-station-dot]")).toHaveLength(2);
+  });
+
+  it("a single card is unchanged", () => {
+    const { container } = render(<LegRow kind="legs"><LegPill label={FLIGHT} onClick={vi.fn()} /></LegRow>);
+    expect(container.querySelectorAll("[data-station-dot]")).toHaveLength(1);
+    expect(container.querySelector("[data-layover-dot]")).toBeNull();
+    const run = container.querySelector("[data-leg-run]") as HTMLElement;
+    const station = run.querySelector("[data-leg-station]") as HTMLElement;
+    const wrapper = station.querySelector("[data-travel-row]")!.parentElement as HTMLElement;
+    for (const el of [run, station, wrapper]) {
+      expect(el.className.split(" ")).not.toContain("w-fit");
+      expect(el.className.split(" ")).not.toContain("w-full");
+    }
+  });
+
+  it("a long layover label stays on one line, cut short, with the whole label on hover", () => {
+    const long = "Layover in Frankfurt am Main Flughafen Fernbahnhof · 2h 35m";
+    const { container } = journey([null, long]);
+    const pills = container.querySelectorAll("[data-changeover]");
+    expect(pills).toHaveLength(1);
+    expect((pills[0] as HTMLElement).className.split(" ")).toContain("truncate");
+    expect(pills[0]).toHaveAttribute("title", long);
+  });
+
+  it("an unjoined card after a journey keeps its own marker and gap", () => {
+    const { container } = journey([null, JOURNEY, null], true);
+    expect(container.querySelectorAll("[data-station-dot]")).toHaveLength(3);
     const stations = [...container.querySelectorAll("[data-leg-station]")] as HTMLElement[];
-    const note = within(stations[1]).getByText("Change at Milano Centrale");
-    expect(note).toHaveAttribute("data-changeover");
-    expect(note.className).toContain("text-muted-foreground");
-    expect(stations[0].querySelector("[data-changeover]")).toBeNull();
-    expect(stations[2].querySelector("[data-changeover]")).toBeNull();
+    expect(stations[2].querySelector("[data-station-dot]")).not.toBeNull();
+    expect(stations[2].closest("[data-leg-run]")).not.toBe(stations[1].closest("[data-leg-run]"));
+    expect(stations[0].closest("[data-leg-run]")).toBe(stations[1].closest("[data-leg-run]"));
+  });
+
+  it("the cards of a joined run are the same width", () => {
+    const { container } = journey([null, JOURNEY, null], true);
+    const runs = [...container.querySelectorAll("[data-leg-run]")] as HTMLElement[];
+    expect(runs[0].className).toContain("w-fit");
+    for (const station of runs[0].querySelectorAll("[data-leg-station]")) {
+      expect(station.className).toContain("w-full");
+      expect(station.querySelector("[data-travel-row]")!.parentElement!.className).toContain("w-full");
+    }
+    expect(runs[1].className).not.toContain("w-fit");
+    const single = runs[1].querySelector("[data-leg-station]") as HTMLElement;
+    expect(single.className.split(" ")).not.toContain("w-full");
+  });
+
+  it("the label is read between the two cards", () => {
+    const { container } = journey([null, JOURNEY]);
+    const nodes = [...container.querySelectorAll("button, [data-changeover]")];
+    expect(nodes.map((n) => n.getAttribute("data-changeover") !== null ? "join" : n.getAttribute("aria-label"))).toEqual([
+      TRAIN_A.accessibleName,
+      "join",
+      TRAIN_B.accessibleName,
+    ]);
   });
 
   it("an unknown change-over shows nothing", () => {

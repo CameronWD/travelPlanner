@@ -52,6 +52,7 @@ import { buildUpcomingPayments, type UpcomingPayment } from "@/lib/money/upcomin
 import { loadBookingConfirmationsToAdd } from "@/lib/booking-confirmations-loader";
 import { buildStillToBook, type StillToBookRow } from "@/lib/still-to-book";
 import { resolveEndpointZones } from "@/lib/time-display";
+import { endZones } from "@/lib/leg-zones";
 import { instantToZonedDateISO } from "@/lib/tz";
 import { ITEM_HOP_ORDER, homePointOf } from "@/lib/travel-times/hops";
 import { loadHopModes } from "@/lib/hop-modes";
@@ -192,6 +193,12 @@ async function load(
         arrAt: true,
         depIsHome: true,
         arrIsHome: true,
+        depTimezone: true,
+        arrTimezone: true,
+        depPlace: true,
+        arrPlace: true,
+        depPlaceId: true,
+        arrPlaceId: true,
         depLat: true,
         depLng: true,
         arrLat: true,
@@ -354,11 +361,12 @@ async function load(
       ...transports
         .filter((t) => t.bookingState === "TO_BOOK")
         .map((t) => {
-          const { depTz } = resolveEndpointZones(
-            t.fromStopId ? (tzById.get(t.fromStopId) ?? null) : null,
-            t.toStopId ? (tzById.get(t.toStopId) ?? null) : null,
-            { depIsHome: t.depIsHome, arrIsHome: t.arrIsHome, homeTimezone: trip.homeTimezone },
-          );
+          const { fromTimezone, toTimezone } = endZones(t, (id) => (id ? tzById.get(id) : null));
+          const { depTz } = resolveEndpointZones(fromTimezone, toTimezone, {
+            depIsHome: t.depIsHome,
+            arrIsHome: t.arrIsHome,
+            homeTimezone: trip.homeTimezone,
+          });
           return {
             kind: "TRANSPORT" as const, id: t.id, label: ownerNames.get(t.id) ?? "Transport", bookingState: "TO_BOOK" as const, bookBy: t.bookBy,
             date: t.depAt ? instantToZonedDateISO(t.depAt, depTz) : null, stopId: t.anchorStopId ?? t.fromStopId ?? t.toStopId,

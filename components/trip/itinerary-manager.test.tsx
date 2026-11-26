@@ -3192,7 +3192,7 @@ describe("metro-line legs (spec 2026-10-05 §F)", () => {
   const legB = makeTransport({ id: "leg-b", bookingStateSet: false, mode: "TRAIN", toStopId: "rom", anchorStopId: "par", depPlace: "Milano Centrale", sortOrder: 1 });
 
   it.each([["plan-desktop-list", true], ["plan-mobile-list", false]] as const)(
-    "%s: legs stack in travel order, a dot each, the change-over by the second",
+    "%s: legs stack in travel order, a marker each, the layover sits on the line between them",
     (testId, lgUp) => {
       if (!lgUp) setMatchMedia((q) => q === "(min-width: 640px)");
       // Passed out of order: the strip follows sortOrder, not array order.
@@ -3203,10 +3203,28 @@ describe("metro-line legs (spec 2026-10-05 §F)", () => {
       expect(within(stations[0]).getByRole("button", { name: /^Train from Paris to Milano Centrale/ })).toBeInTheDocument();
       expect(within(stations[1]).getByRole("button", { name: /^Train from Milano Centrale to Rome/ })).toBeInTheDocument();
       expect(row.querySelectorAll("[data-station-dot]")).toHaveLength(2);
-      expect(within(stations[1]).getByText("Change at Milano Centrale")).toBeInTheDocument();
+      expect(row.querySelectorAll("[data-layover-dot]")).toHaveLength(1);
+      expect(within(stations[1]).getByText("Change at Milano Centrale")).toHaveAttribute("data-changeover");
       expect(stations[0].querySelector("[data-changeover]")).toBeNull();
     },
   );
+
+  it("two flights meeting at a place show the layover and its wait between their cards", () => {
+    const f1 = makeTransport({ id: "f1", mode: "FLIGHT", fromStopId: "par", anchorStopId: "par", depPlace: "Paris", arrPlace: "Bangkok (BKK)", depAt: new Date("2026-12-15T06:00:00Z"), arrAt: new Date("2026-12-15T12:00:00Z"), sortOrder: 0 });
+    const f2 = makeTransport({ id: "f2", mode: "FLIGHT", toStopId: "rom", anchorStopId: "par", depPlace: "Bangkok (BKK)", arrPlace: "Rome", depAt: new Date("2026-12-15T14:35:00Z"), arrAt: new Date("2026-12-15T20:00:00Z"), sortOrder: 1 });
+    renderPlan(<ItineraryManager {...baseProps} initialStops={[PARIS, ROME]} initialTransports={[f1, f2]} />);
+    const stations = [...screen.getByTestId("plan-desktop-list").querySelectorAll("[data-leg-station]")] as HTMLElement[];
+    expect(within(stations[1]).getByText("Layover in Bangkok · 2h 35m")).toHaveAttribute("data-changeover");
+    expect(stations[0].querySelector("[data-changeover]")).toBeNull();
+  });
+
+  it("two trains meeting at a place show Change at … with the wait", () => {
+    const t1 = { ...legA, depAt: new Date("2026-12-15T08:00:00Z"), arrAt: new Date("2026-12-15T10:00:00Z") };
+    const t2 = { ...legB, depAt: new Date("2026-12-15T10:12:00Z"), arrAt: new Date("2026-12-15T12:00:00Z") };
+    renderPlan(<ItineraryManager {...baseProps} initialStops={[PARIS, ROME]} initialTransports={[t1, t2]} />);
+    const stations = [...screen.getByTestId("plan-desktop-list").querySelectorAll("[data-leg-station]")] as HTMLElement[];
+    expect(within(stations[1]).getByText("Change at Milano Centrale · 12m")).toHaveAttribute("data-changeover");
+  });
 
   it("an unknown change-over place shows nothing", () => {
     const elsewhere = { ...legB, depPlace: "Milano Rogoredo" };
@@ -3224,6 +3242,102 @@ describe("metro-line legs (spec 2026-10-05 §F)", () => {
     const station = pill.closest("[data-leg-station]") as HTMLElement;
     expect(station.querySelector("[data-station-dot]")).not.toBeNull();
     expect(station.querySelector("[data-changeover]")).toBeNull();
+  });
+});
+
+describe("a journey home or out in more than one leg", () => {
+  const layouts = [["plan-desktop-list", true], ["plan-mobile-list", false]] as const;
+  const stationsOf = (row: Element) => [...row.querySelectorAll("[data-leg-station]")] as HTMLElement[];
+  const rowOf = (el: HTMLElement) => el.closest("[data-leg-kind='legs']") as HTMLElement;
+
+  const toDoha = makeTransport({ id: "r1", fromStopId: "rom", depPlace: "Rome (FCO)", arrPlace: "Doha (DOH)", depAt: new Date("2027-01-07T07:55:00Z"), arrAt: new Date("2027-01-07T13:05:00Z"), sortOrder: 0 });
+  const dohaHome = makeTransport({ id: "r2", arrIsHome: true, depPlace: "Doha (DOH)", arrPlace: "Brisbane (BNE)", depAt: new Date("2027-01-07T17:25:00Z"), arrAt: new Date("2027-01-08T07:30:00Z"), sortOrder: 1 });
+
+  it.each(layouts)(
+    "%s: a journey home in two legs is one stack under the last Stop with its layover line, and neither leg is drawn anywhere else",
+    (testId, lgUp) => {
+      if (!lgUp) setMatchMedia((q) => q === "(min-width: 640px)");
+      renderPlan(
+        <ItineraryManager {...baseProps} initialStops={[PARIS, ROME]} initialTransports={[dohaHome, toDoha]} homeBaseName="Gold Coast" roundTrip />,
+      );
+      const list = within(screen.getByTestId(testId));
+      const first = list.getByRole("button", { name: /^Flight from Rome to Doha/ });
+      const second = list.getByRole("button", { name: /^Flight from Doha \(DOH\) to Gold Coast/ });
+      expect(screen.getAllByRole("button", { name: /^Flight from Rome to Doha/ })).toHaveLength(1);
+      expect(screen.getAllByRole("button", { name: /^Flight from Doha \(DOH\) to Gold Coast/ })).toHaveLength(1);
+      const row = rowOf(first);
+      expect(rowOf(second)).toBe(row);
+      const stations = stationsOf(row);
+      expect(stations).toHaveLength(2);
+      expect(within(stations[0]).getByRole("button", { name: /^Flight from Rome to Doha/ })).toBeInTheDocument();
+      expect(within(stations[1]).getByText("Layover in Doha · 4h 20m")).toHaveAttribute("data-changeover");
+      const bottom = document.getElementById(lgUp ? "home-base-bottom" : "m-home-base-bottom")!;
+      expect(row.compareDocumentPosition(bottom) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+      expect(list.queryByRole("button", { name: /^Add transport from Rome/ })).toBeNull();
+    },
+  );
+
+  it("the second leg of a journey home anchored to the last Stop is still drawn once, in the bookend", () => {
+    renderPlan(
+      <ItineraryManager {...baseProps} initialStops={[PARIS, ROME]} initialTransports={[toDoha, { ...dohaHome, anchorStopId: "rom" }]} homeBaseName="Gold Coast" roundTrip />,
+    );
+    const [second] = screen.getAllByRole("button", { name: /^Flight from Doha \(DOH\) to Gold Coast/ });
+    expect(screen.getAllByRole("button", { name: /^Flight from Doha \(DOH\) to Gold Coast/ })).toHaveLength(1);
+    expect(rowOf(second)).toBe(rowOf(screen.getByRole("button", { name: /^Flight from Rome to Doha/ })));
+  });
+
+  const homeDoha = makeTransport({ id: "o1", depIsHome: true, depPlace: "Brisbane (BNE)", arrPlace: "Doha (DOH)", depAt: new Date("2026-12-09T08:00:00Z"), arrAt: new Date("2026-12-09T22:00:00Z"), sortOrder: 0 });
+  const dohaParis = makeTransport({ id: "o2", toStopId: "par", depPlace: "Doha (DOH)", arrPlace: "Paris (CDG)", depAt: new Date("2026-12-10T01:30:00Z"), arrAt: new Date("2026-12-10T07:00:00Z"), sortOrder: 1 });
+
+  it.each(layouts)(
+    "%s: a journey out in two legs is one stack under the Home base with its layover line, and neither leg is drawn anywhere else",
+    (testId, lgUp) => {
+      if (!lgUp) setMatchMedia((q) => q === "(min-width: 640px)");
+      renderPlan(
+        <ItineraryManager {...baseProps} initialStops={[PARIS, ROME]} initialTransports={[dohaParis, homeDoha]} homeBaseName="Gold Coast" roundTrip={false} />,
+      );
+      const list = within(screen.getByTestId(testId));
+      const first = list.getByRole("button", { name: /^Flight from Gold Coast to Doha/ });
+      expect(screen.getAllByRole("button", { name: /^Flight from Gold Coast to Doha/ })).toHaveLength(1);
+      expect(screen.getAllByRole("button", { name: /^Flight from Doha \(DOH\) to Paris/ })).toHaveLength(1);
+      const row = rowOf(first);
+      expect(rowOf(list.getByRole("button", { name: /^Flight from Doha \(DOH\) to Paris/ }))).toBe(row);
+      const stations = stationsOf(row);
+      expect(stations).toHaveLength(2);
+      expect(within(stations[0]).getByRole("button", { name: /^Flight from Gold Coast to Doha/ })).toBeInTheDocument();
+      expect(within(stations[1]).getByText("Layover in Doha · 3h 30m")).toHaveAttribute("data-changeover");
+      expect(screen.getByTestId(testId).querySelectorAll("[data-leg-kind='legs']")[0]).toBe(row);
+    },
+  );
+
+  it("on a one-way trip, with no return bookend, the onward leg after the layover is still drawn once", () => {
+    renderPlan(
+      <ItineraryManager {...baseProps} initialStops={[PARIS, ROME]} initialTransports={[toDoha, { ...dohaHome, arrIsHome: false }]} homeBaseName="Gold Coast" roundTrip={false} />,
+    );
+    expect(screen.getAllByRole("button", { name: /^Flight from Doha \(DOH\) to Brisbane/ })).toHaveLength(1);
+  });
+
+  it("with no Home base, the first leg of a journey in to the first Stop is still drawn once", () => {
+    renderPlan(
+      <ItineraryManager {...baseProps} initialStops={[PARIS, ROME]} initialTransports={[dohaParis, { ...homeDoha, depIsHome: false }]} />,
+    );
+    expect(screen.getAllByRole("button", { name: /^Flight from Brisbane \(BNE\) to Doha/ })).toHaveLength(1);
+  });
+
+  it("an undated round trip via one hub both ways draws each of its four Transports once, the journey out above the first Stop and the journey home below the last", () => {
+    const undated = [homeDoha, dohaParis, toDoha, dohaHome].map((t) => ({ ...t, depAt: null, arrAt: null }));
+    renderPlan(<ItineraryManager {...baseProps} initialStops={[PARIS, ROME]} initialTransports={undated} homeBaseName="Gold Coast" roundTrip />);
+    const names = [/^Flight from Gold Coast to Doha/, /^Flight from Doha \(DOH\) to Paris/, /^Flight from Rome to Doha/, /^Flight from Doha \(DOH\) to Gold Coast/];
+    const [out1, out2, home1, home2] = names.map((name) => {
+      const found = screen.getAllByRole("button", { name });
+      expect(found).toHaveLength(1);
+      return found[0];
+    });
+    expect(rowOf(out2)).toBe(rowOf(out1));
+    expect(rowOf(home2)).toBe(rowOf(home1));
+    expect(rowOf(out1).compareDocumentPosition(desktop().getByRole("heading", { name: "Paris" })) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(rowOf(home1).compareDocumentPosition(document.getElementById("home-base-bottom")!) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(desktop().getByRole("heading", { name: "Rome" }).compareDocumentPosition(rowOf(home1)) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
   });
 });
 
@@ -3907,5 +4021,27 @@ describe("a thing to do with a file attached", () => {
     expect(within(rowOf("Louvre")).getByText("File attached")).toBeInTheDocument();
     expect(within(rowOf("Orsay")).queryByText("File attached")).toBeNull();
     expect(within(rowOf("Rodin")).getByText("File attached")).toBeInTheDocument();
+  });
+});
+
+describe("a Transport of one booking", () => {
+  it("shows the paperclip when only its booking partner has a file, and its sheet lists that file on the partner with no delete", async () => {
+    const user = userEvent.setup();
+    const stopA = makeStop({ id: "s-a", name: "Sydney", sortOrder: 0 });
+    const stopB = makeStop({ id: "s-b", name: "Paris", sortOrder: 1 });
+    const leg: ItineraryTransport = {
+      id: "tr-1", bookingStateSet: false, mode: "FLIGHT", fromStopId: "s-a", toStopId: "s-b", depIsHome: false, arrIsHome: false,
+      depPlace: "Sydney", arrPlace: "Paris", depAt: null, arrAt: null, reference: null, notes: null, sortOrder: 0, costs: [],
+    };
+    const eticket = { id: "f1", filename: "eticket.pdf", title: null, mime: "application/pdf", size: 10, url: "/api/attachments/f1", uploadedById: "u1", createdAt: new Date(), filedOn: "SIN → CDG" };
+    renderPlan(
+      <ItineraryManager {...baseProps} initialStops={[stopA, stopB]} initialTransports={[leg]} partnerFilesByTransportId={new Map([["tr-1", [eticket]]])} />,
+    );
+    const pill = desktop().getByRole("button", { name: /^Flight from Sydney to Paris.*File attached\.$/ });
+    await user.click(pill);
+    const link = await screen.findByRole("link", { name: "eticket.pdf on SIN → CDG" });
+    expect(link).toHaveAttribute("href", "/api/attachments/f1");
+    expect(screen.queryByRole("button", { name: "Delete eticket.pdf" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Rename eticket.pdf" })).toBeNull();
   });
 });

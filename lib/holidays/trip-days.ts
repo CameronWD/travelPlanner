@@ -25,7 +25,7 @@ const readTripInput = cache(async (tripId: string): Promise<TripHolidayInput | n
     db.transport.findMany({
       where: { tripId, ...REAL_PLAN },
       select: {
-        fromStopId: true, toStopId: true, depAt: true, arrAt: true, depIsHome: true, arrIsHome: true,
+        fromStopId: true, toStopId: true, depAt: true, arrAt: true, depIsHome: true, arrIsHome: true, depTimezone: true, arrTimezone: true,
         depCountryCode: true, depRegion: true, arrCountryCode: true, arrRegion: true,
       },
     }),

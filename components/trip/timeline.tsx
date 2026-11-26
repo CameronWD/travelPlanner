@@ -450,6 +450,9 @@ function TransportRow({
       {isDep && depEntry && !depEntry.arrivesSameDay && depEntry.arrivalDateISO && (
         <p className="mt-0.5 text-xs font-medium text-sun-text">Arrives {formatDayLabel(depEntry.arrivalDateISO)}</p>
       )}
+      {entry.connection && (
+        <p data-connection className="mt-0.5 text-xs font-medium text-muted-foreground break-words">{entry.connection}</p>
+      )}
       <AttachmentLinks attachments={attachments} />
     </DayRow>
   );

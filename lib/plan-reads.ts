@@ -63,6 +63,8 @@ const PLAN_TRANSPORT_SELECT = {
   toStopId: true,
   depIsHome: true,
   arrIsHome: true,
+  depTimezone: true,
+  arrTimezone: true,
   anchorStopId: true,
   depPlace: true,
   depAt: true,

@@ -383,6 +383,8 @@ export function registerBookingsWriteTools(server: McpServer): void {
         "on a Stop-linked departure sets its point and keeps the Stop; pass depPlace \"\" to clear the point. A new " +
         "fromStopId clears the old point unless you pass depPlace too. fromStopId \"\" unlinks the Stop. Home takes no " +
         "point. The same applies to toStopId/arrPlace. " +
+        "When you change where a Transport departs from or arrives (its Stop, place or Home), send that end's time again too " +
+        "(depAt or arrAt): the time is read in the new place's own timezone. " +
         "A leg not bought yet is bookingState TO_BOOK; give bookBy for the day to book it by. " +
         "Travel details (carrier, serviceNumber, seat, terminal, gate, coach, platform) are optional; a detail that does not apply to the Transport's mode is kept but not shown. " +
         `${MONEY_NOTE} To change paid status or settlement on an owned Cost, use update_cost/mark_cost_paid/mark_cost_unpaid once it exists.`,

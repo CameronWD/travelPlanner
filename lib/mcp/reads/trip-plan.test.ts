@@ -683,6 +683,24 @@ describe("loadTripPlanForMcp", () => {
       expect(dayItem.files).toEqual([{ id: "f-day", title: "breakfast.pdf" }]);
     });
 
+    it("a Transport also lists its booking partner's files, each with filedOn naming that Transport; its own files have no filedOn", async () => {
+      const leg = { carrier: null, serviceNumber: null, seat: null, terminal: null, gate: null, coach: null, platform: null, notes: null, bookingState: "BOOKED", bookBy: null, nothingToAttach: false };
+      transportFindMany.mockImplementation((args: { where?: { id?: unknown } }) =>
+        Promise.resolve(args.where?.id
+          ? [{ id: "t1", fromStopId: null, toStopId: "stopA", depIsHome: false, arrIsHome: false, depPlace: "Doha", arrPlace: null, forkId: null }]
+          : [
+              { ...leg, id: "t0", mode: "FLIGHT", fromStopId: null, toStopId: null, depIsHome: true, arrIsHome: false, depPlace: null, arrPlace: "Doha",
+                depAt: new Date("2025-12-31T10:00:00Z"), arrAt: new Date("2025-12-31T18:00:00Z"), reference: "qf1 " },
+              { ...leg, id: "t1", mode: "FLIGHT", fromStopId: null, toStopId: "stopA", depIsHome: false, arrIsHome: false, depPlace: "Doha", arrPlace: null,
+                depAt: new Date("2025-12-31T22:00:00Z"), arrAt: new Date("2026-01-01T10:00:00Z"), reference: "QF1" },
+            ]),
+      );
+      const plan = await loadTripPlanForMcp(TRIP_ID);
+      const files = (id: string) => plan.transports.find((t) => t.id === id)!.files;
+      expect(files("t0")).toStrictEqual([{ id: "f-transport", title: "boarding.pdf", filedOn: "Doha → Tokyo" }]);
+      expect(files("t1")).toStrictEqual([{ id: "f-transport", title: "boarding.pdf" }]);
+    });
+
     it("a thing with no files has files: []", async () => {
       attachmentFindMany.mockResolvedValue([]);
       const plan = await loadTripPlanForMcp(TRIP_ID);

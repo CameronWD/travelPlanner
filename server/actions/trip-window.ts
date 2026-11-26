@@ -41,7 +41,7 @@ export async function growTripEndTx(
     }),
     tx.transport.findMany({
       where: { tripId, ...REAL_PLAN, arrAt: { not: null } },
-      select: { fromStopId: true, toStopId: true, depIsHome: true, arrIsHome: true, arrAt: true },
+      select: { fromStopId: true, toStopId: true, depIsHome: true, arrIsHome: true, arrAt: true, depTimezone: true, arrTimezone: true },
     }),
   ]);
   const next = grownEndDate(trip.endDate, softEndDate({ stops, transports, homeTimezone: trip.homeTimezone }));

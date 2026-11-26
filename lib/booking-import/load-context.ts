@@ -5,6 +5,7 @@ import { orderPlanStops } from "@/lib/plan-order";
 import { planScope } from "@/lib/plan-scope";
 import { loadSurpriseVisibility } from "@/lib/surprise-visibility";
 import { resolveEndpointZones } from "@/lib/time-display";
+import { endZones } from "@/lib/leg-zones";
 import { TRANSPORT_MODE_META } from "@/lib/transport";
 import { currentTripTimezone, instantToZonedDateISO, todayISOInZone } from "@/lib/tz";
 import type { MatchContext } from "./build";
@@ -32,7 +33,7 @@ export async function loadImportContext(
   const [transports, accommodations, items] = await Promise.all([
     db.transport.findMany({
       where: { ...scope, reference: { not: null } },
-      select: { id: true, mode: true, reference: true, depAt: true, fromStopId: true, toStopId: true, depIsHome: true, arrIsHome: true },
+      select: { id: true, mode: true, reference: true, depAt: true, fromStopId: true, toStopId: true, depIsHome: true, arrIsHome: true, depTimezone: true, arrTimezone: true },
     }),
     db.accommodation.findMany({ where: { ...scope, confirmation: { not: null }, ...v.where.accommodation }, select: { id: true, name: true, confirmation: true } }),
     db.item.findMany({ where: { ...scope, booking: { not: null }, ...v.where.item }, select: { id: true, title: true, booking: true } }),
@@ -49,11 +50,8 @@ export async function loadImportContext(
     today: todayISOInZone(currentTripTimezone(stops, homeTimezone)),
     existing: {
       transports: transports.map((t) => {
-        const { depTz } = resolveEndpointZones(
-          t.fromStopId ? (zoneOf.get(t.fromStopId) ?? null) : null,
-          t.toStopId ? (zoneOf.get(t.toStopId) ?? null) : null,
-          { depIsHome: t.depIsHome, arrIsHome: t.arrIsHome, homeTimezone },
-        );
+        const { fromTimezone, toTimezone } = endZones(t, (id) => (id ? zoneOf.get(id) : null));
+        const { depTz } = resolveEndpointZones(fromTimezone, toTimezone, { depIsHome: t.depIsHome, arrIsHome: t.arrIsHome, homeTimezone });
         const modeLabel = TRANSPORT_MODE_META[t.mode as TransportMode]?.label ?? "Transport";
         return {
           id: t.id,

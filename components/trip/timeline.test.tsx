@@ -1561,3 +1561,33 @@ describe("Timeline — Travel details", () => {
     expect(container.querySelector("[data-travel-details]")).toBeNull();
   });
 });
+
+describe("Timeline: the wait", () => {
+  const dayWith = (kind: "transport-departure" | "transport-arrival", connection?: string): DayPlan => ({
+    dateISO: "2025-07-01",
+    stop: { id: "stop-1", name: "Tokyo", timezone: "Asia/Tokyo", arriveDate: "2025-07-01", departDate: "2025-07-03", sortOrder: 0 },
+    timedItems: [],
+    untimedItems: [],
+    transportEntries: [
+      { kind, transport: { id: "tr-1", bookingStateSet: false, mode: "FLIGHT", depPlace: "Brisbane", arrPlace: "Bangkok" }, arrivesSameDay: true, connection } as never,
+    ],
+    accommodationEntries: [],
+  });
+
+  it("the line is shown directly under the arrival", () => {
+    const { container } = render(<Timeline day={dayWith("transport-arrival", "Layover in Bangkok \u00b7 2h 35m")} variant="day" />);
+    const line = container.querySelector("[data-connection]")!;
+    expect(line).toHaveTextContent("Layover in Bangkok \u00b7 2h 35m");
+    expect(line.previousElementSibling).toHaveTextContent("Brisbane");
+  });
+
+  it("is shown under a same-day departure row that carries it", () => {
+    const { container } = render(<Timeline day={dayWith("transport-departure", "Change at Lyon")} variant="day" />);
+    expect(container.querySelector("[data-connection]")).toHaveTextContent("Change at Lyon");
+  });
+
+  it("is absent otherwise", () => {
+    const { container } = render(<Timeline day={dayWith("transport-arrival")} variant="day" />);
+    expect(container.querySelector("[data-connection]")).toBeNull();
+  });
+});

@@ -36,6 +36,7 @@ import { readDayRows } from "@/lib/day-reads";
 import { buildSpendSoFar, type SpendCost } from "@/lib/money/spend-so-far";
 import { TRANSPORT_MODE_META } from "@/lib/transport";
 import { resolveEndpointZones, zoneLabel } from "@/lib/time-display";
+import { endZones } from "@/lib/leg-zones";
 import type { BookingState, TransportMode } from "@/lib/enum-values";
 import { REAL_PLAN, THINGS_TO_DO_WHERE } from "@/lib/plan-scope";
 import { buildCostLabelMap } from "@/lib/money/cost-labels";
@@ -173,11 +174,12 @@ async function loadTravellingHomeUncached(tripId: string, userId: string | null)
         kind: "ITEM" as const, id: i.id, label: i.title, bookingState: i.bookingState as BookingState, bookBy: i.bookBy, date: i.date, stopId: i.stopId,
       })),
       ...transports.map((t) => {
-        const { depTz } = resolveEndpointZones(
-          t.fromStopId ? (tzById.get(t.fromStopId) ?? null) : null,
-          t.toStopId ? (tzById.get(t.toStopId) ?? null) : null,
-          { depIsHome: t.depIsHome, arrIsHome: t.arrIsHome, homeTimezone: trip.homeTimezone },
-        );
+        const { fromTimezone, toTimezone } = endZones(t, (id) => (id ? tzById.get(id) : null));
+        const { depTz } = resolveEndpointZones(fromTimezone, toTimezone, {
+          depIsHome: t.depIsHome,
+          arrIsHome: t.arrIsHome,
+          homeTimezone: trip.homeTimezone,
+        });
         return {
           kind: "TRANSPORT" as const, id: t.id, label: ownerNames.get(t.id) ?? "Transport", bookingState: t.bookingState, bookBy: t.bookBy,
           date: t.depAt ? instantToZonedDateISO(t.depAt, depTz) : null, stopId: t.anchorStopId ?? t.fromStopId ?? t.toStopId,
@@ -203,7 +205,8 @@ async function loadTravellingHomeUncached(tripId: string, userId: string | null)
           // otherwise unchanged (a Stop's own zone, else no "→ UTC").
           depZone: zoneLabel(
             (nextTransportDep.transport.depIsHome && trip.homeTimezone) ||
-              stops.find((s) => s.id === nextTransportDep.transport.fromStopId)?.timezone,
+              stops.find((s) => s.id === nextTransportDep.transport.fromStopId)?.timezone ||
+              nextTransportDep.transport.depTimezone,
             effectiveDate,
           ),
           label: buildTransportLabel(nextTransportDep.transport),

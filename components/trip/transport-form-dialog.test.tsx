@@ -25,6 +25,11 @@ vi.mock("motion/react", async (importOriginal) => ({
   ...(await importOriginal<typeof import("motion/react")>()),
   useReducedMotion: () => motionPref.reduced,
 }));
+vi.mock("@/lib/tz-point", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/lib/tz-point")>();
+  return { ...actual, pointTimezone: vi.fn(actual.pointTimezone) };
+});
+import { pointTimezone } from "@/lib/tz-point";
 import { createTransport, updateTransport } from "@/server/actions/transport";
 import { deleteAttachment } from "@/server/actions/attachments";
 
@@ -2058,6 +2063,13 @@ describe("TransportFormDialog: No ticket or file needed tick box", () => {
     expect(screen.getByRole("checkbox", { name: "No ticket or file needed" })).toBeChecked();
   });
 
+  it("is absent when the booking partner already has the ticket, which is listed on the partner with no delete", () => {
+    render(<TransportFormDialog {...baseProps} transport={booked} attachments={[]} partnerFiles={[{ ...file, filedOn: "DPS → BKK" }]} />);
+    expect(screen.queryByRole("checkbox", { name: "No ticket or file needed" })).not.toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "ticket.pdf on DPS → BKK" })).toHaveAttribute("href", "/api/attachments/att-9");
+    expect(screen.queryByRole("button", { name: "Delete ticket.pdf" })).toBeNull();
+  });
+
   it("is absent on a What-if (Fork) plan, where it could only fail", () => {
     render(<TransportFormDialog {...baseProps} transport={booked} forkId="fork-1" />);
     expect(screen.queryByRole("checkbox", { name: "No ticket or file needed" })).not.toBeInTheDocument();
@@ -2214,5 +2226,165 @@ describe("TransportFormDialog: Travel details", () => {
     expect(onDraftChange.mock.lastCall![0]).not.toHaveProperty("seat");
     await user.click(screen.getByRole("button", { name: "Confirm" }));
     expect(onSubmitOverride).toHaveBeenCalledWith(expect.objectContaining({ carrier: "Qantas", gate: "B14" }));
+  });
+});
+
+describe("TransportFormDialog: a place end's own zone", () => {
+  const DPS = { id: "dps", name: "Denpasar", timezone: "Asia/Makassar" };
+  const TYO = { id: "tyo", name: "Tokyo", timezone: "Asia/Tokyo" };
+  const NO_ZONE = { id: "noz", name: "Somewhere" };
+  const BKK = { placeId: "ChIJBKK", mainText: "Suvarnabhumi Airport", secondaryText: "Bangkok, Thailand", lat: 13.69, lng: 100.75, countryCode: "th", country: "Thailand" };
+  const toBangkok: TransportCardTransport = {
+    id: "leg-bkk", bookingStateSet: false, mode: "FLIGHT", sortOrder: 0,
+    fromStopId: "dps", arrPlace: "Suvarnabhumi Airport", arrLat: 13.69, arrLng: 100.75, arrTimezone: "Asia/Bangkok",
+    depAt: new Date("2026-12-05T09:30:00Z"), arrAt: new Date("2026-12-05T15:15:00Z"),
+  };
+  // Leaves 20:00 Denpasar (12:00Z); "19:30" lands after it only when read in Bangkok (+7), not in Denpasar's +8.
+  const warnTimes = { depAt: new Date("2026-12-05T12:00:00Z") };
+  const warning = () => screen.queryByText(/double-check these times/i);
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mock.reset();
+    vi.stubEnv("NEXT_PUBLIC_GOOGLE_MAPS_BROWSER_KEY", "k");
+  });
+  afterEach(() => vi.unstubAllEnvs());
+
+  async function pickArrivalPlace(user: ReturnType<typeof userEvent.setup>, p: typeof BKK) {
+    mock.places.predictions = [p];
+    await user.click(screen.getByRole("button", { name: /^To:/ }));
+    await user.type(await screen.findByPlaceholderText(/type to filter or search/i), p.mainText.slice(0, 5));
+    await user.click(await screen.findByRole("button", { name: new RegExp(p.secondaryText) }));
+  }
+
+  it("editing a leg to a place with a stored zone shows the arrival in that zone", () => {
+    render(<TransportFormDialog {...baseProps} stops={[DPS]} transport={toBangkok} />);
+    expect(screen.getByLabelText("Arrives Suvarnabhumi Airport")).toHaveValue("2026-12-05T22:15");
+  });
+
+  it("saving without changing anything sends the same wall times back", async () => {
+    const user = userEvent.setup();
+    render(<TransportFormDialog {...baseProps} stops={[DPS]} transport={toBangkok} />);
+    await user.click(screen.getByRole("button", { name: "Save" }));
+    expect(updateTransport).toHaveBeenCalledWith(
+      "leg-bkk",
+      expect.objectContaining({ depAt: "2026-12-05T17:30", arrAt: "2026-12-05T22:15" }),
+    );
+  });
+
+  it("picking a place for an end with no Stop switches that end to the place's zone", async () => {
+    vi.mocked(pointTimezone).mockReturnValueOnce("Asia/Bangkok");
+    const user = userEvent.setup();
+    const toChangi: TransportCardTransport = {
+      ...toBangkok, arrPlace: "Changi Airport", arrLat: 1.36, arrLng: 103.99, arrTimezone: "Asia/Singapore",
+      ...warnTimes, arrAt: new Date("2026-12-05T11:30:00Z"),
+    };
+    render(<TransportFormDialog {...baseProps} stops={[DPS]} transport={toChangi} />);
+    expect(screen.getByLabelText("Arrives Changi Airport")).toHaveValue("2026-12-05T19:30");
+    expect(warning()).toBeInTheDocument();
+
+    await pickArrivalPlace(user, BKK);
+    await waitFor(() => expect(warning()).not.toBeInTheDocument());
+    expect(pointTimezone).toHaveBeenCalledWith(13.69, 100.75);
+
+    fireEvent.change(screen.getByLabelText("Arrives Suvarnabhumi Airport"), { target: { value: "2026-12-05T21:00" } });
+    await user.click(screen.getByRole("button", { name: "Save" }));
+    expect(updateTransport).toHaveBeenCalledWith(
+      "leg-bkk",
+      expect.objectContaining({ depAt: "2026-12-05T20:00", arrAt: "2026-12-05T21:00", arrLat: 13.69, arrLng: 100.75 }),
+    );
+  });
+
+  it("choosing a Stop for the end goes back to the Stop's zone", async () => {
+    const user = userEvent.setup();
+    render(<TransportFormDialog {...baseProps} stops={[DPS, TYO]} defaultFromStopId="dps" />);
+    await pickArrivalPlace(user, BKK);
+    fireEvent.change(screen.getByLabelText("Leaves Denpasar"), { target: { value: "2026-12-05T20:00" } });
+    fireEvent.change(screen.getByLabelText("Arrives Suvarnabhumi Airport"), { target: { value: "2026-12-05T19:30" } });
+    await waitFor(() => expect(warning()).not.toBeInTheDocument());
+
+    await openComboboxAndSelectStop(user, "^To:", "Tokyo");
+    expect(screen.getByLabelText("Arrives Tokyo")).toHaveValue("2026-12-05T19:30");
+    expect(warning()).toBeInTheDocument();
+  });
+
+  it("a Stop with no zone of its own does not take the place's stored zone", async () => {
+    const user = userEvent.setup();
+    render(
+      <TransportFormDialog
+        {...baseProps}
+        stops={[DPS, NO_ZONE]}
+        transport={{ ...toBangkok, ...warnTimes, arrAt: new Date("2026-12-05T12:30:00Z") }}
+      />,
+    );
+    expect(screen.getByLabelText("Arrives Suvarnabhumi Airport")).toHaveValue("2026-12-05T19:30");
+    expect(warning()).not.toBeInTheDocument();
+
+    await openComboboxAndSelectStop(user, "^To:", "Somewhere");
+    expect(warning()).toBeInTheDocument();
+  });
+
+  it("editing a legacy place end (no stored zone) and saving without changing its place sends the same wall times back and shows them as before", async () => {
+    const user = userEvent.setup();
+    render(<TransportFormDialog {...baseProps} stops={[DPS]} transport={{ ...toBangkok, arrTimezone: null }} />);
+    expect(screen.getByLabelText("Arrives Suvarnabhumi Airport")).toHaveValue("2026-12-05T23:15");
+    await user.click(screen.getByRole("button", { name: "Save" }));
+    expect(updateTransport).toHaveBeenCalledWith(
+      "leg-bkk",
+      expect.objectContaining({ depAt: "2026-12-05T17:30", arrAt: "2026-12-05T23:15" }),
+    );
+    expect(pointTimezone).not.toHaveBeenCalled();
+  });
+
+  it("re-picking the same place on a legacy end does not change its zone", async () => {
+    const user = userEvent.setup();
+    render(
+      <TransportFormDialog
+        {...baseProps}
+        stops={[DPS]}
+        transport={{ ...toBangkok, arrTimezone: null, ...warnTimes, arrAt: new Date("2026-12-05T11:30:00Z") }}
+      />,
+    );
+    expect(screen.getByLabelText("Arrives Suvarnabhumi Airport")).toHaveValue("2026-12-05T19:30");
+    expect(warning()).toBeInTheDocument();
+
+    await pickArrivalPlace(user, BKK);
+    await import("@/lib/tz-point");
+    expect(warning()).toBeInTheDocument();
+    expect(pointTimezone).not.toHaveBeenCalled();
+  });
+
+  it("changing only the case or spacing of a saved place's text keeps its stored zone", async () => {
+    const user = userEvent.setup();
+    render(
+      <TransportFormDialog
+        {...baseProps}
+        stops={[DPS]}
+        transport={{ ...toBangkok, arrPlace: " Suvarnabhumi Airport ", ...warnTimes, arrAt: new Date("2026-12-05T12:30:00Z") }}
+      />,
+    );
+    expect(warning()).not.toBeInTheDocument();
+
+    await openComboboxAndTypePlace(user, "^To:", "suvarnabhumi AIRPORT");
+    expect(screen.getByLabelText(/^Arrives/)).toHaveValue("2026-12-05T19:30");
+    expect(warning()).not.toBeInTheDocument();
+    expect(pointTimezone).not.toHaveBeenCalled();
+  });
+
+  it("a new Transport to a place with coordinates shows and reads the arrival in that place's zone", async () => {
+    const user = userEvent.setup();
+    render(<TransportFormDialog {...baseProps} stops={[DPS]} defaultFromStopId="dps" />);
+    fireEvent.change(screen.getByLabelText("Leaves Denpasar"), { target: { value: "2026-12-05T20:00" } });
+    await pickArrivalPlace(user, BKK);
+    fireEvent.change(screen.getByLabelText("Arrives Suvarnabhumi Airport"), { target: { value: "2026-12-05T19:30" } });
+    await waitFor(() => expect(warning()).not.toBeInTheDocument());
+    expect(pointTimezone).toHaveBeenCalledWith(13.69, 100.75);
+
+    await user.click(screen.getByRole("button", { name: "Add flight" }));
+    expect(createTransport).toHaveBeenCalledWith(
+      "trip-1",
+      expect.objectContaining({ fromStopId: "dps", depAt: "2026-12-05T20:00", arrPlace: "Suvarnabhumi Airport", arrLat: 13.69, arrAt: "2026-12-05T19:30" }),
+      undefined,
+    );
   });
 });

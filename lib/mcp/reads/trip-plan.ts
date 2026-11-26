@@ -38,6 +38,7 @@ import {
   toMcpItem,
   toMcpTransport,
   toMcpTrip,
+  withBookingFiles,
   withPlaceholders,
   type FilesFor,
   type McpChapter,
@@ -113,11 +114,12 @@ export async function loadTripPlanView(tripId: string, viewerId: string | null):
 
   const tzById = new Map(stops.map((s) => [s.id, s.timezone]));
   const homeTimezone = trip?.homeTimezone ?? null;
+  const transportFiles = withBookingFiles(filesFor, transportsRaw, stops, trip?.homeName ?? null);
 
   return {
     trip: toMcpTrip(tripId, trip, byOwner.get(ownerKey("TRIP", tripId)) ?? []),
     stops: built.stops,
-    transports: transportsRaw.map((t) => toMcpTransport(t, { stopNameById, tzById, homeTimezone, filesFor, needsConfirmation })),
+    transports: transportsRaw.map((t) => toMcpTransport(t, { stopNameById, tzById, homeTimezone, filesFor: transportFiles, needsConfirmation })),
     chapters: chaptersRaw,
     unplacedDatedItems: datedItems
       .filter((i) => !built.coveredItemIds.has(i.id))

@@ -86,6 +86,8 @@ interface ForkSourceTransport extends TransportDetails {
   depRegion?: string | null;
   arrCountryCode?: string | null;
   arrRegion?: string | null;
+  depTimezone?: string | null;
+  arrTimezone?: string | null;
   reference: string | null;
   notes: string | null;
   sortOrder: number;
@@ -251,6 +253,8 @@ export interface ForkPlan {
       depRegion: string | null;
       arrCountryCode: string | null;
       arrRegion: string | null;
+      depTimezone: string | null;
+      arrTimezone: string | null;
       reference: string | null;
       carrier: string | null; serviceNumber: string | null; seat: string | null; terminal: string | null; gate: string | null; coach: string | null; platform: string | null;
       notes: string | null;
@@ -372,6 +376,7 @@ export function buildForkPlan(source: ForkSource): ForkPlan {
         depLat: t.depLat, depLng: t.depLng, arrLat: t.arrLat, arrLng: t.arrLng,
         depPlaceId: t.depPlaceId ?? null, arrPlaceId: t.arrPlaceId ?? null,
         depCountryCode: t.depCountryCode ?? null, depRegion: t.depRegion ?? null, arrCountryCode: t.arrCountryCode ?? null, arrRegion: t.arrRegion ?? null,
+        depTimezone: t.depTimezone ?? null, arrTimezone: t.arrTimezone ?? null,
         reference: t.reference, ...pickTransportDetails(t), notes: t.notes, sortOrder: t.sortOrder,
         bookingState: effectiveBookingState(transportBookingSubject(t.mode), t, t.reference), bookingStateSet: t.bookingStateSet ?? false, bookBy: t.bookBy ?? null, nothingToAttach: t.nothingToAttach ?? false,
       },

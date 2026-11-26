@@ -1,5 +1,6 @@
 import { render, screen } from "@testing-library/react";
 import { it, expect } from "vitest";
+import { within } from "@testing-library/react";
 import { AttachmentLinks } from "@/components/trip/attachment-links";
 
 const att = { id: "a1", filename: "boarding.pdf", mime: "application/pdf", size: 1, url: "/api/attachments/a1", uploadedById: "u1", createdAt: new Date() };
@@ -39,4 +40,12 @@ it("gives each link a 32-point touch height across the full line", () => {
     expect(link.className).not.toMatch(/pointer-coarse:min-h-11/);
     expect(link.className).not.toMatch(/pointer-coarse:min-w-11/);
   }
+});
+
+it("labels a booking partner's file with the Transport it is filed on, and opens the same file", () => {
+  render(<AttachmentLinks attachments={[att, { ...att, id: "a2", filename: "eticket.pdf", url: "/api/attachments/a2", filedOn: "Denpasar → Bangkok" }]} />);
+  const partner = screen.getByRole("link", { name: "eticket.pdf on Denpasar → Bangkok" });
+  expect(partner).toHaveAttribute("href", "/api/attachments/a2");
+  expect(within(partner).getByText("on Denpasar → Bangkok").className).toMatch(/text-muted-foreground/);
+  expect(screen.getByRole("link", { name: "boarding.pdf" })).toBeInTheDocument();
 });

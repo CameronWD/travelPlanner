@@ -25,7 +25,8 @@ import { stopHue } from "@/lib/stop-colours";
 import { usePlanBody, useRegisterPlanActions } from "@/components/plan/plan-body";
 import { claimDragHint, daySectionId } from "@/components/plan/day-section";
 import { planCollisionDetection, POINTER_ACTIVATION, resolveItemDrop, scheduleInputFor, TOUCH_ACTIVATION, type ItemDrop } from "@/components/plan/plan-dnd";
-import { changeoverPlaces, legLabel, missingLegLabel, legSlotKind } from "@/lib/plan/leg-label";
+import { changeLabels, journeyHome, journeyOut } from "@/lib/connections";
+import { legLabel, missingLegLabel, legSlotKind } from "@/lib/plan/leg-label";
 import { daySlots, type DaySlot } from "@/lib/plan/day-density";
 import { planDateRange, stayStatus } from "@/lib/plan/plan-model";
 import { AddStopSheet } from "@/components/plan/mobile/add-stop-sheet";
@@ -42,7 +43,6 @@ import type { ItemCardItem } from "./item-card";
 import type { ReminderItem } from "@/server/actions/reminders";
 import type { ReminderAbout } from "@/lib/reminder-about";
 import { ChapterFormDialog } from "./chapter-form-dialog";
-import { findOutboundLeg, findReturnLeg } from "@/lib/home-base";
 import { DateField } from "@/components/ui/date-field";
 import {
   Dialog,
@@ -145,6 +145,8 @@ export interface ItineraryTransport extends TransportDetails {
   arrIsHome?: boolean | null;
   depPlace?: string | null;
   arrPlace?: string | null;
+  depPlaceId?: string | null;
+  arrPlaceId?: string | null;
   depAt?: Date | null;
   arrAt?: Date | null;
   reference?: string | null;
@@ -197,6 +199,7 @@ interface ItineraryManagerProps {
   attachmentsByStopId?: Map<string, AttachmentView[]>;
   /** Map of transportId → attachments for that transport */
   attachmentsByTransportId?: Map<string, AttachmentView[]>;
+  partnerFilesByTransportId?: Map<string, AttachmentView[]>;
   /** Map of accommodationId → attachments for that accommodation */
   attachmentsByAccommodationId?: Map<string, AttachmentView[]>;
   /** Map of itemId → attachments for that item */
@@ -483,6 +486,7 @@ export function ItineraryManager({
   notesByAccommodationId,
   attachmentsByStopId,
   attachmentsByTransportId,
+  partnerFilesByTransportId,
   attachmentsByAccommodationId,
   attachmentsByItemId,
   currentUserId,
@@ -1255,24 +1259,29 @@ export function ItineraryManager({
 
   // ── Home base bookends (see ADR 0032) ──
   // The Home base frames the plan: its card is pinned above the first stop
-  // (with the outbound leg) and, on a round trip, below the last (with the
-  // return leg). Home legs are excluded from legsBySlot via bookendLegIds.
+  // (with the journey out) and, on a round trip, below the last (with the
+  // journey home). bookendLegIds keeps the legs a bookend draws out of legsBySlot.
   const hasHomeBase = Boolean(homeBaseName);
   const firstStop = stops.length > 0 ? stops[0] : null;
   const lastStop = stops.length > 0 ? stops[stops.length - 1] : null;
-  const outboundLeg = findOutboundLeg(transports, firstStop?.id ?? null);
-  const returnLeg = findReturnLeg(transports, lastStop?.id ?? null);
+  const firstStopId = firstStop?.id ?? null;
+  const lastStopId = lastStop?.id ?? null;
+  const outboundJourney = React.useMemo(() => journeyOut(transports, firstStopId), [transports, firstStopId]);
+  const returnJourney = React.useMemo(() => journeyHome(transports, lastStopId), [transports, lastStopId]);
   // A return bookend renders on a round trip with a Home base and a last Stop.
   // It owns the end of the plan's add-transport affordance: no generic slot
   // after the last Stop and no standalone "Add transport" below it (ADR 0032
   // amendment 2026-09-29 — at most one prompt per bookend).
   const hasReturnBookend = hasHomeBase && Boolean(roundTrip) && lastStop != null;
+  // A journey's seed leg stays out of the Stop slots even with no bookend to
+  // draw it (as before journeys); its Connections only join a drawn bookend.
   const bookendLegIds = React.useMemo(() => {
-    const ids = new Set<string>();
-    if (outboundLeg) ids.add(outboundLeg.id);
-    if (returnLeg) ids.add(returnLeg.id);
-    return ids;
-  }, [outboundLeg, returnLeg]);
+    const legs = [
+      ...(hasHomeBase ? outboundJourney : outboundJourney.slice(-1)),
+      ...(hasReturnBookend ? returnJourney : returnJourney.slice(0, 1)),
+    ];
+    return new Set(legs.map((t) => t.id));
+  }, [outboundJourney, returnJourney, hasHomeBase, hasReturnBookend]);
 
   /**
    * Transports grouped by their anchor slot (stop id or HEAD_SLOT).
@@ -1406,7 +1415,7 @@ export function ItineraryManager({
         label={legLabel(t, stops, homeBaseName, homeTimezone)}
         bookingState={t.bookingState}
         bookBy={t.bookBy}
-        attached={(attachmentsByTransportId?.get(t.id)?.length ?? 0) > 0}
+        attached={(attachmentsByTransportId?.get(t.id)?.length ?? 0) + (partnerFilesByTransportId?.get(t.id)?.length ?? 0) > 0}
         onClick={() => {
           setEditingTransport(enrichTransport(t, stops));
           setEditingTransportCosts(t.costs);
@@ -1416,11 +1425,11 @@ export function ItineraryManager({
   }
 
   // A strip of one or more legs, metro-style (spec 2026-10-05 §F): legs stack
-  // in slot (travel) order and a change-over shows only where one leg's
+  // in slot (travel) order and a change-over line shows only where one leg's
   // arrival place is already the next one's departure place.
   function renderLegStack(legs: ItineraryTransport[], compact?: boolean) {
     return (
-      <LegRow kind="legs" compact={compact} changeovers={changeoverPlaces(legs)}>
+      <LegRow kind="legs" compact={compact} changeovers={changeLabels(legs)}>
         {legs.map((t) => renderLegPill(t, compact))}
       </LegRow>
     );
@@ -1811,8 +1820,8 @@ export function ItineraryManager({
                 dateISO={firstStop?.arriveDate ?? tripStartDate ?? null}
                 anchorId="m-home-base-top"
               />
-              {outboundLeg ? (
-                <LegRow kind="legs" compact>{renderLegPill(outboundLeg, true)}</LegRow>
+              {outboundJourney.length > 0 ? (
+                renderLegStack(outboundJourney, true)
               ) : firstStop?.arriveDate ? (
                 <LegRow kind="missing" compact>
                   <LegPill
@@ -1875,8 +1884,8 @@ export function ItineraryManager({
 
           {hasReturnBookend && lastStop && (
             <>
-              {returnLeg ? (
-                <LegRow kind="legs" compact>{renderLegPill(returnLeg, true)}</LegRow>
+              {returnJourney.length > 0 ? (
+                renderLegStack(returnJourney, true)
               ) : lastStop.arriveDate ? (
                 <LegRow kind="missing" compact>
                   <LegPill
@@ -1950,8 +1959,8 @@ export function ItineraryManager({
                       variant="origin"
                       dateISO={firstStop?.arriveDate ?? tripStartDate ?? null}
                     />
-                    {outboundLeg ? (
-                      <LegRow kind="legs">{renderLegPill(outboundLeg)}</LegRow>
+                    {outboundJourney.length > 0 ? (
+                      renderLegStack(outboundJourney)
                     ) : firstStop?.arriveDate ? (
                       <LegRow kind="missing">
                         <LegPill
@@ -2047,8 +2056,8 @@ export function ItineraryManager({
                 {/* Home base return bookend (round trips only) */}
                 {hasReturnBookend && lastStop && (
                   <>
-                    {returnLeg ? (
-                      <LegRow kind="legs">{renderLegPill(returnLeg)}</LegRow>
+                    {returnJourney.length > 0 ? (
+                      renderLegStack(returnJourney)
                     ) : lastStop.arriveDate ? (
                       <LegRow kind="missing">
                         <LegPill
@@ -2173,6 +2182,7 @@ export function ItineraryManager({
           homeBaseName={homeBaseName}
           homeTimezone={homeTimezone}
           attachments={attachmentsByTransportId?.get(editingTransport.id) ?? []}
+          partnerFiles={partnerFilesByTransportId?.get(editingTransport.id) ?? []}
           onDelete={() => {
             const id = editingTransport.id;
             setEditingTransport(null);

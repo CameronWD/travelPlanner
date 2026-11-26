@@ -8,6 +8,7 @@ import { chapterForStop } from "@/lib/chapters";
 import { stopHue } from "@/lib/stop-colours";
 import { formatNights } from "@/lib/dates";
 import { loadBookingConfirmationsToAdd } from "@/lib/booking-confirmations-loader";
+import { bookingLegLabel, filesForLeg } from "@/lib/booking-files";
 import { ItineraryManager } from "@/components/trip/itinerary-manager";
 import type { TransportMode } from "@/lib/enum-values";
 import type { NoteView } from "@/components/trip/note-thread";
@@ -213,6 +214,13 @@ export default async function TripPlanPage({
     }
   }
 
+  const partnerFilesByTransportId = new Map<string, AttachmentView[]>();
+  for (const t of transports) {
+    const shared = filesForLeg(t, transports, (id) => attachmentsByTransportId.get(id) ?? [], (p) => bookingLegLabel({ ...p, mode: p.mode as TransportMode }, rows.stops, trip.homeName))
+      .flatMap(({ attachment, filedOn }) => (filedOn ? [{ ...attachment, filedOn }] : []));
+    if (shared.length > 0) partnerFilesByTransportId.set(t.id, shared);
+  }
+
   // Group notes by targetType then targetId
   const notesByStopId = new Map<string, NoteView[]>();
   const notesByTransportId = new Map<string, NoteView[]>();
@@ -409,6 +417,7 @@ export default async function TripPlanPage({
               notesByAccommodationId={notesByAccommodationId}
               attachmentsByStopId={attachmentsByStopId}
               attachmentsByTransportId={attachmentsByTransportId}
+              partnerFilesByTransportId={partnerFilesByTransportId}
               attachmentsByAccommodationId={attachmentsByAccommodationId}
               attachmentsByItemId={attachmentsByItemId}
               currentUserId={user.id}

@@ -102,6 +102,7 @@ describe("loadTransportForMcp", () => {
       reference: "QF1", notes: null,
     });
     m.stopFindMany.mockResolvedValue([{ id: "s1", name: "Porto", timezone: "Europe/Lisbon" }]);
+    m.transportFindMany.mockResolvedValue([]);
     m.loadTripAttachments.mockResolvedValue({ attachments: [], byOwner: new Map() });
     const out = await loadTransportForMcp("t1");
     expect(m.requireRealPlanRow).toHaveBeenCalledWith("transport", "t1");
@@ -109,6 +110,28 @@ describe("loadTransportForMcp", () => {
       id: "t1", from: { home: true }, to: { stopId: "s1", name: "Porto" },
       departs: { localTime: "08:00" }, arrives: { localTime: "11:00" }, reference: "QF1", files: [], costs: [cost],
     });
+  });
+});
+
+describe("loadTransportForMcp and one booking", () => {
+  it("lists its own files, then its booking partner's with filedOn naming that Transport", async () => {
+    const leg = { carrier: null, serviceNumber: null, seat: null, terminal: null, gate: null, coach: null, platform: null, notes: null, bookingState: "BOOKED", bookBy: null, nothingToAttach: false, depIsHome: false, arrIsHome: false };
+    const dps = { ...leg, id: "t1", mode: "FLIGHT", fromStopId: "s-bali", toStopId: null, depPlace: null, arrPlace: "Bangkok", depAt: new Date("2027-06-01T03:00:00Z"), arrAt: new Date("2027-06-01T07:00:00Z"), reference: "DHZU24" };
+    const bkk = { ...leg, id: "t2", mode: "FLIGHT", fromStopId: null, toStopId: "s-london", depPlace: "Bangkok", arrPlace: null, depAt: new Date("2027-06-01T09:00:00Z"), arrAt: new Date("2027-06-01T20:00:00Z"), reference: "dhzu24" };
+    m.tripFindUnique.mockResolvedValue({ homeTimezone: null, homeName: null });
+    m.transportFindUnique.mockResolvedValue(dps);
+    m.transportFindMany.mockResolvedValue([dps, bkk]);
+    m.stopFindMany.mockResolvedValue([
+      { id: "s-bali", name: "Bali", timezone: "Asia/Makassar", arriveDate: "2027-05-28", departDate: "2027-06-01" },
+      { id: "s-london", name: "London", timezone: "Europe/London", arriveDate: "2027-06-01", departDate: "2027-06-05" },
+    ]);
+    m.loadTripAttachments.mockResolvedValue({
+      attachments: [],
+      byOwner: new Map([["TRANSPORT:t1", [{ id: "f0", title: "Seats.png" }]], ["TRANSPORT:t2", [{ id: "f1", title: "eticket.pdf" }]]]),
+    });
+    const out = await loadTransportForMcp("t1");
+    expect(m.loadTripAttachments).toHaveBeenCalledWith("trip-1", NO_SURPRISES, { targetIds: ["t1", "t2"] });
+    expect(out.files).toStrictEqual([{ id: "f0", title: "Seats.png" }, { id: "f1", title: "eticket.pdf", filedOn: "Bangkok → London" }]);
   });
 });
 

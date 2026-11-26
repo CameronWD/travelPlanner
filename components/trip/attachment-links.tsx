@@ -11,6 +11,7 @@ export function AttachmentLinks({ attachments }: { attachments: AttachmentView[]
         <AttachmentLink key={a.id} href={a.url} mime={a.mime}
           className="inline-flex w-full items-center gap-1 pointer-coarse:min-h-8 text-xs text-muted-foreground hover:text-foreground underline">
           <Paperclip className="size-3" aria-hidden="true" />{attachmentName(a)}
+          {a.filedOn ? <>{" "}<span className="text-muted-foreground/80">on {a.filedOn}</span></> : null}
         </AttachmentLink>
       ))}
     </div>

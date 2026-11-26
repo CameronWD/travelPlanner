@@ -6,8 +6,11 @@ import { requirePlanAccess, requireRowAccess } from "@/lib/guards";
 import { transportSchema, type TransportInput } from "@/lib/validations/transport";
 import { wallTimeToInstant } from "@/lib/wall-time";
 import { resolveEndpointZones } from "@/lib/time-display";
+import { endZones } from "@/lib/leg-zones";
+import { pointTimezone } from "@/lib/tz-point";
+import { isValidTimeZone } from "@/lib/tz";
 import { geocodePlaceDetailed } from "@/lib/geocode";
-import { pickedPlace, placeForSave, type SavedPlace } from "@/lib/place-save";
+import { pickedPlace, placeForSave, samePlaceText, type SavedPlace } from "@/lib/place-save";
 import { auditedUpdate, recordPlanActivity } from "@/lib/activity-guard";
 import { entityLabel } from "@/lib/activity";
 import { planScope, type PlanId } from "@/lib/plan-scope";
@@ -111,6 +114,45 @@ async function endPlaces(
   };
 }
 
+type EndKinds = { fromStopId: string | null; toStopId: string | null; depIsHome: boolean; arrIsHome: boolean };
+type EndCoords = { depLat: number | null; depLng: number | null; arrLat: number | null; arrLng: number | null };
+type HeldEnds = Partial<EndKinds & EndCoords & {
+  depPlace: string | null; arrPlace: string | null; depTimezone: string | null; arrTimezone: string | null;
+}>;
+type SentEnds = { depPlace: string | null; arrPlace: string | null; depPick: SavedPlace | null; arrPick: SavedPlace | null };
+
+const sameCoord = (a: number | null | undefined, b: number | null) =>
+  a == null || b == null ? a == null && b == null : Math.round(a * 1e5) === Math.round(b * 1e5);
+
+type HeldEnd = { wasPlace: boolean; text?: string | null; lat?: number | null; lng?: number | null; zone?: string | null };
+type SentEnd = { text: string | null; pick: SavedPlace | null };
+
+// "Its place changed" is read from what the save sends, never from what a lookup
+// resolved: a legacy row's time must read where it always has until then.
+function placeEndZone(isPlace: boolean, lat: number | null, lng: number | null, held?: HeldEnd, sent?: SentEnd): string | null {
+  if (!isPlace) return null;
+  if (!held?.wasPlace || !sent) return pointTimezone(lat, lng);
+  const changed = sent.pick
+    ? !sameCoord(held.lat, sent.pick.lat) || !sameCoord(held.lng, sent.pick.lng)
+    : !samePlaceText(held.text, sent.text);
+  return changed ? pointTimezone(lat, lng) : (held.zone ?? null);
+}
+
+function placeEndZones(ends: EndKinds, coords: EndCoords, before?: HeldEnds, sent?: SentEnds) {
+  return {
+    depTimezone: placeEndZone(
+      !ends.fromStopId && !ends.depIsHome, coords.depLat, coords.depLng,
+      before && { wasPlace: !before.fromStopId && !before.depIsHome, text: before.depPlace, lat: before.depLat, lng: before.depLng, zone: before.depTimezone },
+      sent && { text: sent.depPlace, pick: sent.depPick },
+    ),
+    arrTimezone: placeEndZone(
+      !ends.toStopId && !ends.arrIsHome, coords.arrLat, coords.arrLng,
+      before && { wasPlace: !before.toStopId && !before.arrIsHome, text: before.arrPlace, lat: before.arrLat, lng: before.arrLng, zone: before.arrTimezone },
+      sent && { text: sent.arrPlace, pick: sent.arrPick },
+    ),
+  };
+}
+
 // ---------------------------------------------------------------------------
 // Actions
 // ---------------------------------------------------------------------------
@@ -125,6 +167,7 @@ export async function createTransport(
   tripId: string,
   input: TransportInput,
   forkId?: PlanId,
+  importZones?: { depTimezone?: string; arrTimezone?: string },
 ): Promise<ActionResult<{ id: string }>> {
   const { plan } = await requirePlanAccess(tripId, forkId);
 
@@ -160,12 +203,22 @@ export async function createTransport(
   const endpointStops = endpointIds.length
     ? await db.stop.findMany({ where: { id: { in: endpointIds } }, select: { id: true, timezone: true } })
     : [];
-  const tzOf = (id: string | null) =>
+  const tzOf = (id: string | null | undefined) =>
     id ? endpointStops.find((s) => s.id === id)?.timezone ?? null : null;
   const home = depIsHome || arrIsHome
     ? await db.trip.findUnique({ where: { id: tripId }, select: { homeTimezone: true } })
     : null;
-  const { depTz, arrTz } = resolveEndpointZones(tzOf(fromStopId), tzOf(toStopId), {
+  // Home endpoints are not looked up — coords resolve from the trip at read time.
+  const ends = await endPlaces(data, { depPlace, arrPlace });
+  const pointZones = placeEndZones({ fromStopId, toStopId, depIsHome, arrIsHome }, ends);
+  // The booking import's country zone for a place it could not find: a guess, but it shows the time on the ticket.
+  const importZone = (isPlace: boolean, zone: unknown) => (isPlace && typeof zone === "string" && isValidTimeZone(zone) ? zone : null);
+  const zones = {
+    depTimezone: pointZones.depTimezone ?? importZone(!fromStopId && !depIsHome, importZones?.depTimezone),
+    arrTimezone: pointZones.arrTimezone ?? importZone(!toStopId && !arrIsHome, importZones?.arrTimezone),
+  };
+  const { fromTimezone, toTimezone } = endZones({ fromStopId, toStopId, ...zones }, tzOf);
+  const { depTz, arrTz } = resolveEndpointZones(fromTimezone, toTimezone, {
     depIsHome,
     arrIsHome,
     homeTimezone: home?.homeTimezone ?? null,
@@ -180,9 +233,6 @@ export async function createTransport(
     select: { sortOrder: true },
   });
   const sortOrder = (maxTransport?.sortOrder ?? -1) + 1;
-
-  // Home endpoints are not looked up — coords resolve from the trip at read time.
-  const ends = await endPlaces(data, { depPlace, arrPlace });
 
   const created = await db.transport.create({
     data: {
@@ -203,6 +253,7 @@ export async function createTransport(
       notes: data.notes ?? null,
       sortOrder,
       ...ends,
+      ...zones,
       ...booking,
     },
   });
@@ -323,21 +374,27 @@ export async function updateTransport(
   const endpointStops = endpointIds.length
     ? await db.stop.findMany({ where: { id: { in: endpointIds } }, select: { id: true, timezone: true } })
     : [];
-  const tzOf = (id: string | null) =>
+  const tzOf = (id: string | null | undefined) =>
     id ? endpointStops.find((s) => s.id === id)?.timezone ?? null : null;
   const home = depIsHome || arrIsHome
     ? await db.trip.findUnique({ where: { id: transport.tripId }, select: { homeTimezone: true } })
     : null;
-  const { depTz, arrTz } = resolveEndpointZones(tzOf(fromStopId), tzOf(toStopId), {
+  // Home endpoints are not looked up — coords resolve from the trip at read time.
+  const ends = await endPlaces(data, { depPlace, arrPlace }, before);
+  const zones = placeEndZones({ fromStopId, toStopId, depIsHome, arrIsHome }, ends, before, {
+    depPlace,
+    arrPlace,
+    depPick: depPlace ? pickedPlace({ placeId: data.depPlaceId, lat: data.depLat, lng: data.depLng }) : null,
+    arrPick: arrPlace ? pickedPlace({ placeId: data.arrPlaceId, lat: data.arrLat, lng: data.arrLng }) : null,
+  });
+  const { fromTimezone, toTimezone } = endZones({ fromStopId, toStopId, ...zones }, tzOf);
+  const { depTz, arrTz } = resolveEndpointZones(fromTimezone, toTimezone, {
     depIsHome,
     arrIsHome,
     homeTimezone: home?.homeTimezone ?? null,
   });
   const depAtInstant = wallTimeToInstant(data.depAt, depTz);
   const arrAtInstant = wallTimeToInstant(data.arrAt, arrTz);
-
-  // Home endpoints are not looked up — coords resolve from the trip at read time.
-  const ends = await endPlaces(data, { depPlace, arrPlace }, before);
 
   await auditedUpdate("TRANSPORT", db.transport, transportId, {
     mode: data.mode,
@@ -354,6 +411,7 @@ export async function updateTransport(
     ...detailColumns(data),
     notes: data.notes ?? null,
     ...ends,
+    ...zones,
     ...booking,
   }, transport.forkId ?? null, { before });
   // F4: re-dating (or re-homing) a leg can push the soft end to the day it lands home.

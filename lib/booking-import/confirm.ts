@@ -129,30 +129,35 @@ export async function confirmProposalFor(
   if (proposal.kind === "transport") {
     const { depTimezone, arrTimezone, ...rest } = proposal.input;
     const input = { ...rest, fromStopId: real(rest.fromStopId), toStopId: real(rest.toStopId) };
-    // An end with no zone of its own (no Stop, or a rough Stop whose
-    // timezone is still null) reads its wall time in the zone the import
-    // guessed for it, exactly as the preview shows it (final review #1).
-    // The Stop's zone comes from the plan's own row, never from client data.
-    // If that conversion fails (a malformed wall time), keep the original
-    // string rather than dropping it to undefined (fix round 1, #4):
-    // createTransport's own validation then sees it, the same as it would
-    // for a typed entry, instead of silently losing a booked time.
+    // A Home end or a rough Stop's end (timezone still null) reads its wall
+    // time in the zone the import guessed for it, exactly as the preview
+    // shows it (final review #1). The Stop's zone comes from the plan's own
+    // row, never from client data. If that conversion fails (a malformed
+    // wall time), keep the original string rather than dropping it to
+    // undefined (fix round 1, #4): createTransport's own validation then
+    // sees it, the same as it would for a typed entry.
+    // An end with no Stop is a place: createTransport reads and stores it in
+    // the zone at the place's point, or in this guess when the place is not
+    // found, so the instant and the stored zone always agree.
     const ordered = await stopsOnPlan();
     const zoneless = (stopId: string | undefined): boolean => {
       if (!stopId) return true;
       const stop = ordered.find((s) => s.id === stopId);
       return stop !== undefined && !stop.timezone;
     };
-    if (depTimezone && input.depAt && zoneless(input.fromStopId)) {
+    const importZones: { depTimezone?: string; arrTimezone?: string } = {};
+    if (depTimezone && !input.fromStopId && !input.depIsHome) importZones.depTimezone = depTimezone;
+    else if (depTimezone && input.depAt && zoneless(input.fromStopId)) {
       const converted = wallTimeToInstant(input.depAt, depTimezone)?.toISOString();
       if (converted) input.depAt = converted;
     }
-    if (arrTimezone && input.arrAt && zoneless(input.toStopId)) {
+    if (arrTimezone && !input.toStopId && !input.arrIsHome) importZones.arrTimezone = arrTimezone;
+    else if (arrTimezone && input.arrAt && zoneless(input.toStopId)) {
       const converted = wallTimeToInstant(input.arrAt, arrTimezone)?.toISOString();
       if (converted) input.arrAt = converted;
     }
     const anchorStopId = creationAnchor({ fromStopId: input.fromStopId, toStopId: input.toStopId }, ordered) ?? undefined;
-    result = await createTransport(tripId, { ...input, anchorStopId } as TransportInput, plan);
+    result = await createTransport(tripId, { ...input, anchorStopId } as TransportInput, plan, importZones);
   } else if (proposal.kind === "accommodation") {
     result = await createAccommodation({ ...proposal.input, stopId: real(proposal.input.stopId) } as AccommodationInput, plan);
   } else {

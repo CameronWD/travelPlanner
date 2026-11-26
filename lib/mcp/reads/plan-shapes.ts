@@ -8,6 +8,7 @@
  */
 import { buildStopDays, groupScheduledItemsByStop, type StopDayItem } from "@/lib/stop-days";
 import { transportTimeDisplay } from "@/lib/time-display";
+import { endZones } from "@/lib/leg-zones";
 import { transportDetailFields, type TransportDetailKey } from "@/lib/transport-details";
 import type { BookingState, TransportMode } from "@/lib/enum-values";
 import type { OpeningHours } from "@/lib/opening-hours";
@@ -19,6 +20,9 @@ import type { TryList } from "@/lib/try-list";
 import type { SurpriseView } from "@/lib/surprise";
 import type { SurpriseVisibility } from "@/lib/surprise-visibility";
 import { effectiveLocalMode, type LocalMode } from "@/lib/travel-times/hops";
+import { bookingLegLabel, filesForLeg } from "@/lib/booking-files";
+import type { LegStop } from "@/lib/plan/leg-label";
+import type { ConnectionLeg } from "@/lib/connections";
 
 const LOCAL_MODE_LABEL: Record<LocalMode, "drive" | "public_transport" | "walk"> = { DRIVE: "drive", TRANSIT: "public_transport", WALK: "walk" };
 import type { McpFileRef } from "./attachments";
@@ -296,8 +300,8 @@ export const MCP_THING_TO_DO_SELECT = {
 export const MCP_DATED_ITEM_SELECT = { ...MCP_THING_TO_DO_SELECT, date: true } as const;
 
 export const MCP_TRANSPORT_SELECT = {
-  id: true, mode: true, fromStopId: true, toStopId: true, depIsHome: true, arrIsHome: true,
-  depPlace: true, arrPlace: true, depAt: true, arrAt: true, reference: true,
+  id: true, mode: true, fromStopId: true, toStopId: true, depIsHome: true, arrIsHome: true, depTimezone: true, arrTimezone: true,
+  depPlace: true, arrPlace: true, depPlaceId: true, arrPlaceId: true, depAt: true, arrAt: true, reference: true,
   carrier: true, serviceNumber: true, seat: true, terminal: true, gate: true, coach: true, platform: true, notes: true,
   bookingState: true, bookBy: true, nothingToAttach: true,
 } as const;
@@ -343,7 +347,9 @@ export interface McpItemRow {
 
 export interface McpTransportRow {
   id: string; mode: string; fromStopId: string | null; toStopId: string | null; depIsHome: boolean; arrIsHome: boolean;
-  depPlace: string | null; arrPlace: string | null; depAt: Date | null; arrAt: Date | null; reference: string | null;
+  depTimezone?: string | null; arrTimezone?: string | null;
+  depPlace: string | null; arrPlace: string | null; depPlaceId?: string | null; arrPlaceId?: string | null;
+  depAt: Date | null; arrAt: Date | null; reference: string | null;
   carrier: string | null; serviceNumber: string | null; seat: string | null; terminal: string | null; gate: string | null; coach: string | null; platform: string | null;
   notes: string | null;
   bookingState: string; bookBy: string | null; nothingToAttach: boolean;
@@ -352,6 +358,17 @@ export interface McpTransportRow {
 export type NeedsConfirmation = ReadonlySet<string>;
 
 export type FilesFor = (kind: "STOP" | "ACCOMMODATION" | "TRANSPORT" | "ITEM", id: string) => McpFileRef[];
+
+export function withBookingFiles(filesFor: FilesFor, legs: readonly ConnectionLeg[], stops: readonly LegStop[], homeName: string | null): FilesFor {
+  const byId = new Map(legs.map((l) => [l.id, l]));
+  return (kind, id) => {
+    const leg = kind === "TRANSPORT" ? byId.get(id) : undefined;
+    if (!leg) return filesFor(kind, id);
+    const labelOf = (p: ConnectionLeg) => bookingLegLabel({ ...p, mode: p.mode as TransportMode }, stops, homeName);
+    return filesForLeg(leg, legs, (legId) => filesFor("TRANSPORT", legId), labelOf)
+      .map(({ attachment, filedOn }) => (filedOn ? { ...attachment, filedOn } : attachment));
+  };
+}
 
 // ── Shapes ───────────────────────────────────────────────────────────────
 
@@ -540,8 +557,7 @@ export function toMcpTransport(
     at && part ? { at: at.toISOString(), localTime: part.time, localDate: part.dateISO, zone: part.zone } : null;
   const shown = transportTimeDisplay({
     depAt: t.depAt, arrAt: t.arrAt,
-    fromTimezone: t.fromStopId ? ctx.tzById.get(t.fromStopId) ?? null : null,
-    toTimezone: t.toStopId ? ctx.tzById.get(t.toStopId) ?? null : null,
+    ...endZones(t, (id) => (id ? ctx.tzById.get(id) : null)),
     depIsHome: t.depIsHome, arrIsHome: t.arrIsHome, homeTimezone: ctx.homeTimezone,
   });
   const shownKeys = new Set<TransportDetailKey>(transportDetailFields(t.mode as TransportMode).map((f) => f.key));

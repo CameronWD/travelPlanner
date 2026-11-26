@@ -3,6 +3,7 @@ import type { TransportMode } from "@/lib/enum-values";
 import { TRANSPORT_MODE_META, durationMinutes, formatDuration } from "@/lib/transport";
 import { transportDetailsLine, type TransportDetails } from "@/lib/transport-details";
 import { transportTimeDisplay } from "@/lib/time-display";
+import { endZones } from "@/lib/leg-zones";
 import { formatDayLabel } from "@/lib/dates";
 
 export interface LegTransport extends TransportDetails {
@@ -15,6 +16,8 @@ export interface LegTransport extends TransportDetails {
   toStopId?: string | null;
   depIsHome?: boolean | null;
   arrIsHome?: boolean | null;
+  depTimezone?: string | null;
+  arrTimezone?: string | null;
   reference?: string | null;
   driveEstimate?: { minutes: number; roadKm: number; estimated: boolean } | null;
 }
@@ -99,11 +102,12 @@ export function legLabel(
       const e = ends(fromShort, toShort);
       label = typeof e === "string" ? `${word} in ${e}` : `${word} ${e[0]} → ${e[1]}`;
     }
+    const { fromTimezone, toTimezone } = endZones(t, (id) => (id ? stops.find((s) => s.id === id)?.timezone : null));
     const { dep, arr, dayDelta } = transportTimeDisplay({
       depAt: t.depAt,
       arrAt: t.arrAt ?? null,
-      fromTimezone: from?.timezone,
-      toTimezone: to?.timezone,
+      fromTimezone,
+      toTimezone,
       depIsHome: t.depIsHome,
       arrIsHome: t.arrIsHome,
       homeTimezone,
@@ -166,22 +170,4 @@ export function legSlotKind(
 ): "legs" | "missing" | "line" {
   if (legCount > 0) return "legs";
   return from.arriveDate && to.arriveDate ? "missing" : "line";
-}
-
-/**
- * Spec 2026-10-05 §F: the change-over place between consecutive legs on one
- * strip, only where the data already says so — leg i-1's arrival place equals
- * leg i's departure place (trimmed, case-insensitive). Index i belongs to
- * leg i (the one leaving from it); index 0 is always null. No new data.
- */
-export function changeoverPlaces(
-  legs: readonly Pick<LegTransport, "depPlace" | "arrPlace">[],
-): (string | null)[] {
-  return legs.map((leg, i) => {
-    if (i === 0) return null;
-    const arrived = legs[i - 1].arrPlace?.trim();
-    const leaving = leg.depPlace?.trim();
-    if (!arrived || !leaving) return null;
-    return arrived.toLowerCase() === leaving.toLowerCase() ? arrived : null;
-  });
 }

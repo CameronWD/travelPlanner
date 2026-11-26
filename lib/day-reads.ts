@@ -89,7 +89,7 @@ export async function readDayRows<X>(
         id: true, mode: true, fromStopId: true, toStopId: true, depPlace: true, arrPlace: true, depAt: true, arrAt: true,
         depLat: true, depLng: true, depPlaceId: true, arrLat: true, arrLng: true, arrPlaceId: true, reference: true, notes: true, sortOrder: true,
         carrier: true, serviceNumber: true, seat: true, terminal: true, gate: true, coach: true, platform: true,
-        anchorStopId: true, depIsHome: true, arrIsHome: true, bookingState: true, bookingStateSet: true, nothingToAttach: true, bookBy: true,
+        anchorStopId: true, depIsHome: true, arrIsHome: true, depTimezone: true, arrTimezone: true, bookingState: true, bookingStateSet: true, nothingToAttach: true, bookBy: true,
       },
     }),
     // Every stay of the Trip; buildDayModel keeps the ones that touch a day.

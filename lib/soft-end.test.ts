@@ -47,6 +47,12 @@ describe("softEndDate (F4: the later of the last scheduled depart and the return
     expect(softEndDate({ stops: [osaka, tokyo], transports: [train, flight], homeTimezone: "Australia/Brisbane" })).toBe("2026-12-12");
   });
 
+  it("a journey home in two legs ends on the last leg's arrival day", () => {
+    const toBangkok = { ...home({ arrIsHome: false, arrAt: new Date("2026-12-11T05:00:00Z") }), arrPlace: "Bangkok (BKK)", arrTimezone: "Asia/Bangkok" };
+    const bangkokHome = { ...home({ fromStopId: null, arrAt: new Date("2026-12-12T21:00:00Z") }), depPlace: "Bangkok (BKK)", depTimezone: "Asia/Bangkok" };
+    expect(softEndDate({ stops: [osaka, tokyo], transports: [toBangkok, bangkokHome], homeTimezone: "Australia/Brisbane" })).toBe("2026-12-13");
+  });
+
   it("ignores legs to another Stop, legs off a middle Stop, and legs with no arrival", () => {
     const toStop = home({ arrIsHome: false, toStopId: "osaka", arrAt: new Date("2026-12-20T00:00:00Z") });
     const offMiddle = home({ arrIsHome: false, fromStopId: "osaka", arrAt: new Date("2026-12-20T00:00:00Z") });

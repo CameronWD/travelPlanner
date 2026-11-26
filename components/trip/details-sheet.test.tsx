@@ -87,6 +87,12 @@ describe("DetailsSheet", () => {
     expect(link.className).toContain("min-h-11");
   });
 
+  it("a booking partner's file names the Transport it is filed on", () => {
+    const dialog = renderSheet({ ...full, files: [{ ...full.files[0]!, id: "f2", title: "eTicket", url: "/api/attachments/f2", filedOn: "DPS → BKK" }] });
+    const link = within(dialog).getByRole("link", { name: "eTicket on DPS → BKK" });
+    expect(link).toHaveAttribute("href", "/api/attachments/f2");
+  });
+
   it("the address opens in maps, and Directions start from here in the Local travel mode", () => {
     const dialog = renderSheet(full);
     expect(within(dialog).getByRole("link", { name: "Marienplatz 1" }).getAttribute("href")).toContain("google.com/maps");
