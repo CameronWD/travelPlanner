@@ -29,7 +29,7 @@ export function LegRow({ kind, compact, children, changeovers }: LegRowProps) {
   const runs: { node: React.ReactNode; key: React.Key; joined: boolean; changeover: string | null }[][] = [];
   stations.forEach((node, i) => {
     const changeover = changeovers?.[i] ?? null;
-    const joined = changeover !== null && i > 0;
+    const joined = Boolean(changeover) && i > 0;
     const entry = { node, key: React.isValidElement(node) && node.key != null ? node.key : i, joined, changeover };
     if (joined) runs[runs.length - 1].push(entry);
     else runs.push([entry]);
