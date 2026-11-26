@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { REFUND_MESSAGES } from "@/lib/money/refund";
+import { PAID_CURRENCY_MESSAGE } from "@/lib/money/paid-currency";
 import { expectAccessCheckedBeforeWrite } from "@/test/helpers/access-order";
 
 /**
@@ -2315,6 +2316,48 @@ describe("saveTransportWithLayover", () => {
     expect(costUpdateMock.mock.calls[0][0].data).toMatchObject({ paidMinor: 90000, paidAt: new Date("2026-10-01") });
   });
 
+  it("a journey with a layover paid in Home stores the paid currency on the first Transport's Cost only", async () => {
+    const result = await saveTransportWithLayover(
+      { tripId: "trip-1" },
+      { ...JOURNEY, costMinor: 55_000, currency: "EUR", paidMinor: 90_512, paidAt: "2026-10-01", paidCurrency: "AUD" },
+      LAYOVER,
+    );
+
+    expect(result.success).toBe(true);
+    expect(costCreateMock).toHaveBeenCalledTimes(1);
+    expect(costCreateMock.mock.calls[0][0].data).toMatchObject({ ownerId: "t-new-1", currency: "EUR", paidMinor: 90_512, paidCurrency: "AUD" });
+  });
+
+  it("a journey with a layover paid in a third currency is refused with the message and saves nothing", async () => {
+    const result = await saveTransportWithLayover(
+      { tripId: "trip-1" },
+      { ...JOURNEY, costMinor: 55_000, currency: "EUR", paidMinor: 90_512, paidAt: "2026-10-01", paidCurrency: "GBP" },
+      LAYOVER,
+    );
+
+    expect(result).toEqual({ success: false, errors: { paidCurrency: [PAID_CURRENCY_MESSAGE] } });
+    expect(transactionMock).not.toHaveBeenCalled();
+    expect(committed.size).toBe(0);
+  });
+
+  it("editing a Transport paid in Home into a journey with a layover keeps the paid currency on its Cost", async () => {
+    committed.set("t-edit", { ...EXISTING });
+    costFindManyMock.mockResolvedValueOnce([
+      { id: "cost-9", costMinor: 55_000, currency: "EUR", paidMinor: 90_512, paidAt: new Date("2026-10-01"), paidCurrency: "AUD", refundMinor: null, refundedAt: null },
+    ]);
+
+    const result = await saveTransportWithLayover(
+      { transportId: "t-edit" },
+      { ...JOURNEY, costMinor: 55_000, currency: "EUR", paidMinor: 90_512, paidAt: "2026-10-01" },
+      LAYOVER,
+    );
+
+    expect(result.success).toBe(true);
+    expect(costCreateMock).not.toHaveBeenCalled();
+    expect(costUpdateMock).toHaveBeenCalledTimes(1);
+    expect(costUpdateMock.mock.calls[0][0].data).toMatchObject({ paidMinor: 90_512, paidCurrency: "AUD" });
+  });
+
   it("a journey home: the second Transport arrives Home, the first does not", async () => {
     const result = await saveTransportWithLayover(
       { tripId: "trip-1" },
@@ -2598,5 +2641,118 @@ describe("saveTransportWithLayover", () => {
       expect(result).toEqual({ success: false, errors: { layoverLeaveAt: ["A layover is under a day. For a longer stay, add a Stop."] } });
       expect(transactionMock).not.toHaveBeenCalled();
     });
+  });
+});
+
+// ---------------------------------------------------------------------------
+// The inline Cost's paid currency (paid in Home)
+// ---------------------------------------------------------------------------
+
+describe("the inline Cost on a Transport: paid currency", () => {
+  const PAID_IN_HOME = { costMinor: 55_000, currency: "EUR", paidMinor: 90_512, paidAt: "2026-06-01" };
+  const owning = (cost: Record<string, unknown>) => {
+    transportFindUniqueMock
+      .mockResolvedValueOnce({ id: "t-pc", tripId: "trip-1", forkId: null })
+      .mockResolvedValueOnce({ id: "t-pc", mode: "FLIGHT" });
+    transportUpdateMock.mockResolvedValue({ id: "t-pc", mode: "FLIGHT" });
+    costFindManyMock.mockResolvedValue([
+      { id: "cost-pc", costMinor: 55_000, currency: "EUR", paidMinor: null, paidAt: null, paidCurrency: null, refundMinor: null, refundedAt: null, ...cost },
+    ]);
+  };
+
+  beforeEach(() => {
+    transportFindFirstMock.mockResolvedValue(null);
+    transportCreateMock.mockResolvedValue({ id: "t-new", mode: "FLIGHT" });
+    tripFindUniqueMock.mockResolvedValue({ homeCurrency: "AUD" });
+    resolveRateForTripMock.mockResolvedValue({ rate: 0.6, persist: null });
+  });
+
+  it("creating it with a Cost paid in Home stores the paid currency", async () => {
+    const result = await createTransport("trip-1", { mode: "FLIGHT", ...PAID_IN_HOME, paidCurrency: "aud" });
+
+    expect(result.success).toBe(true);
+    expect(costCreateMock.mock.calls[0][0].data).toMatchObject({ currency: "EUR", paidMinor: 90_512, paidCurrency: "AUD" });
+  });
+
+  it("creating it with a paid currency equal to the Cost's stores it as null", async () => {
+    const result = await createTransport("trip-1", { mode: "FLIGHT", ...PAID_IN_HOME, paidMinor: 55_000, paidCurrency: "EUR" });
+
+    expect(result.success).toBe(true);
+    expect(costCreateMock.mock.calls[0][0].data).not.toHaveProperty("paidCurrency");
+  });
+
+  it("creating it with a third paid currency is refused with the message", async () => {
+    const result = await createTransport("trip-1", { mode: "FLIGHT", ...PAID_IN_HOME, paidCurrency: "GBP" });
+
+    expect(result).toEqual({ success: false, errors: { paidCurrency: [PAID_CURRENCY_MESSAGE] } });
+    expect(transportCreateMock).not.toHaveBeenCalled();
+    expect(costCreateMock).not.toHaveBeenCalled();
+  });
+
+  it("creating it with a paid currency and nothing paid stores no paid currency", async () => {
+    const result = await createTransport("trip-1", { mode: "FLIGHT", costMinor: 55_000, currency: "EUR", paidCurrency: "AUD" });
+
+    expect(result.success).toBe(true);
+    expect(costCreateMock.mock.calls[0][0].data).not.toHaveProperty("paidCurrency");
+  });
+
+  it("editing it with Paid unticked keeps the paid amount and its currency", async () => {
+    owning({ paidMinor: 90_512, paidAt: new Date("2026-06-01"), paidCurrency: "AUD" });
+
+    const result = await updateTransport("t-pc", { mode: "FLIGHT", costMinor: 55_000, currency: "EUR", paidMinor: undefined, paidAt: null });
+
+    expect(result.success).toBe(true);
+    const data = costUpdateMock.mock.calls[0][0].data;
+    expect(data).not.toHaveProperty("paidMinor");
+    expect(data.paidAt).toBeNull();
+    expect(data.paidCurrency).toBe("AUD");
+  });
+
+  it("editing it to paid in Home writes the paid currency", async () => {
+    owning({});
+
+    const result = await updateTransport("t-pc", { mode: "FLIGHT", ...PAID_IN_HOME, paidCurrency: "AUD" });
+
+    expect(result.success).toBe(true);
+    expect(costUpdateMock.mock.calls[0][0].data).toMatchObject({ paidMinor: 90_512, paidCurrency: "AUD" });
+  });
+
+  it("editing it naming the Cost's own currency as paid writes no paid currency", async () => {
+    owning({});
+
+    const result = await updateTransport("t-pc", { mode: "FLIGHT", ...PAID_IN_HOME, paidMinor: 55_000, paidCurrency: "EUR" });
+
+    expect(result.success).toBe(true);
+    expect(costUpdateMock.mock.calls[0][0].data).not.toHaveProperty("paidCurrency");
+  });
+
+  it("editing it with a third paid currency is refused with the message and writes nothing", async () => {
+    owning({});
+
+    const result = await updateTransport("t-pc", { mode: "FLIGHT", ...PAID_IN_HOME, paidCurrency: "GBP" });
+
+    expect(result).toEqual({ success: false, errors: { paidCurrency: [PAID_CURRENCY_MESSAGE] } });
+    expect(transportUpdateMock).not.toHaveBeenCalled();
+    expect(costUpdateMock).not.toHaveBeenCalled();
+  });
+
+  it("editing a Cost paid in Home to another currency keeps the paid currency, and to Home stores it as null", async () => {
+    owning({ paidMinor: 90_512, paidAt: new Date("2026-06-01"), paidCurrency: "AUD" });
+    await updateTransport("t-pc", { mode: "FLIGHT", costMinor: 8_000_000, currency: "JPY" });
+    owning({ paidMinor: 90_512, paidAt: new Date("2026-06-01"), paidCurrency: "AUD" });
+    await updateTransport("t-pc", { mode: "FLIGHT", costMinor: 90_512, currency: "AUD" });
+
+    expect(costUpdateMock.mock.calls[0][0].data).toMatchObject({ currency: "JPY", paidCurrency: "AUD" });
+    expect(costUpdateMock.mock.calls[1][0].data).toMatchObject({ currency: "AUD", paidCurrency: null });
+  });
+
+  it("editing a Cost left paid in an old Home currency keeps it", async () => {
+    tripFindUniqueMock.mockResolvedValue({ homeCurrency: "GBP" });
+    owning({ paidMinor: 90_512, paidAt: new Date("2026-06-01"), paidCurrency: "AUD" });
+
+    const result = await updateTransport("t-pc", { mode: "FLIGHT", ...PAID_IN_HOME, paidCurrency: "AUD" });
+
+    expect(result.success).toBe(true);
+    expect(costUpdateMock.mock.calls[0][0].data).toMatchObject({ paidCurrency: "AUD" });
   });
 });

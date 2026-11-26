@@ -360,3 +360,16 @@ describe("itemSchema — Google place", () => {
     expect(itemSchema.safeParse({ ...VALID_UNSCHEDULED, businessStatus: "GONE" }).success).toBe(false);
   });
 });
+
+describe("itemSchema: paid currency", () => {
+  it("accepts a paid currency and upper-cases it", () => {
+    const result = itemSchema.safeParse({ ...VALID_UNSCHEDULED, costMinor: 55000, currency: "EUR", paidMinor: 90512, paidCurrency: "aud" });
+    expect(result.success && result.data.paidCurrency).toBe("AUD");
+  });
+
+  it("refuses an unsupported paid currency", () => {
+    const result = itemSchema.safeParse({ ...VALID_UNSCHEDULED, costMinor: 55000, currency: "EUR", paidMinor: 90512, paidCurrency: "XYZ" });
+    expect(result.success).toBe(false);
+    if (!result.success) expect(result.error.flatten().fieldErrors.paidCurrency).toBeDefined();
+  });
+});

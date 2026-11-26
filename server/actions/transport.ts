@@ -19,6 +19,7 @@ import { resolveRateForTrip, persistRate } from "@/lib/money/fx";
 import { type ActionFailure, type ActionResult, type FieldErrors, validationResult, formFail, fail } from "@/lib/action-result";
 import { mergeTransportPatch, type TransportPatch } from "@/lib/transport-patch";
 import { completeInlineCost, OWNED_COST_SELECT, type OwnedCostRow } from "@/lib/money/cost-patch";
+import { paidCurrencyProblem, storedPaidCurrency } from "@/lib/money/paid-currency";
 import { cleanupTargetSideDataTx } from "@/server/actions/target-cleanup";
 import { deleteOwnedCostsTx, deleteRefundsProblemTx } from "@/server/actions/owned-costs";
 import type { DeleteRefundAnswer } from "@/lib/money/delete-refund";
@@ -226,6 +227,13 @@ async function prepareCreateRow(
   const booking = resolveBookingWrite(transportBookingSubject(data.mode), null, { bookingState: data.bookingState, bookBy: data.bookBy }, data.reference);
   if ("success" in booking) return booking;
 
+  const paidCurrency = createdPaidCurrency(data);
+  if (paidCurrency != null) {
+    const trip = await db.trip.findUnique({ where: { id: tripId }, select: { homeCurrency: true } });
+    const problem = trip && paidCurrencyProblem(paidCurrency, { currency: data.currency!, storedPaidCurrency: null }, trip.homeCurrency);
+    if (problem) return fail({ paidCurrency: [problem] });
+  }
+
   // Normalise home-base flags: a home endpoint owns no stop and no free-text
   // place. Its coordinates resolve from the trip at read time.
   const depIsHome = data.depIsHome ?? false;
@@ -265,10 +273,12 @@ async function prepareUpdateRow(
 ): Promise<ActionFailure | PreparedUpdate> {
   const merged = mergeTransportPatch(before, patch);
   if ("success" in merged) return merged;
-  const owned = patch.costMinor != null || patch.currency != null
+  const touchesCost = patch.costMinor != null || patch.currency != null;
+  const owned = touchesCost
     ? await db.cost.findMany({ where: { ownerType: "TRANSPORT", ownerId: before.id }, select: OWNED_COST_SELECT })
     : [];
-  const inlineCost = completeInlineCost(patch, owned);
+  const trip = touchesCost ? await db.trip.findUnique({ where: { id: transport.tripId }, select: { homeCurrency: true } }) : null;
+  const inlineCost = completeInlineCost(patch, owned, trip?.homeCurrency ?? null);
   if (inlineCost && "success" in inlineCost) return inlineCost;
 
   // The booking fields aren't endpoint rules (lib/transport-patch.ts): validated here, merged by resolveBookingWrite.
@@ -288,6 +298,12 @@ async function prepareUpdateRow(
   }
 
   const data = parsed.data;
+  const paidCurrencyBreak = trip && paidCurrencyProblem(
+    data.paidCurrency ?? null,
+    { currency: data.currency!, storedPaidCurrency: owned[0]?.paidCurrency ?? null },
+    trip.homeCurrency,
+  );
+  if (paidCurrencyBreak) return fail({ paidCurrency: [paidCurrencyBreak] });
   // The subject follows the mode AFTER the write, so a mode change on an
   // unchosen leg re-derives its state (a drive needs no booking).
   const booking = resolveBookingWrite(
@@ -331,7 +347,7 @@ async function prepareUpdateRow(
   return { columns: rowColumns(data, { ...kinds, anchorStopId, depPlace, arrPlace }, times, ends, zones, booking), readZones, data, owned };
 }
 
-type InlineCostFields = Pick<TransportInput, "costMinor" | "currency" | "paidMinor" | "paidAt" | "settlement">;
+type InlineCostFields = Pick<TransportInput, "costMinor" | "currency" | "paidMinor" | "paidAt" | "paidCurrency" | "settlement">;
 type InlineCostRate = Awaited<ReturnType<typeof resolveRateForTrip>>;
 
 // Resolve the FX rate BEFORE opening a transaction (network must not hold a
@@ -345,6 +361,10 @@ async function inlineCostRate(tripId: string, data: InlineCostFields): Promise<I
   return trip ? resolveRateForTrip(tripId, data.currency, trip.homeCurrency, { db }) : null;
 }
 
+function createdPaidCurrency(data: InlineCostFields): string | null {
+  return data.costMinor !== undefined && data.currency && data.paidMinor != null ? storedPaidCurrency(data.paidCurrency, data.currency) : null;
+}
+
 async function writeInlineCostTx(
   tx: Prisma.TransactionClient,
   cost: { tripId: string; plan: PlanId; ownerId: string; data: InlineCostFields; existing: readonly OwnedCostRow[]; rate: InlineCostRate },
@@ -354,6 +374,7 @@ async function writeInlineCostTx(
     await persistRate(tx, tripId, rate.persist);
   }
   if (existing.length === 0) {
+    const paidCurrency = createdPaidCurrency(data);
     await tx.cost.create({
       data: {
         tripId,
@@ -362,6 +383,7 @@ async function writeInlineCostTx(
         ownerId,
         costMinor: data.costMinor!,
         paidMinor: data.paidMinor ?? null,
+        ...(paidCurrency != null && { paidCurrency }),
         currency: data.currency!,
         rateToHome: rate.rate,
         paidAt: data.paidAt ? new Date(data.paidAt) : null,
@@ -384,6 +406,7 @@ async function writeInlineCostTx(
         rateToHome: rate.rate,
         paidAt: data.paidAt ? new Date(data.paidAt) : null,
         ...(data.paidMinor !== undefined && { paidMinor: data.paidMinor }),
+        ...(data.paidCurrency !== undefined && { paidCurrency: data.paidCurrency }),
         ...(data.settlement !== undefined && { settlement: data.settlement }),
       },
     });

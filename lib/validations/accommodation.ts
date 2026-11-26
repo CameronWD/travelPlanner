@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { CURRENCY_CODES } from "@/lib/money/currencies";
-import { MAX_AMOUNT_MINOR, paidAtDateOnlySchema } from "@/lib/validations/cost";
+import { MAX_AMOUNT_MINOR, paidAtDateOnlySchema, paidCurrencySchema } from "@/lib/validations/cost";
 import { bookingStateSchema, costSettlementSchema } from "@/lib/enums";
 import { hhmm, isoDate, placeId } from "@/lib/validations/primitives";
 import { bookBySchema } from "@/lib/validations/planning";
@@ -68,6 +68,7 @@ export const accommodationSchema = z
 
     /** ISO date string for when the cost was paid. Optional. */
     paidAt: paidAtDateOnlySchema.nullable().optional(),
+    paidCurrency: paidCurrencySchema,
     /** CONTEXT.md "Settlement" for the inline cost. Omitted = leave as is (BEFORE on create). */
     settlement: costSettlementSchema.optional(),
   })

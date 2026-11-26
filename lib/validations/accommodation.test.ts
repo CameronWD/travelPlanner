@@ -252,3 +252,16 @@ describe("accommodationSchema — Google place", () => {
     expect(accommodationSchema.safeParse({ ...VALID, placeId: "p", lat: 95, lng: 0 }).success).toBe(false);
   });
 });
+
+describe("accommodationSchema: paid currency", () => {
+  it("accepts a paid currency and upper-cases it", () => {
+    const result = accommodationSchema.safeParse({ ...VALID, costMinor: 55000, currency: "EUR", paidMinor: 90512, paidCurrency: "aud" });
+    expect(result.success && result.data.paidCurrency).toBe("AUD");
+  });
+
+  it("refuses an unsupported paid currency", () => {
+    const result = accommodationSchema.safeParse({ ...VALID, costMinor: 55000, currency: "EUR", paidMinor: 90512, paidCurrency: "XYZ" });
+    expect(result.success).toBe(false);
+    if (!result.success) expect(result.error.flatten().fieldErrors.paidCurrency).toBeDefined();
+  });
+});

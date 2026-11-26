@@ -2,7 +2,7 @@ import { z } from "zod";
 import { categorySchema } from "@/lib/validations/category";
 import { safeWebHref } from "@/lib/url";
 import { CURRENCY_CODES } from "@/lib/money/currencies";
-import { MAX_AMOUNT_MINOR, paidAtDateOnlySchema } from "@/lib/validations/cost";
+import { MAX_AMOUNT_MINOR, paidAtDateOnlySchema, paidCurrencySchema } from "@/lib/validations/cost";
 import { bookingStateSchema, costSettlementSchema } from "@/lib/enums";
 import { hhmm, isoDate, placeId } from "@/lib/validations/primitives";
 import { startFromSlot } from "@/lib/slot-time";
@@ -135,6 +135,7 @@ export const itemSchema = z
 
     /** ISO date string for when the cost was paid. Optional. */
     paidAt: paidAtDateOnlySchema.nullable().optional(),
+    paidCurrency: paidCurrencySchema,
     /** CONTEXT.md "Settlement" for the inline cost. Omitted = leave as is (BEFORE on create). */
     settlement: costSettlementSchema.optional(),
   })
