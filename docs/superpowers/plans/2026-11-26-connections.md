@@ -33,7 +33,7 @@
 
 ## Lanes
 
-**First:** 1 ∥ 2 (no common file). **Then, concurrently:** 3, 4, 6. **Then:** 5 (after 4). **Then, concurrently:** 7, 8. **Last:** 9.
+**First:** 1 ∥ 2 (no common file). **Then, concurrently:** 3, 4, 6. **Then:** 5 (after 4). **Then, concurrently:** 7, 8, 10 (10 after 5 and 6). **Last:** 9.
 
 ---
 
@@ -235,6 +235,52 @@ Rules (spec §1): a bookend draws its whole journey as one `LegRow` stack with `
 - [ ] **Step 3:** Help guide: where it describes travel on the Plan, one sentence on the layover line; where it describes adding a ticket, one sentence that a ticket added to one flight of a booking shows on the connecting flight too. Match the surrounding voice and markup.
 - [ ] **Step 4:** `docs/open.md`, "Ideas, not commitments": `- **Short Connection Flag** (Cam, 2026-11-26) Warn when the wait between two Transports of a Connection is too short for the mode. Left out of the Connections work to keep Flags untouched before the freeze.`
 - [ ] **Step 5:** `TZ=UTC npx vitest run lib/help-guide.test.ts`. **Commit** `docs: Connections, a place end's own zone, and one booking's shared tickets`.
+
+---
+
+### Task 10: Two joined cards for a journey (added 2026-11-26, after Cam saw the first screenshots)
+
+Cam's words on the Task 4 look: "that's not great, it's a bit confusing, it looks like there are 3 flights". He chose, from three mock-ups, "Two cards, clearly joined":
+
+```
+● Denpasar
+│
+│  ┌──────────────────────────────────────┐
+✈──│ Flight Denpasar → Bangkok             │
+│  │ Sat 5 Dec 19:00 → 22:15 · 4h 15m      │
+│  │ TG 440 · Seat 32J, 32K · DHZU24       │
+│  └──────────────────┬───────────────────┘
+│        ( ◷ Layover in Bangkok · 2h 35m )
+│  ┌──────────────────┴───────────────────┐
+│  │ Flight Bangkok → Munich               │
+│  │ Sun 6 Dec 00:50 → 06:45 · 11h 55m     │
+│  │ TG 924 · Seat 44J, 44K · DHZU24       │
+│  └──────────────────────────────────────┘
+│
+● Munich
+```
+
+**Files:**
+- Modify: `components/plan/leg-pill.tsx` (`LegRow`, and a new exported `JourneyJoin`), its test; the shared page's travel list where Task 6 put its line (`app/share/[token]/…`), its test
+- Create: nothing else
+
+**Interfaces:**
+- Produces: `export function JourneyJoin({ label, compact }: { label: string; compact?: boolean }): JSX.Element` — the join between two cards of one journey: a short vertical line from the card above to the card below with the label in a pill on it.
+- `LegRow`'s `changeovers` prop is unchanged: a non-null entry at index i now means "card i is joined to card i-1".
+
+Rules:
+- A card whose `changeovers[i]` is non-null is **joined** to the card above: no gap between them beyond the join itself; the join is a vertical line (2px, `border-border`) centred under the cards' left third, about 28px tall, with the pill centred on it.
+- The pill: `rounded-full border-2 border-border bg-background`, text `text-xs font-bold text-foreground`, a lucide `Clock` icon (`size-3.5`, `aria-hidden`) before the label, the label exactly as given ("Layover in Bangkok · 2h 35m"). It replaces the old muted `data-changeover` span; keep `data-changeover` on the pill.
+- **One marker per journey:** only the first card of a run of joined cards gets the station dot and stub on the connector; joined cards after it get none.
+- A card that is not joined (its entry is null) starts a new run with the normal gap and its own marker, exactly as today. So an unrelated third card in the same slot still reads as separate.
+- Below `md` the cards are full width; the join and pill sit the same way, pill left-aligned with the cards' text inset if centring would look detached.
+- Dark mode uses the existing tokens only; no raw colours.
+- Reading order for a screen reader stays: card, the label text, card.
+- The shared page uses the same `JourneyJoin` between its read-only cards, in place of whatever line Task 6 rendered.
+
+- [ ] **Step 1: Failing tests** in the `leg-pill` test: `a joined card has no marker of its own` (two children, `changeovers=[null, "Layover in Bangkok · 2h 35m"]`: exactly one `[data-station-dot]`, on the first); `the join carries the label in a pill with a clock` (`[data-changeover]` contains the label text and an `svg[aria-hidden]`); `an unjoined card after a journey keeps its own marker and gap` (three children, `[null, "…", null]`: two dots); `the label is read between the two cards` (DOM order). In the shared page's test: `two legs of a journey are joined by the same pill`.
+- [ ] **Step 2:** run → FAIL. **Step 3:** implement. **Step 4:** task-done verification.
+- [ ] **Step 5: Commit** `feat(plan): two Transports of one journey are drawn as joined cards with the wait on the join`.
 
 ---
 
