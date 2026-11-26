@@ -897,11 +897,19 @@ export function HelpGuide({
               : one box, whatever you&rsquo;re travelling on.
             </p>
             <p>
-              When you change planes or trains somewhere you&rsquo;re not
-              staying, add the second ticket as its own transport. The Plan
-              draws the two together, with the wait in between, for example
-              &ldquo;Layover in Bangkok · 2h 35m&rdquo; or &ldquo;Change at
-              Lyon · 12m&rdquo;. Your journey home can be several of them too.
+              Flying with a layover? Enter the flight from where you leave to
+              where you end up, then tick{" "}
+              <strong className="font-semibold">
+                This flight includes a layover
+              </strong>{" "}
+              (<strong className="font-semibold">
+                This journey includes a change
+              </strong>{" "}
+              for a train). Say where the layover is and when you land and
+              leave. Teepee saves it as two flights and the Plan draws them
+              together, with the wait in between, for example
+              &ldquo;Layover in Bangkok · 2h 35m&rdquo;. Your journey home can
+              be several of them too.
             </p>
             <p>
               Both of them take a{" "}
