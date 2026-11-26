@@ -227,5 +227,37 @@ describe("MoneyInput", () => {
       render(inTrip(<MoneyInput currency="AUD" amount="" currencyLabel="You paid currency" />));
       expect(screen.getByRole("combobox", { name: "You paid currency" })).toBeInTheDocument();
     });
+
+    it("a trip currency is picked straight from the short list and the list closes", async () => {
+      const user = userEvent.setup();
+      const onCurrencyChange = vi.fn();
+      render(inTrip(<MoneyInput currency="AUD" amount="" onCurrencyChange={onCurrencyChange} />));
+      await user.click(screen.getByRole("combobox", { name: "Currency" }));
+      await user.click(screen.getByRole("option", { name: "THB" }));
+      expect(onCurrencyChange).toHaveBeenCalledTimes(1);
+      expect(onCurrencyChange).toHaveBeenCalledWith("THB");
+      expect(screen.queryByRole("listbox")).not.toBeInTheDocument();
+    });
+
+    it("typing on the closed picker does not leave it stuck open after a real pick", async () => {
+      const user = userEvent.setup();
+      const onCurrencyChange = vi.fn();
+      render(inTrip(<MoneyInput currency="AUD" amount="" onCurrencyChange={onCurrencyChange} />));
+      screen.getByRole("combobox", { name: "Currency" }).focus();
+      await user.keyboard("m");
+      expect(onCurrencyChange).not.toHaveBeenCalled();
+      expect(screen.queryByRole("listbox")).not.toBeInTheDocument();
+
+      await user.click(screen.getByRole("combobox", { name: "Currency" }));
+      await user.click(screen.getByRole("option", { name: "EUR" }));
+      expect(onCurrencyChange).toHaveBeenCalledTimes(1);
+      expect(onCurrencyChange).toHaveBeenCalledWith("EUR");
+      expect(screen.queryByRole("listbox")).not.toBeInTheDocument();
+    });
+
+    it("a one-entry list is a named group", () => {
+      render(inTrip(<MoneyInput currency="AUD" amount="" currencies={["AUD"]} currencyLabel="You paid currency" />));
+      expect(screen.getByRole("group", { name: "You paid currency" })).toHaveTextContent("AUD");
+    });
   });
 });

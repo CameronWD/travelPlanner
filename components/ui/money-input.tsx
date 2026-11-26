@@ -99,8 +99,14 @@ const MoneyInput = React.forwardRef<HTMLInputElement, MoneyInputProps>(
 
     const handleSelect = (next: string) => {
       if (next === MORE_VALUE) {
-        keepOpen.current = true;
-        setExpanded(true);
+        if (open) {
+          // Radix calls onValueChange then onOpenChange(false), synchronously: the swallow relies on it.
+          keepOpen.current = true;
+          queueMicrotask(() => {
+            keepOpen.current = false;
+          });
+          setExpanded(true);
+        }
         return;
       }
       handleCurrency(next);
@@ -111,7 +117,10 @@ const MoneyInput = React.forwardRef<HTMLInputElement, MoneyInputProps>(
         keepOpen.current = false;
         return;
       }
-      if (next) setExpanded(false);
+      if (next) {
+        keepOpen.current = false;
+        setExpanded(false);
+      }
       setOpen(next);
     };
 
@@ -135,6 +144,7 @@ const MoneyInput = React.forwardRef<HTMLInputElement, MoneyInputProps>(
         />
         {currencies?.length === 1 ? (
           <div
+            role="group"
             aria-label={currencyLabel}
             className="flex h-12 w-20 shrink-0 items-center justify-center rounded-md border border-input bg-muted text-sm text-muted-foreground sm:w-24"
           >
@@ -152,7 +162,7 @@ const MoneyInput = React.forwardRef<HTMLInputElement, MoneyInputProps>(
               className="w-[5.5rem] shrink-0 gap-1 px-2.5 sm:w-24"
               aria-label={currencyLabel}
             >
-              <SelectValue placeholder="Currency" />
+              <SelectValue placeholder={currencyLabel} />
             </SelectTrigger>
             <SelectContent
               ref={contentRef}
