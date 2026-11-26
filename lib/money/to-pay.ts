@@ -1,7 +1,7 @@
-import { convertMinor } from "@/lib/money/money";
 import { daysBetween, formatDayLabel, formatDayMonth, formatISODate } from "@/lib/dates";
 import { isOnTrip } from "@/lib/enum-values";
-import { shownCostMinor } from "@/lib/money/cost-row";
+import { shownCost } from "@/lib/money/cost-row";
+import { paidCurrencyOf, toHome } from "@/lib/money/paid-currency";
 import { refundState } from "@/lib/money/refund";
 
 const TO_PAY_SOON_DAYS = 14;
@@ -14,6 +14,7 @@ export interface ToPayInput {
   costMinor: number;
   paidMinor: number | null;
   currency: string;
+  paidCurrency?: string | null;
   rateToHome: number | null;
   paidAt: Date | null;
   refundMinor: number | null;
@@ -34,6 +35,10 @@ export interface ToPayRow {
   costMinor: number;
   paidMinor: number | null;
   currency: string;
+  /** The currency of `originalMinor`: the paid currency once paid with an amount, else the Cost's. Absent reads as `currency`. */
+  shownCurrency?: string;
+  /** As stored; null = the Cost's own. A Refund is in `paidCurrency ?? currency`. */
+  paidCurrency?: string | null;
   foreign: boolean;
   originalMinor: number;
   homeMinor: number | null;
@@ -70,15 +75,20 @@ export function mergeToPay(
   const rows = costs.map((c, index) => {
     const paid = c.paidAt != null;
     const legacy = !paid && c.paidMinor != null;
-    const originalMinor = shownCostMinor(c);
-    const foreign = c.currency.toUpperCase() !== home;
-    const toHome = (minor: number) =>
-      !foreign ? minor : c.rateToHome != null ? convertMinor(minor, c.currency, home, c.rateToHome) : null;
-    const homeMinor = toHome(originalMinor);
+    const { minor: originalMinor, currency: shownCurrency } = shownCost(c);
+    const foreign = shownCurrency !== home;
+    const ownRate = (from: string) => (from === c.currency.toUpperCase() ? c.rateToHome : null);
+    const homeMinor = toHome(originalMinor, shownCurrency, home, ownRate(shownCurrency));
+    const refundCurrency = paidCurrencyOf(c);
     const state = refundState(c);
     const refund: ToPayRow["refund"] =
       paid && state !== "none"
-        ? { minor: c.refundMinor!, homeMinor: toHome(c.refundMinor!), state, on: c.refundedAt ? formatISODate(c.refundedAt) : null }
+        ? {
+            minor: c.refundMinor!,
+            homeMinor: toHome(c.refundMinor!, refundCurrency, home, ownRate(refundCurrency)),
+            state,
+            on: c.refundedAt ? formatISODate(c.refundedAt) : null,
+          }
         : null;
     const u = unpaidDue(c, today);
     const paidISO = paid ? formatISODate(c.paidAt!) : null;
@@ -97,6 +107,8 @@ export function mergeToPay(
       costMinor: c.costMinor,
       paidMinor: c.paidMinor,
       currency: c.currency,
+      shownCurrency,
+      paidCurrency: c.paidCurrency ?? null,
       foreign,
       originalMinor,
       homeMinor,

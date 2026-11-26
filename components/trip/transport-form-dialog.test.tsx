@@ -9,6 +9,7 @@ import { setNothingToAttach } from "@/server/actions/booking-confirmation";
 vi.mock("@/server/actions/transport", () => ({
   createTransport: vi.fn().mockResolvedValue({ success: true }),
   updateTransport: vi.fn().mockResolvedValue({ success: true }),
+  saveTransportWithLayover: vi.fn().mockResolvedValue({ success: true, firstId: "first", secondId: "second" }),
 }));
 const mock = await vi.hoisted(async () => (await import("@/test/google-maps-mock")).createGoogleMapsMock());
 vi.mock("@vis.gl/react-google-maps", () => mock.module);
@@ -30,7 +31,7 @@ vi.mock("@/lib/tz-point", async (importOriginal) => {
   return { ...actual, pointTimezone: vi.fn(actual.pointTimezone) };
 });
 import { pointTimezone } from "@/lib/tz-point";
-import { createTransport, updateTransport } from "@/server/actions/transport";
+import { createTransport, updateTransport, saveTransportWithLayover } from "@/server/actions/transport";
 import { deleteAttachment } from "@/server/actions/attachments";
 
 import { TransportFormDialog, HOME_ENDPOINT } from "./transport-form-dialog";
@@ -2386,5 +2387,252 @@ describe("TransportFormDialog: a place end's own zone", () => {
       expect.objectContaining({ fromStopId: "dps", depAt: "2026-12-05T20:00", arrPlace: "Suvarnabhumi Airport", arrLat: 13.69, arrAt: "2026-12-05T19:30" }),
       undefined,
     );
+  });
+});
+
+describe("TransportFormDialog: a journey with a layover", () => {
+  const DPS = { id: "dps", name: "Denpasar", timezone: "Asia/Makassar" };
+  const MUC = { id: "muc", name: "Munich", timezone: "Europe/Berlin" };
+  const BKK = { placeId: "bkk", mainText: "Bangkok (BKK)", secondaryText: "Samut Prakan, Thailand", lat: 13.69, lng: 100.7501, countryCode: "th", country: "Thailand" };
+  const props = { ...baseProps, stops: [DPS, MUC], defaultFromStopId: "dps" };
+  const box = (name = "This flight includes a layover") => screen.queryByRole("checkbox", { name });
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mock.reset();
+    vi.stubEnv("NEXT_PUBLIC_GOOGLE_MAPS_BROWSER_KEY", "k");
+  });
+  afterEach(() => vi.unstubAllEnvs());
+
+  async function fillJourney(user: ReturnType<typeof userEvent.setup>) {
+    await openComboboxAndSelectStop(user, "^To:", "Munich");
+    fireEvent.change(screen.getByLabelText("Leaves Denpasar"), { target: { value: "2026-12-05T19:00" } });
+    fireEvent.change(screen.getByLabelText("Arrives Munich"), { target: { value: "2026-12-06T06:45" } });
+    await user.type(screen.getByLabelText("Flight number"), "TG 440");
+    await user.type(screen.getByLabelText("Seat"), "32J, 32K");
+    await user.type(screen.getByLabelText(/^Booking ref/), "DHZU24");
+  }
+
+  async function fillLayover(user: ReturnType<typeof userEvent.setup>) {
+    mock.places.predictions = [BKK];
+    const place = screen.getByRole("combobox", { name: "Layover at" });
+    await user.type(place, "Bang");
+    await screen.findByRole("option", { name: /Bangkok/ });
+    await user.keyboard("{Enter}");
+    await waitFor(() => expect(place).toHaveValue("Bangkok (BKK)"));
+    fireEvent.change(screen.getByLabelText("Land there"), { target: { value: "2026-12-05T22:15" } });
+    fireEvent.change(screen.getByLabelText("Leave"), { target: { value: "2026-12-06T00:50" } });
+    await user.type(screen.getByLabelText("Second flight number"), "TG 924");
+    await user.type(screen.getByLabelText("Second flight seat"), "44J, 44K");
+  }
+
+  it('a flight offers "This flight includes a layover"; a train offers "This journey includes a change"; a drive offers neither', async () => {
+    const user = userEvent.setup();
+    render(<TransportFormDialog {...props} />);
+    expect(box()).toBeInTheDocument();
+    expect(box("This journey includes a change")).toBeNull();
+    await user.click(screen.getByRole("radio", { name: "Train" }));
+    expect(box("This journey includes a change")).toBeInTheDocument();
+    expect(box()).toBeNull();
+    await user.click(screen.getByRole("radio", { name: "Car" }));
+    expect(box()).toBeNull();
+    expect(box("This journey includes a change")).toBeNull();
+  });
+
+  it("ticking it shows Layover at, Land there, Leave, and Second flight with its Seat; unticking hides them", async () => {
+    const user = userEvent.setup();
+    render(<TransportFormDialog {...props} />);
+    expect(screen.queryByLabelText("Layover at")).toBeNull();
+    await user.click(box()!);
+    const group = document.querySelector("[data-group='layover']") as HTMLElement;
+    expect(within(group).getByRole("combobox", { name: "Layover at" })).toBeInTheDocument();
+    expect(within(group).getByLabelText("Land there")).toHaveAttribute("type", "datetime-local");
+    expect(within(group).getByLabelText("Leave")).toHaveAttribute("type", "datetime-local");
+    expect(within(group).getByRole("textbox", { name: "Second flight number" })).toBeInTheDocument();
+    expect(within(group).getByRole("textbox", { name: "Second flight seat" })).toBeInTheDocument();
+    expect(within(group).getByText("Terminal, gate and the first seat stay with the first flight.")).toBeInTheDocument();
+    expect(screen.getAllByRole("textbox", { name: "Seat" })).toHaveLength(1);
+    const details = screen.getByRole("group", { name: "Travel details" });
+    expect(within(details).queryByLabelText(/^Second/)).toBeNull();
+    await user.click(box()!);
+    expect(screen.queryByLabelText("Layover at")).toBeNull();
+    expect(screen.queryByLabelText("Land there")).toBeNull();
+    expect(screen.queryByLabelText("Leave")).toBeNull();
+    expect(screen.queryByLabelText("Second flight number")).toBeNull();
+    expect(screen.queryByLabelText("Second flight seat")).toBeNull();
+  });
+
+  it("a train's change reads Change at, Arrive there, Leave and Second train", async () => {
+    const user = userEvent.setup();
+    render(<TransportFormDialog {...props} />);
+    await user.click(screen.getByRole("radio", { name: "Train" }));
+    await user.click(box("This journey includes a change")!);
+    expect(screen.getByRole("combobox", { name: "Change at" })).toBeInTheDocument();
+    expect(screen.getByLabelText("Arrive there")).toBeInTheDocument();
+    expect(screen.getByLabelText("Leave")).toBeInTheDocument();
+    expect(screen.getByLabelText("Second train number")).toBeInTheDocument();
+    expect(screen.getByLabelText("Second train seat")).toBeInTheDocument();
+    expect(screen.getByText("The details below stay with the first part of the journey.")).toBeInTheDocument();
+  });
+
+  it("switching from a flight to a train while ticked keeps what was typed and changes the wording", async () => {
+    vi.unstubAllEnvs();
+    const user = userEvent.setup();
+    render(<TransportFormDialog {...props} />);
+    await user.click(box()!);
+    await user.type(screen.getByLabelText("Layover at"), "Lille Europe");
+    fireEvent.change(screen.getByLabelText("Land there"), { target: { value: "2026-12-05T22:15" } });
+    fireEvent.change(screen.getByLabelText("Leave"), { target: { value: "2026-12-06T00:50" } });
+    await user.type(screen.getByLabelText("Second flight number"), "TG 924");
+    await user.type(screen.getByLabelText("Second flight seat"), "44J");
+
+    await user.click(screen.getByRole("radio", { name: "Train" }));
+
+    expect(box()).toBeNull();
+    expect(box("This journey includes a change")).toBeChecked();
+    expect(screen.queryByLabelText("Layover at")).toBeNull();
+    expect(screen.getByLabelText("Change at")).toHaveValue("Lille Europe");
+    expect(screen.queryByLabelText("Land there")).toBeNull();
+    expect(screen.getByLabelText("Arrive there")).toHaveValue("2026-12-05T22:15");
+    expect(screen.getByLabelText("Leave")).toHaveValue("2026-12-06T00:50");
+    expect(screen.queryByLabelText("Second flight number")).toBeNull();
+    expect(screen.getByLabelText("Second train number")).toHaveValue("TG 924");
+    expect(screen.getByLabelText("Second train seat")).toHaveValue("44J");
+  });
+
+  it("saving with the box ticked sends the whole journey and the layover in one call", async () => {
+    const user = userEvent.setup();
+    const plain = render(<TransportFormDialog {...props} />);
+    await fillJourney(user);
+    await user.click(screen.getByRole("button", { name: "Add flight" }));
+    const ordinary = vi.mocked(createTransport).mock.calls[0][1];
+    plain.unmount();
+
+    render(<TransportFormDialog {...props} />);
+    await fillJourney(user);
+    await user.click(box()!);
+    await fillLayover(user);
+    await user.click(screen.getByRole("button", { name: "Add flight" }));
+
+    expect(createTransport).toHaveBeenCalledTimes(1);
+    expect(saveTransportWithLayover).toHaveBeenCalledTimes(1);
+    const [target, input, layover] = vi.mocked(saveTransportWithLayover).mock.calls[0];
+    expect(target).toEqual({ tripId: "trip-1" });
+    expect(input).toEqual(ordinary);
+    expect(input).toMatchObject({ fromStopId: "dps", toStopId: "muc", depAt: "2026-12-05T19:00", arrAt: "2026-12-06T06:45", serviceNumber: "TG 440", seat: "32J, 32K", reference: "DHZU24" });
+    expect(layover).toEqual({
+      place: "Bangkok (BKK)",
+      placeId: "bkk",
+      lat: 13.69,
+      lng: 100.7501,
+      landAt: "2026-12-05T22:15",
+      leaveAt: "2026-12-06T00:50",
+      serviceNumber: "TG 924",
+      seat: "44J, 44K",
+    });
+    await waitFor(() => expect(baseProps.onOpenChange).toHaveBeenCalledWith(false));
+  });
+
+  it("editing with the box ticked sends the Transport's id", async () => {
+    vi.unstubAllEnvs();
+    const user = userEvent.setup();
+    render(<TransportFormDialog {...baseProps} transport={existingTransport} />);
+    await user.click(box("This journey includes a change")!);
+    await user.type(screen.getByLabelText("Change at"), "Lille Europe");
+    fireEvent.change(screen.getByLabelText("Arrive there"), { target: { value: "2026-07-10T10:20" } });
+    fireEvent.change(screen.getByLabelText("Leave"), { target: { value: "2026-07-10T10:50" } });
+    await user.click(screen.getByRole("button", { name: "Save" }));
+
+    expect(updateTransport).not.toHaveBeenCalled();
+    const [target, input, layover] = vi.mocked(saveTransportWithLayover).mock.calls[0];
+    expect(target).toEqual({ transportId: "transport-99" });
+    expect(input).toMatchObject({ mode: "TRAIN", fromStopId: "stop-a", toStopId: "stop-b", reference: "TGV-123" });
+    expect(layover).toEqual({ place: "Lille Europe", landAt: "2026-07-10T10:20", leaveAt: "2026-07-10T10:50" });
+  });
+
+  it("unticking after filling the fields saves an ordinary Transport", async () => {
+    const user = userEvent.setup();
+    render(<TransportFormDialog {...props} />);
+    await fillJourney(user);
+    await user.click(box()!);
+    await fillLayover(user);
+    await user.click(box()!);
+    await user.click(screen.getByRole("button", { name: "Add flight" }));
+    expect(saveTransportWithLayover).not.toHaveBeenCalled();
+    expect(createTransport).toHaveBeenCalledWith("trip-1", expect.objectContaining({ toStopId: "muc", serviceNumber: "TG 440" }), undefined);
+    expect(vi.mocked(createTransport).mock.calls[0][1]).not.toHaveProperty("layover");
+  });
+
+  it("switching to a drive with the box ticked hides it and saves an ordinary Transport", async () => {
+    const user = userEvent.setup();
+    render(<TransportFormDialog {...props} />);
+    await fillJourney(user);
+    await user.click(box()!);
+    await fillLayover(user);
+    await user.click(screen.getByRole("radio", { name: "Car" }));
+    expect(screen.queryByLabelText("Layover at")).toBeNull();
+    await user.click(screen.getByRole("button", { name: "Add car" }));
+    expect(saveTransportWithLayover).not.toHaveBeenCalled();
+    expect(createTransport).toHaveBeenCalledWith("trip-1", expect.objectContaining({ mode: "CAR", toStopId: "muc" }), undefined);
+  });
+
+  it("a Transport already in a Connection has no box", () => {
+    render(<TransportFormDialog {...baseProps} transport={{ ...existingTransport, mode: "FLIGHT" }} inConnection />);
+    expect(box()).toBeNull();
+    expect(screen.queryByRole("checkbox", { name: /layover|change/i })).toBeNull();
+  });
+
+  it("the booking import's proposal editor has no box", () => {
+    render(<TransportFormDialog {...props} onSubmitOverride={vi.fn()} />);
+    expect(box()).toBeNull();
+  });
+
+  it("the layover fields are required: an empty one stops the save and says what is missing", async () => {
+    vi.unstubAllEnvs();
+    const user = userEvent.setup();
+    render(<TransportFormDialog {...props} />);
+    await user.click(box()!);
+    await user.click(screen.getByRole("button", { name: "Add flight" }));
+    expect(saveTransportWithLayover).not.toHaveBeenCalled();
+    expect(createTransport).not.toHaveBeenCalled();
+    expect(await screen.findByText("Add where the layover is.")).toBeInTheDocument();
+    expect(screen.getByLabelText("Land there")).toHaveAccessibleDescription("Add when you land.");
+    expect(screen.getByLabelText("Leave")).toHaveAccessibleDescription("Add when you leave.");
+    expect(screen.getByLabelText("Land there")).toHaveAttribute("aria-required", "true");
+    expect(screen.getByLabelText("Leave")).toHaveAttribute("aria-required", "true");
+  });
+
+  it("a train's empty change fields say so in its own words", async () => {
+    vi.unstubAllEnvs();
+    const user = userEvent.setup();
+    render(<TransportFormDialog {...props} />);
+    await user.click(screen.getByRole("radio", { name: "Train" }));
+    await user.click(box("This journey includes a change")!);
+    await user.type(screen.getByLabelText("Change at"), "Lille");
+    await user.click(screen.getByRole("button", { name: "Add train" }));
+    expect(saveTransportWithLayover).not.toHaveBeenCalled();
+    expect(screen.getByLabelText("Arrive there")).toHaveAccessibleDescription("Add when you arrive there.");
+    expect(screen.queryByText("Add where the change is.")).toBeNull();
+  });
+
+  it("a refusal from the server shows beside its field", async () => {
+    vi.mocked(saveTransportWithLayover).mockResolvedValueOnce({
+      success: false,
+      errors: {
+        layoverLeaveAt: ["A layover is under a day. For a longer stay, add a Stop."],
+        layoverPlace: ["Add where the layover is."],
+      },
+    });
+    const user = userEvent.setup();
+    render(<TransportFormDialog {...props} />);
+    await fillJourney(user);
+    await user.click(box()!);
+    await fillLayover(user);
+    await user.click(screen.getByRole("button", { name: "Add flight" }));
+    await waitFor(() =>
+      expect(screen.getByLabelText("Leave")).toHaveAccessibleDescription("A layover is under a day. For a longer stay, add a Stop."),
+    );
+    expect(screen.getByRole("combobox", { name: "Layover at" })).toHaveAccessibleDescription("Add where the layover is.");
+    expect(baseProps.onOpenChange).not.toHaveBeenCalledWith(false);
   });
 });

@@ -14,6 +14,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Field } from "@/components/ui/field";
 import { formatMinor, formatMoney, parseAmountToMinor } from "@/lib/money/money";
+import { paidCurrencyOf } from "@/lib/money/paid-currency";
 import { refundProblem } from "@/lib/money/refund";
 import { todayLocalISO } from "@/lib/dates";
 import type { DeleteRefundAnswer } from "@/lib/money/delete-refund";
@@ -27,11 +28,11 @@ export interface PaidCostForDelete {
 
 /** The Costs the server can take a Refund answer for: paid, with a paid amount, and no Refund yet (one that has it already says what happened to its money). */
 export function paidCostsForDelete(
-  costs: readonly { id: string; label: string | null; paidMinor: number | null; paidAt: Date | null; refundMinor?: number | null; currency: string }[] | undefined,
+  costs: readonly { id: string; label: string | null; paidMinor: number | null; paidAt: Date | null; refundMinor?: number | null; currency: string; paidCurrency?: string | null }[] | undefined,
 ): PaidCostForDelete[] {
   return (costs ?? []).flatMap((c) =>
     c.paidAt != null && c.paidMinor != null && c.refundMinor == null
-      ? [{ id: c.id, label: c.label || "Cost", paidMinor: c.paidMinor, currency: c.currency }]
+      ? [{ id: c.id, label: c.label || "Cost", paidMinor: c.paidMinor, currency: paidCurrencyOf(c) }]
       : [],
   );
 }

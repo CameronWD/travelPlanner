@@ -17,7 +17,8 @@ import { formatMoney, sumMinorToHome } from "@/lib/money/money";
 import { formatDayLabel } from "@/lib/dates";
 import { plural } from "@/lib/plural";
 import type { CostRow } from "@/server/actions/costs";
-import { costNetMinor } from "@/lib/money/cost-row";
+import { shownCost } from "@/lib/money/cost-row";
+import { shownRateLookup, stayCostLabel } from "@/lib/plan/plan-model";
 import { PresenceDiv } from "./presence";
 import { REDUCED_EXIT, useMotionTiming } from "./use-motion-timing";
 import { IdeaPickerMenu } from "./idea-picker-menu";
@@ -95,9 +96,9 @@ function daySummary(items: StopDayItem[], costsById: Map<string, CostRow[]> | un
   if (toBook > 0) parts.push(`${toBook} to book`);
   if (costs.length > 0 && homeCurrency) {
     const total = sumMinorToHome(
-      costs.map((c) => ({ amountMinor: costNetMinor(c), currency: c.currency })),
+      costs.map((c) => { const s = shownCost(c); return { amountMinor: s.minor, currency: s.currency }; }),
       homeCurrency,
-      (cur) => costs.find((c) => c.currency.toUpperCase() === cur)?.rateToHome ?? undefined,
+      shownRateLookup(costs),
     ).totalMinor;
     parts.push(`${formatMoney(total, homeCurrency)} so far`);
   }
@@ -196,6 +197,7 @@ interface DayRowProps {
   dateISO: string;
   item: StopDayItem;
   costs: CostRow[];
+  homeCurrency: string | undefined;
   /** ADR 0049 rule 3: the owning Stop's name when it isn't this card's Stop. */
   owner: string | null;
   attached: boolean;
@@ -205,7 +207,7 @@ interface DayRowProps {
 }
 
 /** One scheduled Item row: draggable onto another day section (deviation 1 — no within-day reorder). */
-function DayRow({ stopId, dateISO, item, costs, owner, attached, isNew, onRiseInEnd, onEditItem }: DayRowProps) {
+function DayRow({ stopId, dateISO, item, costs, homeCurrency, owner, attached, isNew, onRiseInEnd, onEditItem }: DayRowProps) {
   // CONTEXT.md Surprise: a placeholder shows only that something is planned. Nothing to edit or move.
   const placeholder = item.surprise?.youAreSurprised ?? false;
   const { setNodeRef, listeners, attributes, isDragging } = useDraggable({
@@ -221,7 +223,7 @@ function DayRow({ stopId, dateISO, item, costs, owner, attached, isNew, onRiseIn
       endTime: item.endTime ?? null,
     },
   });
-  const rowCost = costs.length > 0 ? formatMoney(costs.reduce((sum, c) => sum + costNetMinor(c), 0), costs[0].currency) : null;
+  const rowCost = stayCostLabel(costs, homeCurrency);
 
   return (
     <div
@@ -506,6 +508,7 @@ export function DaySection({
                     dateISO={dateISO}
                     item={item}
                     costs={costsById?.get(item.id) ?? []}
+                    homeCurrency={homeCurrency}
                     owner={ownerMarker(item, stopId, stopNames)}
                     attached={attachedItemIds?.has(item.id) ?? false}
                     isNew={seen.fresh.has(item.id)}

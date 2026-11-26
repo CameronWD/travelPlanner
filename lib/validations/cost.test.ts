@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { costSchema, paidAtStringSchema } from "./cost";
+import { costSchema, paidAtStringSchema, paidCurrencySchema } from "./cost";
 import { REFUND_MESSAGES } from "@/lib/money/refund";
 
 // ---------------------------------------------------------------------------
@@ -393,5 +393,29 @@ describe("costSchema — Refund", () => {
     const r = costSchema.safeParse({ costMinor: 20000, currency: "AUD", ownerType: "OTHER", label: "Pass", refundMinor: 100 });
     expect(r.success).toBe(false);
     if (!r.success) expect(r.error.issues.map((i) => i.message)).toContain(REFUND_MESSAGES.notPaid);
+  });
+});
+
+describe("costSchema — paid currency", () => {
+  const paid = { costMinor: 55000, paidMinor: 90512, paidAt: "2026-06-01", currency: "EUR", ownerType: "OTHER" as const, label: "Hotel" };
+
+  it("paidCurrency accepts a supported code, upper-cases it, and accepts null", () => {
+    expect(paidCurrencySchema.parse("aud")).toBe("AUD");
+    expect(paidCurrencySchema.parse(null)).toBeNull();
+    expect(paidCurrencySchema.parse(undefined)).toBeUndefined();
+    const r = costSchema.safeParse({ ...paid, paidCurrency: "aud" });
+    expect(r.success).toBe(true);
+    if (r.success) expect(r.data.paidCurrency).toBe("AUD");
+    const own = costSchema.safeParse({ ...paid, paidCurrency: null });
+    expect(own.success).toBe(true);
+    if (own.success) expect(own.data.paidCurrency).toBeNull();
+  });
+
+  it("paidCurrency refuses an unknown code", () => {
+    expect(paidCurrencySchema.safeParse("XYZ").success).toBe(false);
+    expect(paidCurrencySchema.safeParse("AU").success).toBe(false);
+    const r = costSchema.safeParse({ ...paid, paidCurrency: "XYZ" });
+    expect(r.success).toBe(false);
+    if (!r.success) expect(r.error.flatten().fieldErrors.paidCurrency).toBeDefined();
   });
 });

@@ -135,3 +135,63 @@ describe("mergeCostPatch keeps a Refund", () => {
     expect(cleared).not.toHaveProperty("refundedAt");
   });
 });
+
+describe("the paid currency through mergeCostPatch", () => {
+  const paidAt = new Date("2026-04-01T00:00:00Z");
+  const eurPaidHome = { ...paidRow, costMinor: 55000, currency: "EUR", paidMinor: 90512, paidAt, paidCurrency: "AUD" };
+  const paidOf = (m: ReturnType<typeof mergeCostPatch>) => ("success" in m ? "refused" : m.paidCurrency ?? null);
+
+  it("a patch that changes the currency keeps a Home paid currency", () => {
+    expect(mergeCostPatch(eurPaidHome, { currency: "JPY" }, "AUD")).toMatchObject({ currency: "JPY", paidMinor: 90512, paidCurrency: "AUD" });
+  });
+  it("a patch that changes the currency of a Cost paid in its own currency, the paid currency follows (stored null)", () => {
+    expect(paidOf(mergeCostPatch(paidRow, { currency: "JPY" }, "AUD"))).toBeNull();
+  });
+  it("a Cost with no recorded paid currency follows its own currency when that changes, even from Home", () => {
+    const audPaid = { ...paidRow, costMinor: 55000, currency: "AUD", paidMinor: 55000, paidAt };
+    const m = mergeCostPatch(audPaid, { currency: "EUR" }, "AUD");
+    expect(m).toMatchObject({ currency: "EUR", paidMinor: 55000 });
+    expect(paidOf(m)).toBeNull();
+  });
+  it("an unpaid Cost in Home with no paid amount stores null when its currency changes", () => {
+    const audUnpaid = { ...unpaidRow, currency: "AUD", paidMinor: null };
+    expect(paidOf(mergeCostPatch(audUnpaid, { currency: "EUR" }, "AUD"))).toBeNull();
+  });
+  it("changing the currency to Home stores null", () => {
+    expect(mergeCostPatch(eurPaidHome, { currency: "AUD" }, "AUD")).toMatchObject({ currency: "AUD", paidMinor: 90512, paidCurrency: null });
+  });
+  it("a patch naming paidCurrency null means the Cost's own", () => {
+    expect(mergeCostPatch(eurPaidHome, { paidCurrency: null, paidMinor: 55000 }, "AUD")).toMatchObject({ currency: "EUR", paidMinor: 55000, paidCurrency: null });
+  });
+  it("with a Refund, changing the Cost's currency is allowed when it is paid in Home", () => {
+    expect(mergeCostPatch({ ...eurPaidHome, refundMinor: 5000 }, { currency: "JPY" }, "AUD")).toMatchObject({ currency: "JPY", paidCurrency: "AUD", refundMinor: 5000 });
+  });
+  it("with a Refund, changing the Cost's currency is refused when it is paid in its own currency", () => {
+    expect(mergeCostPatch({ ...paidRow, refundMinor: 3000 }, { currency: "JPY" }, "AUD")).toEqual(
+      { success: false, errors: { _: [REFUND_MESSAGES.currencyBlocked] } },
+    );
+  });
+  it("with a Refund, changing the paid currency is refused", () => {
+    const blocked = { success: false, errors: { _: [REFUND_MESSAGES.currencyBlocked] } };
+    expect(mergeCostPatch({ ...eurPaidHome, refundMinor: 5000 }, { paidCurrency: null }, "AUD")).toEqual(blocked);
+    expect(mergeCostPatch({ ...paidRow, refundMinor: 3000 }, { paidCurrency: "AUD" }, "AUD")).toEqual(blocked);
+  });
+});
+
+describe("the paid currency through completeInlineCost", () => {
+  const paidAt = new Date("2026-04-15T00:00:00Z");
+  const eurPaidHome = { id: "c1", costMinor: 55000, currency: "EUR", paidMinor: 90512, paidAt, paidCurrency: "AUD", refundMinor: 5000, refundedAt: null };
+  const blocked = { success: false, errors: { _: [REFUND_MESSAGES.currencyBlocked] } };
+
+  it("with a Refund, changing the Cost's currency is allowed when it is paid in Home", () => {
+    expect(completeInlineCost({ costMinor: 9000000, currency: "JPY" }, [eurPaidHome], "AUD")).toEqual(
+      { costMinor: 9000000, currency: "JPY", paidMinor: 90512, paidAt: "2026-04-15", paidCurrency: "AUD" },
+    );
+  });
+  it("with a Refund, changing the Cost's currency is refused when it is paid in its own currency", () => {
+    expect(completeInlineCost({ costMinor: 9000000, currency: "JPY" }, [{ ...eurPaidHome, paidMinor: 55000, paidCurrency: null }], "AUD")).toEqual(blocked);
+  });
+  it("with a Refund, changing the paid currency is refused", () => {
+    expect(completeInlineCost({ costMinor: 55000, currency: "EUR", paidMinor: 55000, paidAt: "2026-04-15", paidCurrency: null }, [eurPaidHome], "AUD")).toEqual(blocked);
+  });
+});

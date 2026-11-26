@@ -239,10 +239,10 @@ export function ToPayPanel({
                 </div>
                 <div className="shrink-0 text-right">
                   <p className="text-[15px] font-extrabold tabular-nums">
-                    {row.homeMinor != null ? formatMoneyWhole(row.homeMinor, homeCurrency) : formatMoneyWhole(row.originalMinor, row.currency)}
+                    {row.homeMinor != null ? formatMoneyWhole(row.homeMinor, homeCurrency) : formatMoneyWhole(row.originalMinor, row.shownCurrency ?? row.currency)}
                   </p>
                   {row.foreign && row.homeMinor != null ? (
-                    <p className="text-[11px] font-semibold tabular-nums text-muted-foreground">{formatMoneyWhole(row.originalMinor, row.currency)}</p>
+                    <p className="text-[11px] font-semibold tabular-nums text-muted-foreground">{formatMoneyWhole(row.originalMinor, row.shownCurrency ?? row.currency)}</p>
                   ) : null}
                 </div>
               </li>

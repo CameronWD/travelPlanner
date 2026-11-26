@@ -925,6 +925,7 @@ model Cost {
   currency   String // ISO 4217
   rateToHome Float? // snapshotted FX rate at entry, or null if same currency
   paidAt     DateTime?
+  paidCurrency String? // ISO 4217 of paidMinor/refundMinor when not the Cost's own (only ever the Trip's Home currency when written; lib/money/paid-currency.ts); null = currency
   refundMinor Int? // one Refund on a paid Cost (lib/money/refund.ts); expected until refundedAt is set
   refundedAt DateTime?
   dueDate    String? // "YYYY-MM-DD" — when an unpaid cost's money leaves the account (CONTEXT.md "Due date")

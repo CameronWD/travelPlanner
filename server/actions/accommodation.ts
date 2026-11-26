@@ -17,6 +17,7 @@ import { resolveRateForTrip, persistRate } from "@/lib/money/fx";
 import { type ActionResult, validationResult, formFail } from "@/lib/action-result";
 import { applyPatch, type Patch } from "@/lib/patch";
 import { completeInlineCost, OWNED_COST_SELECT } from "@/lib/money/cost-patch";
+import { paidCurrencyProblem, storedPaidCurrency } from "@/lib/money/paid-currency";
 import { cleanupTargetSideDataTx } from "@/server/actions/target-cleanup";
 import { deleteOwnedCostsTx, deleteRefundsProblemTx } from "@/server/actions/owned-costs";
 import type { DeleteRefundAnswer } from "@/lib/money/delete-refund";
@@ -90,6 +91,12 @@ export async function createAccommodation(
   }
   await requireOutsideSurprise(user.id, { stopId: stop.id });
 
+  const hasInlineCost = data.costMinor !== undefined && Boolean(data.currency);
+  const trip = hasInlineCost ? await db.trip.findUnique({ where: { id: stop.tripId }, select: { homeCurrency: true } }) : null;
+  const paidCurrency = hasInlineCost && data.paidMinor != null ? storedPaidCurrency(data.paidCurrency, data.currency!) : null;
+  const paidCurrencyBreak = trip && paidCurrencyProblem(paidCurrency, { currency: data.currency!, storedPaidCurrency: null }, trip.homeCurrency);
+  if (paidCurrencyBreak) return { success: false, errors: { paidCurrency: [paidCurrencyBreak] } };
+
   const { place } = await placeForSave({ text: data.address ?? null, pick: pickedPlace(data), lookUp: geocodePlaceDetailed });
 
   const created = await db.accommodation.create({
@@ -116,10 +123,6 @@ export async function createAccommodation(
   // Resolve the FX rate BEFORE opening a transaction (network must not hold a
   // DB transaction open — ADR 0007).
   if (data.costMinor !== undefined && data.currency) {
-    const trip = await db.trip.findUnique({
-      where: { id: stop.tripId },
-      select: { homeCurrency: true },
-    });
     if (trip) {
       const resolved = await resolveRateForTrip(stop.tripId, data.currency, trip.homeCurrency, { db });
       await db.$transaction(async (tx) => {
@@ -134,6 +137,7 @@ export async function createAccommodation(
             ownerId: created.id,
             costMinor: data.costMinor!,
             paidMinor: data.paidMinor ?? null,
+            ...(paidCurrency != null && { paidCurrency }),
             currency: data.currency!,
             rateToHome: resolved.rate,
             paidAt: data.paidAt ? new Date(data.paidAt) : null,
@@ -165,10 +169,12 @@ export async function updateAccommodation(
   const before = await db.accommodation.findUnique({ where: { id: accommodationId } });
   if (!before) notFound();
 
-  const owned = patch.costMinor != null || patch.currency != null
+  const touchesCost = patch.costMinor != null || patch.currency != null;
+  const owned = touchesCost
     ? await db.cost.findMany({ where: { ownerType: "ACCOMMODATION", ownerId: accommodationId }, select: OWNED_COST_SELECT })
     : [];
-  const inlineCost = completeInlineCost(patch, owned);
+  const trip = touchesCost ? await db.trip.findUnique({ where: { id: acc.tripId }, select: { homeCurrency: true } }) : null;
+  const inlineCost = completeInlineCost(patch, owned, trip?.homeCurrency ?? null);
   if (inlineCost && "success" in inlineCost) return inlineCost;
 
   // The current values omit the place (placeId, lat/lng): only a pick in the
@@ -181,6 +187,8 @@ export async function updateAccommodation(
       },
       patch,
     ),
+    // Only the completed inline Cost says what paid currency to store; the raw patch value is not normalised.
+    paidCurrency: undefined,
     ...inlineCost,
   });
   if (!parsed.success) {
@@ -188,6 +196,12 @@ export async function updateAccommodation(
   }
 
   const data = parsed.data;
+  const paidCurrencyBreak = trip && paidCurrencyProblem(
+    data.paidCurrency ?? null,
+    { currency: data.currency!, storedPaidCurrency: owned[0]?.paidCurrency ?? null },
+    trip.homeCurrency,
+  );
+  if (paidCurrencyBreak) return { success: false, errors: { paidCurrency: [paidCurrencyBreak] } };
   // The current values above carry no booking fields, so the patch's own
   // reach the schema (validated) and are merged here (lib/booking-state-patch.ts).
   const booking = resolveBookingWrite(
@@ -245,10 +259,6 @@ export async function updateAccommodation(
     const existingCosts = owned;
 
     if (existingCosts.length <= 1) {
-      const trip = await db.trip.findUnique({
-        where: { id: acc.tripId },
-        select: { homeCurrency: true },
-      });
       if (trip) {
         const resolved = await resolveRateForTrip(acc.tripId, data.currency, trip.homeCurrency, { db });
         await db.$transaction(async (tx) => {
@@ -264,6 +274,7 @@ export async function updateAccommodation(
                 ownerId: accommodationId,
                 costMinor: data.costMinor!,
                 paidMinor: data.paidMinor ?? null,
+                ...(data.paidCurrency != null && { paidCurrency: data.paidCurrency }),
                 currency: data.currency!,
                 rateToHome: resolved.rate,
                 paidAt: data.paidAt ? new Date(data.paidAt) : null,
@@ -286,6 +297,7 @@ export async function updateAccommodation(
                 rateToHome: resolved.rate,
                 paidAt: data.paidAt ? new Date(data.paidAt) : null,
                 ...(data.paidMinor !== undefined && { paidMinor: data.paidMinor }),
+                ...(data.paidCurrency !== undefined && { paidCurrency: data.paidCurrency }),
                 ...(data.settlement !== undefined && { settlement: data.settlement }),
               },
             });

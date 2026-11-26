@@ -4,7 +4,8 @@ import * as React from "react";
 import { Field } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { MoneyInput } from "@/components/ui/money-input";
-import { CURRENCY_CODES } from "@/lib/money/currencies";
+import { paidCurrencyChoices } from "@/lib/money/paid-currency";
+import { useTripCurrencies } from "@/components/money/trip-currencies-context";
 import type { FieldErrors } from "@/lib/action-result";
 import type { CostSettlement } from "@/lib/enum-values";
 import { SettlementChoice } from "@/components/trip/settlement-choice";
@@ -24,6 +25,9 @@ export interface InlineCostFieldsProps {
   onPaidChange: (v: boolean) => void;
   paidAmount: string;
   onPaidAmountChange: (v: string) => void;
+  /** The Cost's currency or the Trip's Home currency; changing it never changes `currency`. */
+  paidCurrency: string;
+  onPaidCurrencyChange: (v: string) => void;
   paidAt: string;
   onPaidAtChange: (v: string) => void;
   /**
@@ -60,6 +64,8 @@ export function InlineCostFields({
   onPaidChange,
   paidAmount,
   onPaidAmountChange,
+  paidCurrency,
+  onPaidCurrencyChange,
   paidAt,
   onPaidAtChange,
   settlement,
@@ -68,6 +74,7 @@ export function InlineCostFields({
   disabled,
   paired = false,
 }: InlineCostFieldsProps): React.ReactElement | null {
+  const homeCurrency = useTripCurrencies()?.homeCurrency ?? null;
   if (hasMultipleCosts) return null;
 
   const costField = (
@@ -79,7 +86,6 @@ export function InlineCostFields({
       <MoneyInput
         amount={costAmount}
         currency={currency}
-        currencies={CURRENCY_CODES}
         onAmountChange={onCostChange}
         onCurrencyChange={onCurrencyChange}
         disabled={disabled}
@@ -112,13 +118,14 @@ export function InlineCostFields({
   const paidFields =
     hasCost && paid ? (
       <>
-        <Field label="You paid" error={errors.paidMinor?.[0]}>
+        <Field label="You paid" error={(errors.paidMinor ?? errors.paidCurrency)?.[0]}>
           <MoneyInput
             amount={paidAmount}
-            currency={currency}
-            currencies={CURRENCY_CODES}
+            currency={paidCurrency}
+            currencies={paidCurrencyChoices({ currency, paidCurrency }, homeCurrency)}
+            currencyLabel="You paid currency"
             onAmountChange={onPaidAmountChange}
-            onCurrencyChange={onCurrencyChange}
+            onCurrencyChange={onPaidCurrencyChange}
             disabled={disabled}
             invalid={Boolean(errors.paidMinor)}
             aria-label="You paid amount"

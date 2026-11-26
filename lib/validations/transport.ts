@@ -4,7 +4,7 @@ import { TRANSPORT_MODES, bookingStateSchema, costSettlementSchema } from "@/lib
 import { bookBySchema } from "@/lib/validations/planning";
 import { CURRENCY_CODES } from "@/lib/money/currencies";
 import { WALL_TIME_RE } from "@/lib/wall-time";
-import { MAX_AMOUNT_MINOR, paidAtDateOnlySchema } from "@/lib/validations/cost";
+import { MAX_AMOUNT_MINOR, paidAtDateOnlySchema, paidCurrencySchema } from "@/lib/validations/cost";
 import { placeId } from "@/lib/validations/primitives";
 
 const endCountryCode = z.string().trim().regex(/^[a-zA-Z]{2}$/, "Country code must be two letters").transform((c) => c.toLowerCase()).optional();
@@ -117,6 +117,7 @@ export const transportSchema = z.object({
 
   /** ISO date string for when the cost was paid. Optional. */
   paidAt: paidAtDateOnlySchema.nullable().optional(),
+  paidCurrency: paidCurrencySchema,
   /** CONTEXT.md "Settlement" for the inline cost. Omitted = leave as is (BEFORE on create). */
   settlement: costSettlementSchema.optional(),
 })
@@ -138,3 +139,16 @@ export const transportSchema = z.object({
   });
 
 export type TransportInput = z.infer<typeof transportSchema>;
+
+export const layoverSchema = z.object({
+  place: z.string().trim().min(1),
+  placeId: placeId.optional(),
+  lat: z.number().min(-90).max(90).optional(),
+  lng: z.number().min(-180).max(180).optional(),
+  landAt: isoDatetime,
+  leaveAt: isoDatetime,
+  serviceNumber: z.string().trim().max(TRANSPORT_DETAIL_MAX).optional(),
+  seat: z.string().trim().max(TRANSPORT_DETAIL_MAX).optional(),
+});
+
+export type LayoverInput = z.infer<typeof layoverSchema>;

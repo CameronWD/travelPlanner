@@ -1,4 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+import * as React from "react";
 import { act } from "react";
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
@@ -16,6 +17,7 @@ import { toast } from "@/components/ui/use-toast";
 import { todayLocalISO } from "@/lib/dates";
 import { CostEditor, OwnedCostFormDialog } from "./cost-editor";
 import { OFFLINE_MESSAGE } from "@/components/ui/failure-message";
+import { TripCurrenciesProvider } from "@/components/money/trip-currencies-context";
 
 function goOffline() {
   Object.defineProperty(navigator, "onLine", { value: false, configurable: true });
@@ -496,5 +498,134 @@ describe("OwnedCostFormDialog: cover", () => {
   it("passes cover through to its sheet", () => {
     render(<OwnedCostFormDialog cost={sampleCost} homeCurrency="AUD" open onOpenChange={() => {}} cover="always" />);
     expect(screen.getByRole("dialog").className.split(/\s+/)).toContain("max-sm:min-h-[90dvh]");
+  });
+});
+
+describe("CostEditor: the paid currency (spec 2026-11-26 §2)", () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  const inTrip = (ui: React.ReactElement) => (
+    <TripCurrenciesProvider homeCurrency="AUD" currencies={["AUD", "EUR", "JPY"]}>{ui}</TripCurrenciesProvider>
+  );
+  const updateInput = () => (updateCost as ReturnType<typeof vi.fn>).mock.calls[0][1];
+  const paidAt = new Date("2026-10-01T00:00:00Z");
+
+  it("saving a Cost paid in Home sends paidCurrency", async () => {
+    const user = userEvent.setup();
+    render(inTrip(<CostEditor {...baseProps} />));
+    await user.click(screen.getByRole("button", { name: /add cost/i }));
+    await user.type(screen.getByLabelText("Cost amount"), "550");
+    await user.click(screen.getByRole("combobox", { name: "Currency" }));
+    await user.click(screen.getByRole("option", { name: "EUR" }));
+    await user.click(screen.getByRole("checkbox", { name: /paid/i }));
+    expect(screen.getByLabelText("You paid amount")).toHaveValue("550");
+    await user.click(screen.getByRole("combobox", { name: "You paid currency" }));
+    await user.click(screen.getByRole("option", { name: "AUD" }));
+    expect(screen.getByLabelText("You paid amount")).toHaveValue("");
+    await user.type(screen.getByLabelText("You paid amount"), "905.12");
+    await user.click(screen.getByRole("button", { name: /save/i }));
+    expect(createCost).toHaveBeenCalledWith(
+      "trip-1",
+      expect.objectContaining({ costMinor: 55000, currency: "EUR", paidMinor: 90512, paidCurrency: "AUD" }),
+      undefined,
+    );
+  });
+
+  it("a JPY Cost paid in Home opens in Home's decimals and saves unchanged", async () => {
+    const user = userEvent.setup();
+    const row: CostRow = { ...sampleCost, costMinor: 12000, currency: "JPY", paidMinor: 15050, paidCurrency: "AUD", paidAt };
+    render(inTrip(<CostEditor {...baseProps} costs={[row]} />));
+    await user.click(screen.getByRole("button", { name: /edit cost/i }));
+    expect(screen.getByLabelText("Cost amount")).toHaveValue("12000");
+    expect(screen.getByLabelText("You paid amount")).toHaveValue("150.50");
+    await user.click(screen.getByRole("button", { name: /save/i }));
+    expect(updateInput()).toEqual(expect.objectContaining({ costMinor: 12000, currency: "JPY", paidMinor: 15050, paidCurrency: "AUD" }));
+  });
+
+  it("a Cost left in an old Home currency opens with that currency offered and saves unchanged", async () => {
+    const user = userEvent.setup();
+    const row: CostRow = { ...sampleCost, costMinor: 55000, currency: "EUR", paidMinor: 90512, paidCurrency: "GBP", paidAt };
+    render(inTrip(<CostEditor {...baseProps} costs={[row]} />));
+    await user.click(screen.getByRole("button", { name: /edit cost/i }));
+    expect(screen.getByRole("combobox", { name: "You paid currency" })).toHaveTextContent("GBP");
+    await user.click(screen.getByRole("combobox", { name: "You paid currency" }));
+    expect(screen.getAllByRole("option").map((o) => o.textContent)).toEqual(["EUR", "AUD", "GBP"]);
+    await user.keyboard("{Escape}");
+    await user.click(screen.getByRole("button", { name: /save/i }));
+    expect(updateInput()).toEqual(expect.objectContaining({ costMinor: 55000, currency: "EUR", paidMinor: 90512, paidCurrency: "GBP" }));
+  });
+
+  it("a Cost paid in Home, switched back to its own currency, sends paidCurrency null", async () => {
+    const user = userEvent.setup();
+    const row: CostRow = { ...sampleCost, costMinor: 55000, currency: "EUR", paidMinor: 90512, paidCurrency: "AUD", paidAt };
+    render(inTrip(<CostEditor {...baseProps} costs={[row]} />));
+    await user.click(screen.getByRole("button", { name: /edit cost/i }));
+    await user.click(screen.getByRole("combobox", { name: "You paid currency" }));
+    await user.click(screen.getByRole("option", { name: "EUR" }));
+    await user.type(screen.getByLabelText("You paid amount"), "550");
+    await user.click(screen.getByRole("button", { name: /save/i }));
+    expect(updateInput()).toEqual(expect.objectContaining({ currency: "EUR", paidMinor: 55000, paidCurrency: null }));
+  });
+
+  it("an existing Cost opened and saved untouched submits exactly what it did before", async () => {
+    const user = userEvent.setup();
+    const paid: CostRow = { ...sampleCost, costMinor: 12000, currency: "JPY", paidMinor: 11500, paidCurrency: null, paidAt };
+    const { unmount } = render(inTrip(<CostEditor {...baseProps} costs={[paid]} />));
+    await user.click(screen.getByRole("button", { name: /edit cost/i }));
+    await user.click(screen.getByRole("button", { name: /save/i }));
+    expect(updateInput()).toStrictEqual({
+      costMinor: 12000, currency: "JPY", paidMinor: 11500, paidAt: "2026-10-01", settlement: "BEFORE",
+      ownerType: "TRANSPORT", ownerId: "owner-1", dueDate: null,
+    });
+    unmount();
+    vi.clearAllMocks();
+
+    const legacy: CostRow = { ...sampleCost, costMinor: 5000, currency: "EUR", paidMinor: 4500, paidAt: null };
+    render(inTrip(<CostEditor {...baseProps} costs={[legacy]} />));
+    await user.click(screen.getByRole("button", { name: /edit cost/i }));
+    await user.click(screen.getByRole("button", { name: /save/i }));
+    expect(updateInput()).toStrictEqual({
+      costMinor: 5000, currency: "EUR", paidMinor: undefined, paidAt: null, settlement: "BEFORE",
+      ownerType: "TRANSPORT", ownerId: "owner-1", dueDate: null,
+    });
+  });
+
+  it("the Owned cost dialog saved untouched submits exactly what it did before", async () => {
+    const user = userEvent.setup();
+    const paid: CostRow = { ...sampleCost, costMinor: 12000, currency: "JPY", paidMinor: 11500, paidAt };
+    render(inTrip(<OwnedCostFormDialog cost={paid} homeCurrency="AUD" open onOpenChange={() => {}} />));
+    await user.click(screen.getByRole("button", { name: /save/i }));
+    expect(updateInput()).toStrictEqual({
+      costMinor: 12000, currency: "JPY", paidMinor: 11500, paidAt: "2026-10-01", settlement: "BEFORE",
+      ownerType: "TRANSPORT", ownerId: "owner-1", dueDate: null,
+    });
+  });
+
+  it("a Cost stored as paid in Home, opened and unticked, sends no paid currency", async () => {
+    const user = userEvent.setup();
+    const row: CostRow = { ...sampleCost, costMinor: 55000, currency: "EUR", paidMinor: 90512, paidCurrency: "AUD", paidAt };
+    render(inTrip(<CostEditor {...baseProps} costs={[row]} />));
+    await user.click(screen.getByRole("button", { name: /edit cost/i }));
+    await user.click(screen.getByRole("checkbox", { name: /paid/i }));
+    await user.click(screen.getByRole("button", { name: /save/i }));
+    expect(updateInput()).toStrictEqual({
+      costMinor: 55000, currency: "EUR", paidMinor: undefined, paidAt: null, settlement: "BEFORE",
+      ownerType: "TRANSPORT", ownerId: "owner-1", dueDate: null,
+    });
+  });
+
+  it("a Home-currency Cost with no stored paid currency, moved to another currency, sends no paid currency", async () => {
+    const user = userEvent.setup();
+    const row: CostRow = { ...sampleCost, costMinor: 5000, currency: "AUD", paidMinor: 5000, paidCurrency: null, paidAt };
+    render(inTrip(<CostEditor {...baseProps} costs={[row]} />));
+    await user.click(screen.getByRole("button", { name: /edit cost/i }));
+    await user.click(screen.getByRole("combobox", { name: "Currency" }));
+    await user.click(screen.getByRole("option", { name: "EUR" }));
+    expect(screen.getByRole("combobox", { name: "You paid currency" })).toHaveTextContent("EUR");
+    await user.click(screen.getByRole("button", { name: /save/i }));
+    expect(updateInput()).toStrictEqual({
+      costMinor: 5000, currency: "EUR", paidMinor: 5000, paidAt: "2026-10-01", settlement: "BEFORE",
+      ownerType: "TRANSPORT", ownerId: "owner-1", dueDate: null,
+    });
   });
 });

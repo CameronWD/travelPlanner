@@ -6,7 +6,7 @@
 import { uncoveredNightDates, uncoveredNights } from "@/lib/accommodation-coverage";
 import { addDays, daysBetween, formatDateRangeCompact, formatDayLabel, nightsBetween, parseISODate } from "@/lib/dates";
 import { flowDates, type FlowStop, type ProjectionStop } from "@/lib/firm-up";
-import { costNetMinor, type CostRow } from "@/lib/money/cost-row";
+import { shownCost, type CostRow } from "@/lib/money/cost-row";
 import { formatMoney, sumMinorToHome } from "@/lib/money/money";
 import { orderPlanStops } from "@/lib/plan-order";
 import type { PlanSummary } from "@/lib/plan-overview";
@@ -136,19 +136,27 @@ export function costPaidState(costs: readonly { paidAt: Date | null }[] | undefi
  * converted to the home currency when mixed (a currency with no rate drops
  * out, as daySummary does); each currency listed when mixed with no home.
  */
+/** The rate for a shown currency comes only from a Cost shown in its own currency: a rate belongs to the cost currency, not to a Home paid amount. */
+export function shownRateLookup(
+  costs: readonly (Parameters<typeof shownCost>[0] & { rateToHome: number | null })[],
+): (cur: string) => number | undefined {
+  return (cur) => costs.find((c) => c.currency.toUpperCase() === cur && shownCost(c).currency === cur)?.rateToHome ?? undefined;
+}
+
 export function stayCostLabel(
-  costs: readonly (Pick<CostRow, "costMinor"> & Partial<Pick<CostRow, "paidMinor" | "paidAt" | "refundMinor" | "refundedAt">> & { currency: string; rateToHome: number | null })[] | undefined,
+  costs: readonly (Pick<CostRow, "costMinor"> & Partial<Pick<CostRow, "paidMinor" | "paidAt" | "paidCurrency" | "refundMinor" | "refundedAt">> & { currency: string; rateToHome: number | null })[] | undefined,
   homeCurrency?: string,
 ): string | null {
   if (!costs || costs.length === 0) return null;
-  const currencies = [...new Set(costs.map((c) => c.currency.toUpperCase()))];
-  const sumIn = (cur: string) => costs.filter((c) => c.currency.toUpperCase() === cur).reduce((s, c) => s + costNetMinor(c), 0);
+  const shown = costs.map((c) => shownCost(c));
+  const currencies = [...new Set(shown.map((s) => s.currency))];
+  const sumIn = (cur: string) => shown.filter((s) => s.currency === cur).reduce((sum, s) => sum + s.minor, 0);
   if (currencies.length === 1) return formatMoney(sumIn(currencies[0]), currencies[0]);
   if (homeCurrency) {
     const { totalMinor } = sumMinorToHome(
-      costs.map((c) => ({ amountMinor: costNetMinor(c), currency: c.currency })),
+      shown.map((s) => ({ amountMinor: s.minor, currency: s.currency })),
       homeCurrency,
-      (cur) => costs.find((c) => c.currency.toUpperCase() === cur)?.rateToHome ?? undefined,
+      shownRateLookup(costs),
     );
     return formatMoney(totalMinor, homeCurrency);
   }

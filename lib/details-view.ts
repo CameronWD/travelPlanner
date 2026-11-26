@@ -1,6 +1,6 @@
 import type { AttachmentView } from "@/lib/attachment-view";
 import type { LatLng } from "@/lib/geo";
-import { shownCostMinor, type CostRow } from "@/lib/money/cost-row";
+import { shownCost, type CostRow } from "@/lib/money/cost-row";
 import { formatMoney } from "@/lib/money/money";
 import { refundTagText, type RefundTagCost } from "@/lib/money/refund-tag-text";
 import type {
@@ -61,11 +61,11 @@ function costSummary(costs: CostRow[]): DetailsView["cost"] {
   if (costs.length === 0) return null;
   const byCurrency = new Map<string, number>();
   for (const c of costs) {
-    const shown = shownCostMinor(c);
-    byCurrency.set(c.currency, (byCurrency.get(c.currency) ?? 0) + shown);
+    const shown = shownCost(c);
+    byCurrency.set(shown.currency, (byCurrency.get(shown.currency) ?? 0) + shown.minor);
   }
   const refunds = costs
-    .map((c): RefundTagCost => ({ refundMinor: c.refundMinor, refundedAt: c.refundedAt, paidAt: c.paidAt, currency: c.currency }))
+    .map((c): RefundTagCost => ({ refundMinor: c.refundMinor, refundedAt: c.refundedAt, paidAt: c.paidAt, currency: shownCost(c).currency }))
     .filter((c) => refundTagText(c) != null);
   return {
     label: [...byCurrency].map(([currency, minor]) => formatMoney(minor, currency)).join(" + "),

@@ -58,6 +58,7 @@ export function ToPayRowView({
   /** Fires when the row's own entry animation (not a child's) ends. */
   onRiseInEnd?: () => void;
 }) {
+  const shown = row.shownCurrency ?? row.currency;
   const hasMenu = Boolean(onPartlyPaid || onRefund || onRefundReceived || onEdit || onDelete);
   // The check pops only when ticked here, not for rows already paid at mount (MOTION.md M7).
   const [prevPaid, setPrevPaid] = React.useState(row.paid);
@@ -86,7 +87,7 @@ export function ToPayRowView({
             refundMinor: row.refund.homeMinor ?? row.refund.minor,
             refundedAt: row.refund.on,
             paidAt: row.paidOn,
-            currency: row.refund.homeMinor != null ? homeCurrency : row.currency,
+            currency: row.refund.homeMinor != null ? homeCurrency : (row.paidCurrency ?? row.currency),
           }}
           format={formatMoneyWhole}
           className="block"
@@ -136,10 +137,10 @@ export function ToPayRowView({
 
         <div className="shrink-0 text-right">
           <p className="text-[15px] font-extrabold tabular-nums">
-            {row.homeMinor != null ? formatMoneyWhole(row.homeMinor, homeCurrency) : formatMoneyWhole(row.originalMinor, row.currency)}
+            {row.homeMinor != null ? formatMoneyWhole(row.homeMinor, homeCurrency) : formatMoneyWhole(row.originalMinor, shown)}
           </p>
           {row.foreign && row.homeMinor != null ? (
-            <p className="text-[11px] font-semibold tabular-nums text-muted-foreground">{formatMoneyWhole(row.originalMinor, row.currency)}</p>
+            <p className="text-[11px] font-semibold tabular-nums text-muted-foreground">{formatMoneyWhole(row.originalMinor, shown)}</p>
           ) : null}
         </div>
 

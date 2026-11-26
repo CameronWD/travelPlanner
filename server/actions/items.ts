@@ -20,6 +20,7 @@ import { markerToWishlistItemData } from "@/lib/marker-to-item";
 import { type ActionResult, validationResult, formFail } from "@/lib/action-result";
 import { applyPatch, type Patch } from "@/lib/patch";
 import { completeInlineCost, OWNED_COST_SELECT } from "@/lib/money/cost-patch";
+import { paidCurrencyProblem, storedPaidCurrency } from "@/lib/money/paid-currency";
 import { cleanupTargetSideDataTx } from "@/server/actions/target-cleanup";
 import { deleteOwnedCostsTx, deleteRefundsProblemTx } from "@/server/actions/owned-costs";
 import type { DeleteRefundAnswer } from "@/lib/money/delete-refund";
@@ -176,6 +177,12 @@ export async function createItem(
     if (refused) return { success: false, errors: { surpriseForIds: [Object.values(refused).flat()[0]!] } };
   }
 
+  const hasInlineCost = data.costMinor !== undefined && Boolean(data.currency);
+  const trip = hasInlineCost ? await db.trip.findUnique({ where: { id: tripId }, select: { homeCurrency: true } }) : null;
+  const paidCurrency = hasInlineCost && data.paidMinor != null ? storedPaidCurrency(data.paidCurrency, data.currency!) : null;
+  const paidCurrencyBreak = trip && paidCurrencyProblem(paidCurrency, { currency: data.currency!, storedPaidCurrency: null }, trip.homeCurrency);
+  if (paidCurrencyBreak) return { success: false, errors: { paidCurrency: [paidCurrencyBreak] } };
+
   // Sort order: max + 1 within the target plan
   const maxItem = await db.item.findFirst({
     where: { tripId, ...planScope(plan) },
@@ -238,10 +245,6 @@ export async function createItem(
   // Resolve the FX rate BEFORE opening a transaction (network must not hold a
   // DB transaction open — ADR 0007).
   if (data.costMinor !== undefined && data.currency) {
-    const trip = await db.trip.findUnique({
-      where: { id: tripId },
-      select: { homeCurrency: true },
-    });
     if (trip) {
       const resolved = await resolveRateForTrip(tripId, data.currency, trip.homeCurrency, { db });
       await db.$transaction(async (tx) => {
@@ -256,6 +259,7 @@ export async function createItem(
             ownerId: created.id,
             costMinor: data.costMinor!,
             paidMinor: data.paidMinor ?? null,
+            ...(paidCurrency != null && { paidCurrency }),
             currency: data.currency!,
             rateToHome: resolved.rate,
             paidAt: data.paidAt ? new Date(data.paidAt) : null,
@@ -379,10 +383,12 @@ export async function updateItem(
   const before = await db.item.findUnique({ where: { id: itemId } });
   if (!before) notFound();
 
-  const owned = patch.costMinor != null || patch.currency != null
+  const touchesCost = patch.costMinor != null || patch.currency != null;
+  const owned = touchesCost
     ? await db.cost.findMany({ where: { ownerType: "ITEM", ownerId: itemId }, select: OWNED_COST_SELECT })
     : [];
-  const inlineCost = completeInlineCost(patch, owned);
+  const trip = touchesCost ? await db.trip.findUnique({ where: { id: item.tripId }, select: { homeCurrency: true } }) : null;
+  const inlineCost = completeInlineCost(patch, owned, trip?.homeCurrency ?? null);
   if (inlineCost && "success" in inlineCost) return inlineCost;
 
   // The current values omit the place (placeId, lat/lng, countryCode,
@@ -399,6 +405,8 @@ export async function updateItem(
       },
       patch,
     ),
+    // Only the completed inline Cost says what paid currency to store; the raw patch value is not normalised.
+    paidCurrency: undefined,
     ...inlineCost,
   });
   if (!parsed.success) {
@@ -406,6 +414,12 @@ export async function updateItem(
   }
 
   const data = parsed.data;
+  const paidCurrencyBreak = trip && paidCurrencyProblem(
+    data.paidCurrency ?? null,
+    { currency: data.currency!, storedPaidCurrency: owned[0]?.paidCurrency ?? null },
+    trip.homeCurrency,
+  );
+  if (paidCurrencyBreak) return { success: false, errors: { paidCurrency: [paidCurrencyBreak] } };
   // The current values above carry no booking fields, so the patch's own
   // reach the schema (validated) and are merged here (lib/booking-state-patch.ts).
   const booking = resolveBookingWrite(
@@ -552,10 +566,6 @@ export async function updateItem(
     const existingCosts = owned;
 
     if (existingCosts.length <= 1) {
-      const trip = await db.trip.findUnique({
-        where: { id: item.tripId },
-        select: { homeCurrency: true },
-      });
       if (trip) {
         const resolved = await resolveRateForTrip(item.tripId, data.currency, trip.homeCurrency, { db });
         await db.$transaction(async (tx) => {
@@ -571,6 +581,7 @@ export async function updateItem(
                 ownerId: itemId,
                 costMinor: data.costMinor!,
                 paidMinor: data.paidMinor ?? null,
+                ...(data.paidCurrency != null && { paidCurrency: data.paidCurrency }),
                 currency: data.currency!,
                 rateToHome: resolved.rate,
                 paidAt: data.paidAt ? new Date(data.paidAt) : null,
@@ -593,6 +604,7 @@ export async function updateItem(
                 rateToHome: resolved.rate,
                 paidAt: data.paidAt ? new Date(data.paidAt) : null,
                 ...(data.paidMinor !== undefined && { paidMinor: data.paidMinor }),
+                ...(data.paidCurrency !== undefined && { paidCurrency: data.paidCurrency }),
                 ...(data.settlement !== undefined && { settlement: data.settlement }),
               },
             });

@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { REFUND_MESSAGES } from "@/lib/money/refund";
+import { PAID_CURRENCY_MESSAGE } from "@/lib/money/paid-currency";
 import { expectAccessCheckedBeforeWrite } from "@/test/helpers/access-order";
 
 /**
@@ -189,7 +190,10 @@ import {
   updateTransport,
   deleteTransport,
   reorderTransports,
+  saveTransportWithLayover,
 } from "./transport";
+import { isConnection, sameBooking, waitMinutes } from "@/lib/connections";
+import { groupTransportsBySlot, HEAD_SLOT } from "@/lib/transport-anchor";
 import { recordActivity } from "@/lib/activity-record";
 import { transportTimeDisplay } from "@/lib/time-display";
 import { endZones } from "@/lib/leg-zones";
@@ -1471,6 +1475,39 @@ describe("updateTransport: inline cost update/create", () => {
   });
 });
 
+describe("updateTransport: the inline Cost's paid currency", () => {
+  const owning = () => {
+    transportFindUniqueMock
+      .mockResolvedValueOnce({ id: "tu-pc", tripId: "trip-1", forkId: null })
+      .mockResolvedValueOnce({ id: "tu-pc", mode: "FLIGHT" });
+    transportUpdateMock.mockResolvedValue({ id: "tu-pc", mode: "FLIGHT" });
+    costFindManyMock.mockResolvedValue([
+      { id: "cost-pc", costMinor: 55_000, currency: "EUR", paidMinor: null, paidAt: null, paidCurrency: null, refundMinor: null, refundedAt: null },
+    ]);
+    tripFindUniqueMock.mockResolvedValue({ homeCurrency: "AUD" });
+    resolveRateForTripMock.mockResolvedValue({ rate: 0.6, persist: null });
+  };
+
+  it("editing a Cost with no paid currency, paid and naming none, writes no paid currency", async () => {
+    owning();
+
+    const result = await updateTransport("tu-pc", { mode: "FLIGHT", costMinor: 55_000, currency: "EUR", paidMinor: 55_000, paidAt: "2026-06-01" });
+
+    expect(result.success).toBe(true);
+    expect(costUpdateMock.mock.calls[0][0].data).not.toHaveProperty("paidCurrency");
+  });
+
+  it("editing a Cost with no paid currency to another currency, paid and naming none, writes no paid currency", async () => {
+    owning();
+
+    const result = await updateTransport("tu-pc", { mode: "FLIGHT", costMinor: 8_000_000, currency: "JPY", paidMinor: 8_000_000, paidAt: "2026-06-01" });
+
+    expect(result.success).toBe(true);
+    expect(costUpdateMock.mock.calls[0][0].data).toMatchObject({ currency: "JPY" });
+    expect(costUpdateMock.mock.calls[0][0].data).not.toHaveProperty("paidCurrency");
+  });
+});
+
 describe("updateTransport (PATCH, ADR 0075)", () => {
   const row = {
     id: "t1", tripId: "trip-1", forkId: null,
@@ -2077,5 +2114,725 @@ describe("deleteTransport with refund answers", () => {
       },
     });
     expect(costDeleteManyMock).toHaveBeenCalledWith({ where: { id: { in: ["c2"] } } });
+  });
+});
+
+describe("saveTransportWithLayover", () => {
+  const DPS = { id: "stop-dps", tripId: "trip-1", forkId: null, timezone: "Asia/Makassar" };
+  const MUC = { id: "stop-muc", tripId: "trip-1", forkId: null, timezone: "Europe/Berlin" };
+  const JOURNEY = {
+    mode: "FLIGHT" as const,
+    fromStopId: "stop-dps",
+    toStopId: "stop-muc",
+    anchorStopId: "stop-dps",
+    depAt: "2026-12-05T19:00",
+    arrAt: "2026-12-06T06:45",
+    reference: "ABC123",
+    carrier: "Thai Airways",
+    serviceNumber: "TG 432",
+    seat: "12A",
+  };
+  const LAYOVER = {
+    place: "Bangkok (BKK)",
+    placeId: "bkk",
+    lat: 13.69,
+    lng: 100.7501,
+    landAt: "2026-12-05T22:15",
+    leaveAt: "2026-12-06T00:50",
+    serviceNumber: "TG 924",
+    seat: "44J",
+  };
+
+  type Row = Record<string, unknown> & { id: string; sortOrder: number };
+  let committed: Map<string, Row>;
+  let createdCount: number;
+  const txCreateMock = vi.fn();
+  const txUpdateMock = vi.fn();
+  const txUpdateManyMock = vi.fn();
+  const originalTransaction = transactionMock.getMockImplementation();
+  const originalFindUnique = transportFindUniqueMock.getMockImplementation();
+
+  const rows = () => [...committed.values()].sort((a, b) => a.sortOrder - b.sortOrder);
+  const transportCreatedId = () => `t-new-${++createdCount}`;
+
+  beforeEach(() => {
+    committed = new Map();
+    createdCount = 0;
+    stopFindManyMock.mockResolvedValue([DPS, MUC]);
+    tripFindUniqueMock.mockResolvedValue({ homeTimezone: "Australia/Brisbane", homeCurrency: "AUD" });
+    transportFindUniqueMock.mockImplementation(async (args?: { where: { id: string } }) => committed.get(args?.where.id ?? "t-edit") ?? null);
+    transportFindManyMock.mockImplementation(async (args?: { where?: { id?: { not?: string } } }) =>
+      [...committed.values()].filter((r) => r.id !== args?.where?.id?.not));
+    txCreateMock.mockReset();
+    txUpdateMock.mockReset();
+    txUpdateManyMock.mockReset();
+    transactionMock.mockImplementation(async (arg: unknown) => {
+      if (typeof arg !== "function") return originalTransaction!(arg);
+      const draft = new Map([...committed].map(([id, row]) => [id, { ...row }]));
+      txCreateMock.mockImplementation(async ({ data }: { data: Record<string, unknown> }) => {
+        const row = { id: transportCreatedId(), ...data } as Row;
+        draft.set(row.id, row);
+        return row;
+      });
+      txUpdateMock.mockImplementation(async ({ where, data }: { where: { id: string }; data: Record<string, unknown> }) => {
+        const row = { ...draft.get(where.id)!, ...data };
+        draft.set(where.id, row);
+        return row;
+      });
+      txUpdateManyMock.mockImplementation(async ({ where, data }: { where: { sortOrder: { gt: number } }; data: { sortOrder: { increment: number } } }) => {
+        let count = 0;
+        for (const row of draft.values()) {
+          if (row.sortOrder > where.sortOrder.gt) {
+            row.sortOrder += data.sortOrder.increment;
+            count++;
+          }
+        }
+        return { count };
+      });
+      const tx = {
+        $queryRaw: vi.fn(async () => [...draft.values()].map(({ id, sortOrder }) => ({ id, sortOrder }))),
+        transport: {
+          create: txCreateMock,
+          update: txUpdateMock,
+          updateMany: txUpdateManyMock,
+          findMany: vi.fn(async () => [...draft.values()].map((row) => ({ ...row }))),
+        },
+        cost: { create: costCreateMock, update: costUpdateMock },
+      };
+      const out = await (arg as (tx: unknown) => unknown)(tx);
+      committed = draft;
+      return out;
+    });
+  });
+
+  afterEach(() => {
+    transactionMock.mockImplementation(originalTransaction!);
+    if (originalFindUnique) transportFindUniqueMock.mockImplementation(originalFindUnique);
+    else transportFindUniqueMock.mockReset();
+    transportFindManyMock.mockReset();
+    transportFindManyMock.mockResolvedValue([]);
+  });
+
+  const EXISTING: Row = {
+    id: "t-edit", tripId: "trip-1", forkId: null, mode: "FLIGHT",
+    fromStopId: "stop-dps", toStopId: "stop-muc", anchorStopId: "stop-dps", depIsHome: false, arrIsHome: false,
+    depPlace: null, arrPlace: null, depPlaceId: null, arrPlaceId: null, depLat: null, depLng: null, arrLat: null, arrLng: null,
+    depCountryCode: null, depRegion: null, arrCountryCode: null, arrRegion: null, depTimezone: null, arrTimezone: null,
+    depAt: new Date("2026-12-05T11:00:00Z"), arrAt: new Date("2026-12-06T05:45:00Z"),
+    reference: "ABC123", notes: "Window seat please", carrier: "Thai Airways", serviceNumber: "TG 432", seat: "12A",
+    terminal: null, gate: null, coach: null, platform: null,
+    bookingState: "BOOKED", bookingStateSet: false, bookBy: null, nothingToAttach: false, sortOrder: 3,
+  };
+
+  it("adding a journey with a layover saves two Transports", async () => {
+    const result = await saveTransportWithLayover({ tripId: "trip-1" }, JOURNEY, LAYOVER);
+
+    expect(result).toEqual({ success: true, firstId: "t-new-1", secondId: "t-new-2" });
+    const first = committed.get("t-new-1")!;
+    const second = committed.get("t-new-2")!;
+    expect(first).toMatchObject({
+      tripId: "trip-1", forkId: null, mode: "FLIGHT",
+      fromStopId: "stop-dps", toStopId: null, arrIsHome: false,
+      arrPlace: "Bangkok (BKK)", arrPlaceId: "bkk", arrLat: 13.69, arrLng: 100.7501,
+      depTimezone: null, arrTimezone: "Asia/Bangkok",
+      serviceNumber: "TG 432", seat: "12A",
+    });
+    expect((first.depAt as Date).toISOString()).toBe("2026-12-05T11:00:00.000Z");
+    expect((first.arrAt as Date).toISOString()).toBe("2026-12-05T15:15:00.000Z");
+    expect(second).toMatchObject({
+      tripId: "trip-1", forkId: null,
+      fromStopId: null, depIsHome: false, toStopId: "stop-muc",
+      depPlace: "Bangkok (BKK)", depPlaceId: "bkk", depLat: 13.69, depLng: 100.7501,
+      depTimezone: "Asia/Bangkok", arrTimezone: null,
+      serviceNumber: "TG 924", seat: "44J",
+      reference: first.reference, carrier: first.carrier, mode: first.mode, anchorStopId: first.anchorStopId,
+      bookingState: first.bookingState, bookingStateSet: first.bookingStateSet, bookBy: first.bookBy,
+      notes: null, terminal: null, gate: null,
+    });
+    expect((second.depAt as Date).toISOString()).toBe("2026-12-05T17:50:00.000Z");
+    expect((second.arrAt as Date).toISOString()).toBe("2026-12-06T05:45:00.000Z");
+    expect(second.sortOrder).toBe(first.sortOrder + 1);
+    const leg = (r: Row) => r as unknown as Parameters<typeof isConnection>[0];
+    expect(isConnection(leg(first), leg(second))).toBe(true);
+    expect(sameBooking(leg(first), leg(second))).toBe(true);
+    expect(transportCreateMock).not.toHaveBeenCalled();
+    expect(transportUpdateMock).not.toHaveBeenCalled();
+  });
+
+  it("looks the layover up once when it was typed rather than picked", async () => {
+    geocodePlaceMock.mockResolvedValue({ lat: 13.69, lng: 100.7501, placeId: "bkk-found", countryCode: "TH", region: "Bangkok" });
+
+    await saveTransportWithLayover({ tripId: "trip-1" }, JOURNEY, { ...LAYOVER, placeId: undefined, lat: undefined, lng: undefined });
+
+    expect(geocodePlaceMock).toHaveBeenCalledTimes(1);
+    const [first, second] = [committed.get("t-new-1")!, committed.get("t-new-2")!];
+    expect(first).toMatchObject({ arrPlaceId: "bkk-found", arrLat: 13.69, arrLng: 100.7501, arrCountryCode: "th", arrRegion: "Bangkok", arrTimezone: "Asia/Bangkok" });
+    expect(second).toMatchObject({ depPlaceId: "bkk-found", depLat: 13.69, depLng: 100.7501, depCountryCode: "th", depRegion: "Bangkok", depTimezone: "Asia/Bangkok" });
+  });
+
+  it("in a What-if plan both Transports are saved in that plan, and nothing is recorded", async () => {
+    stopFindManyMock.mockResolvedValue([{ ...DPS, forkId: "fork-1" }, { ...MUC, forkId: "fork-1" }]);
+
+    const result = await saveTransportWithLayover({ tripId: "trip-1", forkId: "fork-1" }, JOURNEY, LAYOVER);
+
+    expect(result.success).toBe(true);
+    expect(requirePlanAccessMock).toHaveBeenCalledWith("trip-1", "fork-1");
+    expect(rows().map((r) => r.forkId)).toEqual(["fork-1", "fork-1"]);
+    expect(stopFindManyMock).toHaveBeenCalledWith(expect.objectContaining({ where: expect.objectContaining({ forkId: "fork-1" }) }));
+    expect(recordActivity).not.toHaveBeenCalled();
+  });
+
+  it("refuses a journey Stop from another trip, and writes nothing", async () => {
+    stopFindManyMock.mockResolvedValue([DPS, { ...MUC, tripId: "trip-2" }]);
+
+    const result = await saveTransportWithLayover({ tripId: "trip-1" }, JOURNEY, LAYOVER);
+
+    expect(result.success).toBe(false);
+    expect(transactionMock).not.toHaveBeenCalled();
+  });
+
+  it("the Cost entered on the form goes on the first Transport only", async () => {
+    const result = await saveTransportWithLayover({ tripId: "trip-1" }, { ...JOURNEY, costMinor: 90000, currency: "AUD" }, LAYOVER);
+
+    expect(result.success).toBe(true);
+    expect(costCreateMock).toHaveBeenCalledTimes(1);
+    expect(costCreateMock).toHaveBeenCalledWith({
+      data: expect.objectContaining({ ownerType: "TRANSPORT", ownerId: "t-new-1", costMinor: 90000, currency: "AUD", forkId: null }),
+    });
+    expect(transactionMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("editing an existing Transport turns it into the first of the two and keeps its Cost, files, notes and reminders", async () => {
+    committed.set("t-edit", { ...EXISTING });
+
+    const result = await saveTransportWithLayover({ transportId: "t-edit" }, { ...JOURNEY, notes: "Window seat please" }, LAYOVER);
+
+    expect(result).toEqual({ success: true, firstId: "t-edit", secondId: "t-new-1" });
+    expect(committed.size).toBe(2);
+    const first = committed.get("t-edit")!;
+    const second = committed.get("t-new-1")!;
+    expect(first).toMatchObject({
+      fromStopId: "stop-dps", toStopId: null, arrPlace: "Bangkok (BKK)", arrPlaceId: "bkk",
+      arrTimezone: "Asia/Bangkok", notes: "Window seat please", sortOrder: 3, serviceNumber: "TG 432",
+    });
+    expect((first.arrAt as Date).toISOString()).toBe("2026-12-05T15:15:00.000Z");
+    expect(second).toMatchObject({ depPlace: "Bangkok (BKK)", depTimezone: "Asia/Bangkok", toStopId: "stop-muc", notes: null, sortOrder: 4 });
+    expect((second.depAt as Date).toISOString()).toBe("2026-12-05T17:50:00.000Z");
+    expect(costCreateMock).not.toHaveBeenCalled();
+    expect(costUpdateMock).not.toHaveBeenCalled();
+    expect(attachmentFindManyMock).not.toHaveBeenCalled();
+    expect(attachmentDeleteManyMock).not.toHaveBeenCalled();
+    expect(noteDeleteManyMock).not.toHaveBeenCalled();
+    expect(txUpdateMock).toHaveBeenCalledTimes(1);
+    expect(txUpdateMock).toHaveBeenCalledWith(expect.objectContaining({ where: { id: "t-edit" } }));
+    const leg = (r: Row) => r as unknown as Parameters<typeof isConnection>[0];
+    expect(sameBooking(leg(first), leg(second))).toBe(true);
+  });
+
+  it("editing a Transport with a paid Cost updates that Cost in place and gives the second none", async () => {
+    committed.set("t-edit", { ...EXISTING });
+    costFindManyMock.mockResolvedValueOnce([
+      { id: "cost-9", costMinor: 90000, currency: "AUD", paidMinor: 90000, paidAt: new Date("2026-10-01"), refundMinor: null, refundedAt: null },
+    ]);
+
+    const result = await saveTransportWithLayover(
+      { transportId: "t-edit" },
+      { ...JOURNEY, costMinor: 90000, currency: "AUD", paidMinor: 90000, paidAt: "2026-10-01" },
+      LAYOVER,
+    );
+
+    expect(result.success).toBe(true);
+    expect(costCreateMock).not.toHaveBeenCalled();
+    expect(costUpdateMock).toHaveBeenCalledTimes(1);
+    expect(costUpdateMock).toHaveBeenCalledWith(expect.objectContaining({ where: { id: "cost-9" } }));
+    expect(costUpdateMock.mock.calls[0][0].data).not.toHaveProperty("ownerId");
+    expect(costUpdateMock.mock.calls[0][0].data).toMatchObject({ paidMinor: 90000, paidAt: new Date("2026-10-01") });
+  });
+
+  it("a journey with a layover paid in Home stores the paid currency on the first Transport's Cost only", async () => {
+    const result = await saveTransportWithLayover(
+      { tripId: "trip-1" },
+      { ...JOURNEY, costMinor: 55_000, currency: "EUR", paidMinor: 90_512, paidAt: "2026-10-01", paidCurrency: "AUD" },
+      LAYOVER,
+    );
+
+    expect(result.success).toBe(true);
+    expect(costCreateMock).toHaveBeenCalledTimes(1);
+    expect(costCreateMock.mock.calls[0][0].data).toMatchObject({ ownerId: "t-new-1", currency: "EUR", paidMinor: 90_512, paidCurrency: "AUD" });
+  });
+
+  it("a journey with a layover paid in a third currency is refused with the message and saves nothing", async () => {
+    const result = await saveTransportWithLayover(
+      { tripId: "trip-1" },
+      { ...JOURNEY, costMinor: 55_000, currency: "EUR", paidMinor: 90_512, paidAt: "2026-10-01", paidCurrency: "GBP" },
+      LAYOVER,
+    );
+
+    expect(result).toEqual({ success: false, errors: { paidCurrency: [PAID_CURRENCY_MESSAGE] } });
+    expect(transactionMock).not.toHaveBeenCalled();
+    expect(committed.size).toBe(0);
+  });
+
+  it("editing a Transport paid in Home into a journey with a layover keeps the paid currency on its Cost", async () => {
+    committed.set("t-edit", { ...EXISTING });
+    costFindManyMock.mockResolvedValueOnce([
+      { id: "cost-9", costMinor: 55_000, currency: "EUR", paidMinor: 90_512, paidAt: new Date("2026-10-01"), paidCurrency: "AUD", refundMinor: null, refundedAt: null },
+    ]);
+
+    const result = await saveTransportWithLayover(
+      { transportId: "t-edit" },
+      { ...JOURNEY, costMinor: 55_000, currency: "EUR", paidMinor: 90_512, paidAt: "2026-10-01" },
+      LAYOVER,
+    );
+
+    expect(result.success).toBe(true);
+    expect(costCreateMock).not.toHaveBeenCalled();
+    expect(costUpdateMock).toHaveBeenCalledTimes(1);
+    expect(costUpdateMock.mock.calls[0][0].data).toMatchObject({ paidMinor: 90_512, paidCurrency: "AUD" });
+  });
+
+  it("adding a paid journey with a layover that names no paid currency writes no paid currency", async () => {
+    const result = await saveTransportWithLayover(
+      { tripId: "trip-1" },
+      { ...JOURNEY, costMinor: 55_000, currency: "EUR", paidMinor: 55_000, paidAt: "2026-10-01" },
+      LAYOVER,
+    );
+
+    expect(result.success).toBe(true);
+    expect(costCreateMock).toHaveBeenCalledTimes(1);
+    expect(costCreateMock.mock.calls[0][0].data).toMatchObject({ ownerId: "t-new-1", paidMinor: 55_000 });
+    expect(costCreateMock.mock.calls[0][0].data).not.toHaveProperty("paidCurrency");
+  });
+
+  it("editing a paid Transport into a journey with a layover, naming no paid currency, writes no paid currency", async () => {
+    committed.set("t-edit", { ...EXISTING });
+    costFindManyMock.mockResolvedValueOnce([
+      { id: "cost-9", costMinor: 55_000, currency: "EUR", paidMinor: 55_000, paidAt: new Date("2026-10-01"), paidCurrency: null, refundMinor: null, refundedAt: null },
+    ]);
+
+    const result = await saveTransportWithLayover(
+      { transportId: "t-edit" },
+      { ...JOURNEY, costMinor: 55_000, currency: "EUR", paidMinor: 55_000, paidAt: "2026-10-01" },
+      LAYOVER,
+    );
+
+    expect(result.success).toBe(true);
+    expect(costUpdateMock).toHaveBeenCalledTimes(1);
+    expect(costUpdateMock.mock.calls[0][0].data).toMatchObject({ paidMinor: 55_000 });
+    expect(costUpdateMock.mock.calls[0][0].data).not.toHaveProperty("paidCurrency");
+  });
+
+  it("editing a Transport into a journey with a layover paid in a third currency is refused with the message and saves nothing", async () => {
+    committed.set("t-edit", { ...EXISTING });
+    costFindManyMock.mockResolvedValueOnce([
+      { id: "cost-9", costMinor: 55_000, currency: "EUR", paidMinor: null, paidAt: null, paidCurrency: null, refundMinor: null, refundedAt: null },
+    ]);
+
+    const result = await saveTransportWithLayover(
+      { transportId: "t-edit" },
+      { ...JOURNEY, costMinor: 55_000, currency: "EUR", paidMinor: 90_512, paidAt: "2026-10-01", paidCurrency: "GBP" },
+      LAYOVER,
+    );
+
+    expect(result).toEqual({ success: false, errors: { paidCurrency: [PAID_CURRENCY_MESSAGE] } });
+    expect(transactionMock).not.toHaveBeenCalled();
+  });
+
+  it("a journey home: the second Transport arrives Home, the first does not", async () => {
+    const result = await saveTransportWithLayover(
+      { tripId: "trip-1" },
+      { ...JOURNEY, toStopId: undefined, arrIsHome: true, arrAt: "2026-12-06T10:00" },
+      LAYOVER,
+    );
+
+    expect(result.success).toBe(true);
+    const first = committed.get("t-new-1")!;
+    const second = committed.get("t-new-2")!;
+    expect(first).toMatchObject({ arrIsHome: false, toStopId: null, arrPlace: "Bangkok (BKK)" });
+    expect(second).toMatchObject({ arrIsHome: true, toStopId: null, arrPlace: null, depPlace: "Bangkok (BKK)" });
+    expect((second.arrAt as Date).toISOString()).toBe("2026-12-06T00:00:00.000Z");
+  });
+
+  it("the second lands directly after the first and later Transports in the slot keep their order", async () => {
+    committed.set("t-before", { ...EXISTING, id: "t-before", sortOrder: 2 });
+    committed.set("t-edit", { ...EXISTING });
+    committed.set("t-later-a", { ...EXISTING, id: "t-later-a", sortOrder: 4 });
+    committed.set("t-later-b", { ...EXISTING, id: "t-later-b", sortOrder: 5 });
+
+    await saveTransportWithLayover({ transportId: "t-edit" }, JOURNEY, LAYOVER);
+
+    expect(rows().map((r) => [r.id, r.sortOrder])).toEqual([
+      ["t-before", 2],
+      ["t-edit", 3],
+      ["t-new-1", 4],
+      ["t-later-a", 5],
+      ["t-later-b", 6],
+    ]);
+  });
+
+  const slotOf = (stopId: string) => groupTransportsBySlot(rows(), [DPS, MUC]).get(stopId)?.map((r) => r.id);
+
+  it("a journey with no anchor saves two rows the Plan puts in the same slot, the first before the second", async () => {
+    const result = await saveTransportWithLayover(
+      { tripId: "trip-1" },
+      { ...JOURNEY, fromStopId: undefined, depIsHome: true, anchorStopId: undefined },
+      LAYOVER,
+    );
+
+    expect(result.success).toBe(true);
+    expect(committed.get("t-new-1")!.anchorStopId).toBe("stop-dps");
+    expect(committed.get("t-new-2")!.anchorStopId).toBe("stop-dps");
+    expect(slotOf("stop-dps")).toEqual(["t-new-1", "t-new-2"]);
+    expect(groupTransportsBySlot(rows(), [DPS, MUC]).has(HEAD_SLOT)).toBe(false);
+  });
+
+  it("a journey out from Home to the first Stop saves both in the head slot, in order", async () => {
+    const result = await saveTransportWithLayover(
+      { tripId: "trip-1" },
+      { ...JOURNEY, fromStopId: undefined, depIsHome: true, toStopId: "stop-dps", anchorStopId: undefined },
+      LAYOVER,
+    );
+
+    expect(result.success).toBe(true);
+    expect(committed.get("t-new-1")!.anchorStopId).toBeNull();
+    expect(committed.get("t-new-2")!.anchorStopId).toBeNull();
+    expect(groupTransportsBySlot(rows(), [DPS, MUC]).get(HEAD_SLOT)?.map((r) => r.id)).toEqual(["t-new-1", "t-new-2"]);
+  });
+
+  it("on edit, a slot whose rows are tied on sortOrder gets the second straight after the first, and other slots are left alone", async () => {
+    committed.set("t-a", { ...EXISTING, id: "t-a", sortOrder: 3 });
+    committed.set("t-edit", { ...EXISTING });
+    committed.set("t-z", { ...EXISTING, id: "t-z", sortOrder: 3 });
+    committed.set("t-zz", { ...EXISTING, id: "t-zz", sortOrder: 4 });
+    committed.set("t-m", { ...EXISTING, id: "t-m", anchorStopId: "stop-muc", sortOrder: 5 });
+
+    await saveTransportWithLayover({ transportId: "t-edit" }, JOURNEY, LAYOVER);
+
+    expect(slotOf("stop-dps")).toEqual(["t-a", "t-edit", "t-new-1", "t-z", "t-zz"]);
+    expect(committed.get("t-m")!.sortOrder).toBe(5);
+  });
+
+  describe("nothing is saved when the second write fails", () => {
+    const failSecondCreate = () => {
+      const create = txCreateMock.getMockImplementation()!;
+      let calls = 0;
+      txCreateMock.mockImplementation(async (args: { data: Record<string, unknown> }) => {
+        if (args.data.toStopId === "stop-muc" && ++calls === 1) throw new Error("Foreign key constraint violated: toStopId");
+        return create(args);
+      });
+    };
+
+    beforeEach(() => {
+      const begin = transactionMock.getMockImplementation()!;
+      transactionMock.mockImplementation(async (arg: unknown) => begin(async (tx: unknown) => {
+        failSecondCreate();
+        return (arg as (tx: unknown) => unknown)(tx);
+      }));
+    });
+
+    it("on add, no Transport exists", async () => {
+      await expect(saveTransportWithLayover({ tripId: "trip-1" }, { ...JOURNEY, costMinor: 90000, currency: "AUD" }, LAYOVER)).rejects.toThrow();
+
+      expect(committed.size).toBe(0);
+      expect(transportCreateMock).not.toHaveBeenCalled();
+      expect(recordActivity).not.toHaveBeenCalled();
+      expect(revalidateTripMock).not.toHaveBeenCalled();
+    });
+
+    it("on edit, the existing row is unchanged", async () => {
+      committed.set("t-edit", { ...EXISTING });
+      committed.set("t-later", { ...EXISTING, id: "t-later", sortOrder: 4 });
+
+      await expect(saveTransportWithLayover({ transportId: "t-edit" }, JOURNEY, LAYOVER)).rejects.toThrow();
+
+      expect(committed.get("t-edit")).toEqual(EXISTING);
+      expect(committed.get("t-later")!.sortOrder).toBe(4);
+      expect(committed.size).toBe(2);
+      expect(transportUpdateMock).not.toHaveBeenCalled();
+      expect(recordActivity).not.toHaveBeenCalled();
+    });
+  });
+
+  describe("refusals", () => {
+    const refused = async (journey: Partial<typeof JOURNEY>, layover: Partial<typeof LAYOVER>) => {
+      const result = await saveTransportWithLayover({ tripId: "trip-1" }, { ...JOURNEY, ...journey }, { ...LAYOVER, ...layover });
+      expect(transactionMock).not.toHaveBeenCalled();
+      expect(committed.size).toBe(0);
+      return result;
+    };
+
+    it("missing place", async () => {
+      expect(await refused({}, { place: " ", placeId: undefined, lat: undefined, lng: undefined })).toEqual({
+        success: false, errors: { layoverPlace: ["Add where the layover is."] },
+      });
+    });
+
+    it("missing place on a train says change", async () => {
+      expect(await refused({ mode: "TRAIN" as never }, { place: "" })).toEqual({
+        success: false, errors: { layoverPlace: ["Add where the change is."] },
+      });
+    });
+
+    it("landing not after departure", async () => {
+      expect(await refused({}, { landAt: "2026-12-05T18:00" })).toEqual({
+        success: false, errors: { layoverLandAt: ["Landing must be after you depart."] },
+      });
+    });
+
+    it("leaving before landing", async () => {
+      expect(await refused({}, { leaveAt: "2026-12-05T21:00" })).toEqual({
+        success: false, errors: { layoverLeaveAt: ["You can't leave before you land."] },
+      });
+    });
+
+    it("arriving not after leaving", async () => {
+      expect(await refused({}, { leaveAt: "2026-12-06T13:00" })).toEqual({
+        success: false, errors: { layoverLeaveAt: ["Arriving must be after you leave the layover."] },
+      });
+    });
+
+    it("arriving not after leaving, on a train, says change", async () => {
+      expect(await refused({ mode: "TRAIN" as never }, { leaveAt: "2026-12-06T13:00" })).toEqual({
+        success: false, errors: { layoverLeaveAt: ["Arriving must be after you leave the change."] },
+      });
+    });
+
+    it("a missing landing time", async () => {
+      expect(await refused({}, { landAt: "" })).toEqual({
+        success: false, errors: { layoverLandAt: ["Add when you land."] },
+      });
+    });
+
+    it("a missing arriving time on a train", async () => {
+      expect(await refused({ mode: "TRAIN" as never }, { landAt: undefined as never })).toEqual({
+        success: false, errors: { layoverLandAt: ["Add when you arrive there."] },
+      });
+    });
+
+    it("a missing leaving time", async () => {
+      expect(await refused({}, { leaveAt: "" })).toEqual({
+        success: false, errors: { layoverLeaveAt: ["Add when you leave."] },
+      });
+    });
+
+    it("one message per field: leaving before landing wins over arriving before leaving", async () => {
+      expect(await refused({ arrAt: "2026-12-05T14:00" }, { leaveAt: "2026-12-05T21:00" })).toEqual({
+        success: false, errors: { layoverLeaveAt: ["You can't leave before you land."] },
+      });
+    });
+
+    it("out-of-range coordinates", async () => {
+      expect(await refused({}, { lat: 91 })).toEqual({
+        success: false, errors: { layoverPlace: ["Add where the layover is."] },
+      });
+    });
+
+    it("a drive", async () => {
+      expect(await refused({ mode: "CAR" as never }, {})).toEqual({
+        success: false, errors: { _: ["This transport can't take a layover."] },
+      });
+    });
+
+    it("a wait of a day or more", async () => {
+      expect(await refused({ arrAt: "2026-12-07T06:45" }, { leaveAt: "2026-12-06T22:15" })).toEqual({
+        success: false, errors: { layoverLeaveAt: ["A layover is under a day. For a longer stay, add a Stop."] },
+      });
+    });
+  });
+
+  it("both writes are audited, and the trip is revalidated once", async () => {
+    await saveTransportWithLayover({ tripId: "trip-1" }, JOURNEY, LAYOVER);
+
+    expect(recordActivity).toHaveBeenCalledTimes(2);
+    expect(recordActivity).toHaveBeenCalledWith(expect.objectContaining({ verb: "CREATED", entityType: "TRANSPORT", entityId: "t-new-1" }));
+    expect(recordActivity).toHaveBeenCalledWith(expect.objectContaining({ verb: "CREATED", entityType: "TRANSPORT", entityId: "t-new-2" }));
+    expect(revalidateTripMock).toHaveBeenCalledTimes(1);
+    expect(revalidateTripMock).toHaveBeenCalledWith("trip-1", "plan", "money");
+  });
+
+  it("an edit is audited as an update of the existing Transport and a new one", async () => {
+    committed.set("t-edit", { ...EXISTING });
+
+    await saveTransportWithLayover({ transportId: "t-edit" }, JOURNEY, LAYOVER);
+
+    expect(recordActivity).toHaveBeenCalledTimes(2);
+    expect(recordActivity).toHaveBeenCalledWith(expect.objectContaining({ verb: "UPDATED", entityType: "TRANSPORT", entityId: "t-edit" }));
+    expect(recordActivity).toHaveBeenCalledWith(expect.objectContaining({ verb: "CREATED", entityType: "TRANSPORT", entityId: "t-new-1" }));
+    expect(revalidateTripMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("editing a Transport already in a Connection is refused, and nothing is written", async () => {
+    committed.set("t-edit", {
+      ...EXISTING, toStopId: null, arrPlace: "Singapore (SIN)", arrPlaceId: "sin", arrAt: new Date("2026-12-05T13:00:00Z"),
+    });
+    committed.set("t-onward", {
+      ...EXISTING, id: "t-onward", fromStopId: null, depPlace: "Singapore (SIN)", depPlaceId: "sin",
+      depAt: new Date("2026-12-05T15:00:00Z"), sortOrder: 4,
+    });
+    const before = structuredClone([...committed.values()]);
+
+    const result = await saveTransportWithLayover({ transportId: "t-edit" }, JOURNEY, LAYOVER);
+
+    expect(result).toEqual({ success: false, errors: { _: ["This transport can't take a layover."] } });
+    expect(transactionMock).not.toHaveBeenCalled();
+    expect([...committed.values()]).toEqual(before);
+  });
+
+  it("the second flight inherits \"no ticket or file needed\" from the first", async () => {
+    committed.set("t-edit", { ...EXISTING, nothingToAttach: true });
+
+    await saveTransportWithLayover({ transportId: "t-edit" }, JOURNEY, LAYOVER);
+
+    expect(committed.get("t-new-1")).toMatchObject({ nothingToAttach: true });
+  });
+
+  describe("a layover the map cannot find", () => {
+    const UNFOUND = { ...LAYOVER, place: "Bangkok", placeId: undefined, lat: undefined, lng: undefined };
+    const stopZone = (id: string | null | undefined) => [DPS, MUC].find((s) => s.id === id)?.timezone ?? null;
+    const shown = (row: Row) => transportTimeDisplay({
+      depAt: row.depAt as Date, arrAt: row.arrAt as Date,
+      ...endZones(row as Parameters<typeof endZones>[0], stopZone),
+    });
+    const leg = (r: Row) => r as unknown as Parameters<typeof waitMinutes>[0];
+
+    it("keeps one zone on both ends", async () => {
+      const result = await saveTransportWithLayover({ tripId: "trip-1" }, JOURNEY, UNFOUND);
+
+      expect(result.success).toBe(true);
+      const first = committed.get("t-new-1")!;
+      const second = committed.get("t-new-2")!;
+      expect(first).toMatchObject({ arrLat: null, arrTimezone: "Asia/Makassar" });
+      expect(second).toMatchObject({ depLat: null, depTimezone: "Asia/Makassar" });
+      expect(waitMinutes(leg(first), leg(second))).toBe(155);
+      expect(shown(first).arr?.time).toBe("22:15");
+      expect(shown(second).dep?.time).toBe("00:50");
+      expect(shown(second).dep?.dateISO).toBe("2026-12-06");
+      expect(shown(first).dep?.time).toBe("19:00");
+      expect(shown(second).arr?.time).toBe("06:45");
+    });
+
+    it("a wait of a day or more is still refused", async () => {
+      const result = await saveTransportWithLayover(
+        { tripId: "trip-1" },
+        { ...JOURNEY, fromStopId: "stop-muc", toStopId: "stop-dps", depAt: "2026-12-05T10:00", arrAt: "2026-12-07T16:00" },
+        { ...UNFOUND, landAt: "2026-12-05T22:15", leaveAt: "2026-12-06T22:15" },
+      );
+
+      expect(result).toEqual({ success: false, errors: { layoverLeaveAt: ["A layover is under a day. For a longer stay, add a Stop."] } });
+      expect(transactionMock).not.toHaveBeenCalled();
+    });
+  });
+});
+
+// ---------------------------------------------------------------------------
+// The inline Cost's paid currency (paid in Home)
+// ---------------------------------------------------------------------------
+
+describe("the inline Cost on a Transport: paid currency", () => {
+  const PAID_IN_HOME = { costMinor: 55_000, currency: "EUR", paidMinor: 90_512, paidAt: "2026-06-01" };
+  const owning = (cost: Record<string, unknown>) => {
+    transportFindUniqueMock
+      .mockResolvedValueOnce({ id: "t-pc", tripId: "trip-1", forkId: null })
+      .mockResolvedValueOnce({ id: "t-pc", mode: "FLIGHT" });
+    transportUpdateMock.mockResolvedValue({ id: "t-pc", mode: "FLIGHT" });
+    costFindManyMock.mockResolvedValue([
+      { id: "cost-pc", costMinor: 55_000, currency: "EUR", paidMinor: null, paidAt: null, paidCurrency: null, refundMinor: null, refundedAt: null, ...cost },
+    ]);
+  };
+
+  beforeEach(() => {
+    transportFindFirstMock.mockResolvedValue(null);
+    transportCreateMock.mockResolvedValue({ id: "t-new", mode: "FLIGHT" });
+    tripFindUniqueMock.mockResolvedValue({ homeCurrency: "AUD" });
+    resolveRateForTripMock.mockResolvedValue({ rate: 0.6, persist: null });
+  });
+
+  it("creating it with a Cost paid in Home stores the paid currency", async () => {
+    const result = await createTransport("trip-1", { mode: "FLIGHT", ...PAID_IN_HOME, paidCurrency: "aud" });
+
+    expect(result.success).toBe(true);
+    expect(costCreateMock.mock.calls[0][0].data).toMatchObject({ currency: "EUR", paidMinor: 90_512, paidCurrency: "AUD" });
+  });
+
+  it("creating it with a paid currency equal to the Cost's stores it as null", async () => {
+    const result = await createTransport("trip-1", { mode: "FLIGHT", ...PAID_IN_HOME, paidMinor: 55_000, paidCurrency: "EUR" });
+
+    expect(result.success).toBe(true);
+    expect(costCreateMock.mock.calls[0][0].data).not.toHaveProperty("paidCurrency");
+  });
+
+  it("creating it with a third paid currency is refused with the message", async () => {
+    const result = await createTransport("trip-1", { mode: "FLIGHT", ...PAID_IN_HOME, paidCurrency: "GBP" });
+
+    expect(result).toEqual({ success: false, errors: { paidCurrency: [PAID_CURRENCY_MESSAGE] } });
+    expect(transportCreateMock).not.toHaveBeenCalled();
+    expect(costCreateMock).not.toHaveBeenCalled();
+  });
+
+  it("creating it with a paid currency and nothing paid stores no paid currency", async () => {
+    const result = await createTransport("trip-1", { mode: "FLIGHT", costMinor: 55_000, currency: "EUR", paidCurrency: "AUD" });
+
+    expect(result.success).toBe(true);
+    expect(costCreateMock.mock.calls[0][0].data).not.toHaveProperty("paidCurrency");
+  });
+
+  it("editing it with Paid unticked keeps the paid amount and its currency", async () => {
+    owning({ paidMinor: 90_512, paidAt: new Date("2026-06-01"), paidCurrency: "AUD" });
+
+    const result = await updateTransport("t-pc", { mode: "FLIGHT", costMinor: 55_000, currency: "EUR", paidMinor: undefined, paidAt: null });
+
+    expect(result.success).toBe(true);
+    const data = costUpdateMock.mock.calls[0][0].data;
+    expect(data).not.toHaveProperty("paidMinor");
+    expect(data.paidAt).toBeNull();
+    expect(data.paidCurrency).toBe("AUD");
+  });
+
+  it("editing it to paid in Home writes the paid currency", async () => {
+    owning({});
+
+    const result = await updateTransport("t-pc", { mode: "FLIGHT", ...PAID_IN_HOME, paidCurrency: "AUD" });
+
+    expect(result.success).toBe(true);
+    expect(costUpdateMock.mock.calls[0][0].data).toMatchObject({ paidMinor: 90_512, paidCurrency: "AUD" });
+  });
+
+  it("editing it naming the Cost's own currency as paid writes no paid currency", async () => {
+    owning({});
+
+    const result = await updateTransport("t-pc", { mode: "FLIGHT", ...PAID_IN_HOME, paidMinor: 55_000, paidCurrency: "EUR" });
+
+    expect(result.success).toBe(true);
+    expect(costUpdateMock.mock.calls[0][0].data).not.toHaveProperty("paidCurrency");
+  });
+
+  it("editing it with a third paid currency is refused with the message and writes nothing", async () => {
+    owning({});
+
+    const result = await updateTransport("t-pc", { mode: "FLIGHT", ...PAID_IN_HOME, paidCurrency: "GBP" });
+
+    expect(result).toEqual({ success: false, errors: { paidCurrency: [PAID_CURRENCY_MESSAGE] } });
+    expect(transportUpdateMock).not.toHaveBeenCalled();
+    expect(costUpdateMock).not.toHaveBeenCalled();
+  });
+
+  it("editing a Cost paid in Home to another currency keeps the paid currency, and to Home stores it as null", async () => {
+    owning({ paidMinor: 90_512, paidAt: new Date("2026-06-01"), paidCurrency: "AUD" });
+    await updateTransport("t-pc", { mode: "FLIGHT", costMinor: 8_000_000, currency: "JPY" });
+    owning({ paidMinor: 90_512, paidAt: new Date("2026-06-01"), paidCurrency: "AUD" });
+    await updateTransport("t-pc", { mode: "FLIGHT", costMinor: 90_512, currency: "AUD" });
+
+    expect(costUpdateMock.mock.calls[0][0].data).toMatchObject({ currency: "JPY", paidCurrency: "AUD" });
+    expect(costUpdateMock.mock.calls[1][0].data).toMatchObject({ currency: "AUD", paidCurrency: null });
+  });
+
+  it("editing a Cost left paid in an old Home currency keeps it", async () => {
+    tripFindUniqueMock.mockResolvedValue({ homeCurrency: "GBP" });
+    owning({ paidMinor: 90_512, paidAt: new Date("2026-06-01"), paidCurrency: "AUD" });
+
+    const result = await updateTransport("t-pc", { mode: "FLIGHT", ...PAID_IN_HOME, paidCurrency: "AUD" });
+
+    expect(result.success).toBe(true);
+    expect(costUpdateMock.mock.calls[0][0].data).toMatchObject({ paidCurrency: "AUD" });
   });
 });

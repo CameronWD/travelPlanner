@@ -18,6 +18,8 @@ vi.mock("@/lib/what-if", () => ({ WHAT_IF_PLANS_HIDDEN: false }));
 const mockDb = vi.hoisted(() => ({
   trip: { findUnique: vi.fn() },
   attachment: { findMany: vi.fn() },
+  stop: { findMany: vi.fn() },
+  cost: { findMany: vi.fn() },
 }));
 
 const requireTripAccessMock = vi.hoisted(() =>
@@ -131,6 +133,7 @@ vi.mock("@/lib/surprise-visibility", async (importOriginal) => {
 });
 
 const { default: TripLayout, generateMetadata } = await import("./layout");
+const { useTripCurrencies } = await import("@/components/money/trip-currencies-context");
 const { NO_SURPRISES } = await import("@/lib/surprise-visibility");
 const { hiddenVisibility, MARKER_WHERE } = await import("@/test/helpers/surprise-visibility");
 
@@ -149,6 +152,8 @@ beforeEach(() => {
   vi.clearAllMocks();
   mockDb.trip.findUnique.mockResolvedValue(BASE_TRIP);
   mockDb.attachment.findMany.mockResolvedValue([]);
+  mockDb.stop.findMany.mockResolvedValue([]);
+  mockDb.cost.findMany.mockResolvedValue([]);
   loadSurpriseVisibilityMock.mockResolvedValue(NO_SURPRISES);
   mockUsePathname.mockReturnValue("/trips/trip-1/plan");
 });
@@ -387,6 +392,22 @@ describe("TripLayout — plan variants opt-in", () => {
     expect(mockDb.trip.findUnique).toHaveBeenCalledWith(
       expect.objectContaining({ select: expect.objectContaining({ forksEnabled: true }) }),
     );
+  });
+});
+
+describe("TripLayout currencies", () => {
+  it("the trip layout provides Home and the trip's currencies to the page", async () => {
+    mockDb.stop.findMany.mockResolvedValue([
+      { id: "s1", countryCode: "fr", arriveDate: null, departDate: null, sortOrder: 0 },
+    ]);
+    mockDb.cost.findMany.mockResolvedValue([{ currency: "JPY" }]);
+    function Probe() {
+      const c = useTripCurrencies();
+      return <div data-testid="currencies">{c ? `${c.homeCurrency}|${c.currencies.join(",")}` : "none"}</div>;
+    }
+    const jsx = await TripLayout({ children: <Probe />, params: Promise.resolve({ tripId: "trip-1" }) });
+    render(jsx);
+    expect(screen.getByTestId("currencies")).toHaveTextContent("GBP|GBP,EUR,JPY");
   });
 });
 

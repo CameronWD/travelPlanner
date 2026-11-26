@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, within, waitFor, fireEvent, act } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import { formatMoneyWhole } from "@/lib/money/format-parts";
 
 const actions = vi.hoisted(() => ({
   markCostPaid: vi.fn<(...a: unknown[]) => Promise<{ success: true }>>(async () => ({ success: true as const })),
@@ -363,5 +364,31 @@ describe("To pay (MONEY.md §4)", () => {
     await user.click(await screen.findByRole("button", { name: "EUR rate 2" }));
     const rate = await screen.findByRole("dialog", { name: "EUR to AUD" });
     expect(rate.className.split(/\s+/)).toContain("max-sm:min-h-[90dvh]");
+  });
+});
+
+describe("To pay paid currency", () => {
+  const homePaid = input({ id: "tour", displayLabel: "Tour", currency: "EUR", costMinor: 55000, rateToHome: 1.65, paidMinor: 90512, paidCurrency: "AUD" });
+  const rows = [...COSTS, homePaid];
+
+  it("the one-tap re-pays a recorded Home amount without inventing a currency", async () => {
+    const user = userEvent.setup();
+    renderCard(rows);
+    await user.click(screen.getByRole("checkbox", { name: "Tour" }));
+    expect(actions.markCostPaid).toHaveBeenCalledWith("tour", 90512, "2026-10-10");
+  });
+
+  it("an unpaid Cost with no history pays its cost in its own currency", async () => {
+    const user = userEvent.setup();
+    renderCard(rows);
+    await user.click(screen.getByRole("checkbox", { name: "Travel insurance" }));
+    expect(actions.markCostPaid).toHaveBeenCalledWith("insurance", 41200, "2026-10-10");
+  });
+
+  it("a paid amount in Home shows in Home with no approximate line", () => {
+    renderCard([...COSTS, { ...homePaid, paidAt: new Date("2026-09-03") }]);
+    const row = screen.getByRole("listitem", { name: "Tour" });
+    expect(row).toHaveTextContent(formatMoneyWhole(90512, "AUD"));
+    expect(row).not.toHaveTextContent("€");
   });
 });

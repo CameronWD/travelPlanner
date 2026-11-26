@@ -7,6 +7,7 @@ import { TransportFormDialog } from "@/components/trip/transport-form-dialog";
 import { AccommodationFormDialog } from "@/components/trip/accommodation-form-dialog";
 import { DetailsSheet } from "@/components/trip/details-sheet";
 import { isPhoneViewport } from "@/lib/viewport";
+import { isConnection } from "@/lib/connections";
 import { accommodationDetails, itemDetails, transportDetails } from "@/lib/details-view";
 import type { AttachmentView } from "@/components/trip/attachment-list";
 import type {
@@ -102,6 +103,7 @@ export function DayEntryLink({ target, editor, attachments, className, children 
           tripId={editor.tripId}
           stops={editor.stops}
           transport={target.transport}
+          inConnection={Object.values(editor.transports).some((o) => o.id !== target.transport.id && (isConnection(o, target.transport) || isConnection(target.transport, o)))}
           open
           onOpenChange={setOpen}
           homeCurrency={editor.homeCurrency}

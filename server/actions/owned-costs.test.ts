@@ -63,10 +63,45 @@ describe("deleteOwnedCostsTx", () => {
         tripId: "trip-1",
         OR: [{ ownerType: "ACCOMMODATION", ownerId: { in: ["acc-1"] } }],
       },
-      select: { id: true, paidMinor: true, paidAt: true, refundMinor: true, label: true, ownerType: true, ownerId: true },
+      select: { id: true, currency: true, paidMinor: true, paidCurrency: true, paidAt: true, refundMinor: true, label: true, ownerType: true, ownerId: true },
     });
     const empty = await deleteOwnedCostsTx(tx, "trip-1", []);
     expect(empty).toEqual({ deleted: 0, converted: 0 });
+  });
+
+  describe("a thing paid in Home", () => {
+    const inHome = { id: "c9", costMinor: 55000, currency: "EUR", paidMinor: 90512, paidCurrency: "AUD", paidAt: new Date("2026-06-01"), label: null, ownerType: "ACCOMMODATION", ownerId: "acc-1" };
+
+    it("deleting a thing paid in Home leaves an Other cost of the paid amount in Home", async () => {
+      const { tx, update } = makeTx([inHome]);
+      await deleteOwnedCostsTx(tx, "trip-1", [owner]);
+      expect(update).toHaveBeenCalledWith({
+        where: { id: "c9" },
+        data: { ownerType: "OTHER", ownerId: null, label: "Hotel Lisboa (deleted)", costMinor: 90512, currency: "AUD", paidCurrency: null, rateToHome: null },
+      });
+    });
+
+    it("with a Refund answer, the Refund is kept as given", async () => {
+      const { tx, update } = makeTx([inHome]);
+      await deleteOwnedCostsTx(tx, "trip-1", [owner], [{ costId: "c9", refundMinor: 40000, refundedAt: "2026-07-02" }]);
+      expect(update).toHaveBeenCalledWith({
+        where: { id: "c9" },
+        data: {
+          ownerType: "OTHER", ownerId: null, label: "Hotel Lisboa (cancelled)",
+          costMinor: 90512, currency: "AUD", paidCurrency: null, rateToHome: null,
+          refundMinor: 40000, refundedAt: new Date("2026-07-02"),
+        },
+      });
+    });
+
+    it("deleting a thing paid in its own currency converts exactly as before", async () => {
+      const { tx, update } = makeTx([{ ...inHome, paidCurrency: null, paidMinor: 55000 }]);
+      await deleteOwnedCostsTx(tx, "trip-1", [owner]);
+      expect(update).toHaveBeenCalledWith({
+        where: { id: "c9" },
+        data: { ownerType: "OTHER", ownerId: null, label: "Hotel Lisboa (deleted)", costMinor: 55000 },
+      });
+    });
   });
 
   describe("with refund answers", () => {

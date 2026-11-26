@@ -9,12 +9,14 @@ import { Input } from "@/components/ui/input";
 import { NOTHING_CHANGED, SOMETHING_WENT_WRONG, formError } from "@/components/ui/action-failure";
 import { REFUND_MESSAGES } from "@/lib/money/refund";
 import { formatMinor, parseAmountToMinor } from "@/lib/money/money";
+import { paidCurrencyOf } from "@/lib/money/paid-currency";
 import { formatISODate, todayLocalISO } from "@/lib/dates";
 import { clearRefund, markRefundReceived, recordRefund } from "@/server/actions/costs";
 
 export interface RefundDialogCost {
   id: string;
   currency: string;
+  paidCurrency?: string | null;
   paidMinor: number | null;
   refundMinor?: number | null;
   refundedAt?: Date | string | null;
@@ -27,7 +29,8 @@ function isoOf(d: Date | string): string {
 /** Records, receives or removes the Refund on a paid Cost. `receiving` opens it on Received (the "Received" action). */
 export function RefundDialog({ cost, receiving, onClose }: { cost: RefundDialogCost; receiving?: boolean; onClose: () => void }) {
   const hasRefund = cost.refundMinor != null;
-  const [amount, setAmount] = React.useState(formatMinor(cost.refundMinor ?? cost.paidMinor ?? 0, cost.currency));
+  const currency = paidCurrencyOf(cost);
+  const [amount, setAmount] = React.useState(formatMinor(cost.refundMinor ?? cost.paidMinor ?? 0, currency));
   const [received, setReceived] = React.useState(Boolean(receiving) || cost.refundedAt != null);
   const [date, setDate] = React.useState(cost.refundedAt ? isoOf(cost.refundedAt) : todayLocalISO());
   const [submitting, setSubmitting] = React.useState(false);
@@ -52,7 +55,7 @@ export function RefundDialog({ cost, receiving, onClose }: { cost: RefundDialogC
     e.preventDefault();
     // The dialog's React tree sits inside the cost form's; a submit would bubble into it.
     e.stopPropagation();
-    const minor = parseAmountToMinor(amount, cost.currency);
+    const minor = parseAmountToMinor(amount, currency);
     if (minor === null) {
       setError("Enter the refund amount");
       return;
@@ -95,7 +98,7 @@ export function RefundDialog({ cost, receiving, onClose }: { cost: RefundDialogC
                 className="min-w-0 flex-1"
               />
               <span className="flex h-12 w-20 shrink-0 items-center justify-center rounded-md border border-input bg-muted text-sm text-muted-foreground sm:w-24">
-                {cost.currency}
+                {currency}
               </span>
             </div>
           </Field>

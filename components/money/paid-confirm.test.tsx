@@ -1,6 +1,8 @@
 import { afterEach, describe, it, expect, vi } from "vitest";
 import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import * as React from "react";
+import { TripCurrenciesProvider } from "@/components/money/trip-currencies-context";
 
 const markCostPaid = vi.fn().mockResolvedValue({ success: true });
 vi.mock("@/server/actions/costs", () => ({
@@ -173,5 +175,83 @@ describe("PaidConfirm", () => {
     const expected = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
     expect(screen.getByLabelText("Date paid")).toHaveValue(expected);
     vi.useRealTimers();
+  });
+});
+
+describe("PaidConfirm: the paid currency (spec 2026-11-26 §2)", () => {
+  const inTrip = (ui: React.ReactElement) => (
+    <TripCurrenciesProvider homeCurrency="AUD" currencies={["AUD", "JPY"]}>{ui}</TripCurrenciesProvider>
+  );
+  const jpy: PaidConfirmRow = { id: "c-jpy", label: "Ryokan", costMinor: 12000, paidMinor: null, currency: "JPY" };
+  const jpyPaidInAud: PaidConfirmRow = { ...jpy, paidMinor: 15050, paidCurrency: "AUD" };
+
+  it("offers the Cost's currency and Home", async () => {
+    const user = userEvent.setup();
+    render(inTrip(<PaidConfirm row={jpy} onCancel={vi.fn()} onDone={vi.fn()} />));
+    expect(screen.getByLabelText("You paid amount")).toHaveValue("12000");
+    await user.click(screen.getByRole("combobox", { name: "You paid currency" }));
+    expect(screen.getAllByRole("option").map((o) => o.textContent)).toEqual(["JPY", "AUD"]);
+  });
+
+  it("switching currency clears the amount", async () => {
+    const user = userEvent.setup();
+    render(inTrip(<PaidConfirm row={jpy} onCancel={vi.fn()} onDone={vi.fn()} />));
+    await user.click(screen.getByRole("combobox", { name: "You paid currency" }));
+    await user.click(screen.getByRole("option", { name: "AUD" }));
+    expect(screen.getByLabelText("You paid amount")).toHaveValue("");
+  });
+
+  it("Mark partly paid in Home sends the amount in Home", async () => {
+    const user = userEvent.setup();
+    render(inTrip(<PaidConfirm row={jpy} onCancel={vi.fn()} onDone={vi.fn()} />));
+    await user.click(screen.getByRole("combobox", { name: "You paid currency" }));
+    await user.click(screen.getByRole("option", { name: "AUD" }));
+    await user.type(screen.getByLabelText("You paid amount"), "150.50");
+    await user.click(screen.getByRole("button", { name: /confirm/i }));
+    expect(markCostPaid).toHaveBeenCalledWith("c-jpy", 15050, expect.any(String), "AUD");
+  });
+
+  it("Mark partly paid in the Cost's currency sends null", async () => {
+    const user = userEvent.setup();
+    render(inTrip(<PaidConfirm row={jpyPaidInAud} onCancel={vi.fn()} onDone={vi.fn()} />));
+    await user.click(screen.getByRole("combobox", { name: "You paid currency" }));
+    await user.click(screen.getByRole("option", { name: "JPY" }));
+    await user.type(screen.getByLabelText("You paid amount"), "12000");
+    await user.click(screen.getByRole("button", { name: /confirm/i }));
+    expect(markCostPaid).toHaveBeenCalledWith("c-jpy", 12000, expect.any(String), null);
+  });
+
+  it("a JPY Cost paid in AUD opens in AUD's decimals, and re-confirms it unchanged", async () => {
+    const user = userEvent.setup();
+    render(inTrip(<PaidConfirm row={jpyPaidInAud} onCancel={vi.fn()} onDone={vi.fn()} />));
+    expect(screen.getByLabelText("You paid amount")).toHaveValue("150.50");
+    expect(screen.getByRole("combobox", { name: "You paid currency" })).toHaveTextContent("AUD");
+    await user.click(screen.getByRole("button", { name: /confirm/i }));
+    expect(markCostPaid).toHaveBeenCalledWith("c-jpy", 15050, expect.any(String));
+  });
+
+  it("an existing Cost confirmed untouched sends exactly what it did before", async () => {
+    const user = userEvent.setup();
+    render(inTrip(<PaidConfirm row={jpy} onCancel={vi.fn()} onDone={vi.fn()} />));
+    await user.click(screen.getByRole("button", { name: /confirm/i }));
+    expect(markCostPaid.mock.calls[0]).toStrictEqual(["c-jpy", 12000, expect.any(String)]);
+  });
+
+  it("a refused paid currency shows on the field", async () => {
+    markCostPaid.mockResolvedValueOnce({ success: false, errors: { paidCurrency: ["What you paid can only be in the cost’s currency or your trip’s home currency."] } });
+    const user = userEvent.setup();
+    render(inTrip(<PaidConfirm row={jpy} onCancel={vi.fn()} onDone={vi.fn()} />));
+    await user.click(screen.getByRole("combobox", { name: "You paid currency" }));
+    await user.click(screen.getByRole("option", { name: "AUD" }));
+    await user.type(screen.getByLabelText("You paid amount"), "150.50");
+    await user.click(screen.getByRole("button", { name: /confirm/i }));
+    expect(await screen.findByText("What you paid can only be in the cost’s currency or your trip’s home currency.")).toBeInTheDocument();
+    expect(toastMock).not.toHaveBeenCalled();
+  });
+
+  it("is plain text when the Cost is in Home", () => {
+    render(inTrip(<PaidConfirm row={{ ...jpy, currency: "AUD", costMinor: 5000 }} onCancel={vi.fn()} onDone={vi.fn()} />));
+    expect(screen.queryByRole("combobox", { name: "You paid currency" })).not.toBeInTheDocument();
+    expect(screen.getByRole("group", { name: "You paid currency" })).toHaveTextContent("AUD");
   });
 });

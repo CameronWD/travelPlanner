@@ -333,6 +333,8 @@ export const GUIDE_UI_STRINGS = [
   "Add a stay",
   "Booking confirmation",
   "Add transport",
+  "This flight includes a layover",
+  "This journey includes a change",
   "Booking ref · only people on the trip see this",
   "Schedule this",
   "in this plan",

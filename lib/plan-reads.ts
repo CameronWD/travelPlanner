@@ -157,6 +157,7 @@ export const COST_SELECT = {
   id: true,
   costMinor: true,
   paidMinor: true,
+  paidCurrency: true,
   currency: true,
   rateToHome: true,
   paidAt: true,

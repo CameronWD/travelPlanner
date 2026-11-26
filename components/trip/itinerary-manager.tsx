@@ -25,7 +25,7 @@ import { stopHue } from "@/lib/stop-colours";
 import { usePlanBody, useRegisterPlanActions } from "@/components/plan/plan-body";
 import { claimDragHint, daySectionId } from "@/components/plan/day-section";
 import { planCollisionDetection, POINTER_ACTIVATION, resolveItemDrop, scheduleInputFor, TOUCH_ACTIVATION, type ItemDrop } from "@/components/plan/plan-dnd";
-import { changeLabels, journeyHome, journeyOut } from "@/lib/connections";
+import { changeLabels, isConnection, journeyHome, journeyOut } from "@/lib/connections";
 import { legLabel, missingLegLabel, legSlotKind } from "@/lib/plan/leg-label";
 import { daySlots, type DaySlot } from "@/lib/plan/day-density";
 import { planDateRange, stayStatus } from "@/lib/plan/plan-model";
@@ -2172,6 +2172,7 @@ export function ItineraryManager({
           stops={stopOptions}
           transport={editingTransport}
           bookend={bookendLegIds.has(editingTransport.id)}
+          inConnection={transports.some((o) => o.id !== editingTransport.id && (isConnection(o, editingTransport) || isConnection(editingTransport, o)))}
           open={Boolean(editingTransport)}
           onOpenChange={(open) => {
             if (!open) { setEditingTransport(null); setEditingTransportCosts(undefined); }

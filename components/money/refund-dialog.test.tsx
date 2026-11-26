@@ -115,3 +115,22 @@ describe("RefundDialog", () => {
     expect(actions.recordRefund).not.toHaveBeenCalled();
   });
 });
+
+describe("RefundDialog paid currency", () => {
+  it("a Refund on a JPY Cost paid in AUD is entered in AUD", async () => {
+    const user = userEvent.setup();
+    render(<RefundDialog cost={{ id: "c9", currency: "JPY", paidCurrency: "AUD", paidMinor: 90512 }} onClose={vi.fn()} />);
+    const input = screen.getByLabelText("Refund amount");
+    expect(input).toHaveValue("905.12");
+    expect(screen.getByText("AUD")).toBeInTheDocument();
+    await user.clear(input);
+    await user.type(input, "100.50");
+    await user.click(screen.getByRole("button", { name: "Save" }));
+    expect(actions.recordRefund).toHaveBeenCalledWith("c9", 10050, null);
+  });
+
+  it("a Refund on a Cost paid in its own currency keeps that currency's decimals", () => {
+    render(<RefundDialog cost={{ id: "c8", currency: "JPY", paidCurrency: null, paidMinor: 5000 }} onClose={vi.fn()} />);
+    expect(screen.getByLabelText("Refund amount")).toHaveValue("5000");
+  });
+});

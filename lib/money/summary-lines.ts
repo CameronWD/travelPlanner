@@ -38,11 +38,11 @@ export function paidPct(paidMinor: number, totalMinor: number): number {
 }
 
 /** "2 IDR costs left out of totals until you set a rate." (MONEY.md §6). */
-export function missingRatesLine(costs: { currency: string }[], missing: string[]): string | null {
+export function missingRatesLine(costs: { currency: string; paidCurrency?: string | null }[], missing: string[]): string | null {
   if (missing.length === 0) return null;
   const counts = missing.map((code) => ({
     code: code.toUpperCase(),
-    n: costs.filter((c) => c.currency.toUpperCase() === code.toUpperCase()).length,
+    n: costs.filter((c) => [c.currency, c.paidCurrency].some((x) => x?.toUpperCase() === code.toUpperCase())).length,
   }));
   const total = counts.reduce((s, c) => s + c.n, 0);
   const labels = counts.map((c) => `${c.n} ${c.code}`);

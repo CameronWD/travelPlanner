@@ -155,6 +155,7 @@ const ALLOWLIST: Record<string, string[]> = {
     "createTransport",
     "deleteTransport",
     "reorderTransports",
+    "saveTransportWithLayover",
     "updateTransport",
   ],
   "traveller-details.ts": ["saveTravelNumber", "saveTravellerDetails"],

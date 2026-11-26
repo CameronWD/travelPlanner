@@ -1,7 +1,10 @@
 import { describe, it, expect, vi, afterEach } from "vitest";
+import * as React from "react";
 import { act, renderHook } from "@testing-library/react";
+import { TripCurrenciesProvider } from "@/components/money/trip-currencies-context";
 import { useCostFields } from "./use-cost-fields";
-import { emptyCostFormState, toCostPayload, type CostFormState } from "@/lib/money/cost-form-state";
+import { emptyCostFormState, seedCostFormState, toCostPayload, type CostFormState } from "@/lib/money/cost-form-state";
+import { cost } from "@/test/builders";
 
 vi.mock("@/lib/dates", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@/lib/dates")>()),
@@ -17,6 +20,8 @@ const seeded: CostFormState = {
   paidAmount: "",
   paidAt: "",
   settlement: "ON_TRIP",
+  paidCurrency: "EUR",
+  paidCurrencyExplicit: false,
 };
 
 describe("useCostFields", () => {
@@ -63,6 +68,52 @@ describe("useCostFields", () => {
     expect(result.current.payload()).toEqual(toCostPayload(result.current.state));
     act(() => result.current.fieldProps.onPaidAmountChange(""));
     expect(result.current.payload()).toEqual({ kind: "invalid", errors: { paidMinor: ["Enter what you paid"] } });
+  });
+
+  it("a change of the paid currency clears the paid amount and leaves the Cost's currency", () => {
+    const { result } = renderHook(() => useCostFields(seeded));
+    act(() => result.current.fieldProps.onPaidChange(true));
+    act(() => result.current.fieldProps.onPaidCurrencyChange("AUD"));
+    expect(result.current.state).toMatchObject({ currency: "EUR", paidCurrency: "AUD", paidAmount: "" });
+    expect(result.current.fieldProps.paidCurrency).toBe("AUD");
+  });
+
+  it("a change of the Cost's currency keeps a Home paid currency, Home from the trip", () => {
+    const wrapper = ({ children }: { children: React.ReactNode }) => (
+      <TripCurrenciesProvider homeCurrency="AUD" currencies={["AUD", "EUR"]}>{children}</TripCurrenciesProvider>
+    );
+    const { result } = renderHook(() => useCostFields(seeded), { wrapper });
+    act(() => result.current.fieldProps.onPaidChange(true));
+    act(() => result.current.fieldProps.onPaidCurrencyChange("AUD"));
+    act(() => result.current.fieldProps.onCurrencyChange("GBP"));
+    expect(result.current.state).toMatchObject({ currency: "GBP", paidCurrency: "AUD" });
+  });
+
+  it("dirtyValues change when the paid currency changes", () => {
+    const { result } = renderHook(() => useCostFields({ ...seeded, paid: true }));
+    const before = JSON.stringify(result.current.dirtyValues);
+    act(() => result.current.fieldProps.onPaidCurrencyChange("AUD"));
+    expect(JSON.stringify(result.current.dirtyValues)).not.toBe(before);
+    expect(result.current.dirtyValues).toContain("AUD");
+  });
+
+  it("an existing Cost seeded and saved untouched gives the payload it gave before", () => {
+    const row = cost({ currency: "JPY", costMinor: 12_000, paidMinor: 11_500, paidCurrency: null, paidAt: new Date("2026-10-01T00:00:00Z") });
+    const { result } = renderHook(() => useCostFields(seedCostFormState(row, undefined, "AUD")));
+    expect(result.current.payload()).toStrictEqual({
+      kind: "ok",
+      fields: { costMinor: 12_000, currency: "JPY", paidMinor: 11_500, paidAt: "2026-10-01", settlement: "BEFORE" },
+    });
+  });
+
+  it("a Cost stored as paid in Home, unticked, sends no paid currency", () => {
+    const row = cost({ currency: "EUR", costMinor: 55_000, paidMinor: 90_512, paidCurrency: "AUD", paidAt: new Date("2026-10-01T00:00:00Z") });
+    const { result } = renderHook(() => useCostFields(seedCostFormState(row, undefined, "AUD")));
+    act(() => result.current.fieldProps.onPaidChange(false));
+    expect(result.current.payload()).toStrictEqual({
+      kind: "ok",
+      fields: { costMinor: 55_000, currency: "EUR", paidMinor: undefined, paidAt: undefined, settlement: "BEFORE" },
+    });
   });
 
   it("dirtyValues change when any field changes", () => {

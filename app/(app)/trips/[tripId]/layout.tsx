@@ -14,6 +14,8 @@ import { tripOfflinePaths } from "@/lib/offline";
 import { Badge } from "@/components/ui/badge";
 import { TravellerAvatar } from "@/components/ui/traveller-avatar";
 import { DaysHrefProvider } from "@/components/trip/days-href-context";
+import { TripCurrenciesProvider } from "@/components/money/trip-currencies-context";
+import { loadTripCurrencies } from "@/lib/money/trip-currencies-loader";
 import { SectionTransition } from "@/components/navigation/section-transition";
 import { TripHeaderFrame } from "@/components/trip/trip-header-frame";
 import { RailTripPublisher } from "@/components/shell/rail-trip";
@@ -70,7 +72,7 @@ export default async function TripLayout({
   // Prisma query into one settled promise the Fork list can chain on.
   const shellPromise = Promise.resolve(readTripShell(tripId));
   const visibilityPromise = loadSurpriseVisibility(tripId, user.id);
-  const [trip, unreadCount, recent, forks, warmAttachments] = await Promise.all([
+  const [trip, unreadCount, recent, forks, warmAttachments, currencies] = await Promise.all([
     shellPromise,
     readUnreadActivityCount(tripId),
     readRecentActivity(tripId, 10),
@@ -88,6 +90,12 @@ export default async function TripLayout({
         orderBy: { createdAt: "desc" },
         take: 200,
       }),
+    ),
+    // The currencies the Trip uses, for every amount field's picker. Chains
+    // on the shell (Home currency) and the Surprise visibility, so it adds no
+    // step to the wave.
+    Promise.all([shellPromise, visibilityPromise]).then(([shell, v]) =>
+      shell ? loadTripCurrencies(tripId, shell.homeCurrency, v) : [],
     ),
   ]);
 
@@ -141,114 +149,116 @@ export default async function TripLayout({
     // so the content sits flush against the rail instead of being capped by
     // the app shell's own max-width.
     <DaysHrefProvider href={daysHref}>
-      <div data-trip-shell className="flex flex-col gap-0 md:flex-row">
-        <RailTripPublisher
-          id={trip.id}
-          slug={slug}
-          name={trip.name}
-          daysHref={daysHref}
-          counts={sidebarNavCounts(trip.id)}
-          switcher={<TripSwitcherFromContext tripId={trip.id} fallbackName={trip.name} variant="card" />}
-        />
+      <TripCurrenciesProvider homeCurrency={trip.homeCurrency} currencies={currencies}>
+        <div data-trip-shell className="flex flex-col gap-0 md:flex-row">
+          <RailTripPublisher
+            id={trip.id}
+            slug={slug}
+            name={trip.name}
+            daysHref={daysHref}
+            counts={sidebarNavCounts(trip.id)}
+            switcher={<TripSwitcherFromContext tripId={trip.id} fallbackName={trip.name} variant="card" />}
+          />
 
-        <div data-trip-content className="flex min-w-0 flex-1 flex-col px-4 pt-6 sm:px-6 md:px-8">
-          <div className="mx-auto flex w-full max-w-page-wide flex-col">
-            <TripRefresher />
-            <SavedCopyLine
-              tripRef={slug}
-              startDate={trip.startDate}
-              endDate={trip.endDate}
-              renderedToday={today}
-              zone={tripZone}
-            />
-            {/* ── Trip header ── (lg:hidden on Home only — see TripHeaderFrame) */}
-            <TripHeaderFrame>
-              <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-                {/* Name block + (Home, phones, portrait photo) the cover
-                    frame on its right — spec 2026-10-05 §I. sm:hidden on
-                    the frame itself, so at sm+ this row is the name block. */}
-                <div className="flex min-w-0 items-start justify-between gap-3">
-                  <div className="flex min-w-0 flex-1 flex-col gap-1">
-                    <h1
-                      className={cn(
-                        "font-display text-2xl sm:text-3xl font-semibold leading-tight tracking-tight text-foreground break-words",
-                        tripPhase === "sketching" && "max-md:[[data-trip-home]_&]:sr-only",
-                      )}
-                    >
-                      {trip.name}
-                    </h1>
-                    <div className="flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
-                      <span>{dateRange}</span>
-                      <Badge variant="outline" className="font-mono text-xs">
-                        {trip.homeCurrency}
-                      </Badge>
-                    </div>
-                    {/* Compact switcher pill (768–1279px only): the full sidebar
-                        (xl+) already carries the switcher, and below md there's no
-                        room for it beside the tab bar. */}
-                    <div className="hidden md:flex xl:hidden">
-                      <TripSwitcherFromContext tripId={trip.id} fallbackName={trip.name} variant="pill" />
-                    </div>
-                  </div>
-                  {coverUrl && showsPortraitCoverFrame(trip) && tripPhase !== "travelling" ? (
-                    <TripHomeOnly>
-                      <PortraitCoverFrame url={coverUrl} name={trip.name} />
-                    </TripHomeOnly>
-                  ) : null}
-                </div>
-
-                {/* Traveller avatars + fork switcher + notification bell */}
-                <div className="flex items-center gap-2">
-                  {trip.members.length > 0 && (
-                    <Link
-                      href={tripPath(slug, "/settings#travellers")}
-                      aria-label={`Travellers (${trip.members.length})`}
-                      className="inline-flex min-h-11 items-center rounded-full px-1 focus-visible:outline-[3px] focus-visible:outline-offset-2 focus-visible:outline-ring"
-                    >
-                      <div className="flex -space-x-1.5">
-                        {trip.members.slice(0, 6).map(({ user }) => (
-                          <TravellerAvatar key={user.id} traveller={user} size={32} ring />
-                        ))}
-                        {trip.members.length > 6 && (
-                          <div className="flex size-8 items-center justify-center rounded-full bg-muted ring-2 ring-background text-xs font-medium text-muted-foreground">
-                            +{trip.members.length - 6}
-                          </div>
+          <div data-trip-content className="flex min-w-0 flex-1 flex-col px-4 pt-6 sm:px-6 md:px-8">
+            <div className="mx-auto flex w-full max-w-page-wide flex-col">
+              <TripRefresher />
+              <SavedCopyLine
+                tripRef={slug}
+                startDate={trip.startDate}
+                endDate={trip.endDate}
+                renderedToday={today}
+                zone={tripZone}
+              />
+              {/* ── Trip header ── (lg:hidden on Home only — see TripHeaderFrame) */}
+              <TripHeaderFrame>
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                  {/* Name block + (Home, phones, portrait photo) the cover
+                      frame on its right — spec 2026-10-05 §I. sm:hidden on
+                      the frame itself, so at sm+ this row is the name block. */}
+                  <div className="flex min-w-0 items-start justify-between gap-3">
+                    <div className="flex min-w-0 flex-1 flex-col gap-1">
+                      <h1
+                        className={cn(
+                          "font-display text-2xl sm:text-3xl font-semibold leading-tight tracking-tight text-foreground break-words",
+                          tripPhase === "sketching" && "max-md:[[data-trip-home]_&]:sr-only",
                         )}
+                      >
+                        {trip.name}
+                      </h1>
+                      <div className="flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
+                        <span>{dateRange}</span>
+                        <Badge variant="outline" className="font-mono text-xs">
+                          {trip.homeCurrency}
+                        </Badge>
                       </div>
-                    </Link>
-                  )}
-                  {canShowForkSwitcher && (
-                    <ForkSwitcher
-                      tripId={tripId}
-                      forks={forks}
-                      phase={tripPhase}
-                    />
-                  )}
-                  <ShareTripButton />
-                  <NotificationBell
-                    tripId={tripId}
-                    unreadCount={unreadCount}
-                    recent={recent}
-                  />
-                </div>
-              </div>
-            </TripHeaderFrame>
+                      {/* Compact switcher pill (768–1279px only): the full sidebar
+                          (xl+) already carries the switcher, and below md there's no
+                          room for it beside the tab bar. */}
+                      <div className="hidden md:flex xl:hidden">
+                        <TripSwitcherFromContext tripId={trip.id} fallbackName={trip.name} variant="pill" />
+                      </div>
+                    </div>
+                    {coverUrl && showsPortraitCoverFrame(trip) && tripPhase !== "travelling" ? (
+                      <TripHomeOnly>
+                        <PortraitCoverFrame url={coverUrl} name={trip.name} />
+                      </TripHomeOnly>
+                    ) : null}
+                  </div>
 
-            {/* ── Page content ── */}
-            <div className="py-6 [[data-trip-page-header]+&]:pt-0 pb-[calc(var(--tp-tab-bar-h)+1rem+var(--tp-fab-clearance)+env(safe-area-inset-bottom))] md:pb-[calc(1.5rem+var(--tp-fab-clearance))] print:pb-6">
-              <OfflineWarmer tripId={tripId} paths={offlinePaths} changeStamp={recent[0]?.id ?? null} />
-              <ShareChooserMount tripId={tripId} />
-              <FeedbackTripMarker tripId={tripId} tripName={trip.name} />
-              <RememberLastTrip tripId={tripId} />
-              <UsageTrip tripId={tripId} startDate={trip.startDate} endDate={trip.endDate} zone={tripZone} />
-              <SectionTransition>{children}</SectionTransition>
+                  {/* Traveller avatars + fork switcher + notification bell */}
+                  <div className="flex items-center gap-2">
+                    {trip.members.length > 0 && (
+                      <Link
+                        href={tripPath(slug, "/settings#travellers")}
+                        aria-label={`Travellers (${trip.members.length})`}
+                        className="inline-flex min-h-11 items-center rounded-full px-1 focus-visible:outline-[3px] focus-visible:outline-offset-2 focus-visible:outline-ring"
+                      >
+                        <div className="flex -space-x-1.5">
+                          {trip.members.slice(0, 6).map(({ user }) => (
+                            <TravellerAvatar key={user.id} traveller={user} size={32} ring />
+                          ))}
+                          {trip.members.length > 6 && (
+                            <div className="flex size-8 items-center justify-center rounded-full bg-muted ring-2 ring-background text-xs font-medium text-muted-foreground">
+                              +{trip.members.length - 6}
+                            </div>
+                          )}
+                        </div>
+                      </Link>
+                    )}
+                    {canShowForkSwitcher && (
+                      <ForkSwitcher
+                        tripId={tripId}
+                        forks={forks}
+                        phase={tripPhase}
+                      />
+                    )}
+                    <ShareTripButton />
+                    <NotificationBell
+                      tripId={tripId}
+                      unreadCount={unreadCount}
+                      recent={recent}
+                    />
+                  </div>
+                </div>
+              </TripHeaderFrame>
+
+              {/* ── Page content ── */}
+              <div className="py-6 [[data-trip-page-header]+&]:pt-0 pb-[calc(var(--tp-tab-bar-h)+1rem+var(--tp-fab-clearance)+env(safe-area-inset-bottom))] md:pb-[calc(1.5rem+var(--tp-fab-clearance))] print:pb-6">
+                <OfflineWarmer tripId={tripId} paths={offlinePaths} changeStamp={recent[0]?.id ?? null} />
+                <ShareChooserMount tripId={tripId} />
+                <FeedbackTripMarker tripId={tripId} tripName={trip.name} />
+                <RememberLastTrip tripId={tripId} />
+                <UsageTrip tripId={tripId} startDate={trip.startDate} endDate={trip.endDate} zone={tripZone} />
+                <SectionTransition>{children}</SectionTransition>
+              </div>
             </div>
           </div>
-        </div>
 
-        {/* ── Mobile bottom tab bar ── */}
-        <MobileTabBar tripId={tripId} phase={tripPhase} />
-      </div>
+          {/* ── Mobile bottom tab bar ── */}
+          <MobileTabBar tripId={tripId} phase={tripPhase} />
+        </div>
+      </TripCurrenciesProvider>
     </DaysHrefProvider>
   );
 }

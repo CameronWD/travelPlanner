@@ -1,6 +1,8 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import * as React from "react";
+import { TripCurrenciesProvider } from "@/components/money/trip-currencies-context";
 
 vi.mock("@/server/actions/costs", () => ({
   createCost: vi.fn().mockResolvedValue({ success: true }),
@@ -365,5 +367,122 @@ describe("OtherCostFormDialog: cover", () => {
   it("passes cover through to its sheet", () => {
     render(<OtherCostFormDialog {...baseProps} cost={sampleCost} cover="always" />);
     expect(screen.getByRole("dialog").className.split(/\s+/)).toContain("max-sm:min-h-[90dvh]");
+  });
+});
+
+describe("OtherCostFormDialog: the paid currency (spec 2026-11-26 §2)", () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  const inTrip = (ui: React.ReactElement) => (
+    <TripCurrenciesProvider homeCurrency="AUD" currencies={["AUD", "EUR", "JPY"]}>{ui}</TripCurrenciesProvider>
+  );
+  const updateInput = () => (updateCost as ReturnType<typeof vi.fn>).mock.calls[0][1];
+  const paidAt = new Date("2026-10-01T00:00:00Z");
+
+  it("Cost offers the trip's currencies and More currencies", async () => {
+    const user = userEvent.setup();
+    render(inTrip(<OtherCostFormDialog {...baseProps} />));
+    await user.click(screen.getByRole("combobox", { name: "Currency" }));
+    expect(screen.getAllByRole("option").map((o) => o.textContent)).toEqual(["AUD", "EUR", "JPY", "More currencies"]);
+  });
+
+  it("You paid is plain text when the Cost is in Home", async () => {
+    const user = userEvent.setup();
+    render(inTrip(<OtherCostFormDialog {...baseProps} />));
+    await user.type(screen.getByLabelText(/cost amount/i), "42.00");
+    await user.click(screen.getByRole("checkbox", { name: /paid/i }));
+    expect(screen.queryByRole("combobox", { name: "You paid currency" })).not.toBeInTheDocument();
+    expect(screen.getByRole("group", { name: "You paid currency" })).toHaveTextContent("AUD");
+  });
+
+  it("saving a Cost paid in Home sends paidCurrency", async () => {
+    const user = userEvent.setup();
+    render(inTrip(<OtherCostFormDialog {...baseProps} />));
+    await user.type(screen.getByPlaceholderText(/travel insurance/i), "Ryokan");
+    await user.type(screen.getByLabelText(/cost amount/i), "12000");
+    await user.click(screen.getByRole("combobox", { name: "Currency" }));
+    await user.click(screen.getByRole("option", { name: "JPY" }));
+    await user.click(screen.getByRole("checkbox", { name: /paid/i }));
+    expect(screen.getByLabelText(/you paid amount/i)).toHaveValue("12000");
+    await user.click(screen.getByRole("combobox", { name: "You paid currency" }));
+    await user.click(screen.getByRole("option", { name: "AUD" }));
+    expect(screen.getByLabelText(/you paid amount/i)).toHaveValue("");
+    expect(screen.getByRole("combobox", { name: "Currency" })).toHaveTextContent("JPY");
+    await user.type(screen.getByLabelText(/you paid amount/i), "150.50");
+    await user.click(screen.getByRole("button", { name: /save/i }));
+    expect(createCost).toHaveBeenCalledWith(
+      "trip-1",
+      expect.objectContaining({ costMinor: 12000, currency: "JPY", paidMinor: 15050, paidCurrency: "AUD" }),
+    );
+  });
+
+  it("a paid-today amount stops following the cost once You paid's currency changes", async () => {
+    const user = userEvent.setup();
+    render(inTrip(<OtherCostFormDialog {...baseProps} defaults={{ currency: "EUR", settlement: "ON_TRIP", paidToday: true }} />));
+    await user.type(screen.getByLabelText(/cost amount/i), "4.50");
+    await user.click(screen.getByRole("combobox", { name: "You paid currency" }));
+    await user.click(screen.getByRole("option", { name: "AUD" }));
+    await user.type(screen.getByLabelText(/you paid amount/i), "7.40");
+    await user.type(screen.getByLabelText(/cost amount/i), "0");
+    expect(screen.getByLabelText(/you paid amount/i)).toHaveValue("7.40");
+  });
+
+  it("a Cost left in an old Home currency opens with that currency offered and saves unchanged", async () => {
+    const user = userEvent.setup();
+    const row: CostRow = { ...sampleCost, costMinor: 55000, currency: "EUR", paidMinor: 90512, paidCurrency: "GBP", paidAt };
+    render(inTrip(<OtherCostFormDialog {...baseProps} cost={row} />));
+    expect(screen.getByRole("combobox", { name: "You paid currency" })).toHaveTextContent("GBP");
+    expect(screen.getByLabelText(/you paid amount/i)).toHaveValue("905.12");
+    await user.click(screen.getByRole("combobox", { name: "You paid currency" }));
+    expect(screen.getAllByRole("option").map((o) => o.textContent)).toEqual(["EUR", "AUD", "GBP"]);
+    await user.keyboard("{Escape}");
+    await user.click(screen.getByRole("button", { name: /save/i }));
+    expect(updateInput()).toEqual(expect.objectContaining({ costMinor: 55000, currency: "EUR", paidMinor: 90512, paidCurrency: "GBP" }));
+  });
+
+  it("an existing Cost opened and saved untouched submits exactly what it did before", async () => {
+    const user = userEvent.setup();
+    const paid: CostRow = { ...sampleCost, costMinor: 12000, currency: "JPY", paidMinor: 11500, paidCurrency: null, paidAt };
+    const { unmount } = render(inTrip(<OtherCostFormDialog {...baseProps} cost={paid} />));
+    await user.click(screen.getByRole("button", { name: /save/i }));
+    expect(updateInput()).toStrictEqual({
+      costMinor: 12000, currency: "JPY", paidMinor: 11500, paidAt: "2026-10-01", settlement: "BEFORE",
+      ownerType: "OTHER", label: "Travel insurance", category: "Insurance", dueDate: null,
+    });
+    unmount();
+    vi.clearAllMocks();
+
+    render(inTrip(<OtherCostFormDialog {...baseProps} cost={sampleCost} />));
+    await user.click(screen.getByRole("button", { name: /save/i }));
+    expect(updateInput()).toStrictEqual({
+      costMinor: 1250, currency: "AUD", paidMinor: undefined, paidAt: null, settlement: "BEFORE",
+      ownerType: "OTHER", label: "Travel insurance", category: "Insurance", dueDate: null,
+    });
+  });
+
+  it("a Cost stored as paid in Home, opened and unticked, sends no paid currency", async () => {
+    const user = userEvent.setup();
+    const row: CostRow = { ...sampleCost, costMinor: 55000, currency: "EUR", paidMinor: 90512, paidCurrency: "AUD", paidAt };
+    render(inTrip(<OtherCostFormDialog {...baseProps} cost={row} />));
+    await user.click(screen.getByRole("checkbox", { name: /paid/i }));
+    await user.click(screen.getByRole("button", { name: /save/i }));
+    expect(updateInput()).toStrictEqual({
+      costMinor: 55000, currency: "EUR", paidMinor: undefined, paidAt: null, settlement: "BEFORE",
+      ownerType: "OTHER", label: "Travel insurance", category: "Insurance", dueDate: null,
+    });
+  });
+
+  it("a Home-currency Cost with no stored paid currency, moved to another currency, sends no paid currency", async () => {
+    const user = userEvent.setup();
+    const row: CostRow = { ...sampleCost, costMinor: 5000, currency: "AUD", paidMinor: 5000, paidCurrency: null, paidAt };
+    render(inTrip(<OtherCostFormDialog {...baseProps} cost={row} />));
+    await user.click(screen.getByRole("combobox", { name: "Currency" }));
+    await user.click(screen.getByRole("option", { name: "EUR" }));
+    expect(screen.getByRole("combobox", { name: "You paid currency" })).toHaveTextContent("EUR");
+    await user.click(screen.getByRole("button", { name: /save/i }));
+    expect(updateInput()).toStrictEqual({
+      costMinor: 5000, currency: "EUR", paidMinor: 5000, paidAt: "2026-10-01", settlement: "BEFORE",
+      ownerType: "OTHER", label: "Travel insurance", category: "Insurance", dueDate: null,
+    });
   });
 });

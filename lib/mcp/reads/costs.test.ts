@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { convertMinor } from "@/lib/money/money";
+import { convertMinor, formatMinor } from "@/lib/money/money";
 
 const { requireTripAccess, requireRealPlanRow, tripFindUnique, costFindMany, exchangeRateFindMany, stopFindMany, itemFindMany, loadSurpriseVisibility } = vi.hoisted(
   () => ({
@@ -124,7 +124,7 @@ describe("loadCostsForMcp", () => {
     const { costs, today } = await loadCostsForMcp(TRIP_ID, {});
     expect(today).toBe("2026-12-01");
     const paid = costs.find((c) => c.id === "c-paid")!;
-    expect(paid.paid).toEqual({ minor: 19500, formatted: "195.00", on: "2026-11-20" });
+    expect(paid.paid).toEqual({ minor: 19500, currency: "AUD", formatted: "195.00", on: "2026-11-20" });
     expect(paid.dueDate).toBeNull();
     expect(paid.daysUntilDue).toBeNull();
 
@@ -139,8 +139,8 @@ describe("loadCostsForMcp", () => {
       baseCost({ currency: "AUD", costMinor: 20000, paidMinor: 20000, paidAt: new Date("2026-11-20T00:00:00Z"), refundMinor: 5000, refundedAt: new Date("2026-11-25T00:00:00Z"), rateToHome: 1 }),
     ]);
     const { costs } = await loadCostsForMcp(TRIP_ID, {});
-    expect(costs[0]!.refund).toEqual({ minor: 5000, formatted: "50.00", state: "received", on: "2026-11-25" });
-    expect(costs[0]!.net).toEqual({ minor: 15000, formatted: "150.00" });
+    expect(costs[0]!.refund).toEqual({ minor: 5000, currency: "AUD", formatted: "50.00", state: "received", on: "2026-11-25" });
+    expect(costs[0]!.net).toEqual({ minor: 15000, currency: "AUD", formatted: "150.00" });
     expect(costs[0]!.home!.minor).toBe(15000);
     expect(costFindMany.mock.calls[0]![0].select).toMatchObject({ refundMinor: true, refundedAt: true });
   });
@@ -152,11 +152,11 @@ describe("loadCostsForMcp", () => {
     ]);
     const { costs } = await loadCostsForMcp(TRIP_ID, {});
     const exp = costs.find((c) => c.id === "exp")!;
-    expect(exp.refund).toEqual({ minor: 5000, formatted: "50.00", state: "expected", on: null });
+    expect(exp.refund).toEqual({ minor: 5000, currency: "AUD", formatted: "50.00", state: "expected", on: null });
     expect(exp.net.minor).toBe(20000);
     const plain = costs.find((c) => c.id === "plain")!;
     expect(plain.refund).toBeNull();
-    expect(plain.net).toEqual({ minor: 1000, formatted: "10.00" });
+    expect(plain.net).toEqual({ minor: 1000, currency: "AUD", formatted: "10.00" });
   });
 
   it("net is the shown number: paid less a received Refund on a paid Cost, the cost amount while unpaid", async () => {
@@ -169,6 +169,52 @@ describe("loadCostsForMcp", () => {
     expect(costs.find((c) => c.id === "over")!.net.minor).toBe(126400);
     expect(costs.find((c) => c.id === "part")!.net.minor).toBe(50000);
     expect(costs.find((c) => c.id === "open")!.net.minor).toBe(7000);
+  });
+
+  it("an existing Cost reads as before, with currency added to paid, refund and net", async () => {
+    costFindMany.mockResolvedValue([
+      baseCost({ currency: "EUR", costMinor: 55000, paidMinor: 56000, paidAt: new Date("2026-11-20T00:00:00Z"), rateToHome: 1.65, refundMinor: 6000, refundedAt: new Date("2026-11-25T00:00:00Z") }),
+    ]);
+    const { costs } = await loadCostsForMcp(TRIP_ID, {});
+    expect(costs[0]!.paid).toEqual({ minor: 56000, currency: "EUR", formatted: "560.00", on: "2026-11-20" });
+    expect(costs[0]!.refund).toEqual({ minor: 6000, currency: "EUR", formatted: "60.00", state: "received", on: "2026-11-25" });
+    expect(costs[0]!.net).toEqual({ minor: 50000, currency: "EUR", formatted: "500.00" });
+    expect(costs[0]!.amount).toEqual({ minor: 55000, currency: "EUR", formatted: "550.00" });
+    expect(costs[0]!.home!.minor).toBe(convertMinor(49000, "EUR", "AUD", 1.65));
+    expect(costFindMany.mock.calls[0]![0].select).toMatchObject({ paidCurrency: true });
+  });
+
+  it("a Cost paid in Home reports paid, refund and net in Home", async () => {
+    costFindMany.mockResolvedValue([
+      baseCost({ currency: "EUR", costMinor: 55000, paidMinor: 90512, paidCurrency: "AUD", paidAt: new Date("2026-11-20T00:00:00Z"), rateToHome: 1.65 }),
+      baseCost({ id: "r", currency: "EUR", costMinor: 55000, paidMinor: 90512, paidCurrency: "AUD", paidAt: new Date("2026-11-20T00:00:00Z"), rateToHome: 1.65, refundMinor: 10000 }),
+    ]);
+    const { costs } = await loadCostsForMcp(TRIP_ID, {});
+    const c = costs.find((x) => x.id === "c1")!;
+    expect(c.amount).toEqual({ minor: 55000, currency: "EUR", formatted: "550.00" });
+    expect(c.paid).toEqual({ minor: 90512, currency: "AUD", formatted: formatMinor(90512, "AUD"), on: "2026-11-20" });
+    expect(c.net).toEqual({ minor: 90512, currency: "AUD", formatted: formatMinor(90512, "AUD") });
+    expect(c.home!.minor).toBe(90750);
+    const r = costs.find((x) => x.id === "r")!;
+    expect(r.refund).toEqual({ minor: 10000, currency: "AUD", formatted: "100.00", state: "expected", on: null });
+  });
+
+  it("a Cost paid in a third currency converts at the Trip's rate, and has no home figure without one", async () => {
+    const third = { currency: "EUR", costMinor: 55000, paidMinor: 90512, paidCurrency: "AUD", paidAt: new Date("2026-11-20T00:00:00Z"), rateToHome: 1.65, refundMinor: 10000, refundedAt: new Date("2026-11-25T00:00:00Z") };
+    tripFindUnique.mockResolvedValue({ homeCurrency: "GBP" });
+    costFindMany.mockResolvedValue([baseCost(third)]);
+    exchangeRateFindMany.mockResolvedValue([{ base: "AUD", quote: "GBP", rate: 0.5 }]);
+    expect((await loadCostsForMcp(TRIP_ID, {})).costs[0]!.home).toEqual({ minor: 85750, currency: "GBP", formatted: "857.50" });
+    exchangeRateFindMany.mockResolvedValue([]);
+    expect((await loadCostsForMcp(TRIP_ID, {})).costs[0]!.home).toBeNull();
+  });
+
+  it("a Cost paid in a currency without decimals formats with none", async () => {
+    costFindMany.mockResolvedValue([
+      baseCost({ currency: "EUR", costMinor: 55000, paidMinor: 150000, paidCurrency: "JPY", paidAt: new Date("2026-11-20T00:00:00Z") }),
+    ]);
+    const { costs } = await loadCostsForMcp(TRIP_ID, {});
+    expect(costs[0]!.paid).toMatchObject({ currency: "JPY", formatted: "150000" });
   });
 
   it("names owners; a cost whose owner is gone reads (removed)", async () => {
@@ -282,6 +328,7 @@ describe("readMcpCosts / loadCostForMcp", () => {
     loadSurpriseVisibility.mockResolvedValue(NO_SURPRISES);
     tripFindUnique.mockResolvedValue({ homeCurrency: "AUD" });
     costFindMany.mockResolvedValue([]);
+    exchangeRateFindMany.mockResolvedValue([]);
     stopFindMany.mockResolvedValue([]);
     itemFindMany.mockResolvedValue([]);
   });

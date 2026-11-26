@@ -8,7 +8,8 @@
  */
 
 import { convertMinor } from "@/lib/money/money";
-import { netCostMinor, netPaidMinor } from "@/lib/money/refund";
+import { netCostMinor, netPaidMinor, receivedRefundMinor } from "@/lib/money/refund";
+import { paidCurrencyOf, paysInOwnCurrency, toHome, type PaidCurrencyFields } from "@/lib/money/paid-currency";
 import { isOnTrip } from "@/lib/enum-values";
 import { categoryLabel } from "@/lib/categories";
 import { addDays, daysBetween, nightsBetween } from "@/lib/dates";
@@ -37,6 +38,9 @@ export interface BudgetCost {
   currency: string;
   /** Snapshot rate: 1 unit of cost.currency = rateToHome units of homeCurrency. */
   rateToHome: number | null;
+  paidCurrency?: string | null;
+  /** 1 unit of the paid currency = this many Home units; only used when the paid currency is neither the Cost's nor Home. */
+  paidRateToHome?: number | null;
   ownerType: "TRANSPORT" | "ACCOMMODATION" | "ITEM" | "OTHER";
   ownerId: string | null;
   /** For OTHER costs — human label. */
@@ -209,6 +213,8 @@ export function convertCostToHome(
   cost: BudgetCost,
   homeCurrency: string,
 ): { costHome: number | null; paidHome: number | null } {
+  if (!paysInOwnCurrency(cost)) return convertPaidElsewhereToHome(cost, homeCurrency);
+
   const from = cost.currency.toUpperCase();
   const home = homeCurrency.toUpperCase();
   const costMinor = netCostMinor(cost);
@@ -232,6 +238,39 @@ export function convertCostToHome(
   };
 }
 
+// The paid amount and a received Refund are in the paid currency: face value when it is Home, else
+// paidRateToHome (Home was changed after paying). The cost amount still converts at the Cost's rate.
+function convertPaidElsewhereToHome(
+  cost: BudgetCost,
+  homeCurrency: string,
+): { costHome: number | null; paidHome: number | null } {
+  const home = homeCurrency.toUpperCase();
+  const paidIn = paidCurrencyOf(cost);
+  const converted = toHome(cost.costMinor, cost.currency.toUpperCase(), home, cost.rateToHome);
+  if (converted === null || lacksPaidRate(cost, home)) return { costHome: null, paidHome: null };
+
+  const refundHome = toHome(receivedRefundMinor(cost), paidIn, home, cost.paidRateToHome) ?? 0;
+  const netPaid = netPaidMinor(cost);
+  return {
+    costHome: Math.max(0, converted - refundHome),
+    paidHome: cost.paidAt != null && netPaid != null ? toHome(netPaid, paidIn, home, cost.paidRateToHome) : null,
+  };
+}
+
+// A paid Cost (the only kind a received Refund can sit on) whose paid currency
+// is neither its own nor Home, with no rate for it.
+function lacksPaidRate(cost: BudgetCost, home: string): boolean {
+  if (paysInOwnCurrency(cost) || cost.paidAt == null) return false;
+  return paidCurrencyOf(cost) !== home && typeof cost.paidRateToHome !== "number";
+}
+
+export function missingRateCurrency(cost: BudgetCost, homeCurrency: string): string | null {
+  const from = cost.currency.toUpperCase();
+  const home = homeCurrency.toUpperCase();
+  if (from !== home && typeof cost.rateToHome !== "number") return from;
+  return lacksPaidRate(cost, home) ? paidCurrencyOf(cost) : null;
+}
+
 // ---------------------------------------------------------------------------
 // Helper: applyFxRatesToCosts
 // ---------------------------------------------------------------------------
@@ -246,6 +285,30 @@ export interface RawCostInput {
   label: string | null; category: string | null; paidAt: Date | string | null;
   refundMinor: number | null; refundedAt: Date | null;
   settlement?: string;
+  paidCurrency?: string | null;
+}
+
+function rateTable(exchangeRates: readonly ExchangeRateInput[]): Map<string, number> {
+  const rateMap = new Map<string, number>();
+  for (const r of exchangeRates) {
+    rateMap.set(`${r.base}:${r.quote}`, r.rate);
+    if (r.rate !== 0) rateMap.set(`${r.quote}:${r.base}`, 1 / r.rate);
+  }
+  return rateMap;
+}
+
+export function withPaidRates<T extends PaidCurrencyFields>(
+  costs: readonly T[],
+  exchangeRates: readonly ExchangeRateInput[],
+  homeCurrency: string,
+): (T & { paidRateToHome: number | null })[] {
+  const rateMap = rateTable(exchangeRates);
+  const home = homeCurrency.toUpperCase();
+  return costs.map((c) => {
+    const paidIn = paidCurrencyOf(c);
+    const third = !paysInOwnCurrency(c) && paidIn !== home;
+    return { ...c, paidRateToHome: third ? (rateMap.get(`${paidIn}:${home}`) ?? null) : null };
+  });
 }
 
 /**
@@ -262,13 +325,9 @@ export interface RawCostInput {
 export function applyFxRatesToCosts({
   costs, exchangeRates, homeCurrency,
 }: { costs: RawCostInput[]; exchangeRates: ExchangeRateInput[]; homeCurrency: string }): BudgetCost[] {
-  const rateMap = new Map<string, number>();
-  for (const r of exchangeRates) {
-    rateMap.set(`${r.base}:${r.quote}`, r.rate);
-    if (r.rate !== 0) rateMap.set(`${r.quote}:${r.base}`, 1 / r.rate);
-  }
+  const rateMap = rateTable(exchangeRates);
   const home = homeCurrency.toUpperCase();
-  return costs.map((c) => {
+  return withPaidRates(costs, exchangeRates, homeCurrency).map((c) => {
     let rateToHome = c.rateToHome ?? null;
     if (rateToHome === null && c.currency.toUpperCase() !== home) {
       rateToHome = rateMap.get(`${c.currency.toUpperCase()}:${home}`) ?? null;
@@ -569,7 +628,8 @@ export function buildBudget({
 
     // If home values are null (missing rate) → exclude from all totals
     if (costHome === null) {
-      missingRateSet.add(cost.currency.toUpperCase());
+      const missing = missingRateCurrency(cost, homeCurrency);
+      if (missing) missingRateSet.add(missing);
       continue;
     }
 

@@ -16,6 +16,7 @@ import {
   voteSummary,
   type ActivitySummary,
 } from "@/lib/activity";
+import { formatMoney } from "@/lib/money/money";
 import { serializeOpeningHours } from "@/lib/validations/opening-hours";
 
 // ---------------------------------------------------------------------------
@@ -790,5 +791,42 @@ describe("describeChanges: Google place IDs are not edits (like lat/lng)", () =>
     for (const type of ["ITEM", "STOP", "ACCOMMODATION", "TRANSPORT"] as const) {
       expect(describeChanges(type, place, moved)).toEqual([]);
     }
+  });
+});
+
+describe("describeChanges COST paid currency", () => {
+  it("a paid amount in Home is shown in Home in the history", () => {
+    const changes = describeChanges(
+      "COST",
+      { costMinor: 55000, paidMinor: 90000, currency: "EUR", paidCurrency: "AUD" },
+      { costMinor: 55000, paidMinor: 90512, currency: "EUR", paidCurrency: "AUD" },
+    );
+    const paid = changes.find((c) => c.field === "paidMinor")!;
+    expect(paid.from).toBe(formatMoney(90000, "AUD"));
+    expect(paid.to).toBe(formatMoney(90512, "AUD"));
+  });
+
+  it("the cost amount stays in the Cost's currency", () => {
+    const changes = describeChanges("COST", { costMinor: 55000, currency: "EUR", paidCurrency: "AUD" }, { costMinor: 60000, currency: "EUR", paidCurrency: "AUD" });
+    expect(changes.find((c) => c.field === "costMinor")!.to).toBe(formatMoney(60000, "EUR"));
+  });
+
+  it("a Refund is shown in the paid currency", () => {
+    const changes = describeChanges("COST", { currency: "EUR", paidCurrency: "AUD", refundMinor: null }, { currency: "EUR", paidCurrency: "AUD", refundMinor: 5000 });
+    expect(changes.find((c) => c.field === "refundMinor")!.to).toBe(formatMoney(5000, "AUD"));
+  });
+
+  it("a change of paid currency is listed as Paid in", () => {
+    const changes = describeChanges("COST", { currency: "EUR", paidCurrency: null }, { currency: "EUR", paidCurrency: "AUD" });
+    const c = changes.find((x) => x.field === "paidCurrency")!;
+    expect(c.label).toBe("Paid in");
+    expect(c.to).toBe("AUD");
+    expect(c.from).toBe("");
+  });
+
+  it("a Cost with no paid currency is formatted as before", () => {
+    const changes = describeChanges("COST", { paidMinor: 500, currency: "USD", paidCurrency: null }, { paidMinor: 750, currency: "USD", paidCurrency: null });
+    expect(changes.find((c) => c.field === "paidMinor")!.to).toBe(formatMoney(750, "USD"));
+    expect(changes.find((c) => c.field === "paidCurrency")).toBeUndefined();
   });
 });

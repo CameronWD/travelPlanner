@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { render, screen } from "@testing-library/react";
+import { formatMoney } from "@/lib/money/money";
 import { CostSummary } from "./cost-summary";
 import type { CostRow } from "@/server/actions/costs";
 
@@ -91,5 +92,24 @@ describe("CostSummary", () => {
     );
     expect(screen.getByText(/200\.00/)).toBeInTheDocument();
     expect(container.querySelector("[data-refund-tag]")).toHaveTextContent(/50\.00 refund expected$/);
+  });
+
+  it("a Cost paid in Home reads cost · paid", () => {
+    render(
+      <CostSummary
+        cost={{ ...baseCost, costMinor: 55000, currency: "EUR", paidMinor: 90512, paidCurrency: "AUD", paidAt: new Date(), rateToHome: 1.6 }}
+        homeCurrency="AUD"
+      />,
+    );
+    const text = `${formatMoney(55000, "EUR")} · paid ${formatMoney(90512, "AUD")}`.replace(/\s+/g, " ");
+    expect(screen.getByText(text)).toBeInTheDocument();
+    expect(screen.getByLabelText("Paid")).toBeInTheDocument();
+    expect(screen.queryByText(/≈/)).not.toBeInTheDocument();
+  });
+
+  it("a Cost paid in its own currency reads as before", () => {
+    render(<CostSummary cost={{ ...baseCost, costMinor: 12000, paidMinor: 11800, paidAt: new Date() }} />);
+    expect(screen.getByText(formatMoney(11800, "GBP").replace(/\s+/g, " "))).toBeInTheDocument();
+    expect(screen.getByText("paid")).toBeInTheDocument();
   });
 });

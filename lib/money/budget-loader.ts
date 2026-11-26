@@ -22,6 +22,8 @@ import { todayISO } from "@/lib/dates";
 import { loadSurpriseVisibility } from "@/lib/surprise-visibility";
 import {
   buildBudget,
+  withPaidRates,
+  type ExchangeRateInput,
   type BudgetResult,
   type BudgetCost,
   type BudgetStopWithDates,
@@ -35,6 +37,7 @@ const COST_SELECT = {
   id: true,
   costMinor: true,
   paidMinor: true,
+  paidCurrency: true,
   currency: true,
   rateToHome: true,
   paidAt: true,
@@ -55,6 +58,7 @@ interface RawCostRow {
   id: string;
   costMinor: number;
   paidMinor: number | null;
+  paidCurrency?: string | null;
   paidAt: Date | string | null;
   refundMinor: number | null;
   refundedAt: Date | null;
@@ -102,6 +106,8 @@ interface RawTransportRow {
 export interface BudgetAssemblyInput {
   homeCurrency: string;
   costs: RawCostRow[];
+  /** Read only through `withPaidRates`: a Cost's own rate stays its snapshot. */
+  exchangeRates?: readonly ExchangeRateInput[];
   /** Dated stops only — a caller that fetches rough stops too must filter them out first. */
   stops: RawDatedStopRow[];
   items: RawItemRow[];
@@ -125,6 +131,7 @@ export interface BudgetAssemblyInput {
 export function buildBudgetFromRows({
   homeCurrency,
   costs,
+  exchangeRates,
   stops,
   items,
   accommodations,
@@ -135,10 +142,12 @@ export function buildBudgetFromRows({
   homeTimezone,
   surpriseOwnerIds,
 }: BudgetAssemblyInput): BudgetResult {
-  const budgetCosts: BudgetCost[] = costs.map((c) => ({
+  const budgetCosts: BudgetCost[] = withPaidRates(costs, exchangeRates ?? [], homeCurrency).map((c) => ({
     id: c.id,
     costMinor: c.costMinor,
     paidMinor: c.paidMinor,
+    paidCurrency: c.paidCurrency ?? null,
+    paidRateToHome: c.paidRateToHome,
     paidAt: c.paidAt,
     refundMinor: c.refundMinor,
     refundedAt: c.refundedAt,
@@ -228,12 +237,13 @@ export async function loadBudget(tripId: string, viewerId: string, forkId?: Plan
     select: { homeCurrency: true, startDate: true, endDate: true, chaptersEnabled: true, homeTimezone: true },
   });
 
-  const [allCosts, stops, items, accommodations, transports, chapters] = await Promise.all([
+  const [allCosts, exchangeRates, stops, items, accommodations, transports, chapters] = await Promise.all([
     db.cost.findMany({
       where: { tripId, ...planScope(forkId) },
       orderBy: { createdAt: "asc" },
       select: COST_SELECT,
     }),
+    db.exchangeRate.findMany({ where: { tripId }, select: { base: true, quote: true, rate: true } }),
     db.stop.findMany({
       // Rough (date-less) stops carry no costs onto the dated budget.
       where: { tripId, ...planScope(forkId), arriveDate: { not: null } },
@@ -271,6 +281,7 @@ export async function loadBudget(tripId: string, viewerId: string, forkId?: Plan
   return buildBudgetFromRows({
     homeCurrency: trip?.homeCurrency ?? "AUD",
     costs: allCosts,
+    exchangeRates,
     stops,
     items,
     accommodations,

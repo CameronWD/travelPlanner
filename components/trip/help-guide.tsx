@@ -897,11 +897,19 @@ export function HelpGuide({
               : one box, whatever you&rsquo;re travelling on.
             </p>
             <p>
-              When you change planes or trains somewhere you&rsquo;re not
-              staying, add the second ticket as its own transport. The Plan
-              draws the two together, with the wait in between, for example
-              &ldquo;Layover in Bangkok · 2h 35m&rdquo; or &ldquo;Change at
-              Lyon · 12m&rdquo;. Your journey home can be several of them too.
+              Flying with a layover? Enter the flight from where you leave to
+              where you end up, then tick{" "}
+              <strong className="font-semibold">
+                This flight includes a layover
+              </strong>{" "}
+              (<strong className="font-semibold">
+                This journey includes a change
+              </strong>{" "}
+              for a train). Say where the layover is and when you land and
+              leave. Teepee saves it as two flights and the Plan draws them
+              together, with the wait in between, for example
+              &ldquo;Layover in Bangkok · 2h 35m&rdquo;. Your journey home can
+              be several of them too.
             </p>
             <p>
               Both of them take a{" "}
@@ -935,11 +943,19 @@ export function HelpGuide({
                 how much and when, offered pre-filled with the cost, so
                 confirming something that came to exactly what you expected is
                 one tap. Nothing is ever recorded as paid without an amount, so
-                &ldquo;paid&rdquo; always means a real number.
+                &ldquo;paid&rdquo; always means a real number.{" "}
+                <strong className="font-semibold">You paid</strong> has its own
+                currency, the cost&rsquo;s or your home currency, so you can
+                record what actually left your account. A &euro;550 room paid
+                from your card in dollars is entered as the dollars. Changing
+                it clears the amount rather than converting it.
               </li>
             </ul>
             <p>
-              Enter each amount in the currency you were charged in. The app
+              Enter each amount in the currency you were charged in. The
+              currency list shows your trip&rsquo;s own currencies first, and{" "}
+              <strong className="font-semibold">More currencies</strong> has
+              the rest. The app
               converts everything into your trip&rsquo;s home currency for the
               totals, and you can override a rate if you know better than it
               does.

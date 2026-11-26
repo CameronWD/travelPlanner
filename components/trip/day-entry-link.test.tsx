@@ -6,9 +6,9 @@ vi.mock("@/components/trip/item-form-dialog", () => ({
   ItemFormDialog: (p: { open: boolean; item?: { id: string } }) => (p.open ? <div data-testid="item-dialog">{p.item?.id}</div> : null),
 }));
 vi.mock("@/components/trip/transport-form-dialog", () => ({
-  TransportFormDialog: (p: { open: boolean; transport?: { id: string }; attachments?: Array<{ id: string }>; partnerFiles?: Array<{ id: string }> }) =>
+  TransportFormDialog: (p: { open: boolean; transport?: { id: string }; attachments?: Array<{ id: string }>; partnerFiles?: Array<{ id: string }>; inConnection?: boolean }) =>
     p.open ? (
-      <div data-testid="transport-dialog" data-own={p.attachments?.map((a) => a.id).join(",")} data-partner={p.partnerFiles?.map((a) => a.id).join(",")}>
+      <div data-testid="transport-dialog" data-own={p.attachments?.map((a) => a.id).join(",")} data-partner={p.partnerFiles?.map((a) => a.id).join(",")} data-in-connection={String(p.inConnection)}>
         {p.transport?.id}
       </div>
     ) : null,
@@ -60,6 +60,21 @@ describe("DayEntryLink", () => {
     await user.click(screen.getByRole("button"));
     expect(screen.getByTestId("transport-dialog")).toHaveAttribute("data-own", "own");
     expect(screen.getByTestId("transport-dialog")).toHaveAttribute("data-partner", "eticket");
+  });
+
+  it("tells a Transport's dialog when it is already joined to the one before or after it", async () => {
+    const user = userEvent.setup();
+    const toBkk = { id: "f1", bookingStateSet: false, mode: "FLIGHT" as const, sortOrder: 0, fromStopId: "s0", arrPlace: "Bangkok (BKK)", arrAt: new Date("2026-12-05T15:15:00Z") };
+    const fromBkk = { id: "f2", bookingStateSet: false, mode: "FLIGHT" as const, sortOrder: 1, toStopId: "s1", depPlace: "Bangkok (BKK)", depAt: new Date("2026-12-05T17:50:00Z") };
+    const lone = { id: "f3", bookingStateSet: false, mode: "FLIGHT" as const, sortOrder: 2, fromStopId: "s1", toStopId: "s2" };
+    const joined = { ...editor, transports: { f1: toBkk, f2: fromBkk, f3: lone } };
+    const { unmount } = render(<DayEntryLink editor={joined} attachments={[]} target={{ kind: "transport", transport: fromBkk }}>Second</DayEntryLink>);
+    await user.click(screen.getByRole("button"));
+    expect(screen.getByTestId("transport-dialog")).toHaveAttribute("data-in-connection", "true");
+    unmount();
+    render(<DayEntryLink editor={joined} attachments={[]} target={{ kind: "transport", transport: lone }}>Lone</DayEntryLink>);
+    await user.click(screen.getByRole("button"));
+    expect(screen.getByTestId("transport-dialog")).toHaveAttribute("data-in-connection", "false");
   });
 
   it("opens the Accommodation dialog with the Stop's date range", async () => {

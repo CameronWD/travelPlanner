@@ -71,6 +71,7 @@ vi.mock("@/components/money/rate-cell", () => ({
 vi.mock("@/components/trip/chapter-chip", () => ({ ChapterChip: ({ name }: { name: string }) => <span>{name}</span> }));
 
 const { default: BudgetPage } = await import("./page");
+const { formatMoney } = await import("@/lib/money/money");
 const { buildBudget } = await import("@/lib/money/budget");
 const { currentTripTimezone } = await import("@/lib/tz");
 const { NO_SURPRISES } = await import("@/lib/surprise-visibility");
@@ -246,6 +247,27 @@ describe("Money page — rates", () => {
     expect(screen.getAllByTestId("rate-IDR").length).toBeGreaterThan(0);
     expect(screen.getAllByText("2 IDR costs left out of totals until you set a rate.").length).toBeGreaterThan(0);
     expect(screen.queryByText(/Some costs are missing exchange rates/)).toBeNull();
+  });
+});
+
+describe("Money page — paid currency", () => {
+  const HOME_PAID = { ...ONE_COST[0], id: "c-home", costMinor: 55000, paidMinor: 90512, currency: "EUR", paidCurrency: "AUD", rateToHome: 1.65, paidAt: new Date("2026-01-03") };
+
+  it("the Rates strip offers a paid currency that has no rate", async () => {
+    scenario.costs = [{ ...HOME_PAID, paidCurrency: "AUD" }];
+    await renderPage();
+    expect(screen.getAllByTestId("rate-AUD").length).toBeGreaterThan(0);
+    expect(screen.getAllByTestId("rate-EUR").length).toBeGreaterThan(0);
+  });
+
+  it("Spend so far counts a Cost paid in Home at the typed amount", async () => {
+    scenario.trip = { ...TRIP, homeCurrency: "AUD" };
+    scenario.costs = [HOME_PAID];
+    await renderPage();
+    const { buildSpendSoFar } = await import("@/lib/money/spend-so-far");
+    const input = vi.mocked(buildSpendSoFar).mock.calls[0][0];
+    const actual = await vi.importActual<typeof import("@/lib/money/spend-so-far")>("@/lib/money/spend-so-far");
+    expect(formatMoney(actual.buildSpendSoFar(input).paidSoFarMinor, "AUD")).toBe(formatMoney(90512, "AUD"));
   });
 });
 

@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { PAID_CURRENCY_MESSAGE } from "@/lib/money/paid-currency";
 
 const {
   createAccommodation,
@@ -700,7 +701,24 @@ describe("bookings write tools", () => {
       const c = await connectTestClient();
       await c.callTool({ name: "mark_cost_paid", arguments: { costId: COST_ID, paidMinor: 10000, paidAt: "2026-04-01" } });
       expect(requireTripAccess).toHaveBeenCalledWith(TRIP_ID);
-      expect(markCostPaid).toHaveBeenCalledWith(COST_ID, 10000, "2026-04-01");
+      expect(markCostPaid).toHaveBeenCalledWith(COST_ID, 10000, "2026-04-01", null);
+    });
+
+    it("mark_cost_paid passes paidCurrency to markCostPaid", async () => {
+      costFindUnique.mockResolvedValue({ tripId: TRIP_ID });
+      markCostPaid.mockResolvedValue({ success: true });
+      const c = await connectTestClient();
+      await c.callTool({ name: "mark_cost_paid", arguments: { costId: COST_ID, paidMinor: 90512, paidAt: "2026-04-01", paidCurrency: "AUD" } });
+      expect(markCostPaid).toHaveBeenCalledWith(COST_ID, 90512, "2026-04-01", "AUD");
+    });
+
+    it("a third currency is refused with the app's message", async () => {
+      costFindUnique.mockResolvedValue({ tripId: TRIP_ID });
+      markCostPaid.mockResolvedValue({ success: false, errors: { paidCurrency: [PAID_CURRENCY_MESSAGE] } });
+      const c = await connectTestClient();
+      const r = await c.callTool({ name: "mark_cost_paid", arguments: { costId: COST_ID, paidMinor: 100, paidAt: "2026-04-01", paidCurrency: "JPY" } });
+      expect(r.isError).toBe(true);
+      expect((r.content as { text: string }[])[0].text).toContain(PAID_CURRENCY_MESSAGE);
     });
 
     it("mark_cost_unpaid loads the Cost, checks trip access, then calls markCostUnpaid", async () => {

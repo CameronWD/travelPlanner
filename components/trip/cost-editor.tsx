@@ -19,10 +19,13 @@ import {
   costToFormState as costToCostFormState,
   emptyCostFormState,
   setCostAmount,
+  setCostCurrency,
   setPaid,
+  setPaidCurrency,
   toCostPayload,
   type CostFormState,
 } from "@/lib/money/cost-form-state";
+import { useTripCurrencies } from "@/components/money/trip-currencies-context";
 import { todayLocalISO } from "@/lib/dates";
 import { createCost, updateCost, deleteCost } from "@/server/actions/costs";
 import { cn } from "@/lib/cn";
@@ -110,6 +113,8 @@ function CostDialogForm({
   refundCost,
 }: CostDialogProps) {
   const [form, setForm] = React.useState<FormState>(initialState);
+  // The same Home InlineCostFields offers "You paid" in.
+  const homeCurrency = useTripCurrencies()?.homeCurrency ?? null;
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -134,11 +139,13 @@ function CostDialogForm({
             costAmount={form.costAmount}
             onCostChange={(v) => setForm((f) => setCostAmount(f, v))}
             currency={form.currency}
-            onCurrencyChange={(v) => setForm((f) => ({ ...f, currency: v }))}
+            onCurrencyChange={(v) => setForm((f) => setCostCurrency(f, v, homeCurrency))}
             paid={form.paid}
             onPaidChange={(v) => setForm((f) => setPaid(f, v, todayLocalISO()))}
             paidAmount={form.paidAmount}
             onPaidAmountChange={(v) => setForm((f) => ({ ...f, paidAmount: v }))}
+            paidCurrency={form.paidCurrency}
+            onPaidCurrencyChange={(v) => setForm((f) => setPaidCurrency(f, v))}
             paidAt={form.paidAt}
             onPaidAtChange={(v) => setForm((f) => ({ ...f, paidAt: v }))}
             settlement={form.settlement}

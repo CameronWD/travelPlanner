@@ -10,6 +10,7 @@ const db = vi.hoisted(() => ({
   accommodation: { findMany: vi.fn() },
   transport: { findMany: vi.fn() },
   chapter: { findMany: vi.fn() },
+  exchangeRate: { findMany: vi.fn() },
 }));
 const buildBudget = vi.hoisted(() => vi.fn());
 const loadSurpriseVisibility = vi.hoisted(() => vi.fn());
@@ -44,6 +45,7 @@ beforeEach(() => {
   db.accommodation.findMany.mockResolvedValue([]);
   db.transport.findMany.mockResolvedValue([]);
   db.chapter.findMany.mockResolvedValue([]);
+  db.exchangeRate.findMany.mockResolvedValue([]);
   buildBudget.mockReturnValue({ homeCurrency: "GBP", grandTotal: { costTotalMinor: 0, paidTotalMinor: 0 } });
 });
 
@@ -127,6 +129,18 @@ describe("loadBudget", () => {
     );
     expect(buildBudget).toHaveBeenCalledWith(
       expect.objectContaining({ costs: [expect.objectContaining({ refundMinor: 500, refundedAt })] }),
+    );
+  });
+
+  it("loadBudget reads the exchange rates", async () => {
+    db.exchangeRate.findMany.mockResolvedValue([{ base: "AUD", quote: "GBP", rate: 0.5 }]);
+    db.cost.findMany.mockResolvedValue([
+      { id: "c1", costMinor: 55000, paidMinor: 90512, paidAt: new Date("2026-09-01"), refundMinor: null, refundedAt: null, currency: "EUR", paidCurrency: "AUD", rateToHome: 0.85, ownerType: "OTHER", ownerId: null, label: null, category: null },
+    ]);
+    await loadBudget(TRIP_ID, VIEWER);
+    expect(db.exchangeRate.findMany).toHaveBeenCalledWith({ where: { tripId: TRIP_ID }, select: { base: true, quote: true, rate: true } });
+    expect(buildBudget).toHaveBeenCalledWith(
+      expect.objectContaining({ costs: [expect.objectContaining({ paidCurrency: "AUD", paidRateToHome: 0.5 })] }),
     );
   });
 
@@ -223,6 +237,36 @@ describe("buildBudgetFromRows", () => {
         homeTimezone: "Australia/Brisbane",
         transports: [expect.objectContaining({ id: "t1", depIsHome: true })],
       }),
+    );
+  });
+
+  const OWN = { paidMinor: 90512, paidAt: new Date("2026-09-01"), refundMinor: null, refundedAt: null, ownerType: "OTHER", ownerId: null, label: null, category: null };
+  const budgetInput = (costs: object[], exchangeRates?: { base: string; quote: string; rate: number }[]) => ({
+    homeCurrency: "GBP", costs: costs as never, stops: [], items: [], accommodations: [], transports: [], tripStart: "2026-01-01", tripEnd: "2026-01-10", chapters: [], exchangeRates,
+  });
+
+  it("a Cost paid in an old Home currency converts at the Trip's rate for that currency on the Budget", () => {
+    buildBudgetFromRows(
+      budgetInput([{ id: "c1", costMinor: 55000, currency: "EUR", paidCurrency: "AUD", rateToHome: 0.85, ...OWN }], [{ base: "AUD", quote: "GBP", rate: 0.5 }]),
+    );
+    expect(buildBudget).toHaveBeenCalledWith(
+      expect.objectContaining({ costs: [expect.objectContaining({ paidCurrency: "AUD", paidRateToHome: 0.5 })] }),
+    );
+  });
+
+  it("the Cost's own rate still comes only from its snapshot", () => {
+    buildBudgetFromRows(
+      budgetInput([{ id: "c1", costMinor: 55000, currency: "EUR", paidCurrency: "AUD", rateToHome: null, ...OWN }], [{ base: "EUR", quote: "GBP", rate: 0.85 }, { base: "AUD", quote: "GBP", rate: 0.5 }]),
+    );
+    expect(buildBudget).toHaveBeenCalledWith(
+      expect.objectContaining({ costs: [expect.objectContaining({ rateToHome: null, paidRateToHome: 0.5 })] }),
+    );
+  });
+
+  it("an existing Cost gets no paid rate", () => {
+    buildBudgetFromRows(budgetInput([{ id: "c1", costMinor: 500, currency: "EUR", rateToHome: 0.85, ...OWN }], [{ base: "EUR", quote: "GBP", rate: 0.9 }]));
+    expect(buildBudget).toHaveBeenCalledWith(
+      expect.objectContaining({ costs: [expect.objectContaining({ paidRateToHome: null })] }),
     );
   });
 });

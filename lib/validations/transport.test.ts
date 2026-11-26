@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { transportSchema } from "./transport";
+import { layoverSchema, transportSchema } from "./transport";
 
 const VALID_BASE = {
   mode: "FLIGHT" as const,
@@ -190,5 +190,21 @@ describe("transportSchema — Google place", () => {
   });
   it("rejects out-of-range end coordinates", () => {
     expect(transportSchema.safeParse({ ...VALID_BASE, depPlaceId: "a", depLat: 91, depLng: 0 }).success).toBe(false);
+  });
+});
+
+describe("layoverSchema", () => {
+  const LAYOVER = { place: "Bangkok (BKK)", placeId: "bkk", lat: 13.69, lng: 100.75, landAt: "2026-12-05T22:15", leaveAt: "2026-12-06T00:50" };
+
+  it("trims the second flight's number and seat before their length check", () => {
+    const r = layoverSchema.safeParse({ ...LAYOVER, serviceNumber: ` ${"x".repeat(60)} `, seat: " 44J " });
+    expect(r.success).toBe(true);
+    if (r.success) expect(r.data).toMatchObject({ serviceNumber: "x".repeat(60), seat: "44J" });
+  });
+
+  it("refuses out-of-range coordinates and an overlong place ID", () => {
+    expect(layoverSchema.safeParse({ ...LAYOVER, lat: 91 }).success).toBe(false);
+    expect(layoverSchema.safeParse({ ...LAYOVER, lng: -181 }).success).toBe(false);
+    expect(layoverSchema.safeParse({ ...LAYOVER, placeId: "x".repeat(301) }).success).toBe(false);
   });
 });
