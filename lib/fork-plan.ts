@@ -5,7 +5,7 @@
  *
  * Rules (compare with buildDuplicatePlan in duplicate-trip.ts):
  *   KEEP  — dates, pinned, accommodations, estimated Costs, rateToHome, Booking state / book-by / Slot time / Opening hours / Try list (with ticks)
- *   DROP  — paidAt, paidMinor from Costs; votes/notes/attachments (trip-wide)
+ *   DROP  — paidAt, paidMinor, paidCurrency from Costs; votes/notes/attachments (trip-wide)
  *   NULL  — sourceItemId (items) and ownerId (costs, remapped by the tx)
  *   ANCHOR — each leg's slot (sourceAnchorStopId, a SOURCE stop id; the tx
  *            remaps it onto the variant's own Stop) — spec 2026-10-04 §D
@@ -172,6 +172,7 @@ interface ForkSourceCost {
   id: string;
   costMinor: number;
   paidMinor: number | null;
+  paidCurrency?: string | null;
   currency: string;
   rateToHome: number | null;
   paidAt: Date | null;
@@ -331,6 +332,7 @@ export interface ForkPlan {
     data: {
       costMinor: number;
       paidMinor: null;
+      paidCurrency: null;
       currency: string;
       rateToHome: number | null;
       paidAt: null;
@@ -412,7 +414,7 @@ export function buildForkPlan(source: ForkSource): ForkPlan {
     costs: source.costs.map((c) => ({
       sourceOwnerType: c.ownerType, sourceOwnerId: c.ownerId,
       data: {
-        costMinor: c.costMinor, paidMinor: null, currency: c.currency, rateToHome: c.rateToHome,
+        costMinor: c.costMinor, paidMinor: null, paidCurrency: null, currency: c.currency, rateToHome: c.rateToHome,
         paidAt: null, refundMinor: null, refundedAt: null, ownerType: c.ownerType, ownerId: null /* remapped in tx */, label: c.label, category: c.category,
         settlement: isOnTrip(c.settlement) ? "ON_TRIP" : "BEFORE",
       },

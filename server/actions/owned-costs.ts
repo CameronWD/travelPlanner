@@ -1,5 +1,6 @@
 import type { Prisma } from "@prisma/client";
 import type { DeleteRefundAnswer } from "@/lib/money/delete-refund";
+import { paidCurrencyOf, paysInOwnCurrency } from "@/lib/money/paid-currency";
 import { refundProblem, REFUND_MESSAGES } from "@/lib/money/refund";
 import { refundedAtStringSchema } from "@/lib/validations/cost";
 
@@ -74,7 +75,7 @@ export async function deleteOwnedCostsTx(
         ownerId: { in: list.map((o) => o.id) },
       })),
     },
-    select: { id: true, paidMinor: true, paidAt: true, refundMinor: true, label: true, ownerType: true, ownerId: true },
+    select: { id: true, currency: true, paidMinor: true, paidCurrency: true, paidAt: true, refundMinor: true, label: true, ownerType: true, ownerId: true },
   });
   if (costs.length === 0) return { deleted: 0, converted: 0 };
 
@@ -90,7 +91,13 @@ export async function deleteOwnedCostsTx(
     const answer = refunds.find((r) => r.costId === cost.id);
     const base = cost.label ?? ownerLabel.get(`${cost.ownerType}:${cost.ownerId}`) ?? "Deleted";
     // The thing no longer exists, so a paid Cost counts only the money that left.
-    const onlyWhatWasPaid = cost.paidAt != null && cost.paidMinor != null ? { costMinor: cost.paidMinor } : {};
+    const inPaidCurrency = cost.paidCurrency != null && !paysInOwnCurrency(cost);
+    const onlyWhatWasPaid =
+      cost.paidAt != null && cost.paidMinor != null
+        ? inPaidCurrency
+          ? { costMinor: cost.paidMinor, currency: paidCurrencyOf(cost), paidCurrency: null, rateToHome: null }
+          : { costMinor: cost.paidMinor }
+        : {};
     const cancelled = answer !== undefined || cost.refundMinor != null;
     await tx.cost.update({
       where: { id: cost.id },

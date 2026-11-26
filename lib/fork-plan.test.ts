@@ -212,3 +212,10 @@ it("carries a Stop's Local travel mode into the variant; none copies as null", (
   expect(plan.stops[0].data.localTravelMode).toBe("DRIVE");
   expect(buildForkPlan(source).stops[0].data.localTravelMode).toBeNull();
 });
+
+it("a What-if plan's Cost carries no paid currency", () => {
+  const paidInAud = { ...source, costs: [{ ...source.costs[0], currency: "EUR", paidMinor: 90512, paidCurrency: "AUD" }] };
+  const plan = buildForkPlan(paidInAud);
+  expect(plan.costs[0].data.paidCurrency).toBeNull();
+  expect(plan.costs[0].data.paidMinor).toBeNull();
+});

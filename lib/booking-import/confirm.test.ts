@@ -68,6 +68,12 @@ describe("confirmProposalFor", () => {
     expect(input.anchorStopId).toBe(creationAnchor({ toStopId: "s-new" }, ORDERED) ?? undefined);
   });
 
+  it("a proposal's paid currency reaches the create action", async () => {
+    const paidInHome: TransportProposal = { ...OUTBOUND, input: { ...OUTBOUND.input, costMinor: 55_000, currency: "EUR", paidMinor: 90_512, paidCurrency: "AUD" } };
+    await confirmProposalFor("trip-1", "u1", req({ proposal: paidInHome, proposedStops: [LISBON_NEW] }), null);
+    expect(m.createTransport.mock.calls[0][1]).toMatchObject({ currency: "EUR", paidMinor: 90_512, paidCurrency: "AUD" });
+  });
+
   it("writes to the Fork being viewed", async () => {
     m.stops.mockResolvedValue([{ id: "s-saved", sortOrder: 0, arriveDate: null, departDate: null }]);
     await confirmProposalFor("trip-1", "u1", req({ proposal: STAY, resolvedStops: { s1: "s-saved" } }), "fork-1");

@@ -26,6 +26,7 @@ export interface ProposalCostFields {
   costMinor?: number;
   currency?: string;
   paidMinor?: number | null;
+  paidCurrency?: string | null;
   paidAt?: string | null;
   settlement?: "BEFORE" | "ON_TRIP";
 }
