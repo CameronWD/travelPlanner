@@ -16,7 +16,7 @@ import { formatWeekday, parseISODate } from "@/lib/dates";
 
 export const NEAR_STOP_KM = 50;
 /** Floating-point slack so a Stop at exactly 50 km counts as within it. */
-const EPSILON_KM = 1e-6;
+export const EPSILON_KM = 1e-6;
 
 export interface DayOptionStop {
   id: string;
