@@ -174,6 +174,24 @@ describe("LegRow — metro line (spec 2026-10-05 §F)", () => {
     expect(single.className.split(" ")).not.toContain("w-full");
   });
 
+  it("a joined card has a minor marker and no stub", () => {
+    const { container } = journey([null, JOURNEY]);
+    const stations = [...container.querySelectorAll("[data-leg-station]")] as HTMLElement[];
+    expect(container.querySelectorAll("[data-station-dot]")).toHaveLength(1);
+    expect(container.querySelectorAll("[data-station-stub]")).toHaveLength(1);
+    expect(container.querySelectorAll("[data-station-dot-minor]")).toHaveLength(1);
+    const minor = stations[1].querySelector("[data-station-dot-minor]") as HTMLElement;
+    expect(minor).toHaveAttribute("aria-hidden");
+    expect(minor.className).not.toContain("bg-sun");
+    expect(minor.className).not.toContain("island");
+    expect(minor.querySelector("svg")).not.toBeNull();
+  });
+
+  it("a single card has no minor marker", () => {
+    const { container } = render(<LegRow kind="legs"><LegPill label={FLIGHT} onClick={vi.fn()} /></LegRow>);
+    expect(container.querySelector("[data-station-dot-minor]")).toBeNull();
+  });
+
   it("the label is read between the two cards", () => {
     const { container } = journey([null, JOURNEY]);
     const nodes = [...container.querySelectorAll("button, [data-changeover]")];

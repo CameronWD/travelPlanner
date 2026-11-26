@@ -96,6 +96,18 @@ export function LegRow({ kind, compact, children, changeovers }: LegRowProps) {
                           </span>
                         </>
                       ) : null}
+                      {legs && n > 0 && label && !label.missing ? (
+                        <span
+                          data-station-dot-minor
+                          aria-hidden
+                          className={cn(
+                            "absolute top-1/2 flex -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-md border-2 border-border bg-background text-foreground ring-2 ring-background",
+                            compact ? "left-[-32px] size-[18px]" : "left-[-36px] size-5",
+                          )}
+                        >
+                          {Icon ? <Icon className="size-3" /> : null}
+                        </span>
+                      ) : null}
                       {node}
                     </div>
                   </div>
