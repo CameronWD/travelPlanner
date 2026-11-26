@@ -59,6 +59,16 @@ describe("resolveTripDeadline (ADR 0068)", () => {
       .toEqual({ kind: "return-leg", date: "2027-01-08", mode: "TRAIN", homeward: true });
   });
 
+  it("a journey home in two legs (to a place, then Home) keeps the deadline of a one-leg return: the first leg's departure", () => {
+    const oneLeg = [leg({ fromStopId: "paris", arrIsHome: true, depAt: "2027-01-08T07:00:00Z" })];
+    const twoLegs = [
+      { ...leg({ fromStopId: "paris", depAt: "2027-01-08T07:00:00Z" }), arrPlace: "Doha (DOH)" },
+      { ...leg({ arrIsHome: true, depAt: "2027-01-08T17:25:00Z" }), depPlace: "Doha (DOH)" },
+    ];
+    expect(resolveTripDeadline({ stops: [ROME, PARIS], transports: twoLegs, hardEndDate: "2027-01-20" }))
+      .toEqual(resolveTripDeadline({ stops: [ROME, PARIS], transports: oneLeg, hardEndDate: "2027-01-20" }));
+  });
+
   it("R2: two dated legs both leaving the last Stop → the deadline is the EARLIEST departure, not findReturnLeg's arrIsHome pick", () => {
     // A train to the airport at 09:00, then a flight at 14:00 — both stored as
     // leaving Paris (the last Stop). findReturnLeg would prefer the arrIsHome

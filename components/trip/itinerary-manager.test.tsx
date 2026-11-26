@@ -3244,6 +3244,72 @@ describe("metro-line legs (spec 2026-10-05 §F)", () => {
   });
 });
 
+describe("a journey home or out in more than one leg", () => {
+  const layouts = [["plan-desktop-list", true], ["plan-mobile-list", false]] as const;
+  const stationsOf = (row: Element) => [...row.querySelectorAll("[data-leg-station]")] as HTMLElement[];
+  const rowOf = (el: HTMLElement) => el.closest("[data-leg-kind='legs']") as HTMLElement;
+
+  const toDoha = makeTransport({ id: "r1", fromStopId: "rom", depPlace: "Rome (FCO)", arrPlace: "Doha (DOH)", depAt: new Date("2027-01-07T07:55:00Z"), arrAt: new Date("2027-01-07T13:05:00Z"), sortOrder: 0 });
+  const dohaHome = makeTransport({ id: "r2", arrIsHome: true, depPlace: "Doha (DOH)", arrPlace: "Brisbane (BNE)", depAt: new Date("2027-01-07T17:25:00Z"), arrAt: new Date("2027-01-08T07:30:00Z"), sortOrder: 1 });
+
+  it.each(layouts)(
+    "%s: a journey home in two legs is one stack under the last Stop with its layover line, and neither leg is drawn anywhere else",
+    (testId, lgUp) => {
+      if (!lgUp) setMatchMedia((q) => q === "(min-width: 640px)");
+      renderPlan(
+        <ItineraryManager {...baseProps} initialStops={[PARIS, ROME]} initialTransports={[dohaHome, toDoha]} homeBaseName="Gold Coast" roundTrip />,
+      );
+      const list = within(screen.getByTestId(testId));
+      const first = list.getByRole("button", { name: /^Flight from Rome to Doha/ });
+      const second = list.getByRole("button", { name: /^Flight from Doha \(DOH\) to Gold Coast/ });
+      expect(screen.getAllByRole("button", { name: /^Flight from Rome to Doha/ })).toHaveLength(1);
+      expect(screen.getAllByRole("button", { name: /^Flight from Doha \(DOH\) to Gold Coast/ })).toHaveLength(1);
+      const row = rowOf(first);
+      expect(rowOf(second)).toBe(row);
+      const stations = stationsOf(row);
+      expect(stations).toHaveLength(2);
+      expect(within(stations[0]).getByRole("button", { name: /^Flight from Rome to Doha/ })).toBeInTheDocument();
+      expect(within(stations[1]).getByText("Layover in Doha · 4h 20m")).toHaveAttribute("data-changeover");
+      const bottom = document.getElementById(lgUp ? "home-base-bottom" : "m-home-base-bottom")!;
+      expect(row.compareDocumentPosition(bottom) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+      expect(list.queryByRole("button", { name: /^Add transport from Rome/ })).toBeNull();
+    },
+  );
+
+  it("the second leg of a journey home anchored to the last Stop is still drawn once, in the bookend", () => {
+    renderPlan(
+      <ItineraryManager {...baseProps} initialStops={[PARIS, ROME]} initialTransports={[toDoha, { ...dohaHome, anchorStopId: "rom" }]} homeBaseName="Gold Coast" roundTrip />,
+    );
+    const [second] = screen.getAllByRole("button", { name: /^Flight from Doha \(DOH\) to Gold Coast/ });
+    expect(screen.getAllByRole("button", { name: /^Flight from Doha \(DOH\) to Gold Coast/ })).toHaveLength(1);
+    expect(rowOf(second)).toBe(rowOf(screen.getByRole("button", { name: /^Flight from Rome to Doha/ })));
+  });
+
+  const homeDoha = makeTransport({ id: "o1", depIsHome: true, depPlace: "Brisbane (BNE)", arrPlace: "Doha (DOH)", depAt: new Date("2026-12-09T08:00:00Z"), arrAt: new Date("2026-12-09T22:00:00Z"), sortOrder: 0 });
+  const dohaParis = makeTransport({ id: "o2", toStopId: "par", depPlace: "Doha (DOH)", arrPlace: "Paris (CDG)", depAt: new Date("2026-12-10T01:30:00Z"), arrAt: new Date("2026-12-10T07:00:00Z"), sortOrder: 1 });
+
+  it.each(layouts)(
+    "%s: a journey out in two legs is one stack under the Home base with its layover line, and neither leg is drawn anywhere else",
+    (testId, lgUp) => {
+      if (!lgUp) setMatchMedia((q) => q === "(min-width: 640px)");
+      renderPlan(
+        <ItineraryManager {...baseProps} initialStops={[PARIS, ROME]} initialTransports={[dohaParis, homeDoha]} homeBaseName="Gold Coast" roundTrip={false} />,
+      );
+      const list = within(screen.getByTestId(testId));
+      const first = list.getByRole("button", { name: /^Flight from Gold Coast to Doha/ });
+      expect(screen.getAllByRole("button", { name: /^Flight from Gold Coast to Doha/ })).toHaveLength(1);
+      expect(screen.getAllByRole("button", { name: /^Flight from Doha \(DOH\) to Paris/ })).toHaveLength(1);
+      const row = rowOf(first);
+      expect(rowOf(list.getByRole("button", { name: /^Flight from Doha \(DOH\) to Paris/ }))).toBe(row);
+      const stations = stationsOf(row);
+      expect(stations).toHaveLength(2);
+      expect(within(stations[0]).getByRole("button", { name: /^Flight from Gold Coast to Doha/ })).toBeInTheDocument();
+      expect(within(stations[1]).getByText("Layover in Doha · 3h 30m")).toHaveAttribute("data-changeover");
+      expect(screen.getByTestId(testId).querySelectorAll("[data-leg-kind='legs']")[0]).toBe(row);
+    },
+  );
+});
+
 describe("one Stop list per breakpoint (spec 2026-10-06 §D)", () => {
   it("at lg+ renders only the desktop list", () => {
     renderPlan(<ItineraryManager {...baseProps} initialStops={[PARIS, ROME]} />);

@@ -105,3 +105,27 @@ describe("buildTripNextSteps: Marked fine (spec 2026-11-18 T5)", () => {
     expect(marked.map((s) => s.id)).not.toContain("tight-a-b");
   });
 });
+
+describe("buildTripNextSteps: a journey home or out in more than one leg", () => {
+  const input = {
+    tripBasePath: "/trips/t", phase: "planning" as const, tripStart: "2026-12-06", tripEnd: "2026-12-12", roundTrip: true,
+    home: { name: "Gold Coast", lat: null, lng: null, countryCode: "au" },
+    datedStops: [{ id: "nbg", name: "Nuremberg", arriveDate: "2026-12-06", departDate: "2026-12-12", timezone: "Europe/Berlin", sortOrder: 0, lat: null, lng: null }],
+    roughStopCount: 0, allStops: [{ id: "nbg", name: "Nuremberg" }], accommodations: [], items: [],
+    projectedEnd: null, hardEndDate: null, undatedChapterCount: 0, hasPackingList: true, hasPretripList: true, limit: Number.POSITIVE_INFINITY,
+    travel: new Map(), today: "2026-12-01", markedFine: [], drivingWindingFactor: 1.5, drivingAvgSpeedKph: 80,
+  };
+  const homeIds = ["missing-home-outbound", "missing-home-return", "nudge-add-outbound-flight", "nudge-add-return-flight"];
+
+  it("a two-leg journey home and out are a way home and a way out, like one-leg ones: no missing-leg step", () => {
+    const transports = [
+      { id: "o1", mode: "FLIGHT", depIsHome: true, depPlace: "Brisbane (BNE)", arrPlace: "Doha (DOH)" },
+      { id: "o2", mode: "FLIGHT", toStopId: "nbg", depPlace: "Doha (DOH)", arrPlace: "Nuremberg (NUE)" },
+      { id: "r1", mode: "FLIGHT", fromStopId: "nbg", depPlace: "Nuremberg (NUE)", arrPlace: "Doha (DOH)" },
+      { id: "r2", mode: "FLIGHT", arrIsHome: true, depPlace: "Doha (DOH)", arrPlace: "Brisbane (BNE)" },
+    ];
+    const ids = buildTripNextSteps({ ...input, transports }).map((s) => s.id);
+    expect(ids.filter((id) => homeIds.includes(id))).toEqual([]);
+    expect(buildTripNextSteps({ ...input, transports: [] }).map((s) => s.id).filter((id) => homeIds.includes(id)).length).toBeGreaterThan(0);
+  });
+});

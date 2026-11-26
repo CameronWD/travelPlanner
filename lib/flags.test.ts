@@ -1247,6 +1247,14 @@ describe("flagMissingHomeConnection", () => {
     ];
     expect(flagMissingHomeConnection(homelessStops, transports, home, true)).toEqual([]);
   });
+  it("a journey home in two legs (to a place, then Home) is a return leg like a one-leg return — no missing-return Flag", () => {
+    const transports = [
+      { depIsHome: true, arrIsHome: false, fromStopId: null, toStopId: "s1" },
+      { depIsHome: false, arrIsHome: false, fromStopId: "s2", toStopId: null, arrPlace: "Doha (DOH)" },
+      { depIsHome: false, arrIsHome: true, fromStopId: null, toStopId: null, depPlace: "Doha (DOH)" },
+    ];
+    expect(flagMissingHomeConnection(homelessStops, transports, home, true)).toEqual([]);
+  });
   it("detectFlags passes homeFirstStop/homeLastStop through to flagMissingHomeConnection", () => {
     // A trip with one dated stop (Paris) but homeFirstStop/homeLastStop pointing
     // to a rough stop (Zurich / Amsterdam). The flag messages must name the overrides.
@@ -1319,6 +1327,21 @@ describe("flagReturnLegAfterHardEnd", () => {
     const flags = flagReturnLegAfterHardEnd(transports, "2027-01-07", "s2", "Australia/Brisbane");
     expect(flags).toHaveLength(1);
     expect(flags[0]).toMatchObject({ id: "return-after-hard-end", severity: "warning", message: expect.stringContaining("2027-01-08") });
+  });
+});
+
+describe("flagReturnLegAfterHardEnd — a journey home in two legs", () => {
+  const journey = (homeArrAt: string) => [
+    { id: "r1", mode: "FLIGHT", fromStopId: "s2", toStopId: null, arrIsHome: false, depPlace: "Rome (FCO)", arrPlace: "Doha (DOH)", arrAt: new Date("2027-01-07T13:05:00Z") },
+    { id: "r2", mode: "FLIGHT", fromStopId: null, toStopId: null, arrIsHome: true, depPlace: "Doha (DOH)", arrPlace: "Brisbane (BNE)", depAt: new Date("2027-01-07T17:25:00Z"), arrAt: new Date(homeArrAt) },
+  ];
+  it("reads the landing of the last leg, at Home, not the arrival at the layover", () => {
+    const flags = flagReturnLegAfterHardEnd(journey("2027-01-08T07:30:00Z"), "2027-01-07", "s2", "Australia/Brisbane");
+    expect(flags).toHaveLength(1);
+    expect(flags[0]).toMatchObject({ id: "return-after-hard-end", message: expect.stringContaining("2027-01-08") });
+  });
+  it("is silent when the last leg lands on the hard end date, like a one-leg return", () => {
+    expect(flagReturnLegAfterHardEnd(journey("2027-01-07T20:30:00Z"), "2027-01-08", "s2", "Australia/Brisbane")).toEqual([]);
   });
 });
 

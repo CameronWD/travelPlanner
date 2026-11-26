@@ -28,7 +28,8 @@ import {
   type ResolvedHop,
   type TravelLookup,
 } from "@/lib/travel-times/hops";
-import { hasOutboundLeg, hasReturnLeg, findReturnLeg, type HomeBase } from "@/lib/home-base";
+import { hasOutboundLeg, hasReturnLeg, type HomeBase } from "@/lib/home-base";
+import { journeyHome } from "@/lib/connections";
 import { deadlineNoun, type TripDeadline } from "@/lib/trip-deadline";
 import { hoursOn, type DayHours, type OpeningHours } from "@/lib/opening-hours";
 import { defaultStartFromSlot } from "@/lib/slot-time";
@@ -102,6 +103,10 @@ export interface FlagTransport {
   mode: string;
   depIsHome?: boolean | null;
   arrIsHome?: boolean | null;
+  depPlace?: string | null;
+  arrPlace?: string | null;
+  depPlaceId?: string | null;
+  arrPlaceId?: string | null;
   depLat?: number | null;
   depLng?: number | null;
   arrLat?: number | null;
@@ -1048,23 +1053,24 @@ export function flagMissingHomeConnection(
 // ---------------------------------------------------------------------------
 // Rule 16: Return leg after hard end date (warning)
 //
-// If the return leg — as lib/home-base.ts defines it (by shape, ADR 0032
-// amendment) — has an arrAt timestamp after the trip's hard end date, warn
-// the traveller.
+// If the journey home (lib/connections.ts: the return leg as lib/home-base.ts
+// defines it, plus any Connections after it) lands after the trip's hard end
+// date, warn the traveller.
 // ---------------------------------------------------------------------------
 
 export function flagReturnLegAfterHardEnd(
-  transports: Pick<FlagTransport, "arrIsHome" | "fromStopId" | "toStopId" | "arrAt">[],
+  transports: (Pick<FlagTransport, "arrIsHome" | "fromStopId" | "toStopId" | "arrAt"> &
+    Partial<Pick<FlagTransport, "id" | "mode" | "depAt" | "depIsHome" | "depPlace" | "arrPlace" | "depPlaceId" | "arrPlaceId">>)[],
   hardEndDate: string | null | undefined,
   lastStopId: string | null,
   /** The Trip's Home base timezone (spec 2026-10-14) — an arrIsHome leg lands on this zone's calendar date instead of the raw UTC one. */
   homeTimezone?: string | null,
 ): Flag[] {
   if (!hardEndDate) return [];
-  const ret = findReturnLeg(transports, lastStopId);
-  if (!ret || !ret.arrAt) return [];
-  const landDate = new Date(ret.arrAt);
-  const landISO = ret.arrIsHome && homeTimezone ? instantToZonedDateISO(landDate, homeTimezone) : formatISODate(landDate);
+  const legs = transports.map((t) => ({ ...t, id: t.id ?? "", mode: t.mode ?? "", depAt: toDate(t.depAt), arrAt: toDate(t.arrAt) }));
+  const ret = journeyHome(legs, lastStopId).at(-1);
+  if (!ret?.arrAt) return [];
+  const landISO = ret.arrIsHome && homeTimezone ? instantToZonedDateISO(ret.arrAt, homeTimezone) : formatISODate(ret.arrAt);
   if (landISO <= hardEndDate) return [];
   return [
     {
