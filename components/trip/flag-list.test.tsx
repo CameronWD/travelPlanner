@@ -49,6 +49,27 @@ describe("FlagList: Marked fine (spec 2026-11-18 T5)", () => {
   });
 });
 
+describe("FlagList: drive Flags", () => {
+  const drive: Flag = {
+    id: "drive-short-t1", severity: "warning", targetType: "DAY", date: "2026-12-05",
+    message: "Drive from Brisbane to Tweed Heads on 2026-12-05: your times allow 1h but the road takes about 1h 12m.",
+    fingerprint: "fp", between: { from: "Brisbane", to: "Tweed Heads" },
+  };
+  const longDay: Flag = { id: "long-driving-day-2026-12-05", severity: "warning", targetType: "DAY", date: "2026-12-05", message: "2026-12-05 has about 6h of driving." };
+
+  it("a drive Flag offers This is fine, named by its two ends", async () => {
+    markFlagFine.mockResolvedValue({ success: true });
+    render(<FlagList flags={[drive]} tripId="t1" tripBasePath={BASE} />);
+    await userEvent.click(screen.getByRole("button", { name: "This is fine: Brisbane to Tweed Heads" }));
+    expect(markFlagFine).toHaveBeenCalledWith("t1", "drive-short-t1", "fp");
+  });
+
+  it("a long driving day Flag offers no This is fine", () => {
+    render(<FlagList flags={[longDay]} tripId="t1" tripBasePath={BASE} />);
+    expect(screen.queryByRole("button", { name: /^This is fine/ })).toBeNull();
+  });
+});
+
 describe("FlagList: tight rows and empty days", () => {
   const tight: Flag = {
     id: "tight-a-b", severity: "warning", message: "Tight between Louvre and Lunch.", targetType: "DAY", date: "2026-07-02",

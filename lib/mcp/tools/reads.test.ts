@@ -196,7 +196,7 @@ describe("read tools", () => {
 
   it("get_flags gives each travel-time Flag its flagId and fingerprint and lists the Marked fine ones (spec 2026-11-18 T5)", async () => {
     loadFlags.mockResolvedValue({
-      shown: [{ id: "tight-a-b", severity: "warning", message: "Tight on 2026-07-02 between Louvre and Lunch.", targetType: "DAY", date: "2026-07-02", fingerprint: "fp-1" }],
+      shown: [{ id: "tight-a-b", severity: "warning", message: "Tight on 2026-07-02 between Louvre and Lunch.", targetType: "DAY", date: "2026-07-02", fingerprint: "fp-1", between: { from: "Louvre", to: "Lunch" }, hop: { fromItemId: "a", toItemId: "b", mode: "WALK", modeSetByHand: false } }],
       markedFine: [
         { id: "tight-c-d", severity: "info", message: "Cutting it close between Tea and Tower.", targetType: "DAY", fingerprint: "fp-2", markedByName: "Xanthia", markedAt: new Date("2026-06-01T10:00:00Z") },
       ],
@@ -207,6 +207,26 @@ describe("read tools", () => {
       flags: [{ severity: "warning", title: "day", detail: "Tight on 2026-07-02 between Louvre and Lunch.", stopId: null, itemId: null, flagId: "tight-a-b", fingerprint: "fp-1" }],
       markedFine: [{ flagId: "tight-c-d", detail: "Cutting it close between Tea and Tower.", by: "Xanthia", at: "2026-06-01T10:00:00.000Z" }],
     });
+  });
+
+  it("get_flags gives a drive Flag its flagId and fingerprint", async () => {
+    loadFlags.mockResolvedValue({
+      shown: [
+        {
+          id: "drive-short-t1", severity: "warning", targetType: "DAY", date: "2026-12-05", fingerprint: "fp-d", between: { from: "Brisbane", to: "Tweed Heads" },
+          message: "Drive from Brisbane to Tweed Heads on 2026-12-05: your times allow 1h but the road takes about 1h 12m.",
+        },
+      ],
+      markedFine: [],
+    });
+    const c = await connectTestClient();
+    const r = await c.callTool({ name: "get_flags", arguments: { tripId: TRIP_ID } });
+    expect(JSON.parse((r.content as { text: string }[])[0].text).flags).toEqual([
+      {
+        severity: "warning", title: "day", stopId: null, itemId: null, flagId: "drive-short-t1", fingerprint: "fp-d",
+        detail: "Drive from Brisbane to Tweed Heads on 2026-12-05: your times allow 1h but the road takes about 1h 12m.",
+      },
+    ]);
   });
 
   it("get_flags' markedFine omits rows about a Surprise hidden from the caller: it is the caller's own Flags, never the raw rows", async () => {

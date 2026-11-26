@@ -4,12 +4,18 @@ import { db } from "@/lib/db";
 import { requireRowAccess } from "@/lib/guards";
 import { revalidateTrip } from "@/lib/revalidate";
 import { formFail, type ActionResult } from "@/lib/action-result";
-import { tightFlagItems } from "@/lib/flags";
+import { driveShortFlagTransport, tightFlagItems } from "@/lib/flags";
 import { loadFlags } from "@/lib/flags-loader";
 
 const ONLY_TIGHT = "Only a travel-time warning can be marked fine.";
 
-async function requireTightFlag(tripId: string, flagId: string): Promise<{ userId: string } | string> {
+async function requireMarkableFlag(tripId: string, flagId: string): Promise<{ userId: string } | string> {
+  const transportId = driveShortFlagTransport(flagId);
+  if (transportId) {
+    const { row, user } = await requireRowAccess("transport", transportId, { realPlanOnly: true });
+    if (row.tripId !== tripId) return "That drive is not on this trip.";
+    return { userId: user.id };
+  }
   const pair = tightFlagItems(flagId);
   if (!pair) return ONLY_TIGHT;
   const [from, to] = [
@@ -21,7 +27,7 @@ async function requireTightFlag(tripId: string, flagId: string): Promise<{ userI
 }
 
 export async function markFlagFine(tripId: string, flagId: string, fingerprint: string): Promise<ActionResult> {
-  const caller = await requireTightFlag(tripId, flagId);
+  const caller = await requireMarkableFlag(tripId, flagId);
   if (typeof caller === "string") return formFail(caller);
 
   const { shown, markedFine } = await loadFlags(tripId, caller.userId);
@@ -42,7 +48,7 @@ export async function markFlagFine(tripId: string, flagId: string, fingerprint: 
 }
 
 export async function unmarkFlagFine(tripId: string, flagId: string): Promise<ActionResult> {
-  const caller = await requireTightFlag(tripId, flagId);
+  const caller = await requireMarkableFlag(tripId, flagId);
   if (typeof caller === "string") return formFail(caller);
 
   await db.flagDismissal.deleteMany({ where: { tripId, flagId } });
