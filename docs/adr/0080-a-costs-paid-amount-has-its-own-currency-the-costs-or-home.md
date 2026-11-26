@@ -19,7 +19,9 @@ real charge is the number on the statement, and the app could not hold it.
 - It is written only as the Cost's own currency (stored as null) or the Trip's Home
   currency. One module, `lib/money/paid-currency.ts`, owns the rule.
 - A paid amount in Home counts at face value, with no exchange rate, in Spend so far and
-  every other Home total of paid money. The cost amount still converts at the Cost's rate,
+  every other Home total of paid money. The one exception is a Cost whose own currency has no
+  exchange rate: it is left out of Home totals, cost and paid together, and named in the
+  missing-rate line. The cost amount still converts at the Cost's rate,
   so paid against estimate compares the real charge with the estimate. One function,
   `convertCostToHome`, owns the roll-up.
 - A Refund is in the paid currency.
@@ -32,8 +34,9 @@ real charge is the number on the statement, and the app could not hold it.
 
 ## Alternatives
 
-- **Any third currency by choice.** Rejected: it needs a rate for each payment, and for a
-  third currency the real charge is not what left a Home account anyway.
+- **Any third currency by choice.** Rejected: it needs a rate for each payment, and a
+  payment in a third currency is not what left the Traveller's Home account, so there is no
+  truer number to record.
 - **Converting the paid amount for the Traveller.** Rejected: the point is the real number
   from the statement.
 - **Keeping one currency and telling people to enter the Cost in Home.** Rejected: it loses

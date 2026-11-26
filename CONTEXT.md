@@ -103,7 +103,7 @@ _Avoid_: Globe (that is the shared map of places you want to go), dashboard, his
 ### Money
 
 **Home currency**:
-The single currency a Trip's totals are reported in (e.g. AUD). Set per Trip. A **paid amount** may be in it, and then counts at face value, with no exchange rate. Changing the Home currency leaves such amounts in the old currency.
+The single currency a Trip's totals are reported in (e.g. AUD). Set per Trip. A **paid amount** may be in it, and then counts at face value, with no exchange rate, unless the Cost's own currency has no rate, when the Cost is left out of Home totals like any other with a missing rate. Changing the Home currency leaves such amounts in the old currency.
 _Avoid_: Base currency, local currency
 
 **Cost**:
