@@ -31,7 +31,7 @@ export function PaidConfirm({
   onDone: () => void;
 }) {
   const homeCurrency = useTripCurrencies()?.homeCurrency ?? null;
-  const [paidCurrency, setPaidCurrency] = React.useState(paidCurrencyOf(row));
+  const [paidCurrency, setPaidCurrency] = React.useState(row.paidMinor != null ? paidCurrencyOf(row) : row.currency.toUpperCase());
   const [currencyChosen, setCurrencyChosen] = React.useState(false);
   // History beats guess: an un-ticked payment's preserved amount is the best
   // answer to "how much did I pay?" (things-to-fix P2-7).

@@ -601,6 +601,19 @@ describe("CostEditor: the paid currency (spec 2026-11-26 §2)", () => {
     });
   });
 
+  it("a Cost stored as paid in Home, opened and unticked, sends no paid currency", async () => {
+    const user = userEvent.setup();
+    const row: CostRow = { ...sampleCost, costMinor: 55000, currency: "EUR", paidMinor: 90512, paidCurrency: "AUD", paidAt };
+    render(inTrip(<CostEditor {...baseProps} costs={[row]} />));
+    await user.click(screen.getByRole("button", { name: /edit cost/i }));
+    await user.click(screen.getByRole("checkbox", { name: /paid/i }));
+    await user.click(screen.getByRole("button", { name: /save/i }));
+    expect(updateInput()).toStrictEqual({
+      costMinor: 55000, currency: "EUR", paidMinor: undefined, paidAt: null, settlement: "BEFORE",
+      ownerType: "TRANSPORT", ownerId: "owner-1", dueDate: null,
+    });
+  });
+
   it("a Home-currency Cost with no stored paid currency, moved to another currency, sends no paid currency", async () => {
     const user = userEvent.setup();
     const row: CostRow = { ...sampleCost, costMinor: 5000, currency: "AUD", paidMinor: 5000, paidCurrency: null, paidAt };
