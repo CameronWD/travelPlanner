@@ -29,6 +29,8 @@ const {
 vi.mock("@/lib/guards", () => ({ requireTripAccess }));
 const { loadNeedsConfirmation } = vi.hoisted(() => ({ loadNeedsConfirmation: vi.fn() }));
 vi.mock("./confirmations", () => ({ loadNeedsConfirmation }));
+const { loadDriveTimes } = vi.hoisted(() => ({ loadDriveTimes: vi.fn() }));
+vi.mock("@/lib/travel-times/read", () => ({ loadDriveTimes }));
 vi.mock("@/lib/db", () => ({
   db: {
     trip: { findUnique: tripFindUnique },
@@ -59,6 +61,7 @@ describe("loadTripPlanForMcp", () => {
   beforeEach(() => {
     loadNeedsConfirmation.mockResolvedValue(new Set());
     vi.clearAllMocks();
+    loadDriveTimes.mockResolvedValue(new Map());
     loadSurpriseVisibility.mockResolvedValue(NO_SURPRISES);
     requireTripAccess.mockResolvedValue({ user: { id: "u1" }, membership: {} });
     tripFindUnique.mockResolvedValue({
@@ -465,6 +468,22 @@ describe("loadTripPlanForMcp", () => {
         { role: "owner", user: { id: "u-you", name: "Cam", displayName: null, email: "c@x", image: null } },
         { role: "member", user: { id: "u-x", name: "Xanthia", displayName: null, email: "x@x", image: null } },
       ]);
+    });
+
+    it("get_trip_plan reports each drive's Travel time and nothing for other modes", async () => {
+      const base = { fromStopId: "stopLIS", toStopId: "stopMUC", depIsHome: false, arrIsHome: false, depPlace: null, arrPlace: null, depAt: null, arrAt: null, reference: null, notes: null };
+      transportFindMany.mockResolvedValue([
+        { ...base, id: "t-car", mode: "CAR" },
+        { ...base, id: "t-car-unlocated", mode: "CAR" },
+        { ...base, id: "t-train", mode: "TRAIN" },
+      ]);
+      loadDriveTimes.mockResolvedValue(new Map([["t-car", { minutes: 72, roadKm: 95, estimated: false }]]));
+      const plan = await loadTripPlanForMcp(TRIP_ID);
+      expect(loadDriveTimes).toHaveBeenCalledWith(TRIP_ID, []);
+      const byId = (id: string) => plan.transports.find((t) => t.id === id)!;
+      expect(byId("t-car").travelTime).toEqual({ minutes: 72, roadKm: 95, estimated: false });
+      expect(byId("t-car-unlocated").travelTime).toBeNull();
+      expect("travelTime" in byId("t-train")).toBe(false);
     });
 
     it("returns transport places, notes and local times per end", async () => {

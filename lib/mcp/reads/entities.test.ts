@@ -25,6 +25,8 @@ vi.mock("../real-plan", () => ({ requireRealPlanRow: m.requireRealPlanRow }));
 vi.mock("./attachments", () => ({ loadTripAttachments: m.loadTripAttachments }));
 vi.mock("./costs", () => ({ readMcpCosts: m.readMcpCosts }));
 vi.mock("./notes", () => ({ readMcpNotes: m.readMcpNotes }));
+const { loadDriveTimes } = vi.hoisted(() => ({ loadDriveTimes: vi.fn() }));
+vi.mock("@/lib/travel-times/read", () => ({ loadDriveTimes }));
 vi.mock("@/lib/day-titles-loader", () => ({ loadDayTitles: m.loadDayTitles }));
 vi.mock("@/lib/db", () => ({
   db: {
@@ -60,6 +62,7 @@ beforeEach(() => {
   m.readMcpCosts.mockResolvedValue({ homeCurrency: "AUD", today: "2026-10-16", costs: [cost] });
   m.readMcpNotes.mockResolvedValue([note]);
   m.stopFindFirst.mockResolvedValue(null);
+  loadDriveTimes.mockResolvedValue(new Map());
 });
 
 describe("loadItemForMcp", () => {
@@ -110,6 +113,23 @@ describe("loadTransportForMcp", () => {
       id: "t1", from: { home: true }, to: { stopId: "s1", name: "Porto" },
       departs: { localTime: "08:00" }, arrives: { localTime: "11:00" }, reference: "QF1", files: [], costs: [cost],
     });
+  });
+});
+
+describe("loadTransportForMcp and a drive's Travel time", () => {
+  it("get_transport reports a drive's Travel time", async () => {
+    m.tripFindUnique.mockResolvedValue({ homeTimezone: "Australia/Brisbane", homeName: null });
+    m.transportFindUnique.mockResolvedValue({
+      id: "t1", mode: "CAR", fromStopId: "s1", toStopId: "s2", depIsHome: false, arrIsHome: false,
+      depPlace: null, arrPlace: null, depAt: null, arrAt: null, reference: null, notes: null,
+    });
+    m.stopFindMany.mockResolvedValue([{ id: "s1", name: "Brisbane", timezone: "Australia/Brisbane" }, { id: "s2", name: "Tweed Heads", timezone: "Australia/Sydney" }]);
+    m.transportFindMany.mockResolvedValue([]);
+    m.loadTripAttachments.mockResolvedValue({ attachments: [], byOwner: new Map() });
+    loadDriveTimes.mockResolvedValue(new Map([["t1", { minutes: 72, roadKm: 95, estimated: false }]]));
+    const out = await loadTransportForMcp("t1");
+    expect(loadDriveTimes).toHaveBeenCalledWith("trip-1", []);
+    expect(out.travelTime).toEqual({ minutes: 72, roadKm: 95, estimated: false });
   });
 });
 

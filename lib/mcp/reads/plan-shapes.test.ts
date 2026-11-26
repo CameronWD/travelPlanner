@@ -231,6 +231,30 @@ describe("toMcpItem / toMcpTransport", () => {
   });
 });
 
+describe("a drive's Travel time in toMcpTransport", () => {
+  const row = (mode: string) => ({
+    id: "t1", mode: mode as never, fromStopId: null, toStopId: null, depIsHome: false, arrIsHome: false,
+    depPlace: null, arrPlace: null, depAt: null, arrAt: null, reference: null,
+    carrier: null, serviceNumber: null, seat: null, terminal: null, gate: null, coach: null, platform: null, notes: null, bookingState: "NONE" as const, bookBy: null, nothingToAttach: false,
+  });
+  const ctx = { stopNameById: new Map(), tzById: new Map(), homeTimezone: null, filesFor: noFiles, needsConfirmation: none };
+
+  it("a drive carries its travelTime", () => {
+    const driveTimes = new Map([["t1", { minutes: 72, roadKm: 95, estimated: false }]]);
+    expect(toMcpTransport(row("CAR"), { ...ctx, driveTimes }).travelTime).toEqual({ minutes: 72, roadKm: 95, estimated: false });
+  });
+
+  it("a drive with unlocated ends carries travelTime null", () => {
+    expect(toMcpTransport(row("CAR"), { ...ctx, driveTimes: new Map() }).travelTime).toBeNull();
+    expect(toMcpTransport(row("CAR"), ctx).travelTime).toBeNull();
+  });
+
+  it("a flight has no travelTime key", () => {
+    const driveTimes = new Map([["t1", { minutes: 72, roadKm: 95, estimated: false }]]);
+    expect("travelTime" in toMcpTransport(row("FLIGHT"), { ...ctx, driveTimes })).toBe(false);
+  });
+});
+
 describe("Slot time in the Claude reads (R3)", () => {
   it("a thing to do and a day item read the slot, the margin and refundability", () => {
     const row = datedItem({ id: "i1", date: "2027-06-02", startTime: "11:45", slotTime: "12:00", arriveByMinutes: 15, refundable: false });

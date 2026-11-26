@@ -17,6 +17,7 @@
  * Surprise Item shows as a "Surprise" placeholder on its date and time. Every
  * Surprise, hidden or not, carries `surprise` so Claude knows what it is.
  */
+import { loadDriveTimes } from "@/lib/travel-times/read";
 import { requireTripAccess } from "@/lib/guards";
 import { db } from "@/lib/db";
 import { REAL_PLAN, THINGS_TO_DO_WHERE } from "@/lib/plan-scope";
@@ -85,7 +86,7 @@ export async function loadTripPlanForMcp(tripId: string): Promise<McpTripPlan> {
 export async function loadTripPlanView(tripId: string, viewerId: string | null): Promise<McpTripPlan> {
   const v = await loadSurpriseVisibility(tripId, viewerId);
 
-  const [trip, stopsRaw, transportsRaw, chaptersRaw, thingsToDoItems, scheduledItems, members, { byOwner }, needsConfirmation] = await Promise.all([
+  const [trip, stopsRaw, transportsRaw, chaptersRaw, thingsToDoItems, scheduledItems, members, { byOwner }, needsConfirmation, driveTimes] = await Promise.all([
     db.trip.findUnique({ where: { id: tripId }, select: MCP_TRIP_SELECT }),
     db.stop.findMany({ where: { tripId, ...REAL_PLAN }, orderBy: { sortOrder: "asc" }, select: mcpStopSelect(v.where.accommodation) }),
     db.transport.findMany({ where: { tripId, ...REAL_PLAN }, orderBy: { sortOrder: "asc" }, select: MCP_TRANSPORT_SELECT }),
@@ -96,6 +97,7 @@ export async function loadTripPlanView(tripId: string, viewerId: string | null):
     db.tripMember.findMany({ where: { tripId }, orderBy: { createdAt: "asc" }, select: { role: true, user: { select: TRAVELLER_SELECT } } }),
     loadTripAttachments(tripId, v),
     loadNeedsConfirmation(tripId, viewerId),
+    loadDriveTimes(tripId, v.hiddenStopIds),
   ]);
 
   const filesFor: FilesFor = (kind, id) => byOwner.get(ownerKey(kind, id)) ?? [];
@@ -119,7 +121,7 @@ export async function loadTripPlanView(tripId: string, viewerId: string | null):
   return {
     trip: toMcpTrip(tripId, trip, byOwner.get(ownerKey("TRIP", tripId)) ?? []),
     stops: built.stops,
-    transports: transportsRaw.map((t) => toMcpTransport(t, { stopNameById, tzById, homeTimezone, filesFor: transportFiles, needsConfirmation })),
+    transports: transportsRaw.map((t) => toMcpTransport(t, { stopNameById, tzById, homeTimezone, filesFor: transportFiles, needsConfirmation, driveTimes })),
     chapters: chaptersRaw,
     unplacedDatedItems: datedItems
       .filter((i) => !built.coveredItemIds.has(i.id))
