@@ -12,17 +12,20 @@ import {
 import { toMoneyValue, type MoneyValue } from "@/lib/money/money";
 import { CURRENCY_CODES } from "@/lib/money/currencies";
 import { cn } from "@/lib/cn";
+import { useTripCurrencies } from "@/components/money/trip-currencies-context";
+import { currencyChoices, MORE_CURRENCIES } from "@/lib/money/trip-currencies";
 
-/** Every currency Teepee offers; trips can pass their own narrower list. */
-const DEFAULT_CURRENCIES = CURRENCY_CODES;
+const MORE_VALUE = "__more__";
 
 interface MoneyInputProps {
   /** Currency code (controlled). */
   currency: string;
   /** Raw amount text (controlled). */
   amount?: string;
-  /** Currencies offered in the picker. Defaults to DEFAULT_CURRENCIES. */
+  /** Exactly these currencies, no "More currencies". Absent: the trip's, or every currency outside a trip. */
   currencies?: readonly string[];
+  /** The picker's accessible name. */
+  currencyLabel?: string;
   /** Fired with the parsed money object (or null if unparseable). */
   onValueChange?: (value: MoneyValue | null) => void;
   /** Fired with the raw amount string on every keystroke. */
@@ -47,7 +50,8 @@ const MoneyInput = React.forwardRef<HTMLInputElement, MoneyInputProps>(
     {
       currency,
       amount = "",
-      currencies = DEFAULT_CURRENCIES,
+      currencies,
+      currencyLabel = "Currency",
       onValueChange,
       onAmountChange,
       onCurrencyChange,
@@ -78,6 +82,42 @@ const MoneyInput = React.forwardRef<HTMLInputElement, MoneyInputProps>(
       emit(amount, next);
     };
 
+    const trip = useTripCurrencies();
+    const [open, setOpen] = React.useState(false);
+    const [expanded, setExpanded] = React.useState(false);
+    const keepOpen = React.useRef(false);
+    const contentRef = React.useRef<HTMLDivElement>(null);
+
+    React.useEffect(() => {
+      if (!expanded) return;
+      const list = contentRef.current;
+      const target =
+        list?.querySelector<HTMLElement>('[role="option"][data-state="checked"]') ??
+        list?.querySelector<HTMLElement>('[role="option"]');
+      target?.focus({ preventScroll: true });
+    }, [expanded]);
+
+    const handleSelect = (next: string) => {
+      if (next === MORE_VALUE) {
+        keepOpen.current = true;
+        setExpanded(true);
+        return;
+      }
+      handleCurrency(next);
+    };
+
+    const handleOpenChange = (next: boolean) => {
+      if (!next && keepOpen.current) {
+        keepOpen.current = false;
+        return;
+      }
+      if (next) setExpanded(false);
+      setOpen(next);
+    };
+
+    const choices = currencies ?? (trip ? currencyChoices(trip.currencies, currency, expanded) : CURRENCY_CODES);
+    const offerMore = !currencies && !!trip && !expanded;
+
     return (
       <div className={cn("flex items-stretch gap-2", className)}>
         <Input
@@ -93,25 +133,40 @@ const MoneyInput = React.forwardRef<HTMLInputElement, MoneyInputProps>(
           aria-label={ariaLabel ?? "Amount"}
           className="min-w-0 flex-1"
         />
-        <Select
-          value={currency}
-          onValueChange={handleCurrency}
-          disabled={disabled}
-        >
-          <SelectTrigger
-            className="w-[5.5rem] shrink-0 gap-1 px-2.5 sm:w-24"
-            aria-label="Currency"
+        {currencies?.length === 1 ? (
+          <div
+            aria-label={currencyLabel}
+            className="flex h-12 w-20 shrink-0 items-center justify-center rounded-md border border-input bg-muted text-sm text-muted-foreground sm:w-24"
           >
-            <SelectValue placeholder="Currency" />
-          </SelectTrigger>
-          <SelectContent>
-            {currencies.map((c) => (
-              <SelectItem key={c} value={c}>
-                {c}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+            {currencies[0]}
+          </div>
+        ) : (
+          <Select
+            value={currency}
+            onValueChange={handleSelect}
+            open={open}
+            onOpenChange={handleOpenChange}
+            disabled={disabled}
+          >
+            <SelectTrigger
+              className="w-[5.5rem] shrink-0 gap-1 px-2.5 sm:w-24"
+              aria-label={currencyLabel}
+            >
+              <SelectValue placeholder="Currency" />
+            </SelectTrigger>
+            <SelectContent
+              ref={contentRef}
+              className="max-h-[min(18rem,var(--radix-select-content-available-height))]"
+            >
+              {choices.map((c) => (
+                <SelectItem key={c} value={c}>
+                  {c}
+                </SelectItem>
+              ))}
+              {offerMore && <SelectItem value={MORE_VALUE}>{MORE_CURRENCIES}</SelectItem>}
+            </SelectContent>
+          </Select>
+        )}
       </div>
     );
   },
